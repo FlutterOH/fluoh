@@ -19,6 +19,41 @@ dart run bin/fluoh.dart --help
 dart run bin/fluoh.dart --version
 ```
 
+如果需要像用户安装后一样直接调用 `fluoh` 命令调试，可以从仓库根目录把当前源码全局激活为本地 path 包：
+
+```sh
+dart pub global activate --source path . --overwrite
+fluoh --version
+```
+
+如果 shell 提示找不到 `fluoh`，确认 Dart pub 的全局可执行目录已经加入 `PATH`：
+
+```sh
+export PATH="$HOME/.pub-cache/bin:$PATH"
+```
+
+之后 shell 中的 `fluoh` 会指向当前仓库源码。修改代码后通常不需要重新激活；如果调整了 executable 或 package 元数据，再重新运行上面的 `dart pub global activate` 命令。
+
+如果需要调试 pub.dev 上已经发布的版本，可以激活 hosted 包：
+
+```sh
+dart pub global activate fluoh --overwrite
+fluoh --version
+```
+
+调试指定已发布版本时，在包名后添加版本号：
+
+```sh
+dart pub global activate fluoh 0.0.1 --overwrite
+fluoh --version
+```
+
+调试完成后，可以用 `dart pub global activate --source path . --overwrite` 切回本地源码版本，或卸载全局激活的 `fluoh`：
+
+```sh
+dart pub global deactivate fluoh
+```
+
 如果需要隔离本地配置和缓存，可以设置 `FLUOH_HOME`：
 
 ```sh

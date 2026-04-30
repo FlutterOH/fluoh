@@ -82,6 +82,23 @@ void main() {
     expect(englishReadme, isNot(contains('git tag v0.0.1')));
 
     expect(contributing, contains('dart pub publish --dry-run'));
+    expect(
+      contributing,
+      contains('dart pub global activate --source path . --overwrite'),
+    );
+    expect(
+      contributing,
+      contains('dart pub global activate fluoh --overwrite'),
+    );
+    expect(
+      contributing,
+      contains('dart pub global activate fluoh 0.0.1 --overwrite'),
+    );
+    expect(contributing, contains('dart pub global deactivate fluoh'));
+    expect(
+      contributing,
+      contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
+    );
     expect(contributing, contains('提交前必须运行并通过'));
     expect(
       contributing,
@@ -92,6 +109,23 @@ void main() {
     expect(contributing, contains('Conventional Commits'));
 
     expect(englishContributing, contains('dart pub publish --dry-run'));
+    expect(
+      englishContributing,
+      contains('dart pub global activate --source path . --overwrite'),
+    );
+    expect(
+      englishContributing,
+      contains('dart pub global activate fluoh --overwrite'),
+    );
+    expect(
+      englishContributing,
+      contains('dart pub global activate fluoh 0.0.1 --overwrite'),
+    );
+    expect(englishContributing, contains('dart pub global deactivate fluoh'));
+    expect(
+      englishContributing,
+      contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
+    );
     expect(
       englishContributing,
       contains('Run and pass these checks before committing'),

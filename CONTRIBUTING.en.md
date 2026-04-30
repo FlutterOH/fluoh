@@ -19,6 +19,41 @@ dart run bin/fluoh.dart --help
 dart run bin/fluoh.dart --version
 ```
 
+To debug with the same `fluoh` command users run after installation, globally activate the current source checkout as a local path package from the repository root:
+
+```sh
+dart pub global activate --source path . --overwrite
+fluoh --version
+```
+
+If your shell cannot find `fluoh`, make sure Dart pub's global executable directory is on `PATH`:
+
+```sh
+export PATH="$HOME/.pub-cache/bin:$PATH"
+```
+
+After this, `fluoh` in your shell points at this repository's source. Code changes usually do not require reactivation; rerun the `dart pub global activate` command when changing executables or package metadata.
+
+To debug a version already published on pub.dev, activate the hosted package:
+
+```sh
+dart pub global activate fluoh --overwrite
+fluoh --version
+```
+
+To debug a specific published version, add the version after the package name:
+
+```sh
+dart pub global activate fluoh 0.0.1 --overwrite
+fluoh --version
+```
+
+After debugging, use `dart pub global activate --source path . --overwrite` to switch back to the local source version, or deactivate the globally activated `fluoh`:
+
+```sh
+dart pub global deactivate fluoh
+```
+
 Set `FLUOH_HOME` if you need isolated local configuration and caches:
 
 ```sh

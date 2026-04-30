@@ -1,3 +1,5 @@
+import 'dart:io' as io;
+
 import 'package:args/command_runner.dart';
 
 import '../adapter/adapter_commands.dart';
@@ -57,7 +59,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     try {
       final results = parse(args);
       if (results.flag('version')) {
-        _stdout('fluoh $packageVersion');
+        _printVersionInformation();
         return 0;
       }
 
@@ -68,6 +70,17 @@ class FluohCommandRunner extends CommandRunner<int> {
       _stderr(error.usage);
       return 64;
     }
+  }
+
+  void _printVersionInformation() {
+    final dartVersion = io.Platform.version.split(' ').first;
+    _stdout('fluoh $packageVersion - FlutterOH SDK and package adapter CLI');
+    _stdout('Dart $dartVersion');
+    _stdout(
+      'Platform ${io.Platform.operatingSystem} '
+      '${io.Platform.operatingSystemVersion}',
+    );
+    _stdout('Repository https://github.com/FlutterOH/fluoh');
   }
 }
 
