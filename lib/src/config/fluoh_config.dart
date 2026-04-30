@@ -34,14 +34,10 @@ class FluohConfigStore {
 }
 
 class FluohConfig {
-  const FluohConfig({
-    this.activeSource,
-    this.sources = const <String, SourceConfig>{},
-  });
+  const FluohConfig({this.sources = const <String, SourceConfig>{}});
 
   factory FluohConfig.withDefaultSource(FluohEnvironment environment) {
     return FluohConfig(
-      activeSource: defaultSourceName,
       sources: {
         defaultSourceName: SourceConfig(
           path: '${environment.homeDirectory.path}/sources/flutteroh-pub',
@@ -61,7 +57,6 @@ class FluohConfig {
     final sourceMap = sources as Map<String, Object?>? ?? const {};
 
     return FluohConfig(
-      activeSource: json['activeSource'] as String?,
       sources: sourceMap.map(
         (name, value) => MapEntry(
           name,
@@ -71,7 +66,6 @@ class FluohConfig {
     );
   }
 
-  final String? activeSource;
   final Map<String, SourceConfig> sources;
 
   FluohConfig addSource(String name, String path, {int priority = 100}) {
@@ -79,10 +73,7 @@ class FluohConfig {
       ...sources,
       name: SourceConfig(path: path, priority: priority),
     };
-    return FluohConfig(
-      activeSource: _nextActiveSource(name, nextSources),
-      sources: nextSources,
-    );
+    return FluohConfig(sources: nextSources);
   }
 
   FluohConfig addGitSource(
@@ -95,49 +86,22 @@ class FluohConfig {
       ...sources,
       name: SourceConfig(path: path, url: url, priority: priority),
     };
-    return FluohConfig(
-      activeSource: _nextActiveSource(name, nextSources),
-      sources: nextSources,
-    );
+    return FluohConfig(sources: nextSources);
   }
 
-  String _nextActiveSource(String addedName, Map<String, SourceConfig> next) {
-    final active = activeSource;
-    if (active == null) {
-      return addedName;
+  FluohConfig removeSource(String name) {
+    if (name == defaultSourceName) {
+      throw ArgumentError('Cannot remove the official source.');
     }
-    if (active == defaultSourceName &&
-        next.length == 2 &&
-        next.containsKey(defaultSourceName)) {
-      return addedName;
-    }
-    return active;
-  }
-
-  FluohConfig useSource(String name) {
     if (!sources.containsKey(name)) {
       throw ArgumentError('Unknown source "$name".');
     }
-    return FluohConfig(activeSource: name, sources: sources);
-  }
-
-  SourceConfig activeSourceConfig() {
-    final active = activeSource;
-    if (active == null) {
-      throw StateError('No active source. Run "fluoh source use <name>".');
-    }
-
-    final source = sources[active];
-    if (source == null) {
-      throw StateError('Active source "$active" is not configured.');
-    }
-
-    return source;
+    final nextSources = {...sources}..remove(name);
+    return FluohConfig(sources: nextSources);
   }
 
   Map<String, Object?> toJson() {
     return {
-      if (activeSource != null) 'activeSource': activeSource,
       'sources': sources.map((name, source) => MapEntry(name, source.toJson())),
     };
   }

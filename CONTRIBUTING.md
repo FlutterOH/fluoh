@@ -1,68 +1,68 @@
 # Contributing to fluoh
 
-English: [CONTRIBUTING.en.md](CONTRIBUTING.en.md)
+简体中文: [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)
 
-本文档面向 `fluoh` 的贡献者和维护者。普通用户优先阅读 [README.md](README.md) 或 [README.en.md](README.en.md)。
+This document is for `fluoh` contributors and maintainers. General users should start with [README.md](README.md) or [README.zh-CN.md](README.zh-CN.md).
 
-## 本地开发
+## Local Development
 
-准备 Dart SDK 后安装依赖：
+Install dependencies after preparing a Dart SDK:
 
 ```sh
 dart pub get
 ```
 
-本地运行 CLI：
+Run the CLI locally:
 
 ```sh
 dart run bin/fluoh.dart --help
 dart run bin/fluoh.dart --version
 ```
 
-如果需要像用户安装后一样直接调用 `fluoh` 命令调试，可以从仓库根目录把当前源码全局激活为本地 path 包：
+To debug with the same `fluoh` command users run after installation, globally activate the current source checkout as a local path package from the repository root:
 
 ```sh
 dart pub global activate --source path . --overwrite
 fluoh --version
 ```
 
-如果 shell 提示找不到 `fluoh`，确认 Dart pub 的全局可执行目录已经加入 `PATH`：
+If your shell cannot find `fluoh`, make sure Dart pub's global executable directory is on `PATH`:
 
 ```sh
 export PATH="$HOME/.pub-cache/bin:$PATH"
 ```
 
-之后 shell 中的 `fluoh` 会指向当前仓库源码。修改代码后通常不需要重新激活；如果调整了 executable 或 package 元数据，再重新运行上面的 `dart pub global activate` 命令。
+After this, `fluoh` in your shell points at this repository's source. Code changes usually do not require reactivation; rerun the `dart pub global activate` command when changing executables or package metadata.
 
-如果需要调试 pub.dev 上已经发布的版本，可以激活 hosted 包：
+To debug a version already published on pub.dev, activate the hosted package:
 
 ```sh
 dart pub global activate fluoh --overwrite
 fluoh --version
 ```
 
-调试指定已发布版本时，在包名后添加版本号：
+To debug a specific published version, add the version after the package name:
 
 ```sh
 dart pub global activate fluoh 0.0.1 --overwrite
 fluoh --version
 ```
 
-调试完成后，可以用 `dart pub global activate --source path . --overwrite` 切回本地源码版本，或卸载全局激活的 `fluoh`：
+After debugging, use `dart pub global activate --source path . --overwrite` to switch back to the local source version, or deactivate the globally activated `fluoh`:
 
 ```sh
 dart pub global deactivate fluoh
 ```
 
-如果需要隔离本地配置和缓存，可以设置 `FLUOH_HOME`：
+Set `FLUOH_HOME` if you need isolated local configuration and caches:
 
 ```sh
 FLUOH_HOME=/path/to/cache dart run bin/fluoh.dart source list
 ```
 
-## 验证
+## Verification
 
-提交前必须运行并通过：
+Run and pass these checks before committing:
 
 ```sh
 dart format .
@@ -70,56 +70,56 @@ dart analyze
 dart test
 ```
 
-`dart format .` 运行后不应留下未确认的格式化 diff；如果产生变更，需要一起检查并提交。`dart analyze` 和 `dart test` 必须通过后再提交。
+`dart format .` should not leave unreviewed formatting diffs. If it changes files, review and include those changes in the commit. `dart analyze` and `dart test` must pass before committing.
 
-GitHub Actions 会在 push 到 `main`、版本 tag 和 pull request 时执行同等检查；pub.dev 发布 workflow 也必须先通过这些检查再发布：
+GitHub Actions runs the same checks on pushes to `main`, version tags, and pull requests. The pub.dev publishing workflow must pass these checks before publishing:
 
 - `dart format --output=none --set-exit-if-changed .`
 - `dart analyze`
 - `dart test`
 
-发布前额外运行：
+Run this additional check before publishing:
 
 ```sh
 dart pub publish --dry-run
 ```
 
-如果本地 shell 的 `dart` 不稳定，可以显式使用 Flutter 缓存中的 Dart SDK，但不要把机器上的绝对路径写入仓库文件。
+If the `dart` command in your shell is unstable, you may explicitly use the Dart SDK bundled with Flutter, but do not commit machine-specific absolute paths.
 
-## 提交前检查
+## Pre-commit Checks
 
-建议提交前检查：
+Recommended checks before committing:
 
 ```sh
 git status --short
 git diff --check
 ```
 
-同时检查待提交内容中是否误写了本机绝对路径。不要提交本机 IDE、系统或构建输出文件，例如 `.idea/`、`.vscode/`、`.DS_Store`、`.dart_tool/`、`build/`、`coverage/`。
+Also check that staged changes do not contain local absolute paths. Do not commit local IDE, system, or build output files such as `.idea/`, `.vscode/`, `.DS_Store`, `.dart_tool/`, `build/`, or `coverage/`.
 
-`pubspec.lock` 对 CLI 应用可以提交。发布前需要确认 `pubspec.yaml`、`lib/src/version.dart`、`CHANGELOG.md` 和 `Formula/fluoh.rb` 中的版本信息一致。
+`pubspec.lock` may be committed for this CLI application. Before publishing, make sure the version metadata in `pubspec.yaml`, `lib/src/version.dart`, `CHANGELOG.md`, and `Formula/fluoh.rb` is consistent.
 
-## Commit 格式
+## Commit Format
 
-提交信息使用 Conventional Commits：
+Commit messages use Conventional Commits:
 
 ```text
 <type>(<scope>): <subject>
 ```
 
-`scope` 可选，建议使用受影响的命令、模块或文档范围，例如 `sdk`、`deps`、`adapter`、`source`、`docs`、`ci`。
+`scope` is optional. Prefer the affected command, module, or documentation area, such as `sdk`, `deps`, `adapter`, `source`, `docs`, or `ci`.
 
-常用 `type`：
+Common `type` values:
 
-- `feat`: 新功能或新命令。
-- `fix`: bug 修复。
-- `docs`: 文档变更。
-- `test`: 测试新增或调整。
-- `refactor`: 不改变行为的代码重构。
-- `chore`: 构建、依赖、版本、仓库维护等杂项。
-- `ci`: GitHub Actions 或发布流水线变更。
+- `feat`: New feature or command.
+- `fix`: Bug fix.
+- `docs`: Documentation change.
+- `test`: Test addition or adjustment.
+- `refactor`: Code refactor without behavior changes.
+- `chore`: Build, dependency, version, or repository maintenance.
+- `ci`: GitHub Actions or release pipeline change.
 
-示例：
+Examples:
 
 ```text
 feat(adapter): configure adapter repository remotes
@@ -128,32 +128,32 @@ docs: add Homebrew installation guide
 ci: publish package on version tags
 ```
 
-提交标题使用英文祈使句或简短描述，首行不超过 72 个字符。需要说明背景、风险或验证方式时，在空行后补充正文。
+Use an imperative or concise English subject. Keep the first line within 72 characters. Add a body after a blank line when background, risk, or verification details are useful.
 
-## GitHub Actions 与 pub.dev 发布
+## GitHub Actions and pub.dev Publishing
 
-本仓库通过 GitHub Actions 在收到版本 tag 后发布到 pub.dev：
+This repository publishes to pub.dev through GitHub Actions when a version tag is pushed:
 
 ```sh
 git tag v0.0.1
 git push origin v0.0.1
 ```
 
-tag 必须和 `pubspec.yaml` 中的 `version` 对应。pub.dev package admin 需要启用 GitHub Actions automated publishing：
+The tag must match the `version` in `pubspec.yaml`. A pub.dev package admin must enable GitHub Actions automated publishing:
 
 - Repository: `FlutterOH/fluoh`
 - Tag pattern: `v{{version}}`
 - Environment: `pub.dev`
 
-pub.dev 自动发布只适用于已经存在的 package。第一次发布仍需要维护者手动执行：
+Automated pub.dev publishing only works for an existing package. The first release still requires a maintainer to publish manually:
 
 ```sh
 dart pub publish
 ```
 
-## Homebrew formula
+## Homebrew Formula
 
-Homebrew formula 位于 [Formula/fluoh.rb](Formula/fluoh.rb)。本地验证：
+The Homebrew formula lives at [Formula/fluoh.rb](Formula/fluoh.rb). Local verification:
 
 ```sh
 brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh
@@ -161,17 +161,17 @@ brew install FlutterOH/fluoh/fluoh
 fluoh --version
 ```
 
-正式提供 `brew tap FlutterOH/tap` 时，需要在 FlutterOH 的 tap 仓库中同步 formula。当前 formula 使用 pub.dev archive 作为下载源；版本更新时需要同步 archive URL 和版本号。
+When an official `brew tap FlutterOH/tap` is available, sync the formula into the FlutterOH tap repository. The current formula uses the pub.dev archive as its download source; update the archive URL and version whenever releasing a new version.
 
-## 适配仓库工作流维护
+## Adapter Repository Workflow Maintenance
 
-`fluoh create` 会把克隆来源保留为 `upstream`，并把 `origin` 设置为适配仓库最终推送位置。默认值是：
+`fluoh create` keeps the clone source as `upstream` and sets `origin` to the final adapter repository push target. The default is:
 
 ```sh
 git@github.com:FlutterOH/fluoh.git
 ```
 
-如果某个适配库需要推送到独立仓库，创建时使用 `--repository` 指定：
+If an adapter needs to be pushed to a dedicated repository, pass `--repository` when creating it:
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
@@ -179,12 +179,12 @@ fluoh create https://github.com/upstream/package.git \
   --repository git@github.com:FlutterOH/package.git
 ```
 
-该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
+The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh release` 必须继续保证：
+`fluoh release` must continue to guarantee:
 
-- 只允许在 `ohos-*` 分支运行。
-- 当前分支和 `fluoh.yaml` 的 SDK line 一致。
-- 工作区干净。
-- SDK tag 来自当前数据源。
-- release tag 和 manifest 中的 package、上游版本、SDK tag、适配版本一致。
+- It only runs on `ohos-*` branches.
+- The current branch matches the SDK line in `fluoh.yaml`.
+- The worktree is clean.
+- The SDK tag comes from configured sources.
+- The release tag matches the package, upstream version, SDK tag, and adapter version recorded in the manifest.

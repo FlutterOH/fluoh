@@ -26,12 +26,6 @@ void main() {
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await runFluoh(
-        ['source', 'use', 'fixture'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
 
       expect(
         await runFluoh(
@@ -126,12 +120,6 @@ void main() {
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
 
     expect(
       await runFluoh(
@@ -172,12 +160,6 @@ void main() {
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -226,12 +208,6 @@ void main() {
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
 
     expect(
       await runFluoh(
@@ -276,12 +252,6 @@ void main() {
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -409,7 +379,7 @@ void main() {
       ),
       64,
     );
-    expect(stderr.join('\n'), contains('was not found in the active source'));
+    expect(stderr.join('\n'), contains('was not found in configured sources'));
 
     manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
     await File('${adapter.path}/fluoh.yaml').writeAsString(
@@ -446,12 +416,6 @@ Future<Directory> _createAdapterFixture(FluohEnvironment environment) async {
 
   await runFluoh(
     ['source', 'add', 'fixture', source.path],
-    environment: environment,
-    stdout: stdout.add,
-    stderr: stderr.add,
-  );
-  await runFluoh(
-    ['source', 'use', 'fixture'],
     environment: environment,
     stdout: stdout.add,
     stderr: stderr.add,

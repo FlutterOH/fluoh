@@ -1,45 +1,45 @@
 # fluoh
 
-FlutterOH 生态命令行工具，用于管理 Flutter OHOS SDK、检查项目依赖适配状态，并辅助第三方库维护者创建 OHOS 适配仓库。
+Command-line tools for the FlutterOH ecosystem. `fluoh` manages Flutter OHOS SDK versions, checks OHOS dependency adapter status, and helps third-party package maintainers create adapter repositories.
 
-[English](README.en.md) | [贡献指南](CONTRIBUTING.md)
+[简体中文](README.zh-CN.md) | [Contributing](CONTRIBUTING.md)
 
-## 为什么需要 fluoh
+## Why fluoh
 
-FlutterOH 项目通常会同时遇到三类问题：SDK 版本需要和项目绑定，pub 依赖需要确认是否已有 OHOS 适配，第三方库适配仓库需要统一命名、分支和发布规则。`fluoh` 把这些流程收敛成一组可重复执行的 CLI 命令。
+FlutterOH projects usually need consistent SDK selection, dependency compatibility checks, and repeatable adapter repository conventions. `fluoh` turns those workflows into a small set of CLI commands.
 
-主要能力：
+Core capabilities:
 
-- 安装和切换 Flutter OHOS SDK，并写入 FVM 兼容配置。
-- 根据 FlutterOH 数据源检查依赖兼容性，生成 OHOS 适配依赖替换。
-- 初始化第三方 package 的 FlutterOH 适配仓库，生成适配分支和 release tag。
-- 支持适配仓库 remote 配置、pub.dev 自动发布和 Homebrew 安装链路。
+- Install and switch Flutter OHOS SDKs with FVM-compatible project files.
+- Check dependencies against FlutterOH data sources and generate OHOS adapter replacements.
+- Initialize third-party package adapter repositories with adapter branches and release tags.
+- Support adapter repository remote configuration, pub.dev automated publishing, and Homebrew installation.
 
-## 安装
+## Installation
 
-推荐使用 Dart 全局激活：
+Install with Dart:
 
 ```sh
 dart pub global activate fluoh
 fluoh --version
 ```
 
-确保 Dart pub 的全局可执行目录在 `PATH` 中。macOS 和 Linux 通常是：
+Make sure Dart's global pub bin directory is on `PATH`. On macOS and Linux this is usually:
 
 ```sh
 export PATH="$HOME/.pub-cache/bin:$PATH"
 ```
 
-macOS 用户也可以通过 Homebrew 安装：
+Install with Homebrew on macOS:
 
 ```sh
 brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-## 快速开始
+## Quick Start
 
-在 Flutter 项目根目录执行：
+Run these commands from a Flutter project root:
 
 ```sh
 fluoh source update
@@ -50,13 +50,13 @@ fluoh deps check
 fluoh deps fix --yes
 ```
 
-`fluoh use` 会安装对应 Flutter OHOS SDK，并写入 `.fvmrc`、`.fvm/flutter_sdk` 和 `fluoh.yaml`。之后可以继续使用 FVM，或直接使用 `.fvm/flutter_sdk/bin/flutter` 执行项目命令。
+`fluoh use` installs the selected Flutter OHOS SDK and writes `.fvmrc`, `.fvm/flutter_sdk`, and `fluoh.yaml`. After that you can keep using FVM or run project commands through `.fvm/flutter_sdk/bin/flutter`.
 
-## 常见工作流
+## Common Workflows
 
-### 切换 Flutter OHOS SDK
+### Switch Flutter OHOS SDK
 
-查看数据源中的 SDK，并在当前项目中使用某个 SDK line 或精确 tag：
+List SDK releases and select an SDK line or exact tag for the current project:
 
 ```sh
 fluoh source update
@@ -64,7 +64,7 @@ fluoh sdk list
 fluoh use 3.22 --pub-get
 ```
 
-### 检查并修复 OHOS 依赖适配
+### Check and fix OHOS dependency adapters
 
 ```sh
 fluoh deps check
@@ -72,16 +72,16 @@ fluoh deps fix --yes
 fluoh update --yes
 ```
 
-`fluoh deps fix` 默认写入 `dependency_overrides`。如果需要直接改写 `dependencies` 中的声明，可以使用 `--rewrite`。
+`fluoh deps fix` writes `dependency_overrides` by default. Use `--rewrite` when you want to rewrite direct `dependencies` declarations instead.
 
-### 创建第三方库适配仓库
+### Create third-party adapter repositories
 
 ```sh
 fluoh create https://github.com/upstream/package.git --sdk-line 3.22
 fluoh release --push
 ```
 
-monorepo package 可以指定包路径：
+Select a package inside a monorepo:
 
 ```sh
 fluoh create https://github.com/upstream/monorepo.git \
@@ -90,7 +90,7 @@ fluoh create https://github.com/upstream/monorepo.git \
   --sdk-line 3.22
 ```
 
-默认生成的适配仓库会把 `origin` 设置为 `git@github.com:FlutterOH/fluoh.git`，并把上游仓库保留为 `upstream`。如果需要指定最终推送位置：
+Generated adapter repositories set `origin` to `git@github.com:FlutterOH/fluoh.git` by default and keep the upstream repository as `upstream`. To choose the final push target:
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
@@ -98,42 +98,47 @@ fluoh create https://github.com/upstream/package.git \
   --repository git@github.com:FlutterOH/package.git
 ```
 
-## 命令概览
+## Command Overview
 
-| 命令 | 用途 |
+| Command | Purpose |
 | --- | --- |
-| `fluoh source ...` | 管理 FlutterOH 数据源。 |
-| `fluoh sdk ...` | 查看、安装、删除本地 Flutter OHOS SDK。 |
-| `fluoh use <version-or-line>` | 在当前 Flutter 项目中切换 SDK。 |
-| `fluoh deps check` | 检查项目依赖的 OHOS 兼容状态。 |
-| `fluoh deps fix` | 写入适配依赖替换。 |
-| `fluoh update` | 升级项目内已有 OHOS 适配依赖版本。 |
-| `fluoh doctor` | 诊断项目 SDK、FVM、OHOS 目录和依赖状态。 |
-| `fluoh create` | 初始化 FlutterOH 第三方库适配仓库。 |
-| `fluoh release` | 创建并可选推送适配 release tag。 |
-| `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |
+| `fluoh source ...` | Manage FlutterOH data sources. |
+| `fluoh sdk ...` | List, install, and remove local Flutter OHOS SDKs. |
+| `fluoh use <version-or-line>` | Switch the SDK for the current Flutter project. |
+| `fluoh deps check` | Check OHOS compatibility for project dependencies. |
+| `fluoh deps fix` | Write adapted dependency replacements. |
+| `fluoh update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
+| `fluoh doctor` | Diagnose SDK, FVM, OHOS directory, and dependency status. |
+| `fluoh create` | Initialize a FlutterOH third-party adapter repository. |
+| `fluoh release` | Create and optionally push an adapter release tag. |
+| `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
 
-`fluoh update` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。
+`fluoh update` and `fluoh upgrade` are intentionally different: `update` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.
 
-## 数据源
+## Data Sources
 
-`fluoh` 默认使用 FlutterOH 官方数据源：
+`fluoh` uses the official FlutterOH data source by default:
 
 ```text
 https://github.com/FlutterOH/pub.git
 ```
 
-也可以接入团队内部数据源：
+You can also use an internal team data source:
 
 ```sh
 fluoh source add internal https://github.com/example/flutteroh-pub.git --priority 200
-fluoh source use internal
 fluoh source update
 ```
 
-## 贡献
+Sources are layered by priority. An internal source can provide only `packages/registry.yaml` and `packages/manifests/*.yaml` to add team adapters while SDK releases continue to come from the official source. Any source except the official `flutteroh` source can be removed:
 
-本地开发、测试、发布到 pub.dev、Homebrew formula 维护和提交前检查见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+```sh
+fluoh source remove internal
+```
+
+## Contributing
+
+Local development, testing, pub.dev publishing, Homebrew formula maintenance, and pre-commit checks are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

@@ -8,6 +8,7 @@ import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/deps_analyzer.dart';
+import '../source/pub_source.dart';
 
 class DoctorCommand extends Command<int> {
   DoctorCommand({required this.environment, required OutputWriter stdout})
@@ -59,21 +60,29 @@ class DoctorCommand extends Command<int> {
 
   Future<void> _checkSource() async {
     final config = await FluohConfigStore(environment).load();
-    final active = config.activeSource;
-    if (active == null) {
-      _stdout('[WARN] No active source configured.');
+    if (config.sources.isEmpty) {
+      _stdout('[WARN] No sources configured.');
       return;
     }
-    final source = config.sources[active];
-    if (source == null) {
-      _stdout('[WARN] Active source $active is not configured.');
-      return;
+
+    final available = <String>[];
+    final missing = <String>[];
+    for (final entry in config.sources.entries) {
+      final source = PubSource.directory(entry.value.directory);
+      if (source.hasSdkIndex || source.hasPackageIndex) {
+        available.add(entry.key);
+      } else {
+        missing.add(entry.key);
+      }
     }
-    final generated = Directory('${source.directory.path}/generated');
-    if (await generated.exists()) {
-      _stdout('[OK] Active source $active is available.');
+
+    if (available.isNotEmpty) {
+      _stdout('[OK] Sources available: ${available.join(', ')}.');
     } else {
-      _stdout('[WARN] Active source $active has not been updated.');
+      _stdout('[WARN] No sources have been updated.');
+    }
+    if (missing.isNotEmpty) {
+      _stdout('[WARN] Sources not updated: ${missing.join(', ')}.');
     }
   }
 

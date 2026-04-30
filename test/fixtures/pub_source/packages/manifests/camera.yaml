@@ -1,0 +1,24 @@
+schema: 1
+package:
+  name: camera
+  repositoryUrl: ../mock_repositories/camera.git
+  upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
+  packagePath: packages/camera/camera
+releases:
+  - version: 0.11.0
+    upstreamRef: camera-v0.11.0
+    sdk:
+      versionSeries: "3.35"
+      versionRange: ">=3.35.8 <3.36.0"
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    sourceBranch: ohos-3.35
+    release:
+      version: "1"
+      tag: camera-v0.11.0-ohos-3.35.8-1
+    replacement:
+      type: git
+      url: ../mock_repositories/camera.git
+      ref: camera-v0.11.0-ohos-3.35.8-1
+      path: packages/camera/camera

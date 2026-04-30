@@ -20,12 +20,6 @@ void main() {
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
 
     final exitCode = await runFluoh(
       ['use', '3.35'],
@@ -56,6 +50,7 @@ void main() {
     ).readAsStringSync();
     expect(fluohConfig, contains('line: "3.35"'));
     expect(fluohConfig, contains('version: 3.35.8-ohos-0.0.3'));
+    expect(fluohConfig, contains('sources:\n  - flutteroh\n  - fixture'));
     expect(fluohConfig, isNot(contains(environment.homeDirectory.path)));
     expect(fluohConfig, isNot(contains(RegExp(r'^\s+path:', multiLine: true))));
   });
@@ -76,12 +71,6 @@ void main() {
 
       await runFluoh(
         ['source', 'add', 'fixture', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        ['source', 'use', 'fixture'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -112,12 +101,6 @@ void main() {
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

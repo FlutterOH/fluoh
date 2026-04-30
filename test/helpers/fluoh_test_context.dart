@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -22,8 +21,8 @@ Future<FluohEnvironment> createTestEnvironment() async {
 
 Future<Directory> createPubSourceFixture(Directory parent) async {
   final source = Directory('${parent.path}/pub_source');
-  final generated = Directory('${source.path}/generated');
-  await generated.create(recursive: true);
+  await Directory('${source.path}/sdk').create(recursive: true);
+  await Directory('${source.path}/packages/manifests').create(recursive: true);
 
   final sdkRepository = await createTaggedGitRepository(
     Directory('${parent.path}/flutter-ohos-sdk'),
@@ -31,73 +30,102 @@ Future<Directory> createPubSourceFixture(Directory parent) async {
     readme: '# Mock Flutter OHOS SDK\n',
   );
 
-  await File('${generated.path}/sdk-index.json').writeAsString(
-    jsonEncode({
-      'schemaVersion': 1,
-      'releases': [
-        {
-          'version': '3.35.8-ohos-0.0.3',
-          'flutterVersion': '3.35.8',
-          'channel': 'stable',
-          'repository': sdkRepository.path,
-          'tag': '3.35.8-ohos-0.0.3',
-          'publishedAt': '2026-04-29T00:00:00Z',
-        },
-      ],
-    }),
-  );
+  await File('${source.path}/sdk/index.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${sdkRepository.path}
+versions:
+  - version: 3.35.8-ohos-0.0.3
+    tag: 3.35.8-ohos-0.0.3
+    versionSeries: "3.35"
+    status: stable
+''');
 
-  await File('${generated.path}/package-index.json').writeAsString(
-    jsonEncode({
-      'schemaVersion': 1,
-      'packages': {
-        'camera': {
-          'upstream':
-              'https://github.com/flutter/packages/tree/main/packages/camera/camera',
-          'adapters': [
-            {
-              'sdkLine': '3.35',
-              'upstreamVersion': '0.11.0',
-              'repository': '${parent.path}/camera',
-              'tag': 'camera-v0.11.0-ohos-3.35.8-0',
-              'path': 'packages/camera/camera',
-            },
-            {
-              'sdkLine': '3.35',
-              'upstreamVersion': '0.11.0',
-              'repository': '${parent.path}/camera',
-              'tag': 'camera-v0.11.0-ohos-3.35.8-1',
-              'path': 'packages/camera/camera',
-            },
-          ],
-        },
-        'share_plus': {
-          'upstream':
-              'https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus',
-          'adapters': [
-            {
-              'sdkLine': '3.35',
-              'upstreamVersion': '9.0.0',
-              'repository': '${parent.path}/share_plus',
-              'tag': 'share_plus-v9.0.0-ohos-3.35.8-1',
-            },
-          ],
-        },
-      },
-    }),
-  );
+  await File('${source.path}/packages/registry.yaml').writeAsString('''
+schema: 1
+packages:
+  - name: camera
+    repositoryUrl: ${parent.path}/camera
+    upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
+    packagePath: packages/camera/camera
+    status: compatible
+  - name: share_plus
+    repositoryUrl: ${parent.path}/share_plus
+    upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
+    packagePath: packages/share_plus/share_plus
+    status: compatible
+''');
 
-  await File('${generated.path}/compatibility-matrix.json').writeAsString(
-    jsonEncode({
-      'schemaVersion': 1,
-      'sdkLines': {
-        '3.35': {
-          'native': ['path_provider'],
-          'adapted': ['camera'],
-          'blocked': ['legacy_camera'],
-        },
-      },
-    }),
+  await File('${source.path}/packages/manifests/camera.yaml').writeAsString('''
+schema: 1
+package:
+  name: camera
+  repositoryUrl: ${parent.path}/camera
+  upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
+  packagePath: packages/camera/camera
+releases:
+  - version: 0.11.0
+    upstreamRef: camera-v0.11.0
+    sdk:
+      versionSeries: "3.35"
+      versionRange: ">=3.35.8 <3.36.0"
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    sourceBranch: ohos-3.35
+    release:
+      version: "0"
+      tag: camera-v0.11.0-ohos-3.35.8-0
+    replacement:
+      type: git
+      url: ${parent.path}/camera
+      ref: camera-v0.11.0-ohos-3.35.8-0
+      path: packages/camera/camera
+  - version: 0.11.0
+    upstreamRef: camera-v0.11.0
+    sdk:
+      versionSeries: "3.35"
+      versionRange: ">=3.35.8 <3.36.0"
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    sourceBranch: ohos-3.35
+    release:
+      version: "1"
+      tag: camera-v0.11.0-ohos-3.35.8-1
+    replacement:
+      type: git
+      url: ${parent.path}/camera
+      ref: camera-v0.11.0-ohos-3.35.8-1
+      path: packages/camera/camera
+''');
+
+  await File('${source.path}/packages/manifests/share_plus.yaml').writeAsString(
+    '''
+schema: 1
+package:
+  name: share_plus
+  repositoryUrl: ${parent.path}/share_plus
+  upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
+  packagePath: packages/share_plus/share_plus
+releases:
+  - version: 9.0.0
+    upstreamRef: share_plus-v9.0.0
+    sdk:
+      versionSeries: "3.35"
+      versionRange: ">=3.35.8 <3.36.0"
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    sourceBranch: ohos-3.35
+    release:
+      version: "1"
+      tag: share_plus-v9.0.0-ohos-3.35.8-1
+    replacement:
+      type: git
+      url: ${parent.path}/share_plus
+      ref: share_plus-v9.0.0-ohos-3.35.8-1
+      path: packages/share_plus/share_plus
+''',
   );
 
   return source;

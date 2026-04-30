@@ -144,7 +144,7 @@ class CreateCommand extends Command<int> {
       return stable.first;
     }
     if (releases.isEmpty) {
-      usageException('No SDK releases found in the active source.');
+      usageException('No SDK releases found in configured sources.');
     }
     return releases.first;
   }
@@ -252,7 +252,7 @@ class ReleaseCommand extends Command<int> {
   Future<void> _ensureSdkTagExists(String sdkTag) async {
     final releases = await SdkManager(environment).listReleases();
     if (!releases.any((release) => release.tag == sdkTag)) {
-      usageException('SDK tag $sdkTag was not found in the active source.');
+      usageException('SDK tag $sdkTag was not found in configured sources.');
     }
   }
 

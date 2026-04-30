@@ -22,12 +22,6 @@ void main() {
       stderr: stderr.add,
     );
     await runFluoh(
-      ['source', 'use', 'fixture'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
       ['use', '3.35'],
       environment: environment,
       stdout: stdout.add,
@@ -106,12 +100,6 @@ dependency_overrides:
       stderr: stderr.add,
     );
     await runFluoh(
-      ['source', 'use', 'fixture'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
       ['use', '3.35'],
       environment: environment,
       stdout: stdout.add,
@@ -168,12 +156,6 @@ dependencies:
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

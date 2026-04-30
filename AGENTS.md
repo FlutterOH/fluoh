@@ -10,7 +10,7 @@
 - `lib/fluoh.dart`: public package API and command runner export.
 - `lib/src/cli/`: command runner wiring.
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
-- `lib/src/source/`: FlutterOH data source registry and generated index loading.
+- `lib/src/source/`: FlutterOH data source registry and YAML source loading.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
 - `lib/src/deps/`: dependency compatibility analysis and pubspec updates.
 - `lib/src/adapter/`: adapter repository creation and release workflows.
@@ -61,9 +61,9 @@ Every command behavior change, pubspec rewrite, source index rule, SDK selection
 
 ## Documentation Standards
 
-`README.md` is the primary public document and should stay user-facing in Chinese. `README.en.md` is the English public document. Keep installation, quick start, core workflows, and command overview aligned between them.
+`README.md` is the primary public document and should stay user-facing in English. `README.zh-CN.md` is the Simplified Chinese public document. Keep installation, quick start, core workflows, and command overview aligned between them.
 
-Contributor and maintainer details belong in `CONTRIBUTING.md` and `CONTRIBUTING.en.md`, not in the public README. Keep both contribution documents aligned when changing development, verification, commit, release, or packaging rules.
+Contributor and maintainer details belong in `CONTRIBUTING.md` and `CONTRIBUTING.zh-CN.md`, not in the public README. Keep both contribution documents aligned when changing development, verification, commit, release, or packaging rules.
 
 `AGENTS.md` is for coding agents and maintainers working inside the repository. It should summarize current project conventions and link behavior through concrete files or commands, not duplicate long user documentation.
 

@@ -57,16 +57,21 @@ void main() {
 
   test('documents Dart and Homebrew installation paths in both languages', () {
     final readme = File('README.md').readAsStringSync();
-    final englishReadme = File('README.en.md').readAsStringSync();
+    final chineseReadme = File('README.zh-CN.md').readAsStringSync();
     final contributing = File('CONTRIBUTING.md').readAsStringSync();
-    final englishContributing = File('CONTRIBUTING.en.md').readAsStringSync();
+    final chineseContributing = File(
+      'CONTRIBUTING.zh-CN.md',
+    ).readAsStringSync();
 
-    expect(readme, contains('[English](README.en.md)'));
+    expect(readme, contains('[简体中文](README.zh-CN.md)'));
     expect(readme, contains('dart pub global activate fluoh'));
     expect(readme, contains('brew tap FlutterOH/tap'));
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
     expect(readme, contains('fluoh update'));
+    expect(readme, contains('packages/registry.yaml'));
+    expect(readme, contains('fluoh source remove internal'));
+    expect(readme, isNot(contains('fluoh source use')));
     expect(
       readme,
       contains('--repository git@github.com:FlutterOH/package.git'),
@@ -76,20 +81,26 @@ void main() {
     expect(readme, isNot(contains('dart pub publish --dry-run')));
     expect(readme, isNot(contains('git tag v0.0.1')));
 
-    expect(englishReadme, contains('[简体中文](README.md)'));
-    expect(englishReadme, contains('dart pub global activate fluoh'));
-    expect(englishReadme, contains('brew tap FlutterOH/tap'));
-    expect(englishReadme, contains('brew install fluoh'));
-    expect(englishReadme, contains('fluoh upgrade'));
-    expect(englishReadme, contains('fluoh update'));
+    expect(chineseReadme, contains('[English](README.md)'));
+    expect(chineseReadme, contains('dart pub global activate fluoh'));
+    expect(chineseReadme, contains('brew tap FlutterOH/tap'));
+    expect(chineseReadme, contains('brew install fluoh'));
+    expect(chineseReadme, contains('fluoh upgrade'));
+    expect(chineseReadme, contains('fluoh update'));
+    expect(chineseReadme, contains('packages/registry.yaml'));
+    expect(chineseReadme, contains('fluoh source remove internal'));
+    expect(chineseReadme, isNot(contains('fluoh source use')));
     expect(
-      englishReadme,
+      chineseReadme,
       contains('--repository git@github.com:FlutterOH/package.git'),
     );
-    expect(englishReadme, isNot(contains('--github')));
-    expect(englishReadme, contains('[CONTRIBUTING.en.md](CONTRIBUTING.en.md)'));
-    expect(englishReadme, isNot(contains('dart pub publish --dry-run')));
-    expect(englishReadme, isNot(contains('git tag v0.0.1')));
+    expect(chineseReadme, isNot(contains('--github')));
+    expect(
+      chineseReadme,
+      contains('[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)'),
+    );
+    expect(chineseReadme, isNot(contains('dart pub publish --dry-run')));
+    expect(chineseReadme, isNot(contains('git tag v0.0.1')));
 
     expect(contributing, contains('dart pub publish --dry-run'));
     expect(
@@ -115,7 +126,10 @@ void main() {
       contains('--repository git@github.com:FlutterOH/package.git'),
     );
     expect(contributing, isNot(contains('gh auth login')));
-    expect(contributing, contains('提交前必须运行并通过'));
+    expect(
+      contributing,
+      contains('Run and pass these checks before committing'),
+    );
     expect(
       contributing,
       contains('dart format --output=none --set-exit-if-changed .'),
@@ -124,41 +138,38 @@ void main() {
     expect(contributing, contains('brew tap FlutterOH/fluoh'));
     expect(contributing, contains('Conventional Commits'));
 
-    expect(englishContributing, contains('dart pub publish --dry-run'));
+    expect(chineseContributing, contains('dart pub publish --dry-run'));
     expect(
-      englishContributing,
+      chineseContributing,
       contains('dart pub global activate --source path . --overwrite'),
     );
     expect(
-      englishContributing,
+      chineseContributing,
       contains('dart pub global activate fluoh --overwrite'),
     );
     expect(
-      englishContributing,
+      chineseContributing,
       contains('dart pub global activate fluoh 0.0.1 --overwrite'),
     );
-    expect(englishContributing, contains('dart pub global deactivate fluoh'));
+    expect(chineseContributing, contains('dart pub global deactivate fluoh'));
     expect(
-      englishContributing,
+      chineseContributing,
       contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
     );
-    expect(englishContributing, contains('git@github.com:FlutterOH/fluoh.git'));
+    expect(chineseContributing, contains('git@github.com:FlutterOH/fluoh.git'));
     expect(
-      englishContributing,
+      chineseContributing,
       contains('--repository git@github.com:FlutterOH/package.git'),
     );
-    expect(englishContributing, isNot(contains('gh auth login')));
+    expect(chineseContributing, isNot(contains('gh auth login')));
+    expect(chineseContributing, contains('提交前必须运行并通过'));
     expect(
-      englishContributing,
-      contains('Run and pass these checks before committing'),
-    );
-    expect(
-      englishContributing,
+      chineseContributing,
       contains('dart format --output=none --set-exit-if-changed .'),
     );
-    expect(englishContributing, contains('git tag v0.0.1'));
-    expect(englishContributing, contains('brew tap FlutterOH/fluoh'));
-    expect(englishContributing, contains('Conventional Commits'));
+    expect(chineseContributing, contains('git tag v0.0.1'));
+    expect(chineseContributing, contains('brew tap FlutterOH/fluoh'));
+    expect(chineseContributing, contains('Conventional Commits'));
   });
 
   test('provides a Homebrew formula backed by pub.dev activation', () {

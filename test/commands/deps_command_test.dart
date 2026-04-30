@@ -146,40 +146,25 @@ void main() {
   test('selects adapter version 10 over version 9 numerically', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
-    final packageIndexFile = File(
-      '${source.path}/generated/package-index.json',
+    final manifest = File('${source.path}/packages/manifests/camera.yaml');
+    await manifest.writeAsString(
+      manifest
+          .readAsStringSync()
+          .replaceAll(
+            'camera-v0.11.0-ohos-3.35.8-0',
+            'camera-v0.11.0-ohos-3.35.8-9',
+          )
+          .replaceAll(
+            'camera-v0.11.0-ohos-3.35.8-1',
+            'camera-v0.11.0-ohos-3.35.8-10',
+          ),
     );
-    final packageIndex =
-        jsonDecode(packageIndexFile.readAsStringSync()) as Map<String, Object?>;
-    final packages = packageIndex['packages'] as Map<String, Object?>;
-    final camera = packages['camera'] as Map<String, Object?>;
-    camera['adapters'] = [
-      {
-        'sdkLine': '3.35',
-        'upstreamVersion': '0.11.0',
-        'repository': '${environment.homeDirectory.path}/camera',
-        'tag': 'camera-v0.11.0-ohos-3.35.8-9',
-      },
-      {
-        'sdkLine': '3.35',
-        'upstreamVersion': '0.11.0',
-        'repository': '${environment.homeDirectory.path}/camera',
-        'tag': 'camera-v0.11.0-ohos-3.35.8-10',
-      },
-    ];
-    await packageIndexFile.writeAsString(jsonEncode(packageIndex));
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -212,20 +197,18 @@ void main() {
     final secondSource = await createPubSourceFixture(
       Directory('${environment.homeDirectory.path}/second'),
     );
-    await File('${secondSource.path}/generated/sdk-index.json').writeAsString(
-      File('${firstSource.path}/generated/sdk-index.json').readAsStringSync(),
+    await File('${secondSource.path}/sdk/index.yaml').writeAsString(
+      File('${firstSource.path}/sdk/index.yaml').readAsStringSync(),
     );
-    final packageIndexFile = File(
-      '${secondSource.path}/generated/package-index.json',
+    final manifest = File(
+      '${secondSource.path}/packages/manifests/camera.yaml',
     );
-    final packageIndex =
-        jsonDecode(packageIndexFile.readAsStringSync()) as Map<String, Object?>;
-    final packages = packageIndex['packages'] as Map<String, Object?>;
-    final camera = packages['camera'] as Map<String, Object?>;
-    final adapters = camera['adapters'] as List<Object?>;
-    final adapter = adapters.first as Map<String, Object?>;
-    adapter['repository'] = '${environment.homeDirectory.path}/different';
-    await packageIndexFile.writeAsString(jsonEncode(packageIndex));
+    await manifest.writeAsString(
+      manifest.readAsStringSync().replaceAll(
+        '${environment.homeDirectory.path}/second/camera',
+        '${environment.homeDirectory.path}/different',
+      ),
+    );
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
@@ -238,12 +221,6 @@ void main() {
     );
     await runFluoh(
       ['source', 'add', 'second', secondSource.path, '--priority', '100'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'first'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -277,24 +254,20 @@ void main() {
       final highPrioritySource = await createPubSourceFixture(
         Directory('${environment.homeDirectory.path}/high'),
       );
-      await File(
-        '${highPrioritySource.path}/generated/sdk-index.json',
-      ).writeAsString(
-        File(
-          '${lowPrioritySource.path}/generated/sdk-index.json',
-        ).readAsStringSync(),
+      await File('${highPrioritySource.path}/sdk/index.yaml').writeAsString(
+        File('${lowPrioritySource.path}/sdk/index.yaml').readAsStringSync(),
       );
       await _setCompatibilityStatus(
         lowPrioritySource,
         sdkLine: '3.35',
         packageName: 'camera',
-        status: 'native',
+        status: 'compatible',
       );
       await _setCompatibilityStatus(
         highPrioritySource,
         sdkLine: '3.35',
         packageName: 'camera',
-        status: 'blocked',
+        status: 'broken',
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final stdout = <String>[];
@@ -308,12 +281,6 @@ void main() {
       );
       await runFluoh(
         ['source', 'add', 'high', highPrioritySource.path, '--priority', '200'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        ['source', 'use', 'high'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -338,6 +305,98 @@ void main() {
       expect(stderr, isEmpty);
     },
   );
+
+  test(
+    'layers package-only supplemental sources over the official source',
+    () async {
+      final environment = await createTestEnvironment();
+      final official = await createPubSourceFixture(
+        Directory('${environment.homeDirectory.path}/official'),
+      );
+      final supplemental = Directory('${environment.homeDirectory.path}/team');
+      await Directory(
+        '${supplemental.path}/packages/manifests',
+      ).create(recursive: true);
+      await File('${supplemental.path}/packages/registry.yaml').writeAsString(
+        '''
+schema: 1
+packages:
+  - name: share_plus
+    repositoryUrl: ${environment.homeDirectory.path}/share_plus
+    upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
+    packagePath: packages/share_plus/share_plus
+    status: compatible
+''',
+      );
+      await File(
+        '${supplemental.path}/packages/manifests/share_plus.yaml',
+      ).writeAsString('''
+schema: 1
+package:
+  name: share_plus
+  repositoryUrl: ${environment.homeDirectory.path}/share_plus
+  upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
+  packagePath: packages/share_plus/share_plus
+releases:
+  - version: 10.0.0
+    upstreamRef: share_plus-v10.0.0
+    sdk:
+      versionSeries: "3.35"
+      versionRange: ">=3.35.8 <3.36.0"
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    sourceBranch: ohos-3.35
+    release:
+      version: "1"
+      tag: share_plus-v10.0.0-ohos-3.35.8-1
+    replacement:
+      type: git
+      url: ${environment.homeDirectory.path}/share_plus
+      ref: share_plus-v10.0.0-ohos-3.35.8-1
+      path: packages/share_plus/share_plus
+''');
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'official', official.path, '--priority', '10'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        ['source', 'add', 'team', supplemental.path, '--priority', '200'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        ['use', '3.35'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['deps', 'check'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stdout, contains('camera adapted camera-v0.11.0-ohos-3.35.8-1'));
+      expect(
+        stdout,
+        contains('share_plus adapted share_plus-v10.0.0-ohos-3.35.8-1'),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
 }
 
 Future<FluohEnvironment> _preparedEnvironment() async {
@@ -349,12 +408,6 @@ Future<FluohEnvironment> _preparedEnvironment() async {
 
   await runFluoh(
     ['source', 'add', 'fixture', source.path],
-    environment: environment,
-    stdout: stdout.add,
-    stderr: stderr.add,
-  );
-  await runFluoh(
-    ['source', 'use', 'fixture'],
     environment: environment,
     stdout: stdout.add,
     stderr: stderr.add,
@@ -375,15 +428,10 @@ Future<void> _setCompatibilityStatus(
   required String packageName,
   required String status,
 }) async {
-  final matrixFile = File('${source.path}/generated/compatibility-matrix.json');
-  final matrix =
-      jsonDecode(matrixFile.readAsStringSync()) as Map<String, Object?>;
-  final sdkLines = matrix['sdkLines'] as Map<String, Object?>;
-  final line = sdkLines[sdkLine] as Map<String, Object?>;
-  for (final key in ['native', 'adapted', 'blocked']) {
-    final packages = line[key] as List<Object?>;
-    packages.remove(packageName);
-  }
-  (line[status] as List<Object?>).add(packageName);
-  await matrixFile.writeAsString(jsonEncode(matrix));
+  final manifest = File('${source.path}/packages/manifests/$packageName.yaml');
+  final content = manifest.readAsStringSync();
+  expect(content, contains('versionSeries: "$sdkLine"'));
+  await manifest.writeAsString(
+    content.replaceAll('status: compatible', 'status: $status'),
+  );
 }

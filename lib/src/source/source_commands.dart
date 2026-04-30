@@ -14,7 +14,9 @@ class SourceCommand extends Command<int> {
   }) {
     addSubcommand(SourceListCommand(environment: environment, stdout: stdout));
     addSubcommand(SourceAddCommand(environment: environment, stdout: stdout));
-    addSubcommand(SourceUseCommand(environment: environment, stdout: stdout));
+    addSubcommand(
+      SourceRemoveCommand(environment: environment, stdout: stdout),
+    );
     addSubcommand(
       SourceUpdateCommand(environment: environment, stdout: stdout),
     );
@@ -48,8 +50,7 @@ class SourceListCommand extends Command<int> {
     }
 
     for (final entry in config.sources.entries) {
-      final marker = entry.key == config.activeSource ? '*' : ' ';
-      stdout('$marker ${entry.key} ${entry.value.displayValue}');
+      stdout('${entry.key} ${entry.value.displayValue}');
     }
     return 0;
   }
@@ -84,6 +85,9 @@ class SourceAddCommand extends Command<int> {
     }
 
     final name = rest[0];
+    if (name == defaultSourceName) {
+      usageException('Cannot replace the official source.');
+    }
     final urlOrPath = rest[1];
     final priority = int.tryParse(argResults!.option('priority') ?? '');
     if (priority == null) {
@@ -110,20 +114,20 @@ class SourceAddCommand extends Command<int> {
   }
 }
 
-class SourceUseCommand extends Command<int> {
-  SourceUseCommand({required this.environment, required this.stdout});
+class SourceRemoveCommand extends Command<int> {
+  SourceRemoveCommand({required this.environment, required this.stdout});
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
 
   @override
-  String get name => 'use';
+  String get name => 'remove';
 
   @override
-  String get description => 'Select the active data source.';
+  String get description => 'Remove a non-official data source.';
 
   @override
-  String get invocation => 'fluoh source use <name>';
+  String get invocation => 'fluoh source remove <name>';
 
   @override
   Future<int> run() async {
@@ -136,11 +140,11 @@ class SourceUseCommand extends Command<int> {
     final store = FluohConfigStore(environment);
     final config = await store.load();
     try {
-      await store.save(config.useSource(name));
+      await store.save(config.removeSource(name));
     } on ArgumentError catch (error) {
       usageException(error.message);
     }
-    stdout('Using source $name.');
+    stdout('Removed source $name.');
     return 0;
   }
 }
@@ -155,33 +159,95 @@ class SourceUpdateCommand extends Command<int> {
   String get name => 'update';
 
   @override
-  String get description => 'Validate and refresh the active data source.';
+  String get description => 'Validate and refresh configured data sources.';
+
+  @override
+  String get invocation => 'fluoh source update [name]';
 
   @override
   Future<int> run() async {
     final config = await FluohConfigStore(environment).load();
-    final active = config.activeSource;
-    final sourceConfig = _activeSourceConfig(config);
-    if (sourceConfig.url != null) {
-      await _syncGitSource(sourceConfig);
+    final rest = argResults!.rest;
+    if (rest.length > 1) {
+      usageException('Expected zero or one source name.');
     }
-    final source = PubSource.directory(sourceConfig.directory);
 
-    await source.loadSdkIndex();
-    await source.loadPackageIndex();
-    await source.loadCompatibilityMatrix();
+    final sources = rest.isEmpty
+        ? config.sources.entries.toList(growable: false)
+        : [_sourceEntry(config, rest.single)];
+    if (sources.isEmpty) {
+      usageException('No sources configured.');
+    }
 
-    stdout('Updated source $active.');
+    for (final entry in sources) {
+      final sourceConfig = entry.value;
+      if (sourceConfig.url != null) {
+        await _syncGitSource(sourceConfig);
+      }
+      await _validateSource(entry.key, sourceConfig);
+      stdout('Updated source ${entry.key}.');
+    }
     return 0;
   }
 }
 
-SourceConfig _activeSourceConfig(FluohConfig config) {
-  try {
-    return config.activeSourceConfig();
-  } on StateError catch (error) {
-    throw UsageException(error.message, '');
+MapEntry<String, SourceConfig> _sourceEntry(FluohConfig config, String name) {
+  final source = config.sources[name];
+  if (source == null) {
+    throw UsageException('Unknown source "$name".', '');
   }
+  return MapEntry(name, source);
+}
+
+Future<void> _validateSource(String name, SourceConfig sourceConfig) async {
+  final source = PubSource.directory(sourceConfig.directory);
+  final validators =
+      <({String label, bool present, Future<void> Function() validate})>[
+        (
+          label: 'sdk/index.yaml',
+          present: source.hasSdkIndex,
+          validate: () async => source.loadSdkIndex(),
+        ),
+        (
+          label: 'packages/registry.yaml',
+          present: source.hasPackageIndex,
+          validate: () async {
+            await source.loadPackageIndex();
+            await source.loadCompatibilityMatrix();
+          },
+        ),
+      ];
+  final present = validators
+      .where((entry) => entry.present)
+      .toList(growable: false);
+  if (present.isEmpty) {
+    throw UsageException(
+      'Source $name does not contain sdk/index.yaml or '
+          'packages/registry.yaml.',
+      '',
+    );
+  }
+
+  try {
+    for (final entry in present) {
+      await entry.validate();
+    }
+  } on FormatException catch (error) {
+    throw UsageException('Source $name is not valid: ${error.message}', '');
+  } on FileSystemException catch (error) {
+    throw UsageException(
+      'Source $name could not be read: ${_fileSystemMessage(error)}',
+      '',
+    );
+  }
+}
+
+String _fileSystemMessage(FileSystemException error) {
+  final path = error.path;
+  if (path == null || path.isEmpty) {
+    return error.message;
+  }
+  return '${error.message}: $path';
 }
 
 Future<void> _syncGitSource(SourceConfig source) async {

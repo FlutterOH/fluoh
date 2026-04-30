@@ -22,12 +22,6 @@ void main() {
         stderr: stderr.add,
       );
       await runFluoh(
-        ['source', 'use', 'fixture'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
         ['use', '3.35'],
         environment: environment,
         stdout: stdout.add,
@@ -45,7 +39,7 @@ void main() {
       );
 
       expect(stdout, contains('[OK] Flutter project detected.'));
-      expect(stdout, contains('[OK] Active source fixture is available.'));
+      expect(stdout, contains('[OK] Sources available: fixture.'));
       expect(stdout, contains('[OK] Project SDK: 3.35.8-ohos-0.0.3.'));
       expect(stdout, contains('[OK] .fvm/flutter_sdk is managed by fluoh.'));
       expect(stdout, contains('[WARN] Missing ohos platform directory.'));

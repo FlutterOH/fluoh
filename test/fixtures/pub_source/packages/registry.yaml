@@ -1,0 +1,7 @@
+schema: 1
+packages:
+  - name: camera
+    repositoryUrl: ../mock_repositories/camera.git
+    upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
+    packagePath: packages/camera/camera
+    status: compatible

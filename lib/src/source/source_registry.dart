@@ -14,14 +14,15 @@ class SourceRegistry {
 
   Future<SdkIndex> loadSdkIndex() async {
     final sources = await _readableSources(
-      requiredFiles: const ['sdk-index.json'],
+      hasIndex: (source) => source.hasSdkIndex,
     );
     final releases = <String, _PrioritizedRelease>{};
 
     for (final source in sources) {
-      final index = await PubSource.directory(
-        source.config.directory,
-      ).loadSdkIndex();
+      final index = await _loadSourceIndex(
+        source,
+        (pubSource) => pubSource.loadSdkIndex(),
+      );
       for (final release in index.releases) {
         final existing = releases[release.tag];
         if (existing == null ||
@@ -50,16 +51,17 @@ class SourceRegistry {
 
   Future<PackageIndex> loadPackageIndex() async {
     final sources = await _readableSources(
-      requiredFiles: const ['package-index.json'],
+      hasIndex: (source) => source.hasPackageIndex,
     );
     final packages = <String, PackageEntry>{};
     final groupPriorities = <String, int>{};
     final seenReplacements = <String, _Replacement>{};
 
     for (final source in sources) {
-      final index = await PubSource.directory(
-        source.config.directory,
-      ).loadPackageIndex();
+      final index = await _loadSourceIndex(
+        source,
+        (pubSource) => pubSource.loadPackageIndex(),
+      );
       for (final packageEntry in index.packages.entries) {
         final packageName = packageEntry.key;
         final current = packages[packageName];
@@ -123,14 +125,15 @@ class SourceRegistry {
 
   Future<CompatibilityMatrix> loadCompatibilityMatrix() async {
     final sources = await _readableSources(
-      requiredFiles: const ['compatibility-matrix.json'],
+      hasIndex: (source) => source.hasCompatibilityMatrix,
     );
     final lines = <String, Map<String, _CompatibilityStatus>>{};
 
     for (final source in sources) {
-      final matrix = await PubSource.directory(
-        source.config.directory,
-      ).loadCompatibilityMatrix();
+      final matrix = await _loadSourceIndex(
+        source,
+        (pubSource) => pubSource.loadCompatibilityMatrix(),
+      );
       for (final entry in matrix.sdkLines.entries) {
         final packages = lines.putIfAbsent(
           entry.key,
@@ -176,13 +179,16 @@ class SourceRegistry {
   }
 
   Future<List<_NamedSource>> _readableSources({
-    required List<String> requiredFiles,
+    required bool Function(PubSource source) hasIndex,
   }) async {
     final config = await FluohConfigStore(environment).load();
     final sources =
         config.sources.entries
             .map((entry) => _NamedSource(entry.key, entry.value))
-            .where((source) => _hasGeneratedFiles(source.config, requiredFiles))
+            .where(
+              (source) =>
+                  hasIndex(PubSource.directory(source.config.directory)),
+            )
             .toList(growable: false)
           ..sort((a, b) {
             final priority = b.config.priority.compareTo(a.config.priority);
@@ -197,12 +203,6 @@ class SourceRegistry {
       );
     }
     return sources;
-  }
-
-  bool _hasGeneratedFiles(SourceConfig source, List<String> fileNames) {
-    return fileNames.every(
-      (name) => File('${source.directory.path}/generated/$name').existsSync(),
-    );
   }
 
   void _mergeCompatibilityStatus(
@@ -245,6 +245,33 @@ class SourceRegistry {
         .toList(growable: false)
       ..sort();
   }
+
+  Future<T> _loadSourceIndex<T>(
+    _NamedSource source,
+    Future<T> Function(PubSource source) load,
+  ) async {
+    try {
+      return await load(PubSource.directory(source.config.directory));
+    } on FormatException catch (error) {
+      throw UsageException(
+        'Source ${source.name} is not valid: ${error.message}',
+        '',
+      );
+    } on FileSystemException catch (error) {
+      throw UsageException(
+        'Source ${source.name} could not be read: ${_fileSystemMessage(error)}',
+        '',
+      );
+    }
+  }
+}
+
+String _fileSystemMessage(FileSystemException error) {
+  final path = error.path;
+  if (path == null || path.isEmpty) {
+    return error.message;
+  }
+  return '${error.message}: $path';
 }
 
 class _NamedSource {

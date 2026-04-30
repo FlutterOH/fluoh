@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -16,12 +15,6 @@ void main() {
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -91,48 +84,29 @@ void main() {
       final environment = await createTestEnvironment();
       final source = await createPubSourceFixture(environment.homeDirectory);
       await writeFlutterProjectFixture(environment.workingDirectory);
-      final repo9 = await createTaggedGitRepository(
-        Directory('${environment.homeDirectory.path}/sdk9'),
-        tag: '3.35.8-ohos-0.0.9',
-        readme: '# sdk9\n',
-      );
       final repo10 = await createTaggedGitRepository(
         Directory('${environment.homeDirectory.path}/sdk10'),
         tag: '3.35.8-ohos-0.0.10',
         readme: '# sdk10\n',
       );
-      await File('${source.path}/generated/sdk-index.json').writeAsString(
-        jsonEncode({
-          'schemaVersion': 1,
-          'releases': [
-            {
-              'version': '3.35.8-ohos-0.0.9',
-              'flutterVersion': '3.35.8',
-              'channel': 'stable',
-              'repository': repo9.path,
-              'tag': '3.35.8-ohos-0.0.9',
-            },
-            {
-              'version': '3.35.8-ohos-0.0.10',
-              'flutterVersion': '3.35.8',
-              'channel': 'stable',
-              'repository': repo10.path,
-              'tag': '3.35.8-ohos-0.0.10',
-            },
-          ],
-        }),
-      );
+      await File('${source.path}/sdk/index.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${repo10.path}
+versions:
+  - version: 3.35.8-ohos-0.0.9
+    tag: 3.35.8-ohos-0.0.9
+    versionSeries: "3.35"
+    status: stable
+  - version: 3.35.8-ohos-0.0.10
+    tag: 3.35.8-ohos-0.0.10
+    versionSeries: "3.35"
+    status: stable
+''');
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
         ['source', 'add', 'fixture', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        ['source', 'use', 'fixture'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -152,6 +126,43 @@ void main() {
     },
   );
 
+  test('stops when equal-priority sources disagree on an SDK tag', () async {
+    final environment = await createTestEnvironment();
+    final firstSource = await createPubSourceFixture(
+      Directory('${environment.homeDirectory.path}/first'),
+    );
+    final secondSource = await createPubSourceFixture(
+      Directory('${environment.homeDirectory.path}/second'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'first', firstSource.path, '--priority', '100'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['source', 'add', 'second', secondSource.path, '--priority', '100'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+    expect(stderr.join('\n'), contains('Conflicting SDK release'));
+    expect(stderr.join('\n'), contains('first and second'));
+  });
+
   test('cleans up a partial SDK install when checkout fails', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
@@ -160,31 +171,20 @@ void main() {
       tag: '3.35.8-ohos-0.0.3',
       readme: '# sdk\n',
     );
-    await File('${source.path}/generated/sdk-index.json').writeAsString(
-      jsonEncode({
-        'schemaVersion': 1,
-        'releases': [
-          {
-            'version': '3.35.8-ohos-9.9.9',
-            'flutterVersion': '3.35.8',
-            'channel': 'stable',
-            'repository': sdkRepository.path,
-            'tag': '3.35.8-ohos-9.9.9',
-          },
-        ],
-      }),
-    );
+    await File('${source.path}/sdk/index.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${sdkRepository.path}
+versions:
+  - version: 3.35.8-ohos-9.9.9
+    tag: 3.35.8-ohos-9.9.9
+    versionSeries: "3.35"
+    status: stable
+''');
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'use', 'fixture'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

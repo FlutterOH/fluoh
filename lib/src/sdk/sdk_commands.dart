@@ -33,7 +33,7 @@ class SdkListCommand extends Command<int> {
   String get name => 'list';
 
   @override
-  String get description => 'List SDK releases from the active source.';
+  String get description => 'List SDK releases from configured sources.';
 
   @override
   Future<int> run() async {
