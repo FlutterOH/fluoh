@@ -1,0 +1,15 @@
+# https://dart.dev/guides/libraries/private-files
+# Created by `dart pub`
+.dart_tool/
+
+# Dart and Flutter build output
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store

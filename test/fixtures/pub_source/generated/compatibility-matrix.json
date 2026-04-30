@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "sdkLines": {
+    "3.35": {
+      "native": [
+        "path_provider"
+      ],
+      "adapted": [
+        "camera"
+      ],
+      "blocked": [
+        "legacy_camera"
+      ]
+    }
+  }
+}
