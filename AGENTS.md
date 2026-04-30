@@ -1,32 +1,94 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Project Scope
 
-This is a Dart CLI package for FlutterOH workflows. `bin/fluoh.dart` is the executable entry point and delegates to the public API in `lib/fluoh.dart`. Implementation code lives in `lib/src/`, grouped by domain: `cli/`, `context/`, `sdk/`, `source/`, `deps/`, `adapter/`, `doctor/`, `update/`, `upgrade/`, and `use/`. Tests live in `test/`, with command tests under `test/commands/`, domain tests such as `test/sdk/`, integration coverage under `test/integration/`, shared helpers in `test/helpers/`, and static fixtures in `test/fixtures/`. Homebrew packaging is in `Formula/`, and pub.dev publishing automation is in `.github/workflows/publish.yml`.
+`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency adapter status, rewrites project dependency declarations, and helps maintain third-party adapter repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
 
-## Build, Test, and Development Commands
+## Repository Layout
 
-- `dart pub get`: install package dependencies from `pubspec.yaml`.
-- `dart run bin/fluoh.dart --help`: run the CLI locally without global activation.
-- `dart format .`: apply standard Dart formatting.
-- `dart analyze`: run static analysis using `package:lints/recommended`.
-- `dart test`: run the full `package:test` suite.
+- `bin/fluoh.dart`: executable entry point.
+- `lib/fluoh.dart`: public package API and command runner export.
+- `lib/src/cli/`: command runner wiring.
+- `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
+- `lib/src/source/`: FlutterOH data source registry and generated index loading.
+- `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
+- `lib/src/deps/`: dependency compatibility analysis and pubspec updates.
+- `lib/src/adapter/`: adapter repository creation and release workflows.
+- `lib/src/doctor/`, `lib/src/update/`, `lib/src/upgrade/`, `lib/src/use/`: command-specific implementations.
+- `test/`: unit, command, integration, fixture, and release artifact tests.
+- `Formula/`: Homebrew packaging.
+- `.github/workflows/publish.yml`: pub.dev publishing automation.
+
+## Development Commands
+
+Run these from the repository root:
+
+- `dart pub get`: install dependencies.
+- `dart run bin/fluoh.dart --help`: run the CLI locally.
+- `dart format .`: apply Dart formatting.
+- `dart analyze`: run static analysis.
+- `dart test`: run the full test suite.
 - `dart pub publish --dry-run`: validate package metadata before publishing.
 
-For release checks, run format, analysis, tests, and the publish dry run before tagging. Tags matching `vX.Y.Z` trigger the publish workflow.
+Before committing, `dart format .`, `dart analyze`, and `dart test` are mandatory. Formatting must be applied and reviewed; analysis and tests must pass.
 
-## Coding Style & Naming Conventions
+`.github/workflows/ci.yml` enforces formatting, analysis, and tests on pushes to `main`, version tags, and pull requests. `.github/workflows/publish.yml` must run the same checks before publishing to pub.dev. Keep CI aligned with the documented pre-commit and release requirements.
 
-Use idiomatic Dart formatted by `dart format` with two-space indentation. Keep file names in `snake_case.dart`, classes and enums in `PascalCase`, and functions, fields, variables, and command names in `lowerCamelCase`. Prefer focused command classes and domain helpers in the matching `lib/src/<domain>/` directory. Public exports should remain intentional in `lib/fluoh.dart`; keep internal implementation details under `lib/src/`.
+If a local shell has multiple Dart installations, using an explicit Dart SDK path is fine for local verification, but never commit machine-specific absolute paths.
 
-## Testing Guidelines
+## Coding Standards
 
-Tests use `package:test`. Name files `*_test.dart` and write behavior-oriented test names such as `test('lists, installs, reports current, and removes SDKs', ...)`. Use `test/helpers/fluoh_test_context.dart` for isolated environments and add fixtures under `test/fixtures/` when command behavior depends on repositories or generated source indexes. There is no explicit coverage threshold, but every command or parser behavior change should include a focused regression test.
+Use idiomatic Dart and keep formatting delegated to `dart format`. File names are `snake_case.dart`; classes, enums, and extensions are `PascalCase`; functions, fields, variables, and command identifiers are `lowerCamelCase`.
 
-## Commit & Pull Request Guidelines
+Keep command classes focused on argument parsing and user-visible output. Put reusable behavior in the matching domain helper under `lib/src/<domain>/`. Keep internal implementation under `lib/src/`; only export intentional public API from `lib/fluoh.dart`.
 
-The current history only establishes `Initial commit`, so use concise imperative commit subjects, optionally scoped, for example `sdk: handle missing release dates`. Pull requests should describe the user-visible behavior change, list verification commands run, link related issues, and call out release or publishing impact. Include CLI output snippets when they clarify behavior; screenshots are usually unnecessary for this repository.
+Prefer structured parsing for YAML, lockfile, and source index data. Avoid ad hoc string edits when a local parser or helper already exists. When pubspec text must be rewritten, preserve unrelated user content and add regression tests for the exact layout being changed.
 
-## Security & Configuration Tips
+Commands that modify a project or adapter repository must be conservative:
 
-Do not commit local caches, credentials, or machine-specific SDK paths. The CLI stores runtime state under `$FLUOH_HOME` or `$HOME/.fluoh`; tests should use temporary directories instead of real user configuration.
+- Fail before destructive writes when validation is incomplete.
+- Preserve local repositories and working trees on network, GitHub, or push failures.
+- Do not delete user-owned directories unless they are known `fluoh` artifacts.
+- Print concise summaries of changes and next steps.
+
+## Testing Standards
+
+Use `package:test`. Name test files `*_test.dart` and write behavior-oriented test names. Prefer command tests for CLI behavior and focused domain tests for parsers or selection logic.
+
+Use `test/helpers/fluoh_test_context.dart` for isolated temporary homes, projects, and repositories. Put static source indexes and mock repositories under `test/fixtures/`. Do not read or write real user configuration such as `$HOME/.fluoh`.
+
+Every command behavior change, pubspec rewrite, source index rule, SDK selection rule, adapter workflow, release validation, or publishing artifact change should include a regression test. For documentation or packaging changes, update `test/release/release_artifacts_test.dart` when the expected release surface changes.
+
+## Documentation Standards
+
+`README.md` is the primary public document and should stay user-facing in Chinese. `README.en.md` is the English public document. Keep installation, quick start, core workflows, and command overview aligned between them.
+
+Contributor and maintainer details belong in `CONTRIBUTING.md` and `CONTRIBUTING.en.md`, not in the public README. Keep both contribution documents aligned when changing development, verification, commit, release, or packaging rules.
+
+`AGENTS.md` is for coding agents and maintainers working inside the repository. It should summarize current project conventions and link behavior through concrete files or commands, not duplicate long user documentation.
+
+## Commit and PR Standards
+
+Use Conventional Commits:
+
+```text
+<type>(<scope>): <subject>
+```
+
+Use scopes such as `sdk`, `deps`, `adapter`, `source`, `docs`, `ci`, `test`, or `release` when helpful. Common types are `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `ci`. Keep the first line within 72 characters.
+
+Pull requests should describe user-visible behavior, list verification commands, link related issues, and call out release or publishing impact. Include CLI output snippets when they clarify behavior.
+
+## Release and Packaging Standards
+
+Before publishing, run format, analysis, tests, and `dart pub publish --dry-run`. Version metadata must stay aligned across `pubspec.yaml`, `lib/src/version.dart`, `CHANGELOG.md`, and `Formula/fluoh.rb`.
+
+Version tags use `vX.Y.Z` and must match `pubspec.yaml`. The GitHub Actions workflow publishes to pub.dev through OIDC; the package admin must keep the pub.dev automated publishing settings aligned with `FlutterOH/fluoh`, tag pattern `v{{version}}`, and environment `pub.dev`.
+
+The Homebrew formula currently installs from the pub.dev archive. Update its archive URL and version when releasing a new package version, and sync it to the official FlutterOH tap when that tap is available.
+
+## Security and Local State
+
+Do not commit credentials, local caches, IDE metadata, generated build output, or machine-specific SDK paths. Runtime state belongs under `$FLUOH_HOME` or `$HOME/.fluoh`; tests must use temporary directories.
+
+Before committing, run `git status --short`, `git diff --check`, and scan staged changes for local absolute paths.

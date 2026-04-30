@@ -2,7 +2,7 @@
 
 Command-line tools for the FlutterOH ecosystem. `fluoh` manages Flutter OHOS SDK versions, checks OHOS dependency adapter status, and helps third-party package maintainers create adapter repositories.
 
-[简体中文](README.md) | [Contributing](CONTRIBUTING.md)
+[简体中文](README.md) | [Contributing](CONTRIBUTING.en.md)
 
 ## Why fluoh
 
@@ -134,7 +134,7 @@ fluoh source update
 
 ## Contributing
 
-Local development, testing, pub.dev publishing, Homebrew formula maintenance, and pre-commit checks are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+Local development, testing, pub.dev publishing, Homebrew formula maintenance, and pre-commit checks are documented in [CONTRIBUTING.en.md](CONTRIBUTING.en.md).
 
 ## License
 

@@ -1,5 +1,7 @@
 # Contributing to fluoh
 
+English: [CONTRIBUTING.en.md](CONTRIBUTING.en.md)
+
 本文档面向 `fluoh` 的贡献者和维护者。普通用户优先阅读 [README.md](README.md) 或 [README.en.md](README.en.md)。
 
 ## 本地开发
@@ -25,13 +27,21 @@ FLUOH_HOME=/path/to/cache dart run bin/fluoh.dart source list
 
 ## 验证
 
-提交前至少运行：
+提交前必须运行并通过：
 
 ```sh
 dart format .
 dart analyze
 dart test
 ```
+
+`dart format .` 运行后不应留下未确认的格式化 diff；如果产生变更，需要一起检查并提交。`dart analyze` 和 `dart test` 必须通过后再提交。
+
+GitHub Actions 会在 push 到 `main`、版本 tag 和 pull request 时执行同等检查；pub.dev 发布 workflow 也必须先通过这些检查再发布：
+
+- `dart format --output=none --set-exit-if-changed .`
+- `dart analyze`
+- `dart test`
 
 发布前额外运行：
 
@@ -53,6 +63,37 @@ git diff --check
 同时检查待提交内容中是否误写了本机绝对路径。不要提交本机 IDE、系统或构建输出文件，例如 `.idea/`、`.vscode/`、`.DS_Store`、`.dart_tool/`、`build/`、`coverage/`。
 
 `pubspec.lock` 对 CLI 应用可以提交。发布前需要确认 `pubspec.yaml`、`lib/src/version.dart`、`CHANGELOG.md` 和 `Formula/fluoh.rb` 中的版本信息一致。
+
+## Commit 格式
+
+提交信息使用 Conventional Commits：
+
+```text
+<type>(<scope>): <subject>
+```
+
+`scope` 可选，建议使用受影响的命令、模块或文档范围，例如 `sdk`、`deps`、`adapter`、`source`、`docs`、`ci`。
+
+常用 `type`：
+
+- `feat`: 新功能或新命令。
+- `fix`: bug 修复。
+- `docs`: 文档变更。
+- `test`: 测试新增或调整。
+- `refactor`: 不改变行为的代码重构。
+- `chore`: 构建、依赖、版本、仓库维护等杂项。
+- `ci`: GitHub Actions 或发布流水线变更。
+
+示例：
+
+```text
+feat(adapter): support GitHub repository automation
+fix(deps): update rewritten OHOS dependencies
+docs: add Homebrew installation guide
+ci: publish package on version tags
+```
+
+提交标题使用英文祈使句或简短描述，首行不超过 72 个字符。需要说明背景、风险或验证方式时，在空行后补充正文。
 
 ## GitHub Actions 与 pub.dev 发布
 

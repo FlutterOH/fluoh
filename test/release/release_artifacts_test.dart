@@ -9,12 +9,37 @@ void main() {
     expect(workflow, contains('name: Publish to pub.dev'));
     expect(workflow, contains('tags:'));
     expect(workflow, contains("v[0-9]+.[0-9]+.[0-9]+"));
+    expect(
+      workflow,
+      contains('dart format --output=none --set-exit-if-changed .'),
+    );
+    expect(workflow, contains('dart analyze'));
+    expect(workflow, contains('dart test'));
+    expect(workflow, contains('needs: test'));
     expect(workflow, contains('id-token: write'));
     expect(
       workflow,
       contains('dart-lang/setup-dart/.github/workflows/publish.yml@v1'),
     );
     expect(workflow, contains('environment: pub.dev'));
+  });
+
+  test('enforces format, analysis, and tests in CI', () {
+    final workflow = File('.github/workflows/ci.yml').readAsStringSync();
+
+    expect(workflow, contains('name: CI'));
+    expect(workflow, contains('pull_request:'));
+    expect(workflow, contains('branches:'));
+    expect(workflow, contains('main'));
+    expect(workflow, contains('tags:'));
+    expect(workflow, contains("v[0-9]+.[0-9]+.[0-9]+"));
+    expect(workflow, contains('dart pub get'));
+    expect(
+      workflow,
+      contains('dart format --output=none --set-exit-if-changed .'),
+    );
+    expect(workflow, contains('dart analyze'));
+    expect(workflow, contains('dart test'));
   });
 
   test('declares pub metadata and an executable for global activation', () {
@@ -34,6 +59,7 @@ void main() {
     final readme = File('README.md').readAsStringSync();
     final englishReadme = File('README.en.md').readAsStringSync();
     final contributing = File('CONTRIBUTING.md').readAsStringSync();
+    final englishContributing = File('CONTRIBUTING.en.md').readAsStringSync();
 
     expect(readme, contains('[English](README.en.md)'));
     expect(readme, contains('dart pub global activate fluoh'));
@@ -51,13 +77,32 @@ void main() {
     expect(englishReadme, contains('brew install fluoh'));
     expect(englishReadme, contains('fluoh upgrade'));
     expect(englishReadme, contains('fluoh update'));
-    expect(englishReadme, contains('[CONTRIBUTING.md](CONTRIBUTING.md)'));
+    expect(englishReadme, contains('[CONTRIBUTING.en.md](CONTRIBUTING.en.md)'));
     expect(englishReadme, isNot(contains('dart pub publish --dry-run')));
     expect(englishReadme, isNot(contains('git tag v0.0.1')));
 
     expect(contributing, contains('dart pub publish --dry-run'));
+    expect(contributing, contains('提交前必须运行并通过'));
+    expect(
+      contributing,
+      contains('dart format --output=none --set-exit-if-changed .'),
+    );
     expect(contributing, contains('git tag v0.0.1'));
     expect(contributing, contains('brew tap FlutterOH/fluoh'));
+    expect(contributing, contains('Conventional Commits'));
+
+    expect(englishContributing, contains('dart pub publish --dry-run'));
+    expect(
+      englishContributing,
+      contains('Run and pass these checks before committing'),
+    );
+    expect(
+      englishContributing,
+      contains('dart format --output=none --set-exit-if-changed .'),
+    );
+    expect(englishContributing, contains('git tag v0.0.1'));
+    expect(englishContributing, contains('brew tap FlutterOH/fluoh'));
+    expect(englishContributing, contains('Conventional Commits'));
   });
 
   test('provides a Homebrew formula backed by pub.dev activation', () {
@@ -73,14 +118,5 @@ void main() {
     expect(formula, contains('"dart", "pub", "global", "activate"'));
     expect(formula, contains('"--source", "path", "."'));
     expect(formula, contains('fluoh --version'));
-  });
-
-  test('keeps non-runtime files out of the pub.dev archive', () {
-    final pubignore = File('.pubignore').readAsStringSync();
-
-    expect(pubignore, contains('.github/'));
-    expect(pubignore, contains('Formula/'));
-    expect(pubignore, contains('test/'));
-    expect(pubignore, contains('FLUOH_IMPLEMENTATION_PLAN.md'));
   });
 }

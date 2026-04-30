@@ -1,0 +1,147 @@
+# Contributing to fluoh
+
+中文: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+This document is for `fluoh` contributors and maintainers. General users should start with [README.en.md](README.en.md) or [README.md](README.md).
+
+## Local Development
+
+Install dependencies after preparing a Dart SDK:
+
+```sh
+dart pub get
+```
+
+Run the CLI locally:
+
+```sh
+dart run bin/fluoh.dart --help
+dart run bin/fluoh.dart --version
+```
+
+Set `FLUOH_HOME` if you need isolated local configuration and caches:
+
+```sh
+FLUOH_HOME=/path/to/cache dart run bin/fluoh.dart source list
+```
+
+## Verification
+
+Run and pass these checks before committing:
+
+```sh
+dart format .
+dart analyze
+dart test
+```
+
+`dart format .` should not leave unreviewed formatting diffs. If it changes files, review and include those changes in the commit. `dart analyze` and `dart test` must pass before committing.
+
+GitHub Actions runs the same checks on pushes to `main`, version tags, and pull requests. The pub.dev publishing workflow must pass these checks before publishing:
+
+- `dart format --output=none --set-exit-if-changed .`
+- `dart analyze`
+- `dart test`
+
+Run this additional check before publishing:
+
+```sh
+dart pub publish --dry-run
+```
+
+If the `dart` command in your shell is unstable, you may explicitly use the Dart SDK bundled with Flutter, but do not commit machine-specific absolute paths.
+
+## Pre-commit Checks
+
+Recommended checks before committing:
+
+```sh
+git status --short
+git diff --check
+```
+
+Also check that staged changes do not contain local absolute paths. Do not commit local IDE, system, or build output files such as `.idea/`, `.vscode/`, `.DS_Store`, `.dart_tool/`, `build/`, or `coverage/`.
+
+`pubspec.lock` may be committed for this CLI application. Before publishing, make sure the version metadata in `pubspec.yaml`, `lib/src/version.dart`, `CHANGELOG.md`, and `Formula/fluoh.rb` is consistent.
+
+## Commit Format
+
+Commit messages use Conventional Commits:
+
+```text
+<type>(<scope>): <subject>
+```
+
+`scope` is optional. Prefer the affected command, module, or documentation area, such as `sdk`, `deps`, `adapter`, `source`, `docs`, or `ci`.
+
+Common `type` values:
+
+- `feat`: New feature or command.
+- `fix`: Bug fix.
+- `docs`: Documentation change.
+- `test`: Test addition or adjustment.
+- `refactor`: Code refactor without behavior changes.
+- `chore`: Build, dependency, version, or repository maintenance.
+- `ci`: GitHub Actions or release pipeline change.
+
+Examples:
+
+```text
+feat(adapter): support GitHub repository automation
+fix(deps): update rewritten OHOS dependencies
+docs: add Homebrew installation guide
+ci: publish package on version tags
+```
+
+Use an imperative or concise English subject. Keep the first line within 72 characters. Add a body after a blank line when background, risk, or verification details are useful.
+
+## GitHub Actions and pub.dev Publishing
+
+This repository publishes to pub.dev through GitHub Actions when a version tag is pushed:
+
+```sh
+git tag v0.0.1
+git push origin v0.0.1
+```
+
+The tag must match the `version` in `pubspec.yaml`. A pub.dev package admin must enable GitHub Actions automated publishing:
+
+- Repository: `FlutterOH/fluoh`
+- Tag pattern: `v{{version}}`
+- Environment: `pub.dev`
+
+Automated pub.dev publishing only works for an existing package. The first release still requires a maintainer to publish manually:
+
+```sh
+dart pub publish
+```
+
+## Homebrew Formula
+
+The Homebrew formula lives at [Formula/fluoh.rb](Formula/fluoh.rb). Local verification:
+
+```sh
+brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh
+brew install FlutterOH/fluoh/fluoh
+fluoh --version
+```
+
+When an official `brew tap FlutterOH/tap` is available, sync the formula into the FlutterOH tap repository. The current formula uses the pub.dev archive as its download source; update the archive URL and version whenever releasing a new version.
+
+## Adapter Repository Workflow Maintenance
+
+`fluoh create --github --org FlutterOH` depends on GitHub CLI:
+
+```sh
+gh auth login
+```
+
+The command creates the organization repository, sets `origin`, and pushes the `main` and `ohos-*` branches. If it fails, it must keep the local adapter repository and tell the maintainer how to create the repository manually, set the remote, and push the branches.
+
+`fluoh release` must continue to guarantee:
+
+- It only runs on `ohos-*` branches.
+- The current branch matches the SDK line in `fluoh.yaml`.
+- The worktree is clean.
+- The SDK tag comes from the current source.
+- The release tag matches the package, upstream version, SDK tag, and adapter version recorded in the manifest.
