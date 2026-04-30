@@ -34,6 +34,9 @@ void main() {
   test('adds, lists, and updates a named pub source', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
+    final cachedSource = Directory(
+      '${environment.homeDirectory.path}/sources/fixture',
+    );
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -66,10 +69,102 @@ void main() {
     );
 
     expect(stdout, contains('Added source fixture: ${source.path}'));
-    expect(stdout, contains('fixture ${source.path}'));
+    expect(stdout, contains('fixture ${cachedSource.path}'));
     expect(stdout, contains('Updated source fixture.'));
+    expect(File('${cachedSource.path}/sdk/index.yaml').existsSync(), isTrue);
+    expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
     expect(stderr, isEmpty);
   });
+
+  test('adds local path sources as isolated cache snapshots', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final cachedSource = Directory(
+      '${environment.homeDirectory.path}/sources/local',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'add', 'local', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    await File('${source.path}/sdk/index.yaml').writeAsString('not: valid');
+
+    expect(
+      await runFluoh(
+        ['source', 'update', 'local'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(File('${cachedSource.path}/sdk/index.yaml').existsSync(), isTrue);
+    expect(
+      File('${cachedSource.path}/sdk/index.yaml').readAsStringSync(),
+      isNot('not: valid'),
+    );
+    expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
+    expect(stdout, contains('Updated source local.'));
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'keeps existing cache when adding an invalid local path source',
+    () async {
+      final environment = await createTestEnvironment();
+      final validSource = await createPubSourceFixture(
+        environment.homeDirectory,
+      );
+      final invalidSource = Directory(
+        '${environment.homeDirectory.path}/invalid',
+      );
+      await Directory('${invalidSource.path}/sdk').create(recursive: true);
+      await File('${invalidSource.path}/sdk/index.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
+versions: {}
+''');
+      final cachedSdkIndex = File(
+        '${environment.homeDirectory.path}/sources/local/sdk/index.yaml',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['source', 'add', 'local', validSource.path],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      final previousSnapshot = cachedSdkIndex.readAsStringSync();
+
+      expect(
+        await runFluoh(
+          ['source', 'add', 'local', invalidSource.path],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stderr.join('\n'), contains('Source local is not valid'));
+      expect(cachedSdkIndex.readAsStringSync(), previousSnapshot);
+      expect(Directory(invalidSource.path).existsSync(), isTrue);
+      expect(File('${invalidSource.path}/sdk/index.yaml').existsSync(), isTrue);
+    },
+  );
 
   test('does not allow replacing the official source', () async {
     final environment = await createTestEnvironment();
@@ -202,8 +297,73 @@ void main() {
       ).existsSync(),
       isTrue,
     );
+    expect(
+      Directory(
+        '${environment.homeDirectory.path}/sources/remote/.git',
+      ).existsSync(),
+      isFalse,
+    );
     expect(stderr, isEmpty);
   });
+
+  test(
+    'keeps the previous git source snapshot when update validation fails',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      await initializeGitRepository(source);
+      final cachedSdkIndex = File(
+        '${environment.homeDirectory.path}/sources/remote/sdk/index.yaml',
+      );
+      final sourceUrl = 'file://${source.path}';
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['source', 'add', 'remote', sourceUrl],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      expect(
+        await runFluoh(
+          ['source', 'update', 'remote'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      final previousSnapshot = cachedSdkIndex.readAsStringSync();
+
+      await File('${source.path}/sdk/index.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
+versions: {}
+''');
+      await commitAll(source, message: 'Break source fixture');
+
+      expect(
+        await runFluoh(
+          ['source', 'update', 'remote'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stderr.join('\n'), contains('Source remote is not valid'));
+      expect(cachedSdkIndex.readAsStringSync(), previousSnapshot);
+      expect(
+        Directory('${cachedSdkIndex.parent.parent.path}/.git').existsSync(),
+        isFalse,
+      );
+    },
+  );
 
   test(
     'updates all sources and accepts package-only supplemental sources',
@@ -291,7 +451,7 @@ packages: []
     expect(stderr, isEmpty);
   });
 
-  test('reports missing package manifests as usage errors', () async {
+  test('reports missing package manifests when adding local sources', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     await File('${source.path}/packages/manifests/camera.yaml').delete();
@@ -305,15 +465,6 @@ packages: []
         stdout: stdout.add,
         stderr: stderr.add,
       ),
-      0,
-    );
-    expect(
-      await runFluoh(
-        ['source', 'update', 'broken'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
       64,
     );
 
@@ -321,7 +472,7 @@ packages: []
     expect(stderr.join('\n'), contains('camera.yaml'));
   });
 
-  test('reports invalid source indexes as usage errors', () async {
+  test('reports invalid local source indexes as usage errors', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     await File('${source.path}/sdk/index.yaml').writeAsString('''
@@ -335,15 +486,6 @@ versions: {}
     expect(
       await runFluoh(
         ['source', 'add', 'broken', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-    expect(
-      await runFluoh(
-        ['source', 'update', 'broken'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

@@ -100,14 +100,13 @@ class SourceAddCommand extends Command<int> {
 
     final store = FluohConfigStore(environment);
     final config = await store.load();
+    final cachePath = '${environment.homeDirectory.path}/sources/$name';
     final updated = isLocalPath
-        ? config.addSource(name, urlOrPath, priority: priority)
-        : config.addGitSource(
-            name,
-            urlOrPath,
-            '${environment.homeDirectory.path}/sources/$name',
-            priority: priority,
-          );
+        ? config.addSource(name, cachePath, priority: priority)
+        : config.addGitSource(name, urlOrPath, cachePath, priority: priority);
+    if (isLocalPath) {
+      await _syncLocalSource(name, Directory(urlOrPath), Directory(cachePath));
+    }
     await store.save(updated);
     stdout('Added source $name: $urlOrPath');
     return 0;
@@ -182,7 +181,7 @@ class SourceUpdateCommand extends Command<int> {
     for (final entry in sources) {
       final sourceConfig = entry.value;
       if (sourceConfig.url != null) {
-        await _syncGitSource(sourceConfig);
+        await _syncGitSource(entry.key, sourceConfig);
       }
       await _validateSource(entry.key, sourceConfig);
       stdout('Updated source ${entry.key}.');
@@ -250,26 +249,108 @@ String _fileSystemMessage(FileSystemException error) {
   return '${error.message}: $path';
 }
 
-Future<void> _syncGitSource(SourceConfig source) async {
-  final directory = source.directory;
-  final gitDirectory = Directory('${directory.path}/.git');
-  if (await gitDirectory.exists()) {
-    await _git(['pull', '--ff-only', '--quiet'], workingDirectory: directory);
-    return;
+Future<void> _syncLocalSource(
+  String name,
+  Directory source,
+  Directory destination,
+) async {
+  final temp = await Directory.systemTemp.createTemp('fluoh_source_');
+  try {
+    await _copyDirectory(source, temp);
+    await _deleteIfExists(Directory('${temp.path}/.git'));
+    await _validateSource(name, SourceConfig(path: temp.path));
+    await _replaceSourceSnapshot(source: temp, destination: destination);
+  } finally {
+    await _deleteIfExists(temp);
   }
+}
 
-  if (await directory.exists()) {
-    final entries = await directory.list().take(1).toList();
-    if (entries.isNotEmpty) {
-      throw UsageException(
-        'Source cache exists and is not a Git repository: ${directory.path}',
-        '',
+Future<void> _syncGitSource(String name, SourceConfig source) async {
+  final temp = await Directory.systemTemp.createTemp('fluoh_source_');
+  try {
+    await _git([
+      'clone',
+      '--depth=1',
+      '--single-branch',
+      '--quiet',
+      source.url!,
+      temp.path,
+    ]);
+    await _deleteIfExists(Directory('${temp.path}/.git'));
+    await _validateSource(name, SourceConfig(path: temp.path));
+    await _replaceSourceSnapshot(source: temp, destination: source.directory);
+  } finally {
+    await _deleteIfExists(temp);
+  }
+}
+
+Future<void> _replaceSourceSnapshot({
+  required Directory source,
+  required Directory destination,
+}) async {
+  final parent = destination.parent;
+  await parent.create(recursive: true);
+  var staging = await parent.createTemp(
+    '.${_basename(destination.path)}-next-',
+  );
+  Directory? backup;
+  try {
+    await _copyDirectory(source, staging);
+    await _deleteIfExists(Directory('${staging.path}/.git'));
+    if (await destination.exists()) {
+      backup = await destination.rename(
+        '${parent.path}/.${_basename(destination.path)}-previous-'
+        '${DateTime.now().microsecondsSinceEpoch}',
       );
     }
+    try {
+      await staging.rename(destination.path);
+      staging = Directory('');
+    } catch (_) {
+      if (backup != null && !await destination.exists()) {
+        await backup.rename(destination.path);
+        backup = null;
+      }
+      rethrow;
+    }
+  } finally {
+    if (staging.path.isNotEmpty) {
+      await _deleteIfExists(staging);
+    }
+    if (backup != null) {
+      await _deleteIfExists(backup);
+    }
   }
+}
 
-  await directory.parent.create(recursive: true);
-  await _git(['clone', '--quiet', source.url!, directory.path]);
+Future<void> _copyDirectory(Directory source, Directory destination) async {
+  await destination.create(recursive: true);
+  await for (final entity in source.list(recursive: false)) {
+    final name = _basename(entity.path);
+    if (name == '.git') {
+      continue;
+    }
+    final target = '${destination.path}/$name';
+    if (entity is Directory) {
+      await _copyDirectory(entity, Directory(target));
+    } else if (entity is File) {
+      await File(target).parent.create(recursive: true);
+      await entity.copy(target);
+    }
+  }
+}
+
+Future<void> _deleteIfExists(FileSystemEntity entity) async {
+  if (await entity.exists()) {
+    await entity.delete(recursive: true);
+  }
+}
+
+String _basename(String path) {
+  final normalized = path.endsWith(Platform.pathSeparator)
+      ? path.substring(0, path.length - 1)
+      : path;
+  return normalized.split(Platform.pathSeparator).last;
 }
 
 Future<void> _git(List<String> arguments, {Directory? workingDirectory}) async {

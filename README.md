@@ -136,6 +136,11 @@ Sources are layered by priority. An internal source can provide only `packages/r
 fluoh source remove internal
 ```
 
+Remote sources are cached as the latest validated snapshot under `FLUOH_HOME`;
+`fluoh` does not keep Git history in the source cache. Local path sources are
+also copied into the same cache so later edits to the original directory do not
+change the configured source until it is added again.
+
 ## Contributing
 
 Local development, testing, pub.dev publishing, Homebrew formula maintenance, and pre-commit checks are documented in [CONTRIBUTING.md](CONTRIBUTING.md).

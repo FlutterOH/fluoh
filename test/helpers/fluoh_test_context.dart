@@ -269,6 +269,11 @@ Future<void> initializeGitRepository(Directory repo) async {
   await _git(repo, ['commit', '-m', 'Initial source fixture']);
 }
 
+Future<void> commitAll(Directory repo, {required String message}) async {
+  await _git(repo, ['add', '.']);
+  await _git(repo, ['commit', '-m', message]);
+}
+
 Future<ProcessResult> _git(Directory repo, List<String> arguments) async {
   final result = await Process.run(
     'git',

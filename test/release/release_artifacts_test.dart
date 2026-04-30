@@ -70,6 +70,7 @@ void main() {
     expect(readme, contains('fluoh upgrade'));
     expect(readme, contains('fluoh update'));
     expect(readme, contains('packages/registry.yaml'));
+    expect(readme, contains('latest validated snapshot'));
     expect(readme, contains('fluoh source remove internal'));
     expect(readme, isNot(contains('fluoh source use')));
     expect(
@@ -88,6 +89,7 @@ void main() {
     expect(chineseReadme, contains('fluoh upgrade'));
     expect(chineseReadme, contains('fluoh update'));
     expect(chineseReadme, contains('packages/registry.yaml'));
+    expect(chineseReadme, contains('最新校验通过的快照'));
     expect(chineseReadme, contains('fluoh source remove internal'));
     expect(chineseReadme, isNot(contains('fluoh source use')));
     expect(

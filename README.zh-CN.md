@@ -136,6 +136,8 @@ fluoh source update
 fluoh source remove internal
 ```
 
+远端源会以最新校验通过的快照缓存到 `FLUOH_HOME` 下；`fluoh` 不会在数据源缓存中保留 Git 历史。本地路径源也会复制到同一个缓存目录，因此原目录后续修改不会影响已配置的数据源，除非重新添加该源。
+
 ## 贡献
 
 本地开发、测试、发布到 pub.dev、Homebrew formula 维护和提交前检查见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
