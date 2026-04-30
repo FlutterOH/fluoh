@@ -8,6 +8,8 @@ import '../context/fluoh_environment.dart';
 import '../sdk/sdk_manager.dart';
 import '../sdk/sdk_release.dart';
 
+const _defaultFlutterOhRepositoryUrl = 'git@github.com:FlutterOH/fluoh.git';
+
 class CreateCommand extends Command<int> {
   CreateCommand({required this.environment, required OutputWriter stdout})
     : _stdout = stdout {
@@ -20,12 +22,10 @@ class CreateCommand extends Command<int> {
       )
       ..addOption('sdk-line', help: 'Flutter OHOS SDK line to target.')
       ..addOption('sdk', help: 'Exact Flutter OHOS SDK tag to target.')
-      ..addFlag(
-        'github',
-        negatable: false,
-        help: 'Create a GitHub repository and push main plus ohos-* branches.',
-      )
-      ..addOption('org', help: 'GitHub organization for --github.');
+      ..addOption(
+        'repository',
+        help: 'Final FlutterOH adapter repository URL for origin and manifest.',
+      );
   }
 
   final FluohEnvironment environment;
@@ -48,11 +48,8 @@ class CreateCommand extends Command<int> {
     }
 
     final upstream = rest.single;
-    final orgForGitHub = argResults!.option('org');
-    if (argResults!.flag('github') &&
-        (orgForGitHub == null || orgForGitHub.isEmpty)) {
-      usageException('Expected --org when using --github.');
-    }
+    final repositoryUrl =
+        argResults!.option('repository') ?? _defaultFlutterOhRepositoryUrl;
     final release = await _resolveSdkRelease();
     final destination = Directory(
       argResults!.option('output') ??
@@ -66,10 +63,6 @@ class CreateCommand extends Command<int> {
     }
 
     await _git(['clone', '--quiet', upstream, destination.path]);
-    final upstreamDefaultBranch = (await _git([
-      'branch',
-      '--show-current',
-    ], workingDirectory: destination)).stdout.toString().trim();
     await _git([
       'checkout',
       '-b',
@@ -87,9 +80,7 @@ class CreateCommand extends Command<int> {
         'Package at $packagePath is ${package.name}, expected $packageName.',
       );
     }
-    final githubUrl = argResults!.flag('github')
-        ? 'https://github.com/$orgForGitHub/${package.name}'
-        : null;
+    await _configureAdapterRemotes(destination, repositoryUrl);
     final upstreamRef = (await _git([
       'rev-parse',
       'HEAD',
@@ -101,7 +92,7 @@ class CreateCommand extends Command<int> {
       upstreamRef: upstreamRef,
       packagePath: packagePath,
       release: release,
-      flutterOhUrl: null,
+      flutterOhUrl: repositoryUrl,
     );
     await File('${destination.path}/FLUOH_ADAPT.md').writeAsString(
       [
@@ -127,39 +118,6 @@ class CreateCommand extends Command<int> {
       '-m',
       'Initialize FlutterOH adapter',
     ], workingDirectory: destination);
-
-    if (argResults!.flag('github')) {
-      await _publishToGitHub(
-        destination: destination,
-        fluohEnvironment: environment,
-        org: orgForGitHub!,
-        packageName: package.name,
-        baseBranch: upstreamDefaultBranch,
-        branch: 'ohos-${release.line}',
-      );
-      await _writeAdapterManifest(
-        destination: destination,
-        package: package,
-        upstream: upstream,
-        upstreamRef: upstreamRef,
-        packagePath: packagePath,
-        release: release,
-        flutterOhUrl: githubUrl,
-      );
-      await _git(['add', 'fluoh.yaml'], workingDirectory: destination);
-      await _git([
-        'commit',
-        '--quiet',
-        '-m',
-        'Set FlutterOH repository URL',
-      ], workingDirectory: destination);
-      await _git([
-        'push',
-        'origin',
-        'ohos-${release.line}',
-      ], workingDirectory: destination);
-      _stdout('Published $orgForGitHub/${package.name} to GitHub.');
-    }
 
     _stdout('Created adapter repository at ${destination.path}.');
     return 0;
@@ -584,14 +542,10 @@ Future<void> _ensureCleanWorkingTree(Directory repository) async {
   }
 }
 
-Future<void> _publishToGitHub({
-  required Directory destination,
-  required FluohEnvironment fluohEnvironment,
-  required String org,
-  required String packageName,
-  required String baseBranch,
-  required String branch,
-}) async {
+Future<void> _configureAdapterRemotes(
+  Directory destination,
+  String repositoryUrl,
+) async {
   final existingOrigin = await _git(
     ['remote', 'get-url', 'origin'],
     workingDirectory: destination,
@@ -606,43 +560,12 @@ Future<void> _publishToGitHub({
       'upstream',
     ], workingDirectory: destination);
   }
-
-  final repo = '$org/$packageName';
-  try {
-    await _gh(
-      ['auth', 'status'],
-      workingDirectory: destination,
-      fluohEnvironment: fluohEnvironment,
-    );
-    await _gh(
-      [
-        'repo',
-        'create',
-        repo,
-        '--public',
-        '--source',
-        destination.path,
-        '--remote',
-        'origin',
-      ],
-      workingDirectory: destination,
-      fluohEnvironment: fluohEnvironment,
-    );
-    await _git([
-      'push',
-      '-u',
-      'origin',
-      baseBranch,
-    ], workingDirectory: destination);
-    await _git(['push', '-u', 'origin', branch], workingDirectory: destination);
-  } on UsageException catch (error) {
-    throw UsageException(
-      'GitHub automation failed; local adapter repository kept at '
-          '${destination.path}.\n${error.message}\nNext steps: create $repo, '
-          'set origin, then push $baseBranch and $branch.',
-      '',
-    );
-  }
+  await _git([
+    'remote',
+    'add',
+    'origin',
+    repositoryUrl,
+  ], workingDirectory: destination);
 }
 
 Future<void> _ensureGitIdentity(Directory repository) async {
@@ -686,27 +609,6 @@ Future<ProcessResult> _git(
     );
   }
   return result;
-}
-
-Future<void> _gh(
-  List<String> arguments, {
-  required Directory workingDirectory,
-  required FluohEnvironment fluohEnvironment,
-}) async {
-  final executable = fluohEnvironment.processEnvironment['FLUOH_GH'] ?? 'gh';
-  final result = await Process.run(
-    executable,
-    arguments,
-    workingDirectory: workingDirectory.path,
-    environment: fluohEnvironment.processEnvironment,
-    includeParentEnvironment: true,
-  );
-  if (result.exitCode != 0) {
-    throw UsageException(
-      'gh ${arguments.join(' ')} failed:\n${result.stderr}',
-      '',
-    );
-  }
 }
 
 String _defaultRepositoryName(String upstream) {

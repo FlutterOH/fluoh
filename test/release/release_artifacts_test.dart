@@ -67,6 +67,11 @@ void main() {
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
     expect(readme, contains('fluoh update'));
+    expect(
+      readme,
+      contains('--repository git@github.com:FlutterOH/package.git'),
+    );
+    expect(readme, isNot(contains('--github')));
     expect(readme, contains('[CONTRIBUTING.md](CONTRIBUTING.md)'));
     expect(readme, isNot(contains('dart pub publish --dry-run')));
     expect(readme, isNot(contains('git tag v0.0.1')));
@@ -77,6 +82,11 @@ void main() {
     expect(englishReadme, contains('brew install fluoh'));
     expect(englishReadme, contains('fluoh upgrade'));
     expect(englishReadme, contains('fluoh update'));
+    expect(
+      englishReadme,
+      contains('--repository git@github.com:FlutterOH/package.git'),
+    );
+    expect(englishReadme, isNot(contains('--github')));
     expect(englishReadme, contains('[CONTRIBUTING.en.md](CONTRIBUTING.en.md)'));
     expect(englishReadme, isNot(contains('dart pub publish --dry-run')));
     expect(englishReadme, isNot(contains('git tag v0.0.1')));
@@ -99,6 +109,12 @@ void main() {
       contributing,
       contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
     );
+    expect(contributing, contains('git@github.com:FlutterOH/fluoh.git'));
+    expect(
+      contributing,
+      contains('--repository git@github.com:FlutterOH/package.git'),
+    );
+    expect(contributing, isNot(contains('gh auth login')));
     expect(contributing, contains('提交前必须运行并通过'));
     expect(
       contributing,
@@ -126,6 +142,12 @@ void main() {
       englishContributing,
       contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
     );
+    expect(englishContributing, contains('git@github.com:FlutterOH/fluoh.git'));
+    expect(
+      englishContributing,
+      contains('--repository git@github.com:FlutterOH/package.git'),
+    );
+    expect(englishContributing, isNot(contains('gh auth login')));
     expect(
       englishContributing,
       contains('Run and pass these checks before committing'),

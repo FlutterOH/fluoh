@@ -13,7 +13,7 @@ FlutterOH 项目通常会同时遇到三类问题：SDK 版本需要和项目绑
 - 安装和切换 Flutter OHOS SDK，并写入 FVM 兼容配置。
 - 根据 FlutterOH 数据源检查依赖兼容性，生成 OHOS 适配依赖替换。
 - 初始化第三方 package 的 FlutterOH 适配仓库，生成适配分支和 release tag。
-- 支持 GitHub 组织仓库创建、pub.dev 自动发布和 Homebrew 安装链路。
+- 支持适配仓库 remote 配置、pub.dev 自动发布和 Homebrew 安装链路。
 
 ## 安装
 
@@ -90,13 +90,12 @@ fluoh create https://github.com/upstream/monorepo.git \
   --sdk-line 3.22
 ```
 
-如果需要直接创建 FlutterOH 组织仓库并推送分支：
+默认生成的适配仓库会把 `origin` 设置为 `git@github.com:FlutterOH/fluoh.git`，并把上游仓库保留为 `upstream`。如果需要指定最终推送位置：
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
   --sdk-line 3.22 \
-  --github \
-  --org FlutterOH
+  --repository git@github.com:FlutterOH/package.git
 ```
 
 ## 命令概览

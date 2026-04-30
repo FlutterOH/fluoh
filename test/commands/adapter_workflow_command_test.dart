@@ -51,12 +51,24 @@ void main() {
       );
 
       final branch = await _git(adapter, ['branch', '--show-current']);
+      final origin = await _git(adapter, ['remote', 'get-url', 'origin']);
+      final upstreamRemote = await _git(adapter, [
+        'remote',
+        'get-url',
+        'upstream',
+      ]);
       expect(branch.stdout.toString().trim(), 'ohos-3.35');
+      expect(
+        origin.stdout.toString().trim(),
+        'git@github.com:FlutterOH/fluoh.git',
+      );
+      expect(upstreamRemote.stdout.toString().trim(), upstream.path);
       expect(
         File('${adapter.path}/fluoh.yaml').readAsStringSync(),
         allOf(
           contains('schema: 1'),
           contains('name: camera'),
+          contains('url: git@github.com:FlutterOH/fluoh.git'),
           contains('branch: ohos-3.35'),
           contains('3.35.8-ohos-0.0.3'),
           contains('status: experimental'),
@@ -196,124 +208,27 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test(
-    'creates a GitHub repository remote and pushes main and adapter branches',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await createPubSourceFixture(environment.homeDirectory);
-      final upstream = await createUpstreamPackageRepository(
-        Directory('${environment.homeDirectory.path}/upstream_camera'),
-      );
-      final adapter = Directory(
-        '${environment.homeDirectory.path}/adapter_github',
-      );
-      final remoteRoot = Directory('${environment.homeDirectory.path}/github');
-      await remoteRoot.create(recursive: true);
-      final fakeGh = await _createFakeGh(environment.homeDirectory);
-      final githubEnvironment = FluohEnvironment(
-        homeDirectory: environment.homeDirectory,
-        workingDirectory: environment.workingDirectory,
-        processEnvironment: {
-          'FLUOH_GH': fakeGh.path,
-          'FAKE_GH_REMOTE_ROOT': remoteRoot.path,
-        },
-      );
-      final stdout = <String>[];
-      final stderr = <String>[];
-
-      await runFluoh(
-        ['source', 'add', 'fixture', source.path],
-        environment: githubEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        ['source', 'use', 'fixture'],
-        environment: githubEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-
-      expect(
-        await runFluoh(
-          [
-            'create',
-            upstream.path,
-            '--output',
-            adapter.path,
-            '--sdk-line',
-            '3.35',
-            '--github',
-            '--org',
-            'FlutterOH',
-          ],
-          environment: githubEnvironment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-
-      final origin = await _git(adapter, ['remote', 'get-url', 'origin']);
-      final upstreamRemote = await _git(adapter, [
-        'remote',
-        'get-url',
-        'upstream',
-      ]);
-      final remoteBranches = await Process.run('git', [
-        '--git-dir',
-        '${remoteRoot.path}/FlutterOH/camera.git',
-        'branch',
-        '--list',
-      ]);
-
-      expect(
-        origin.stdout.toString().trim(),
-        '${remoteRoot.path}/FlutterOH/camera.git',
-      );
-      expect(upstreamRemote.stdout.toString().trim(), upstream.path);
-      expect(remoteBranches.stdout.toString(), contains('main'));
-      expect(remoteBranches.stdout.toString(), contains('ohos-3.35'));
-      final manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
-      expect(manifest, contains('url: https://github.com/FlutterOH/camera'));
-      expect(stdout, contains('Published FlutterOH/camera to GitHub.'));
-      expect(stderr, isEmpty);
-    },
-  );
-
-  test('pushes the upstream default branch during GitHub automation', () async {
+  test('uses an explicit adapter repository URL when provided', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_master_camera'),
-      initialBranch: 'master',
+      Directory('${environment.homeDirectory.path}/upstream_custom_remote'),
     );
     final adapter = Directory(
-      '${environment.homeDirectory.path}/adapter_github_master',
-    );
-    final remoteRoot = Directory('${environment.homeDirectory.path}/github');
-    await remoteRoot.create(recursive: true);
-    final fakeGh = await _createFakeGh(environment.homeDirectory);
-    final githubEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: environment.workingDirectory,
-      processEnvironment: {
-        'FLUOH_GH': fakeGh.path,
-        'FAKE_GH_REMOTE_ROOT': remoteRoot.path,
-      },
+      '${environment.homeDirectory.path}/adapter_custom_remote',
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: githubEnvironment,
+      environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
     );
     await runFluoh(
       ['source', 'use', 'fixture'],
-      environment: githubEnvironment,
+      environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -327,55 +242,47 @@ void main() {
           adapter.path,
           '--sdk-line',
           '3.35',
-          '--github',
-          '--org',
-          'FlutterOH',
+          '--repository',
+          'git@github.com:FlutterOH/camera.git',
         ],
-        environment: githubEnvironment,
+        environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       ),
       0,
     );
 
-    final remoteBranches = await Process.run('git', [
-      '--git-dir',
-      '${remoteRoot.path}/FlutterOH/camera.git',
-      'branch',
-      '--list',
-    ]);
-    expect(remoteBranches.stdout.toString(), contains('master'));
-    expect(remoteBranches.stdout.toString(), contains('ohos-3.35'));
+    final origin = await _git(adapter, ['remote', 'get-url', 'origin']);
+    final manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
+    expect(
+      origin.stdout.toString().trim(),
+      'git@github.com:FlutterOH/camera.git',
+    );
+    expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
     expect(stderr, isEmpty);
   });
 
-  test('keeps null FlutterOH URLs when GitHub automation fails', () async {
+  test('does not accept removed GitHub automation flags', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_failed_github'),
+      Directory('${environment.homeDirectory.path}/upstream_github_flags'),
     );
     final adapter = Directory(
-      '${environment.homeDirectory.path}/adapter_failed_github',
-    );
-    final failingGh = await _createFailingGh(environment.homeDirectory);
-    final githubEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: environment.workingDirectory,
-      processEnvironment: {'FLUOH_GH': failingGh.path},
+      '${environment.homeDirectory.path}/adapter_github_flags',
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: githubEnvironment,
+      environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
     );
     await runFluoh(
       ['source', 'use', 'fixture'],
-      environment: githubEnvironment,
+      environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -393,20 +300,14 @@ void main() {
           '--org',
           'FlutterOH',
         ],
-        environment: githubEnvironment,
+        environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       ),
       64,
     );
-
-    final manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
-    expect(manifest, contains('flutteroh:\n  url: null'));
-    expect(manifest, contains('replacement:\n  source: git\n  url: null'));
-    expect(manifest, isNot(contains('https://github.com/FlutterOH/camera')));
-    expect(stderr.join('\n'), contains('GitHub automation failed'));
+    expect(stderr.join('\n'), contains('Could not find an option named'));
   });
-
   test('release writes a pub source package update', () async {
     final environment = await createTestEnvironment();
     final adapter = await _createAdapterFixture(environment);
@@ -563,66 +464,6 @@ Future<Directory> _createAdapterFixture(FluohEnvironment environment) async {
   );
 
   return adapter;
-}
-
-Future<File> _createFakeGh(Directory parent) async {
-  final script = File('${parent.path}/fake_gh.sh');
-  await script.writeAsString(r'''
-#!/bin/sh
-set -eu
-if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
-  exit 0
-fi
-if [ "$1" != "repo" ] || [ "$2" != "create" ]; then
-  echo "unsupported gh command: $*" >&2
-  exit 2
-fi
-repo="$3"
-shift 3
-source_dir=""
-remote_name="origin"
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --source)
-      source_dir="$2"
-      shift 2
-      ;;
-    --remote)
-      remote_name="$2"
-      shift 2
-      ;;
-    --public)
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-bare="$FAKE_GH_REMOTE_ROOT/$repo.git"
-mkdir -p "$(dirname "$bare")"
-git init --bare "$bare" >/dev/null
-git -C "$source_dir" remote add "$remote_name" "$bare"
-''');
-  final chmod = await Process.run('chmod', ['+x', script.path]);
-  if (chmod.exitCode != 0) {
-    fail('chmod fake gh failed: ${chmod.stderr}');
-  }
-  return script;
-}
-
-Future<File> _createFailingGh(Directory parent) async {
-  final script = File('${parent.path}/failing_gh.sh');
-  await script.writeAsString('''
-#!/bin/sh
-echo "forced gh failure" >&2
-exit 2
-''');
-  final chmod = await Process.run('chmod', ['+x', script.path]);
-  if (chmod.exitCode != 0) {
-    fail('chmod failing gh failed: ${chmod.stderr}');
-  }
-  return script;
 }
 
 Future<ProcessResult> _git(Directory repo, List<String> arguments) async {

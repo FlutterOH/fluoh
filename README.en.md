@@ -13,7 +13,7 @@ Core capabilities:
 - Install and switch Flutter OHOS SDKs with FVM-compatible project files.
 - Check dependencies against FlutterOH data sources and generate OHOS adapter replacements.
 - Initialize third-party package adapter repositories with adapter branches and release tags.
-- Support GitHub organization automation, pub.dev automated publishing, and Homebrew installation.
+- Support adapter repository remote configuration, pub.dev automated publishing, and Homebrew installation.
 
 ## Installation
 
@@ -90,13 +90,12 @@ fluoh create https://github.com/upstream/monorepo.git \
   --sdk-line 3.22
 ```
 
-Create a FlutterOH organization repository and push branches:
+Generated adapter repositories set `origin` to `git@github.com:FlutterOH/fluoh.git` by default and keep the upstream repository as `upstream`. To choose the final push target:
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
   --sdk-line 3.22 \
-  --github \
-  --org FlutterOH
+  --repository git@github.com:FlutterOH/package.git
 ```
 
 ## Command Overview

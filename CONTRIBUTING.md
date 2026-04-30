@@ -122,7 +122,7 @@ git diff --check
 示例：
 
 ```text
-feat(adapter): support GitHub repository automation
+feat(adapter): configure adapter repository remotes
 fix(deps): update rewritten OHOS dependencies
 docs: add Homebrew installation guide
 ci: publish package on version tags
@@ -165,13 +165,21 @@ fluoh --version
 
 ## 适配仓库工作流维护
 
-`fluoh create --github --org FlutterOH` 依赖 GitHub CLI：
+`fluoh create` 会把克隆来源保留为 `upstream`，并把 `origin` 设置为适配仓库最终推送位置。默认值是：
 
 ```sh
-gh auth login
+git@github.com:FlutterOH/fluoh.git
 ```
 
-该命令会创建组织仓库、设置 `origin`，并推送 `main` 与 `ohos-*` 分支。失败时必须保留本地适配仓库，并提示维护者手动创建仓库、设置 remote、推送分支。
+如果某个适配库需要推送到独立仓库，创建时使用 `--repository` 指定：
+
+```sh
+fluoh create https://github.com/upstream/package.git \
+  --sdk-line 3.22 \
+  --repository git@github.com:FlutterOH/package.git
+```
+
+该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
 `fluoh release` 必须继续保证：
 

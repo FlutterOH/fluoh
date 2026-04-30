@@ -122,7 +122,7 @@ Common `type` values:
 Examples:
 
 ```text
-feat(adapter): support GitHub repository automation
+feat(adapter): configure adapter repository remotes
 fix(deps): update rewritten OHOS dependencies
 docs: add Homebrew installation guide
 ci: publish package on version tags
@@ -165,13 +165,21 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Adapter Repository Workflow Maintenance
 
-`fluoh create --github --org FlutterOH` depends on GitHub CLI:
+`fluoh create` keeps the clone source as `upstream` and sets `origin` to the final adapter repository push target. The default is:
 
 ```sh
-gh auth login
+git@github.com:FlutterOH/fluoh.git
 ```
 
-The command creates the organization repository, sets `origin`, and pushes the `main` and `ohos-*` branches. If it fails, it must keep the local adapter repository and tell the maintainer how to create the repository manually, set the remote, and push the branches.
+If an adapter needs to be pushed to a dedicated repository, pass `--repository` when creating it:
+
+```sh
+fluoh create https://github.com/upstream/package.git \
+  --sdk-line 3.22 \
+  --repository git@github.com:FlutterOH/package.git
+```
+
+The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
 `fluoh release` must continue to guarantee:
 
