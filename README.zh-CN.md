@@ -77,7 +77,7 @@ fluoh update --yes
 ### 创建第三方库适配仓库
 
 ```sh
-fluoh create https://github.com/upstream/package.git --sdk-line 3.22
+fluoh create https://github.com/upstream/package.git --sdk-series 3.22
 fluoh release --push
 ```
 
@@ -87,14 +87,14 @@ monorepo package 可以指定包路径：
 fluoh create https://github.com/upstream/monorepo.git \
   --package some_package \
   --path packages/some_package \
-  --sdk-line 3.22
+  --sdk-series 3.22
 ```
 
 默认生成的适配仓库会把 `origin` 设置为 `git@github.com:FlutterOH/fluoh.git`，并把上游仓库保留为 `upstream`。如果需要指定最终推送位置：
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
-  --sdk-line 3.22 \
+  --sdk-series 3.22 \
   --repository git@github.com:FlutterOH/package.git
 ```
 

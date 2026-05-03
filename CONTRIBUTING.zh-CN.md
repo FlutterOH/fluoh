@@ -175,7 +175,7 @@ git@github.com:FlutterOH/fluoh.git
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
-  --sdk-line 3.22 \
+  --sdk-series 3.22 \
   --repository git@github.com:FlutterOH/package.git
 ```
 

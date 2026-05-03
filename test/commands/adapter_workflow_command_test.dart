@@ -34,7 +34,7 @@ void main() {
             upstream.path,
             '--output',
             adapter.path,
-            '--sdk-line',
+            '--sdk-series',
             '3.35',
           ],
           environment: environment,
@@ -130,7 +130,7 @@ void main() {
           'packages/camera/camera',
           '--output',
           adapter.path,
-          '--sdk-line',
+          '--sdk-series',
           '3.35',
         ],
         environment: environment,
@@ -174,7 +174,7 @@ void main() {
           'camera',
           '--output',
           adapter.path,
-          '--sdk-line',
+          '--sdk-series',
           '3.35',
         ],
         environment: environment,
@@ -216,7 +216,7 @@ void main() {
           upstream.path,
           '--output',
           adapter.path,
-          '--sdk-line',
+          '--sdk-series',
           '3.35',
           '--repository',
           'git@github.com:FlutterOH/camera.git',
@@ -264,7 +264,7 @@ void main() {
           upstream.path,
           '--output',
           adapter.path,
-          '--sdk-line',
+          '--sdk-series',
           '3.35',
           '--github',
           '--org',
@@ -299,17 +299,34 @@ void main() {
       0,
     );
 
-    final packageYaml = File('${pubSource.path}/packages/camera.yaml');
-    final indexYaml = File('${pubSource.path}/packages/index.yaml');
-    expect(packageYaml.existsSync(), isTrue);
-    expect(indexYaml.existsSync(), isTrue);
-    expect(packageYaml.readAsStringSync(), contains('name: camera'));
+    final registryYaml = File('${pubSource.path}/packages/registry.yaml');
+    final manifestYaml = File(
+      '${pubSource.path}/packages/manifests/camera.yaml',
+    );
+    expect(registryYaml.existsSync(), isTrue);
+    expect(manifestYaml.existsSync(), isTrue);
+    expect(registryYaml.readAsStringSync(), contains('name: camera'));
+    expect(manifestYaml.readAsStringSync(), contains('versionSeries: "3.35"'));
     expect(
-      packageYaml.readAsStringSync(),
+      manifestYaml.readAsStringSync(),
       contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'),
     );
-    expect(indexYaml.readAsStringSync(), contains('name: camera'));
+    expect(File('${pubSource.path}/packages/index.yaml').existsSync(), isFalse);
+    expect(
+      File('${pubSource.path}/packages/camera.yaml').existsSync(),
+      isFalse,
+    );
+    expect(
+      await runFluoh(
+        ['source', 'add', 'generated', pubSource.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
     expect(stdout, contains('Wrote pub source update for camera.'));
+    expect(stdout, contains('Added source generated: ${pubSource.path}'));
     expect(stderr, isEmpty);
   });
 
@@ -421,7 +438,7 @@ Future<Directory> _createAdapterFixture(FluohEnvironment environment) async {
     stderr: stderr.add,
   );
   await runFluoh(
-    ['create', upstream.path, '--output', adapter.path, '--sdk-line', '3.35'],
+    ['create', upstream.path, '--output', adapter.path, '--sdk-series', '3.35'],
     environment: environment,
     stdout: stdout.add,
     stderr: stderr.add,

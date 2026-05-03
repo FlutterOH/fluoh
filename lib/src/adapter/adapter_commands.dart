@@ -20,7 +20,7 @@ class CreateCommand extends Command<int> {
         'output',
         help: 'Destination path for the adapter repository.',
       )
-      ..addOption('sdk-line', help: 'Flutter OHOS SDK line to target.')
+      ..addOption('sdk-series', help: 'Flutter OHOS SDK series to target.')
       ..addOption('sdk', help: 'Exact Flutter OHOS SDK tag to target.')
       ..addOption(
         'repository',
@@ -129,9 +129,9 @@ class CreateCommand extends Command<int> {
     if (sdk != null) {
       return manager.resolveRelease(sdk);
     }
-    final sdkLine = argResults!.option('sdk-line');
-    if (sdkLine != null) {
-      return manager.resolveRelease(sdkLine);
+    final sdkSeries = argResults!.option('sdk-series');
+    if (sdkSeries != null) {
+      return manager.resolveRelease(sdkSeries);
     }
 
     final releases = await manager.listReleases();
@@ -355,59 +355,81 @@ Future<void> _writePubSourceUpdate(
 }) async {
   final packagesDirectory = Directory('${source.path}/packages');
   await packagesDirectory.create(recursive: true);
+  await Directory(
+    '${packagesDirectory.path}/manifests',
+  ).create(recursive: true);
 
   final repository = manifest.flutterOhUrl ?? manifest.replacementUrl;
-  final packageFile = File(
-    '${packagesDirectory.path}/${manifest.packageName}.yaml',
+  final packagePath = manifest.upstreamPath ?? manifest.replacementPath;
+  final manifestFile = File(
+    '${packagesDirectory.path}/manifests/${manifest.packageName}.yaml',
   );
-  await packageFile.writeAsString(
+  await manifestFile.writeAsString(
     [
       'schema: 1',
-      'name: ${manifest.packageName}',
-      'upstream:',
-      '  version: ${manifest.upstreamVersion}',
-      if (manifest.upstreamUrl != null) '  url: ${manifest.upstreamUrl}',
-      if (manifest.upstreamPath != null) '  path: ${manifest.upstreamPath}',
-      if (manifest.upstreamRef != null) '  ref: ${manifest.upstreamRef}',
-      'adapter:',
-      '  repository: ${repository ?? 'null'}',
-      '  sdkLine: "${manifest.sdkLine}"',
-      '  sdkTag: ${manifest.sdkTag}',
-      '  version: ${manifest.adapterVersion}',
-      '  tag: $releaseTag',
+      'package:',
+      '  name: ${manifest.packageName}',
+      if (repository != null) '  repositoryUrl: $repository',
+      if (manifest.upstreamUrl != null)
+        '  upstreamUrl: ${manifest.upstreamUrl}',
+      if (packagePath != null) '  packagePath: $packagePath',
+      'releases:',
+      '  - version: ${manifest.upstreamVersion}',
+      if (manifest.upstreamRef != null)
+        '    upstreamRef: ${manifest.upstreamRef}',
+      '    sdk:',
+      '      versionSeries: "${manifest.sdkLine}"',
+      '      versions:',
+      '        - ${manifest.sdkTag}',
+      '    status: ${manifest.status ?? 'experimental'}',
+      '    sourceBranch: ohos-${manifest.sdkLine}',
+      '    release:',
+      '      version: ${manifest.adapterVersion}',
+      '      tag: $releaseTag',
+      '    replacement:',
+      '      type: git',
+      '      url: ${repository ?? 'null'}',
+      '      ref: $releaseTag',
       if (manifest.replacementPath != null)
-        '  path: ${manifest.replacementPath}',
-      'status: ${manifest.status ?? 'experimental'}',
+        '      path: ${manifest.replacementPath}',
       '',
     ].join('\n'),
   );
 
-  final indexFile = File('${packagesDirectory.path}/index.yaml');
-  if (!await indexFile.exists()) {
-    await indexFile.writeAsString(
+  final registryFile = File('${packagesDirectory.path}/registry.yaml');
+  if (!await registryFile.exists()) {
+    await registryFile.writeAsString(
       [
         'schema: 1',
         'packages:',
         '  - name: ${manifest.packageName}',
-        '    repository: ${repository ?? 'null'}',
+        if (repository != null) '    repositoryUrl: $repository',
+        if (manifest.upstreamUrl != null)
+          '    upstreamUrl: ${manifest.upstreamUrl}',
+        if (packagePath != null) '    packagePath: $packagePath',
+        '    status: ${manifest.status ?? 'experimental'}',
         '',
       ].join('\n'),
     );
     return;
   }
 
-  final index = await indexFile.readAsString();
+  final registry = await registryFile.readAsString();
   if (RegExp(
     r'^\s*-\s+name:\s+' + RegExp.escape(manifest.packageName) + r'\s*$',
     multiLine: true,
-  ).hasMatch(index)) {
+  ).hasMatch(registry)) {
     return;
   }
-  await indexFile.writeAsString(
+  await registryFile.writeAsString(
     [
-      index.trimRight(),
+      registry.trimRight(),
       '  - name: ${manifest.packageName}',
-      '    repository: ${repository ?? 'null'}',
+      if (repository != null) '    repositoryUrl: $repository',
+      if (manifest.upstreamUrl != null)
+        '    upstreamUrl: ${manifest.upstreamUrl}',
+      if (packagePath != null) '    packagePath: $packagePath',
+      '    status: ${manifest.status ?? 'experimental'}',
       '',
     ].join('\n'),
   );

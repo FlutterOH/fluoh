@@ -77,7 +77,7 @@ fluoh update --yes
 ### Create third-party adapter repositories
 
 ```sh
-fluoh create https://github.com/upstream/package.git --sdk-line 3.22
+fluoh create https://github.com/upstream/package.git --sdk-series 3.22
 fluoh release --push
 ```
 
@@ -87,14 +87,14 @@ Select a package inside a monorepo:
 fluoh create https://github.com/upstream/monorepo.git \
   --package some_package \
   --path packages/some_package \
-  --sdk-line 3.22
+  --sdk-series 3.22
 ```
 
 Generated adapter repositories set `origin` to `git@github.com:FlutterOH/fluoh.git` by default and keep the upstream repository as `upstream`. To choose the final push target:
 
 ```sh
 fluoh create https://github.com/upstream/package.git \
-  --sdk-line 3.22 \
+  --sdk-series 3.22 \
   --repository git@github.com:FlutterOH/package.git
 ```
 
