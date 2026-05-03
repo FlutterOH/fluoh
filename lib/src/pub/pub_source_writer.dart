@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'manifest/pub_manifest.dart';
 
-Future<void> writePubSourceUpdate(
+Future<void> writePubSourcePackageUpdate(
   Directory source, {
   required PubManifest manifest,
   required String releaseTag,

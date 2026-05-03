@@ -8,7 +8,7 @@ import '../../sdk/sdk_manager.dart';
 import '../../sdk/sdk_release.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
-import '../manifest/package_info.dart';
+import '../manifest/pubspec_package.dart';
 import '../repository_url.dart';
 
 class PubCreateCommand extends Command<int> {
@@ -65,7 +65,7 @@ class PubCreateCommand extends Command<int> {
     if (argResults!.option('path') == null && packageName != null) {
       packagePath = await findPackagePath(destination, packageName);
     }
-    final package = await readPackageInfo(
+    final package = await readPubspecPackage(
       packageDirectory(destination, packagePath),
     );
     if (packageName != null && package.name != packageName) {

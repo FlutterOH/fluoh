@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../cli/fluoh_command_runner.dart';
-import 'fluoh_installation.dart';
+import '../cli/fluoh_installation.dart';
 
 typedef UpgradeProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);

@@ -7,7 +7,7 @@ import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
-import '../pub_source_update.dart';
+import '../pub_source_writer.dart';
 
 class PubReleaseCommand extends Command<int> {
   PubReleaseCommand({required this.environment, required OutputWriter stdout})
@@ -120,7 +120,7 @@ class PubReleaseCommand extends Command<int> {
     if (sourcePath == null || sourcePath.isEmpty) {
       return;
     }
-    await writePubSourceUpdate(
+    await writePubSourcePackageUpdate(
       Directory(sourcePath),
       manifest: manifest,
       releaseTag: releaseTag,

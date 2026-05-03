@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
-import 'package_info.dart';
+import 'pubspec_package.dart';
 
 class PubManifest {
   const PubManifest({
@@ -50,7 +50,7 @@ String pubReleaseTagForPackage({
 
 Future<void> writePubManifest({
   required Directory destination,
-  required PackageInfo package,
+  required PubspecPackage package,
   required String upstream,
   required String upstreamRef,
   required String packagePath,

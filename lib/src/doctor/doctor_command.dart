@@ -8,8 +8,8 @@ import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/deps_analyzer.dart';
+import '../cli/fluoh_installation.dart';
 import '../source/pub_source.dart';
-import '../upgrade/fluoh_installation.dart';
 import '../version.dart';
 
 typedef DoctorVersionMetadataProvider =

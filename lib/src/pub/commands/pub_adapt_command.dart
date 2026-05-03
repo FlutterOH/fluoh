@@ -4,7 +4,7 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../context/fluoh_environment.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
-import '../manifest/package_info.dart';
+import '../manifest/pubspec_package.dart';
 
 class PubAdaptCommand extends Command<int> {
   PubAdaptCommand({required this.environment, required OutputWriter stdout})
@@ -43,7 +43,7 @@ class PubAdaptCommand extends Command<int> {
       defaultBranch,
     ], workingDirectory: repository)).stdout.toString().trim();
     final packagePath = manifest.upstreamPath ?? '.';
-    final package = await readPackageInfo(
+    final package = await readPubspecPackage(
       packageDirectory(repository, packagePath),
     );
     await writePubManifest(
