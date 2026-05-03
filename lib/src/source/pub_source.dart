@@ -50,7 +50,6 @@ class PubSource {
               channel: _requiredString(version, 'status'),
               repository: repository,
               tag: _requiredString(version, 'tag'),
-              line: _requiredString(version, 'versionSeries'),
             );
           })
           .toList(growable: false),
@@ -73,19 +72,19 @@ class PubSource {
 
   Future<CompatibilityMatrix> _readSourceCompatibilityMatrix() async {
     final manifests = await _readSourcePackageManifests();
-    final lines = <String, ({List<String> adapted, List<String> blocked})>{};
+    final versions = <String, ({List<String> adapted, List<String> blocked})>{};
     for (final manifest in manifests) {
       for (final status in manifest.compatibility) {
-        final line = lines.putIfAbsent(
-          status.sdkLine,
+        final version = versions.putIfAbsent(
+          status.sdkVersion,
           () => (adapted: <String>[], blocked: <String>[]),
         );
         switch (status.status) {
           case 'broken':
-            line.blocked.add(manifest.name);
+            version.blocked.add(manifest.name);
           case 'compatible':
           case 'experimental':
-            line.adapted.add(manifest.name);
+            version.adapted.add(manifest.name);
           default:
             throw FormatException(
               'Expected package manifest status to be compatible, '
@@ -97,10 +96,10 @@ class PubSource {
 
     return CompatibilityMatrix(
       schemaVersion: 1,
-      sdkLines: lines.map(
-        (sdkLine, packages) => MapEntry(
-          sdkLine,
-          CompatibilityLine(
+      sdkVersions: versions.map(
+        (sdkVersion, packages) => MapEntry(
+          sdkVersion,
+          CompatibilityVersion(
             native: const [],
             adapted: packages.adapted.toSet().toList(growable: false)..sort(),
             blocked: packages.blocked.toSet().toList(growable: false)..sort(),
@@ -154,7 +153,7 @@ class PackageEntry {
 
 class PackageAdapter {
   const PackageAdapter({
-    required this.sdkLine,
+    required this.sdkVersion,
     required this.upstreamVersion,
     required this.repository,
     required this.tag,
@@ -163,7 +162,7 @@ class PackageAdapter {
     this.sourcePriority = 0,
   });
 
-  final String sdkLine;
+  final String sdkVersion;
   final String upstreamVersion;
   final String repository;
   final String tag;
@@ -173,7 +172,7 @@ class PackageAdapter {
 
   PackageAdapter withSource(String name, int priority) {
     return PackageAdapter(
-      sdkLine: sdkLine,
+      sdkVersion: sdkVersion,
       upstreamVersion: upstreamVersion,
       repository: repository,
       tag: tag,
@@ -187,15 +186,15 @@ class PackageAdapter {
 class CompatibilityMatrix {
   const CompatibilityMatrix({
     required this.schemaVersion,
-    required this.sdkLines,
+    required this.sdkVersions,
   });
 
   final int schemaVersion;
-  final Map<String, CompatibilityLine> sdkLines;
+  final Map<String, CompatibilityVersion> sdkVersions;
 }
 
-class CompatibilityLine {
-  const CompatibilityLine({
+class CompatibilityVersion {
+  const CompatibilityVersion({
     required this.native,
     required this.adapted,
     required this.blocked,
@@ -288,9 +287,14 @@ class _SourcePackageManifest {
       final release = _objectMap(value, 'package manifest release');
       final status = _requiredString(release, 'status');
       final sdk = _objectMap(release['sdk'], 'package manifest release sdk');
-      final sdkLine = _requiredString(sdk, 'versionSeries');
-      compatibility.add(
-        _SourceCompatibilityStatus(sdkLine: sdkLine, status: status),
+      final sdkVersions = _sdkVersions(sdk);
+      compatibility.addAll(
+        sdkVersions.map(
+          (sdkVersion) => _SourceCompatibilityStatus(
+            sdkVersion: sdkVersion,
+            status: status,
+          ),
+        ),
       );
       if (status == 'broken') {
         continue;
@@ -300,15 +304,17 @@ class _SourcePackageManifest {
         release['replacement'],
         'package manifest replacement',
       );
-      adapters.add(
-        PackageAdapter(
-          sdkLine: sdkLine,
-          upstreamVersion: _requiredString(release, 'version'),
-          repository: _requiredString(replacement, 'url'),
-          tag: _requiredString(replacement, 'ref'),
-          path: replacement['path'] as String?,
-        ),
-      );
+      for (final sdkVersion in sdkVersions) {
+        adapters.add(
+          PackageAdapter(
+            sdkVersion: sdkVersion,
+            upstreamVersion: _requiredString(release, 'version'),
+            repository: _requiredString(replacement, 'url'),
+            tag: _requiredString(replacement, 'ref'),
+            path: replacement['path'] as String?,
+          ),
+        );
+      }
     }
 
     return _SourcePackageManifest(
@@ -325,12 +331,27 @@ class _SourcePackageManifest {
   final List<_SourceCompatibilityStatus> compatibility;
 }
 
+List<String> _sdkVersions(Map<String, Object?> sdk) {
+  final versions = sdk['versions'];
+  if (versions is List) {
+    final parsed = versions.whereType<String>().toList(growable: false);
+    if (parsed.length != versions.length || parsed.isEmpty) {
+      throw const FormatException(
+        'Expected package manifest release sdk.versions to be a non-empty '
+        'string list.',
+      );
+    }
+    return parsed;
+  }
+  return [_requiredString(sdk, 'version')];
+}
+
 class _SourceCompatibilityStatus {
   const _SourceCompatibilityStatus({
-    required this.sdkLine,
+    required this.sdkVersion,
     required this.status,
   });
 
-  final String sdkLine;
+  final String sdkVersion;
   final String status;
 }

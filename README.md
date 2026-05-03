@@ -44,24 +44,24 @@ Run these commands from a Flutter project root:
 ```sh
 fluoh source update
 fluoh sdk list
-fluoh use 3.22 --pub-get
-fluoh doctor
+fluoh sdk use 3.22 --pub-get
 fluoh deps check
 fluoh deps fix --yes
+fluoh doctor
 ```
 
-`fluoh use` installs the selected Flutter OHOS SDK and writes `.fvmrc`, `.fvm/flutter_sdk`, and `fluoh.yaml`. After that you can keep using FVM or run project commands through `.fvm/flutter_sdk/bin/flutter`.
+`fluoh sdk use` installs the selected Flutter OHOS SDK and writes `.fvmrc`, `.fvm/flutter_sdk`, and `fluoh.yaml`. After that you can keep using FVM or run project commands through `.fvm/flutter_sdk/bin/flutter`.
 
 ## Common Workflows
 
 ### Switch Flutter OHOS SDK
 
-List SDK releases and select an SDK line or exact tag for the current project:
+List SDK releases and select an exact SDK tag for the current project:
 
 ```sh
 fluoh source update
 fluoh sdk list
-fluoh use 3.22 --pub-get
+fluoh sdk use 3.35.8-ohos-0.0.3 --pub-get
 ```
 
 ### Check and fix OHOS dependency adapters
@@ -69,7 +69,7 @@ fluoh use 3.22 --pub-get
 ```sh
 fluoh deps check
 fluoh deps fix --yes
-fluoh update --yes
+fluoh deps update --yes
 ```
 
 `fluoh deps fix` writes `dependency_overrides` by default. Use `--rewrite` when you want to rewrite direct `dependencies` declarations instead.
@@ -77,24 +77,26 @@ fluoh update --yes
 ### Create third-party adapter repositories
 
 ```sh
-fluoh create https://github.com/upstream/package.git --sdk-series 3.22
-fluoh release --push
+fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
+fluoh pub sync
+fluoh pub adapt
+fluoh pub release --push
 ```
 
 Select a package inside a monorepo:
 
 ```sh
-fluoh create https://github.com/upstream/monorepo.git \
+fluoh pub create https://github.com/upstream/monorepo.git \
   --package some_package \
   --path packages/some_package \
-  --sdk-series 3.22
+  --sdk 3.35.8-ohos-0.0.3
 ```
 
-Generated adapter repositories set `origin` to `git@github.com:FlutterOH/fluoh.git` by default and keep the upstream repository as `upstream`. To choose the final push target:
+Generated adapter repositories keep the upstream default branch clean, keep the upstream repository as `upstream`, and set `origin` to `git@github.com:FlutterOH/<package>.git` by default. FlutterOH changes are committed only on `ohos/<sdk-tag>` branches. To choose the final push target:
 
 ```sh
-fluoh create https://github.com/upstream/package.git \
-  --sdk-series 3.22 \
+fluoh pub create https://github.com/upstream/package.git \
+  --sdk 3.35.8-ohos-0.0.3 \
   --repository git@github.com:FlutterOH/package.git
 ```
 
@@ -102,18 +104,17 @@ fluoh create https://github.com/upstream/package.git \
 
 | Command | Purpose |
 | --- | --- |
-| `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh sdk ...` | List, install, and remove local Flutter OHOS SDKs. |
-| `fluoh use <version-or-line>` | Switch the SDK for the current Flutter project. |
+| `fluoh sdk use <version>` | Switch the SDK for the current Flutter project. |
 | `fluoh deps check` | Check OHOS compatibility for project dependencies. |
 | `fluoh deps fix` | Write adapted dependency replacements. |
-| `fluoh update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
+| `fluoh deps update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
+| `fluoh pub ...` | Create, sync, adapt, and release third-party adapter repositories. |
+| `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh doctor` | Diagnose SDK, FVM, OHOS directory, and dependency status. |
-| `fluoh create` | Initialize a FlutterOH third-party adapter repository. |
-| `fluoh release` | Create and optionally push an adapter release tag. |
 | `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
 
-`fluoh update` and `fluoh upgrade` are intentionally different: `update` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.
+`fluoh deps update` and `fluoh upgrade` are intentionally different: `deps update` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.
 
 ## Data Sources
 

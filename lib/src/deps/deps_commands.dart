@@ -3,25 +3,63 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../context/fluoh_environment.dart';
+import '../update/update_command.dart';
 import 'deps_analyzer.dart';
 
 class DepsCommand extends Command<int> {
   DepsCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
-  }) {
+  }) : _stdout = stdout {
     addSubcommand(DepsCheckCommand(environment: environment, stdout: stdout));
     addSubcommand(DepsFixCommand(environment: environment, stdout: stdout));
+    addSubcommand(UpdateCommand(environment: environment, stdout: stdout));
   }
+
+  final OutputWriter _stdout;
 
   @override
   String get name => 'deps';
 
   @override
   String get description => 'Check and fix Flutter OHOS dependency adapters.';
+
+  @override
+  String get usage => '$description\n\n$_usageWithoutDescription';
+
+  @override
+  void printUsage() {
+    _stdout(usage);
+  }
+
+  @override
+  Never usageException(String message) {
+    throw UsageException(message, _usageWithoutDescription);
+  }
+
+  String get _usageWithoutDescription {
+    return [
+      'Usage: $invocation',
+      argParser.usage,
+      '',
+      formatCommandUsage(
+        subcommands,
+        sections: _depsCommandSections,
+        isSubcommand: true,
+        lineLength: argParser.usageLineLength,
+      ),
+      '',
+      'Run "${runner!.executableName} help" to see global options.',
+    ].join('\n');
+  }
 }
+
+const _depsCommandSections = [
+  CommandUsageSection('', ['check', 'fix', 'update']),
+];
 
 class DepsCheckCommand extends Command<int> {
   DepsCheckCommand({required this.environment, required this.stdout}) {

@@ -703,7 +703,6 @@ repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
 versions:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
     await File('${source.path}/packages/registry.yaml').writeAsString('''

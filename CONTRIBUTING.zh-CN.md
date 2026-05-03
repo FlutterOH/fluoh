@@ -165,26 +165,28 @@ fluoh --version
 
 ## 适配仓库工作流维护
 
-`fluoh create` 会把克隆来源保留为 `upstream`，并把 `origin` 设置为适配仓库最终推送位置。默认值是：
+`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-tag>` 适配分支，并把 `origin` 设置为适配仓库最终推送位置。默认值会根据 package 名称推导：
 
 ```sh
-git@github.com:FlutterOH/fluoh.git
+git@github.com:FlutterOH/<package>.git
 ```
 
 如果某个适配库需要推送到独立仓库，创建时使用 `--repository` 指定：
 
 ```sh
-fluoh create https://github.com/upstream/package.git \
-  --sdk-series 3.22 \
+fluoh pub create https://github.com/upstream/package.git \
+  --sdk 3.35.8-ohos-0.0.3 \
   --repository git@github.com:FlutterOH/package.git
 ```
 
-该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
+该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-`fluoh release` 必须继续保证：
+使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前适配分支并刷新 `fluoh.yaml`。
 
-- 只允许在 `ohos-*` 分支运行。
-- 当前分支和 `fluoh.yaml` 的 SDK line 一致。
+`fluoh pub release` 必须继续保证：
+
+- 只允许在 `ohos/*` 分支运行。
+- 当前分支和 `fluoh.yaml` 的适配分支一致。
 - 工作区干净。
 - SDK tag 来自已配置的数据源。
 - release tag 和 manifest 中的 package、上游版本、SDK tag、适配版本一致。

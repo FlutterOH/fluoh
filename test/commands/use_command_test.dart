@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_test_context.dart';
 
 void main() {
-  test('uses an SDK line and writes FVM-compatible project files', () async {
+  test('uses an SDK version and writes FVM-compatible project files', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -22,7 +22,7 @@ void main() {
     );
 
     final exitCode = await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -48,7 +48,7 @@ void main() {
     final fluohConfig = File(
       '${environment.workingDirectory.path}/fluoh.yaml',
     ).readAsStringSync();
-    expect(fluohConfig, contains('line: "3.35"'));
+    expect(fluohConfig, isNot(contains('line:')));
     expect(fluohConfig, contains('version: 3.35.8-ohos-0.0.3'));
     expect(fluohConfig, contains('sources:\n  - flutteroh\n  - fixture'));
     expect(fluohConfig, isNot(contains(environment.homeDirectory.path)));
@@ -78,7 +78,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['use', '3.35'],
+          ['sdk', 'use', '3.35.8-ohos-0.0.3'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -108,7 +108,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['use', '3.35'],
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

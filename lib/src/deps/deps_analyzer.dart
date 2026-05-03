@@ -4,7 +4,6 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../context/fluoh_environment.dart';
-import '../sdk/sdk_release.dart';
 import '../source/pub_source.dart';
 import '../source/source_registry.dart';
 
@@ -14,7 +13,7 @@ class DepsAnalyzer {
   final FluohEnvironment environment;
 
   Future<DepsReport> analyze() async {
-    final sdkLine = await _readSdkLine();
+    final sdkVersion = await _readSdkVersion();
     final pubspec = await _readYamlFile('pubspec.yaml');
     final lock = await _readYamlFile('pubspec.lock');
     final directDependencies = _directDependencyNames(pubspec);
@@ -27,17 +26,17 @@ class DepsAnalyzer {
     final registry = SourceRegistry(environment);
     final packageIndex = await registry.loadPackageIndex();
     final compatibilityMatrix = await registry.loadCompatibilityMatrix();
-    final compatibility = compatibilityMatrix.sdkLines[sdkLine];
+    final compatibility = compatibilityMatrix.sdkVersions[sdkVersion];
 
     final dependencies = <DependencyCompatibility>[];
     for (final locked in lockedPackages.values) {
       final direct = directDependencies.contains(locked.name);
       final adapters = packageIndex.packages[locked.name]?.adapters;
-      final adaptersForLine = adapters
-          ?.where((adapter) => adapter.sdkLine == sdkLine)
+      final adaptersForVersion = adapters
+          ?.where((adapter) => adapter.sdkVersion == sdkVersion)
           .toList(growable: false);
       final bestAdapter = _bestAdapterForVersion(
-        adaptersForLine ?? const <PackageAdapter>[],
+        adaptersForVersion ?? const <PackageAdapter>[],
         locked.version,
       );
 
@@ -45,7 +44,7 @@ class DepsAnalyzer {
         locked,
         compatibility: compatibility,
         adapters: adapters,
-        adapterForLine: adaptersForLine,
+        adapterForVersion: adaptersForVersion,
       );
 
       dependencies.add(
@@ -69,26 +68,19 @@ class DepsAnalyzer {
       return a.name.compareTo(b.name);
     });
 
-    return DepsReport(sdkLine: sdkLine, dependencies: dependencies);
+    return DepsReport(sdkVersion: sdkVersion, dependencies: dependencies);
   }
 
-  Future<String> _readSdkLine() async {
+  Future<String> _readSdkVersion() async {
     final fluohYaml = File('${environment.workingDirectory.path}/fluoh.yaml');
     if (await fluohYaml.exists()) {
       final content = await fluohYaml.readAsString();
       final loaded = loadYaml(content);
       if (loaded is YamlMap) {
         final sdk = loaded['sdk'];
-        if (sdk is YamlMap && sdk['line'] != null) {
-          return '${sdk['line']}';
+        if (sdk is YamlMap && sdk['version'] != null) {
+          return '${sdk['version']}';
         }
-      }
-      final match = RegExp(
-        r'^sdkLine:\s*(\S+)\s*$',
-        multiLine: true,
-      ).firstMatch(content);
-      if (match != null) {
-        return match.group(1)!;
       }
     }
 
@@ -98,12 +90,12 @@ class DepsAnalyzer {
         r'"flutter"\s*:\s*"([^"]+)"',
       ).firstMatch(await fvmrc.readAsString());
       if (match != null) {
-        return sdkLineFromTag(match.group(1)!);
+        return match.group(1)!;
       }
     }
 
     throw UsageException(
-      'No SDK line found. Run "fluoh use <version|line>".',
+      'No SDK version found. Run "fluoh sdk use <version>".',
       '',
     );
   }
@@ -204,9 +196,9 @@ class DepsAnalyzer {
 
   DependencyStatus _statusFor(
     LockedPackage locked, {
-    required CompatibilityLine? compatibility,
+    required CompatibilityVersion? compatibility,
     required List<PackageAdapter>? adapters,
-    required List<PackageAdapter>? adapterForLine,
+    required List<PackageAdapter>? adapterForVersion,
   }) {
     if (compatibility?.native.contains(locked.name) ?? false) {
       return DependencyStatus.native;
@@ -214,8 +206,8 @@ class DepsAnalyzer {
     if (compatibility?.blocked.contains(locked.name) ?? false) {
       return DependencyStatus.blocked;
     }
-    if (adapterForLine != null && adapterForLine.isNotEmpty) {
-      final exactVersion = adapterForLine.any(
+    if (adapterForVersion != null && adapterForVersion.isNotEmpty) {
+      final exactVersion = adapterForVersion.any(
         (adapter) => adapter.upstreamVersion == locked.version,
       );
       return exactVersion
@@ -223,7 +215,7 @@ class DepsAnalyzer {
           : DependencyStatus.versionMismatch;
     }
     if (adapters != null && adapters.isNotEmpty) {
-      return DependencyStatus.lineMismatch;
+      return DependencyStatus.sdkMismatch;
     }
     return DependencyStatus.unknown;
   }
@@ -256,12 +248,9 @@ int _compareAdaptersDescending(PackageAdapter a, PackageAdapter b) {
     return upstream;
   }
 
-  final sdkBase = _compareNumericVersion(
-    _sdkBaseFromTag(b.tag),
-    _sdkBaseFromTag(a.tag),
-  );
-  if (sdkBase != 0) {
-    return sdkBase;
+  final sdkVersion = _compareNumericVersion(b.sdkVersion, a.sdkVersion);
+  if (sdkVersion != 0) {
+    return sdkVersion;
   }
 
   return _compareNumericVersion(
@@ -273,11 +262,6 @@ int _compareAdaptersDescending(PackageAdapter a, PackageAdapter b) {
 String _adapterVersionFromTag(String tag) {
   final match = RegExp(r'-([0-9]+(?:\.[0-9]+)*)$').firstMatch(tag);
   return match?.group(1) ?? '0';
-}
-
-String _sdkBaseFromTag(String tag) {
-  final match = RegExp(r'-ohos-([0-9.]+)-[0-9.]+$').firstMatch(tag);
-  return match?.group(1) ?? '';
 }
 
 int _compareNumericVersion(String a, String b) {
@@ -303,14 +287,14 @@ List<int> _numericParts(String version) {
 }
 
 class DepsReport {
-  const DepsReport({required this.sdkLine, required this.dependencies});
+  const DepsReport({required this.sdkVersion, required this.dependencies});
 
-  final String sdkLine;
+  final String sdkVersion;
   final List<DependencyCompatibility> dependencies;
 
   Map<String, Object?> toJson() {
     return {
-      'sdkLine': sdkLine,
+      'sdkVersion': sdkVersion,
       'dependencies': dependencies
           .map((dependency) => dependency.toJson())
           .toList(),
@@ -363,7 +347,7 @@ class LockedPackage {
 enum DependencyStatus {
   native('native'),
   adapted('adapted'),
-  lineMismatch('line-mismatch'),
+  sdkMismatch('sdk-mismatch'),
   versionMismatch('version-mismatch'),
   unknown('unknown'),
   blocked('blocked');

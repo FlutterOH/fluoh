@@ -25,7 +25,8 @@ void main() {
     );
 
     expect(configFile.existsSync(), isFalse);
-    expect(stdout, isEmpty);
+    expect(stdout.join('\n'), contains('Available subcommands:'));
+    expect(stdout.join('\n'), contains('  use'));
     expect(stderr, isEmpty);
   });
 
@@ -95,7 +96,7 @@ void main() {
     );
 
     await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -132,54 +133,6 @@ void main() {
     );
     expect(stderr, isEmpty);
   });
-
-  test(
-    'resolves SDK line to numeric latest tag when publish dates are absent',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await createPubSourceFixture(environment.homeDirectory);
-      await writeFlutterProjectFixture(environment.workingDirectory);
-      final repo10 = await createTaggedGitRepository(
-        Directory('${environment.homeDirectory.path}/sdk10'),
-        tag: '3.35.8-ohos-0.0.10',
-        readme: '# sdk10\n',
-      );
-      await File('${source.path}/sdk/index.yaml').writeAsString('''
-schema: 1
-repositoryUrl: ${repo10.path}
-versions:
-  - version: 3.35.8-ohos-0.0.9
-    tag: 3.35.8-ohos-0.0.9
-    versionSeries: "3.35"
-    status: stable
-  - version: 3.35.8-ohos-0.0.10
-    tag: 3.35.8-ohos-0.0.10
-    versionSeries: "3.35"
-    status: stable
-''');
-      final stdout = <String>[];
-      final stderr = <String>[];
-
-      await runFluoh(
-        ['source', 'add', 'fixture', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-
-      expect(
-        await runFluoh(
-          ['use', '3.35'],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-      expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.10.'));
-      expect(stderr, isEmpty);
-    },
-  );
 
   test('stops when equal-priority sources disagree on an SDK tag', () async {
     final environment = await createTestEnvironment();
@@ -232,7 +185,6 @@ repositoryUrl: ${sdkRepository.path}
 versions:
   - version: 3.35.8-ohos-9.9.9
     tag: 3.35.8-ohos-9.9.9
-    versionSeries: "3.35"
     status: stable
 ''');
     final stdout = <String>[];

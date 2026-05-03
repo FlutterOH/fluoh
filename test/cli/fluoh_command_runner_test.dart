@@ -41,6 +41,28 @@ void main() {
     expect(stderr.join('\n'), contains('Could not find a command named'));
   });
 
+  test('does not register workflow commands as top-level aliases', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(['create'], stdout: stdout.add, stderr: stderr.add),
+      64,
+    );
+    expect(
+      await runFluoh(['release'], stdout: stdout.add, stderr: stderr.add),
+      64,
+    );
+    expect(await runFluoh(['use'], stdout: stdout.add, stderr: stderr.add), 64);
+    expect(
+      await runFluoh(['update'], stdout: stdout.add, stderr: stderr.add),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('Could not find a command named'));
+  });
+
   test('runs registered commands', () async {
     final runner = FluohCommandRunner(commands: [_FixtureCommand()]);
 
@@ -63,6 +85,121 @@ void main() {
     expect(stdout.join('\n'), contains('doctor'));
     expect(stderr, isEmpty);
   });
+
+  test('registers pub command group', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    expect(stdout.join('\n'), contains('pub'));
+    expect(stderr, isEmpty);
+  });
+
+  test('prints top-level commands without grouping', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    _expectInOrder(help, [
+      '  sdk',
+      '  deps',
+      '  pub',
+      '  source',
+      '  doctor',
+      '  upgrade',
+    ]);
+    expect(help, isNot(contains('\nConfig:')));
+    expect(help, isNot(contains('\nSDK:')));
+    expect(help, isNot(contains('\nProject:')));
+    expect(help, isNot(contains('\nPub:')));
+    expect(help, isNot(contains('\nTool:')));
+    expect(help, isNot(contains('  use')));
+    expect(help, isNot(contains('  update')));
+    expect(stderr, isEmpty);
+  });
+
+  test('prints moved workflow commands under their command groups', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(['sdk', '--help'], stdout: stdout.add, stderr: stderr.add),
+      0,
+    );
+    var help = stdout.join('\n');
+    _expectInOrder(help, [
+      '  list',
+      '  install',
+      '  current',
+      '  remove',
+      '  use',
+    ]);
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['deps', '--help'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    help = stdout.join('\n');
+    _expectInOrder(help, ['  check', '  fix', '  update']);
+    expect(stderr, isEmpty);
+  });
+
+  test('prints pub command help', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['pub', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    expect(help, contains('Manage FlutterOH package adapter repositories.'));
+    expect(help, contains('create'));
+    expect(help, contains('sync'));
+    expect(help, contains('adapt'));
+    expect(help, contains('release'));
+    expect(stderr, isEmpty);
+  });
+
+  test('prints pub subcommands in lifecycle order', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['pub', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    _expectInOrder(help, ['  create', '  sync', '  adapt', '  release']);
+    expect(help, isNot(contains('Repository setup:')));
+    expect(help, isNot(contains('Upstream adaptation:')));
+    expect(help, isNot(contains('Release:')));
+    expect(stderr, isEmpty);
+  });
 }
 
 class _FixtureCommand extends Command<int> {
@@ -74,4 +211,14 @@ class _FixtureCommand extends Command<int> {
 
   @override
   int run() => 37;
+}
+
+void _expectInOrder(String text, List<String> needles) {
+  var previous = -1;
+  for (final needle in needles) {
+    final index = text.indexOf(needle);
+    expect(index, isNonNegative, reason: 'Missing "$needle" in help output.');
+    expect(index, greaterThan(previous), reason: 'Expected "$needle" later.');
+    previous = index;
+  }
 }

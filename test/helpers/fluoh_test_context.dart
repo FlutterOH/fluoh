@@ -36,7 +36,6 @@ repositoryUrl: ${sdkRepository.path}
 versions:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
 
@@ -66,12 +65,11 @@ releases:
   - version: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      versionSeries: "3.35"
-      versionRange: ">=3.35.8 <3.36.0"
+      version: 3.35.8-ohos-0.0.3
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos-3.35
+    sourceBranch: ohos/3.35.8-ohos-0.0.3
     release:
       version: "0"
       tag: camera-v0.11.0-ohos-3.35.8-0
@@ -83,12 +81,11 @@ releases:
   - version: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      versionSeries: "3.35"
-      versionRange: ">=3.35.8 <3.36.0"
+      version: 3.35.8-ohos-0.0.3
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos-3.35
+    sourceBranch: ohos/3.35.8-ohos-0.0.3
     release:
       version: "1"
       tag: camera-v0.11.0-ohos-3.35.8-1
@@ -111,12 +108,11 @@ releases:
   - version: 9.0.0
     upstreamRef: share_plus-v9.0.0
     sdk:
-      versionSeries: "3.35"
-      versionRange: ">=3.35.8 <3.36.0"
+      version: 3.35.8-ohos-0.0.3
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos-3.35
+    sourceBranch: ohos/3.35.8-ohos-0.0.3
     release:
       version: "1"
       tag: share_plus-v9.0.0-ohos-3.35.8-1
@@ -259,6 +255,26 @@ environment:
   await _git(repo, ['commit', '-m', 'Initial monorepo fixture']);
 
   return repo;
+}
+
+Future<void> bumpUpstreamPackageVersion(
+  Directory repo, {
+  required String version,
+  String packagePath = '.',
+}) async {
+  final packageDirectory = packagePath == '.'
+      ? repo
+      : Directory('${repo.path}/$packagePath');
+  final pubspec = File('${packageDirectory.path}/pubspec.yaml');
+  final content = await pubspec.readAsString();
+  await pubspec.writeAsString(
+    content.replaceFirst(
+      RegExp(r'^version:\s+.*$', multiLine: true),
+      'version: $version',
+    ),
+  );
+  await _git(repo, ['add', '.']);
+  await _git(repo, ['commit', '-m', 'Release $version']);
 }
 
 Future<void> initializeGitRepository(Directory repo) async {

@@ -33,6 +33,9 @@ class UpdateCommand extends Command<int> {
       'Update existing OHOS adapter dependency overrides.';
 
   @override
+  String get invocation => 'fluoh deps update';
+
+  @override
   Future<int> run() async {
     final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
     final content = await pubspec.readAsString();

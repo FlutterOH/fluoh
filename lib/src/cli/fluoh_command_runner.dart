@@ -3,7 +3,7 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
-import '../adapter/adapter_commands.dart';
+import '../adapter/pub_commands.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/deps_commands.dart';
@@ -11,10 +11,9 @@ import '../doctor/doctor_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
 import '../source/source_sync.dart';
-import '../update/update_command.dart';
 import '../upgrade/upgrade_command.dart';
-import '../use/use_command.dart';
 import '../version.dart';
+import 'command_usage.dart';
 
 typedef OutputWriter = void Function(String message);
 
@@ -31,13 +30,10 @@ class FluohCommandRunner extends CommandRunner<int> {
     final env = _environment;
     addCommand(SourceCommand(environment: env, stdout: _stdout));
     addCommand(SdkCommand(environment: env, stdout: _stdout));
-    addCommand(UseCommand(environment: env, stdout: _stdout));
     addCommand(DepsCommand(environment: env, stdout: _stdout));
     addCommand(DoctorCommand(environment: env, stdout: _stdout));
-    addCommand(CreateCommand(environment: env, stdout: _stdout));
-    addCommand(ReleaseCommand(environment: env, stdout: _stdout));
+    addCommand(PubCommand(environment: env, stdout: _stdout));
     addCommand(UpgradeCommand(stdout: _stdout, stderr: _stderr));
-    addCommand(UpdateCommand(environment: env, stdout: _stdout));
 
     argParser.addFlag(
       'version',
@@ -55,8 +51,16 @@ class FluohCommandRunner extends CommandRunner<int> {
   final FluohEnvironment _environment;
 
   @override
+  String get usage => '$description\n\n$_usageWithoutDescription';
+
+  @override
   void printUsage() {
     _stdout(usage);
+  }
+
+  @override
+  Never usageException(String message) {
+    throw UsageException(message, _usageWithoutDescription);
   }
 
   @override
@@ -97,7 +101,37 @@ class FluohCommandRunner extends CommandRunner<int> {
     );
     _stdout('Repository https://github.com/FlutterOH/fluoh');
   }
+
+  String get _usageWithoutDescription {
+    final usagePrefix = 'Usage:';
+    return [
+      '$usagePrefix $invocation',
+      '',
+      'Global options:',
+      argParser.usage,
+      '',
+      formatCommandUsage(
+        commands,
+        sections: _topLevelCommandSections,
+        isSubcommand: false,
+        lineLength: argParser.usageLineLength,
+      ),
+      '',
+      'Run "$executableName help <command>" for more information about a command.',
+    ].join('\n');
+  }
 }
+
+const _topLevelCommandSections = [
+  CommandUsageSection('', [
+    'sdk',
+    'deps',
+    'pub',
+    'source',
+    'doctor',
+    'upgrade',
+  ]),
+];
 
 bool _usesSourceConfiguration(ArgResults results) {
   if (_hasHelpFlag(results)) {
@@ -105,16 +139,7 @@ bool _usesSourceConfiguration(ArgResults results) {
   }
   final commandName = results.command?.name;
   return commandName != null &&
-      const {
-        'source',
-        'sdk',
-        'use',
-        'deps',
-        'doctor',
-        'create',
-        'release',
-        'update',
-      }.contains(commandName);
+      const {'source', 'sdk', 'deps', 'doctor', 'pub'}.contains(commandName);
 }
 
 bool _hasHelpFlag(ArgResults results) {

@@ -13,7 +13,6 @@ void main() {
 
     expect(sdkIndex.releases, hasLength(1));
     expect(sdkIndex.releases.single.tag, '3.35.8-ohos-0.0.3');
-    expect(sdkIndex.releases.single.line, '3.35');
 
     expect(packageIndex.packages, contains('camera'));
     expect(
@@ -21,8 +20,11 @@ void main() {
       'camera-v0.11.0-ohos-3.35.8-1',
     );
 
-    expect(compatibilityMatrix.sdkLines, contains('3.35'));
-    expect(compatibilityMatrix.sdkLines['3.35']!.adapted, contains('camera'));
+    expect(compatibilityMatrix.sdkVersions, contains('3.35.8-ohos-0.0.3'));
+    expect(
+      compatibilityMatrix.sdkVersions['3.35.8-ohos-0.0.3']!.adapted,
+      contains('camera'),
+    );
   });
 
   test('accepts broken package releases without replacements', () async {
@@ -41,7 +43,35 @@ void main() {
     final compatibilityMatrix = await source.loadCompatibilityMatrix();
 
     expect(packageIndex.packages['camera']!.adapters, isEmpty);
-    expect(compatibilityMatrix.sdkLines['3.35']!.blocked, ['camera']);
+    expect(compatibilityMatrix.sdkVersions['3.35.8-ohos-0.0.3']!.blocked, [
+      'camera',
+    ]);
+  });
+
+  test('expands package release SDK versions into adapters', () async {
+    final root = await _createSourceRoot();
+    await _writeSdkIndex(root);
+    await _writePackageRegistry(root, packageName: 'camera');
+    await _writePackageManifest(
+      root,
+      packageName: 'camera',
+      status: 'compatible',
+      sdkVersions: const ['3.35.8-ohos-0.0.3', '3.35.8-ohos-0.0.4'],
+    );
+    final source = PubSource.directory(root);
+
+    final packageIndex = await source.loadPackageIndex();
+    final compatibilityMatrix = await source.loadCompatibilityMatrix();
+
+    expect(
+      packageIndex.packages['camera']!.adapters.map(
+        (adapter) => adapter.sdkVersion,
+      ),
+      containsAll(['3.35.8-ohos-0.0.3', '3.35.8-ohos-0.0.4']),
+    );
+    expect(compatibilityMatrix.sdkVersions['3.35.8-ohos-0.0.4']!.adapted, [
+      'camera',
+    ]);
   });
 
   test('rejects compatible package releases without replacements', () async {
@@ -118,7 +148,6 @@ repositoryUrl: /tmp/flutter-ohos-sdk
 versions:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
 }
@@ -143,6 +172,7 @@ Future<void> _writePackageManifest(
   required String packageName,
   String? fileName,
   required String status,
+  List<String> sdkVersions = const ['3.35.8-ohos-0.0.3'],
   bool includeReplacement = true,
 }) async {
   await File(
@@ -158,12 +188,11 @@ releases:
   - version: 1.0.0
     upstreamRef: v1.0.0
     sdk:
-      versionSeries: "3.35"
-      versionRange: ">=3.35.8 <3.36.0"
+      version: ${sdkVersions.first}
       versions:
-        - 3.35.8-ohos-0.0.3
+${sdkVersions.map((version) => '        - $version').join('\n')}
     status: $status
-    sourceBranch: ohos-3.35
+    sourceBranch: ohos/3.35.8-ohos-0.0.3
     release:
       version: "1"
       tag: $packageName-v1.0.0-ohos-3.35.8-1

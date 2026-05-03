@@ -22,7 +22,7 @@ void main() {
         stderr: stderr.add,
       );
       await runFluoh(
-        ['use', '3.35'],
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

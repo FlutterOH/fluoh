@@ -1,12 +1,3 @@
-String sdkLineFromTag(String tag) {
-  final match = RegExp(r'^(\d+)\.(\d+)\.\d+-ohos-.+$').firstMatch(tag);
-  if (match == null) {
-    throw FormatException('Invalid Flutter OHOS SDK tag: $tag');
-  }
-
-  return '${match.group(1)}.${match.group(2)}';
-}
-
 class SdkIndex {
   const SdkIndex({required this.schemaVersion, required this.releases});
 
@@ -21,7 +12,6 @@ class SdkRelease {
     required this.channel,
     required this.repository,
     required this.tag,
-    required this.line,
     this.publishedAt,
   });
 
@@ -30,6 +20,5 @@ class SdkRelease {
   final String channel;
   final String repository;
   final String tag;
-  final String line;
   final String? publishedAt;
 }

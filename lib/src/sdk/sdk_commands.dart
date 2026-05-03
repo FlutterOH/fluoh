@@ -1,27 +1,65 @@
 import 'package:args/command_runner.dart';
 
+import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../context/fluoh_environment.dart';
+import '../use/use_command.dart';
 import 'sdk_manager.dart';
 
 class SdkCommand extends Command<int> {
   SdkCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
-  }) {
+  }) : _stdout = stdout {
     final manager = SdkManager(environment);
     addSubcommand(SdkListCommand(manager: manager, stdout: stdout));
     addSubcommand(SdkInstallCommand(manager: manager, stdout: stdout));
     addSubcommand(SdkCurrentCommand(manager: manager, stdout: stdout));
     addSubcommand(SdkRemoveCommand(manager: manager, stdout: stdout));
+    addSubcommand(UseCommand(environment: environment, stdout: stdout));
   }
+
+  final OutputWriter _stdout;
 
   @override
   String get name => 'sdk';
 
   @override
   String get description => 'Manage cached Flutter OHOS SDKs.';
+
+  @override
+  String get usage => '$description\n\n$_usageWithoutDescription';
+
+  @override
+  void printUsage() {
+    _stdout(usage);
+  }
+
+  @override
+  Never usageException(String message) {
+    throw UsageException(message, _usageWithoutDescription);
+  }
+
+  String get _usageWithoutDescription {
+    return [
+      'Usage: $invocation',
+      argParser.usage,
+      '',
+      formatCommandUsage(
+        subcommands,
+        sections: _sdkCommandSections,
+        isSubcommand: true,
+        lineLength: argParser.usageLineLength,
+      ),
+      '',
+      'Run "${runner!.executableName} help" to see global options.',
+    ].join('\n');
+  }
 }
+
+const _sdkCommandSections = [
+  CommandUsageSection('', ['list', 'install', 'current', 'remove', 'use']),
+];
 
 class SdkListCommand extends Command<int> {
   SdkListCommand({required this.manager, required this.stdout});

@@ -44,24 +44,24 @@ brew install fluoh
 ```sh
 fluoh source update
 fluoh sdk list
-fluoh use 3.22 --pub-get
-fluoh doctor
+fluoh sdk use 3.22 --pub-get
 fluoh deps check
 fluoh deps fix --yes
+fluoh doctor
 ```
 
-`fluoh use` 会安装对应 Flutter OHOS SDK，并写入 `.fvmrc`、`.fvm/flutter_sdk` 和 `fluoh.yaml`。之后可以继续使用 FVM，或直接使用 `.fvm/flutter_sdk/bin/flutter` 执行项目命令。
+`fluoh sdk use` 会安装对应 Flutter OHOS SDK，并写入 `.fvmrc`、`.fvm/flutter_sdk` 和 `fluoh.yaml`。之后可以继续使用 FVM，或直接使用 `.fvm/flutter_sdk/bin/flutter` 执行项目命令。
 
 ## 常见工作流
 
 ### 切换 Flutter OHOS SDK
 
-查看数据源中的 SDK，并在当前项目中使用某个 SDK line 或精确 tag：
+查看数据源中的 SDK，并在当前项目中使用精确 SDK tag：
 
 ```sh
 fluoh source update
 fluoh sdk list
-fluoh use 3.22 --pub-get
+fluoh sdk use 3.35.8-ohos-0.0.3 --pub-get
 ```
 
 ### 检查并修复 OHOS 依赖适配
@@ -69,7 +69,7 @@ fluoh use 3.22 --pub-get
 ```sh
 fluoh deps check
 fluoh deps fix --yes
-fluoh update --yes
+fluoh deps update --yes
 ```
 
 `fluoh deps fix` 默认写入 `dependency_overrides`。如果需要直接改写 `dependencies` 中的声明，可以使用 `--rewrite`。
@@ -77,24 +77,26 @@ fluoh update --yes
 ### 创建第三方库适配仓库
 
 ```sh
-fluoh create https://github.com/upstream/package.git --sdk-series 3.22
-fluoh release --push
+fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
+fluoh pub sync
+fluoh pub adapt
+fluoh pub release --push
 ```
 
 monorepo package 可以指定包路径：
 
 ```sh
-fluoh create https://github.com/upstream/monorepo.git \
+fluoh pub create https://github.com/upstream/monorepo.git \
   --package some_package \
   --path packages/some_package \
-  --sdk-series 3.22
+  --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的适配仓库会把 `origin` 设置为 `git@github.com:FlutterOH/fluoh.git`，并把上游仓库保留为 `upstream`。如果需要指定最终推送位置：
+默认生成的适配仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，并默认把 `origin` 设置为 `git@github.com:FlutterOH/<package>.git`。FlutterOH 适配修改只提交到 `ohos/<sdk-tag>` 分支。如果需要指定最终推送位置：
 
 ```sh
-fluoh create https://github.com/upstream/package.git \
-  --sdk-series 3.22 \
+fluoh pub create https://github.com/upstream/package.git \
+  --sdk 3.35.8-ohos-0.0.3 \
   --repository git@github.com:FlutterOH/package.git
 ```
 
@@ -102,18 +104,17 @@ fluoh create https://github.com/upstream/package.git \
 
 | 命令 | 用途 |
 | --- | --- |
-| `fluoh source ...` | 管理 FlutterOH 数据源。 |
 | `fluoh sdk ...` | 查看、安装、删除本地 Flutter OHOS SDK。 |
-| `fluoh use <version-or-line>` | 在当前 Flutter 项目中切换 SDK。 |
+| `fluoh sdk use <version>` | 在当前 Flutter 项目中切换 SDK。 |
 | `fluoh deps check` | 检查项目依赖的 OHOS 兼容状态。 |
 | `fluoh deps fix` | 写入适配依赖替换。 |
-| `fluoh update` | 升级项目内已有 OHOS 适配依赖版本。 |
+| `fluoh deps update` | 升级项目内已有 OHOS 适配依赖版本。 |
+| `fluoh pub ...` | 创建、同步、适配并发布第三方库适配仓库。 |
+| `fluoh source ...` | 管理 FlutterOH 数据源。 |
 | `fluoh doctor` | 诊断项目 SDK、FVM、OHOS 目录和依赖状态。 |
-| `fluoh create` | 初始化 FlutterOH 第三方库适配仓库。 |
-| `fluoh release` | 创建并可选推送适配 release tag。 |
 | `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |
 
-`fluoh update` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。
+`fluoh deps update` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。
 
 ## 数据源
 

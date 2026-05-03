@@ -165,26 +165,28 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Adapter Repository Workflow Maintenance
 
-`fluoh create` keeps the clone source as `upstream` and sets `origin` to the final adapter repository push target. The default is:
+`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-tag>` adapter branch, and sets `origin` to the final adapter repository push target. The default is derived from the package name:
 
 ```sh
-git@github.com:FlutterOH/fluoh.git
+git@github.com:FlutterOH/<package>.git
 ```
 
 If an adapter needs to be pushed to a dedicated repository, pass `--repository` when creating it:
 
 ```sh
-fluoh create https://github.com/upstream/package.git \
-  --sdk-series 3.22 \
+fluoh pub create https://github.com/upstream/package.git \
+  --sdk 3.35.8-ohos-0.0.3 \
   --repository git@github.com:FlutterOH/package.git
 ```
 
-The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
+The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh release` must continue to guarantee:
+Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current adapter branch and refresh `fluoh.yaml`.
 
-- It only runs on `ohos-*` branches.
-- The current branch matches the SDK line in `fluoh.yaml`.
+`fluoh pub release` must continue to guarantee:
+
+- It only runs on `ohos/*` branches.
+- The current branch matches the adapter branch in `fluoh.yaml`.
 - The worktree is clean.
 - The SDK tag comes from configured sources.
 - The release tag matches the package, upstream version, SDK tag, and adapter version recorded in the manifest.

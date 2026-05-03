@@ -30,12 +30,13 @@ void main() {
       expect(
         await runFluoh(
           [
+            'pub',
             'create',
             upstream.path,
             '--output',
             adapter.path,
-            '--sdk-series',
-            '3.35',
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
           ],
           environment: environment,
           stdout: stdout.add,
@@ -51,10 +52,10 @@ void main() {
         'get-url',
         'upstream',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos-3.35');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
       expect(
         origin.stdout.toString().trim(),
-        'git@github.com:FlutterOH/fluoh.git',
+        'git@github.com:FlutterOH/camera.git',
       );
       expect(upstreamRemote.stdout.toString().trim(), upstream.path);
       expect(
@@ -62,11 +63,11 @@ void main() {
         allOf(
           contains('schema: 1'),
           contains('name: camera'),
-          contains('url: git@github.com:FlutterOH/fluoh.git'),
-          contains('branch: ohos-3.35'),
+          contains('url: git@github.com:FlutterOH/camera.git'),
+          contains('branch: ohos/3.35.8-ohos-0.0.3'),
           contains('3.35.8-ohos-0.0.3'),
           contains('status: experimental'),
-          contains('ref: camera-v0.11.0-ohos-3.35.8-0.1.0'),
+          contains('ref: camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0'),
         ),
       );
       expect(File('${adapter.path}/FLUOH_ADAPT.md').existsSync(), isTrue);
@@ -77,7 +78,7 @@ void main() {
       );
       expect(
         await runFluoh(
-          ['release'],
+          ['pub', 'release'],
           environment: releaseEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -88,7 +89,7 @@ void main() {
       final tags = await _git(adapter, ['tag', '--list']);
       expect(
         tags.stdout.toString().split('\n'),
-        contains('camera-v0.11.0-ohos-3.35.8-0.1.0'),
+        contains('camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0'),
       );
       expect(
         stdout,
@@ -96,7 +97,10 @@ void main() {
       );
       expect(
         stdout,
-        contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+        contains(
+          'Created release tag '
+          'camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0.',
+        ),
       );
       expect(stderr, isEmpty);
     },
@@ -124,14 +128,15 @@ void main() {
     expect(
       await runFluoh(
         [
+          'pub',
           'create',
           upstream.path,
           '--path',
           'packages/camera/camera',
           '--output',
           adapter.path,
-          '--sdk-series',
-          '3.35',
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
         ],
         environment: environment,
         stdout: stdout.add,
@@ -168,14 +173,15 @@ void main() {
     expect(
       await runFluoh(
         [
+          'pub',
           'create',
           upstream.path,
           '--package',
           'camera',
           '--output',
           adapter.path,
-          '--sdk-series',
-          '3.35',
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
         ],
         environment: environment,
         stdout: stdout.add,
@@ -212,12 +218,13 @@ void main() {
     expect(
       await runFluoh(
         [
+          'pub',
           'create',
           upstream.path,
           '--output',
           adapter.path,
-          '--sdk-series',
-          '3.35',
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
           '--repository',
           'git@github.com:FlutterOH/camera.git',
         ],
@@ -237,6 +244,318 @@ void main() {
     expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
     expect(stderr, isEmpty);
   });
+
+  test('pub create leaves upstream default branch unchanged', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_clean_main'),
+    );
+    final adapter = Directory(
+      '${environment.homeDirectory.path}/adapter_clean_main',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          adapter.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    await _git(adapter, ['checkout', 'main']);
+    expect(File('${adapter.path}/fluoh.yaml').existsSync(), isFalse);
+    expect(File('${adapter.path}/FLUOH_ADAPT.md').existsSync(), isFalse);
+    final status = await _git(adapter, ['status', '--porcelain']);
+    expect(status.stdout.toString().trim(), isEmpty);
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'pub sync fast-forwards the clean default branch from upstream',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_sync'),
+      );
+      final adapter = Directory(
+        '${environment.homeDirectory.path}/adapter_sync',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          adapter.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+
+      final adapterEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: adapter,
+      );
+      expect(
+        await runFluoh(
+          ['pub', 'sync'],
+          environment: adapterEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final branch = await _git(adapter, ['branch', '--show-current']);
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
+
+      await _git(adapter, ['checkout', 'main']);
+      final pubspec = File('${adapter.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('version: 0.12.0'));
+      expect(File('${adapter.path}/fluoh.yaml').existsSync(), isFalse);
+      expect(stdout, contains('Synchronized main from upstream/main.'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'pub adapt merges default branch and refreshes upstream metadata',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_adapt'),
+      );
+      final adapter = Directory(
+        '${environment.homeDirectory.path}/adapter_adapt',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          adapter.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+
+      final adapterEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: adapter,
+      );
+      expect(
+        await runFluoh(
+          ['pub', 'sync'],
+          environment: adapterEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      expect(
+        await runFluoh(
+          ['pub', 'adapt'],
+          environment: adapterEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final branch = await _git(adapter, ['branch', '--show-current']);
+      final manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
+      expect(manifest, contains('version: 0.12.0'));
+      expect(manifest, contains('version: 3.35.8-ohos-0.0.3'));
+      expect(stdout, contains('Merged main into ohos/3.35.8-ohos-0.0.3.'));
+      expect(stdout, contains('Updated adapter manifest for camera 0.12.0.'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('pub adapt preserves a non-default adapter status', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_adapt_status'),
+    );
+    final adapter = Directory(
+      '${environment.homeDirectory.path}/adapter_adapt_status',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'pub',
+        'create',
+        upstream.path,
+        '--output',
+        adapter.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    final manifestFile = File('${adapter.path}/fluoh.yaml');
+    await manifestFile.writeAsString(
+      manifestFile.readAsStringSync().replaceFirst(
+        'status: experimental',
+        'status: compatible',
+      ),
+    );
+    await _git(adapter, ['add', 'fluoh.yaml']);
+    await _git(adapter, ['commit', '-m', 'Promote adapter status']);
+    await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+
+    final adapterEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: adapter,
+    );
+    expect(
+      await runFluoh(
+        ['pub', 'sync'],
+        environment: adapterEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      await runFluoh(
+        ['pub', 'adapt'],
+        environment: adapterEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = manifestFile.readAsStringSync();
+    expect(manifest, contains('status: compatible'));
+    expect(manifest, isNot(contains('status: experimental')));
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'pub sync restores the starting branch when fast-forward fails',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_sync_diverged'),
+      );
+      final adapter = Directory(
+        '${environment.homeDirectory.path}/adapter_sync_diverged',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          adapter.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      await _git(adapter, ['checkout', 'main']);
+      await File('${adapter.path}/LOCAL.md').writeAsString('local\n');
+      await _git(adapter, ['add', 'LOCAL.md']);
+      await _git(adapter, ['commit', '-m', 'Local main change']);
+      await _git(adapter, ['checkout', 'ohos/3.35.8-ohos-0.0.3']);
+      await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+
+      final adapterEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: adapter,
+      );
+      expect(
+        await runFluoh(
+          ['pub', 'sync'],
+          environment: adapterEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      final branch = await _git(adapter, ['branch', '--show-current']);
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
+      expect(stderr.join('\n'), contains('Not possible to fast-forward'));
+    },
+  );
 
   test('does not accept removed GitHub automation flags', () async {
     final environment = await createTestEnvironment();
@@ -260,12 +579,13 @@ void main() {
     expect(
       await runFluoh(
         [
+          'pub',
           'create',
           upstream.path,
           '--output',
           adapter.path,
-          '--sdk-series',
-          '3.35',
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
           '--github',
           '--org',
           'FlutterOH',
@@ -291,7 +611,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['release', '--source-update', pubSource.path],
+        ['pub', 'release', '--source-update', pubSource.path],
         environment: releaseEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -306,10 +626,18 @@ void main() {
     expect(registryYaml.existsSync(), isTrue);
     expect(manifestYaml.existsSync(), isTrue);
     expect(registryYaml.readAsStringSync(), contains('name: camera'));
-    expect(manifestYaml.readAsStringSync(), contains('versionSeries: "3.35"'));
     expect(
       manifestYaml.readAsStringSync(),
-      contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'),
+      contains('version: 3.35.8-ohos-0.0.3'),
+    );
+    expect(manifestYaml.readAsStringSync(), isNot(contains('versionSeries')));
+    expect(
+      manifestYaml.readAsStringSync(),
+      contains('sourceBranch: ohos/3.35.8-ohos-0.0.3'),
+    );
+    expect(
+      manifestYaml.readAsStringSync(),
+      contains('tag: camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0'),
     );
     expect(File('${pubSource.path}/packages/index.yaml').existsSync(), isFalse);
     expect(
@@ -345,28 +673,34 @@ void main() {
       );
       expect(
         await runFluoh(
-          ['release'],
+          ['pub', 'release'],
           environment: dirtyEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
         ),
         64,
       );
-      expect(stderr.join('\n'), contains('working tree must be clean'));
+      expect(
+        stderr.join('\n'),
+        contains('Release requires a clean working tree'),
+      );
 
       await _git(adapter, ['checkout', '--', 'README.md']);
-      await _git(adapter, ['checkout', '-b', 'ohos-3.36']);
+      await _git(adapter, ['checkout', '-b', 'ohos/3.35.8-ohos-9.9.9']);
       stderr.clear();
       expect(
         await runFluoh(
-          ['release'],
+          ['pub', 'release'],
           environment: dirtyEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
         ),
         64,
       );
-      expect(stderr.join('\n'), contains('does not match sdkLine 3.35'));
+      expect(
+        stderr.join('\n'),
+        contains('does not match adapter branch ohos/3.35.8-ohos-0.0.3'),
+      );
     },
   );
 
@@ -382,14 +716,17 @@ void main() {
 
     var manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
     await File('${adapter.path}/fluoh.yaml').writeAsString(
-      manifest.replaceFirst('- 3.35.8-ohos-0.0.3', '- 3.35.8-ohos-9.9.9'),
+      manifest.replaceFirst(
+        '  version: 3.35.8-ohos-0.0.3',
+        '  version: 3.35.8-ohos-9.9.9',
+      ),
     );
     await _git(adapter, ['add', 'fluoh.yaml']);
     await _git(adapter, ['commit', '-m', 'Use invalid SDK tag']);
 
     expect(
       await runFluoh(
-        ['release'],
+        ['pub', 'release'],
         environment: releaseEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -400,16 +737,23 @@ void main() {
 
     manifest = File('${adapter.path}/fluoh.yaml').readAsStringSync();
     await File('${adapter.path}/fluoh.yaml').writeAsString(
-      manifest.replaceFirst('- 3.35.8-ohos-9.9.9', '- 3.35.8-ohos-0.0.3'),
+      manifest.replaceFirst(
+        '  version: 3.35.8-ohos-9.9.9',
+        '  version: 3.35.8-ohos-0.0.3',
+      ),
     );
     await _git(adapter, ['add', 'fluoh.yaml']);
     await _git(adapter, ['commit', '-m', 'Restore valid SDK tag']);
-    await _git(adapter, ['tag', 'camera-v0.11.0-ohos-3.35.8-0.1.0', 'HEAD~1']);
+    await _git(adapter, [
+      'tag',
+      'camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0',
+      'HEAD~1',
+    ]);
 
     stderr.clear();
     expect(
       await runFluoh(
-        ['release'],
+        ['pub', 'release'],
         environment: releaseEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -438,7 +782,15 @@ Future<Directory> _createAdapterFixture(FluohEnvironment environment) async {
     stderr: stderr.add,
   );
   await runFluoh(
-    ['create', upstream.path, '--output', adapter.path, '--sdk-series', '3.35'],
+    [
+      'pub',
+      'create',
+      upstream.path,
+      '--output',
+      adapter.path,
+      '--sdk',
+      '3.35.8-ohos-0.0.3',
+    ],
     environment: environment,
     stdout: stdout.add,
     stderr: stderr.add,

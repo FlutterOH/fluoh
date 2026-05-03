@@ -27,16 +27,16 @@ class UseCommand extends Command<int> {
   String get name => 'use';
 
   @override
-  String get description => 'Use a Flutter OHOS SDK version or line here.';
+  String get description => 'Use a Flutter OHOS SDK version here.';
 
   @override
-  String get invocation => 'fluoh use <version|line>';
+  String get invocation => 'fluoh sdk use <version>';
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
     if (rest.length != 1) {
-      usageException('Expected an SDK version or line.');
+      usageException('Expected an SDK version.');
     }
 
     await _ensureFlutterProject();
@@ -116,7 +116,6 @@ class UseCommand extends Command<int> {
         'schema: 1',
         'sdk:',
         '  version: ${release.tag}',
-        '  line: "${release.line}"',
         'sources:',
         for (final name in config.sources.keys) '  - $name',
         'dependencyPolicy:',

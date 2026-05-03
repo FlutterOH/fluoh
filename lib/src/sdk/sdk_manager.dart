@@ -15,32 +15,16 @@ class SdkManager {
     return (await SourceRegistry(environment).loadSdkIndex()).releases;
   }
 
-  Future<SdkRelease> resolveRelease(String versionOrLine) async {
+  Future<SdkRelease> resolveRelease(String version) async {
     final releases = await listReleases();
     final exactMatches = releases.where(
-      (release) =>
-          release.tag == versionOrLine || release.version == versionOrLine,
+      (release) => release.tag == version || release.version == version,
     );
     if (exactMatches.isNotEmpty) {
       return exactMatches.first;
     }
 
-    final lineMatches = releases
-        .where((release) => release.line == versionOrLine)
-        .toList(growable: false);
-    if (lineMatches.isEmpty) {
-      throw UsageException('No SDK release matches "$versionOrLine".', '');
-    }
-
-    lineMatches.sort((a, b) {
-      final byPublishedAt = (b.publishedAt ?? '').compareTo(
-        a.publishedAt ?? '',
-      );
-      return byPublishedAt == 0
-          ? _compareSdkTagsDescending(a.tag, b.tag)
-          : byPublishedAt;
-    });
-    return lineMatches.first;
+    throw UsageException('No SDK release matches "$version".', '');
   }
 
   Future<Directory> install(SdkRelease release) async {
@@ -123,32 +107,6 @@ class SdkManager {
     final match = RegExp(r'"flutter"\s*:\s*"([^"]+)"').firstMatch(content);
     return match?.group(1);
   }
-}
-
-int _compareSdkTagsDescending(String a, String b) {
-  return _compareNumericVersion(b, a);
-}
-
-int _compareNumericVersion(String a, String b) {
-  final aParts = _numericParts(a);
-  final bParts = _numericParts(b);
-  final length = aParts.length > bParts.length ? aParts.length : bParts.length;
-  for (var i = 0; i < length; i += 1) {
-    final aPart = i < aParts.length ? aParts[i] : 0;
-    final bPart = i < bParts.length ? bParts[i] : 0;
-    final compared = aPart.compareTo(bPart);
-    if (compared != 0) {
-      return compared;
-    }
-  }
-  return 0;
-}
-
-List<int> _numericParts(String version) {
-  return RegExp(r'\d+')
-      .allMatches(version)
-      .map((match) => int.parse(match.group(0)!))
-      .toList(growable: false);
 }
 
 Future<void> _git(List<String> arguments, {Directory? workingDirectory}) async {

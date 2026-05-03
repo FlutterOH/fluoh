@@ -22,7 +22,7 @@ void main() {
       stderr: stderr.add,
     );
     await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -30,7 +30,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['update'],
+        ['deps', 'update'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -44,7 +44,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['update', '--yes'],
+        ['deps', 'update', '--yes'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -100,7 +100,7 @@ dependency_overrides:
       stderr: stderr.add,
     );
     await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -108,7 +108,7 @@ dependency_overrides:
 
     expect(
       await runFluoh(
-        ['update', '--yes'],
+        ['deps', 'update', '--yes'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -161,7 +161,7 @@ dependencies:
       stderr: stderr.add,
     );
     await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -169,7 +169,7 @@ dependencies:
 
     expect(
       await runFluoh(
-        ['update', '--yes'],
+        ['deps', 'update', '--yes'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

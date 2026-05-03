@@ -173,13 +173,9 @@ class DoctorCommand extends Command<int> {
     }
     final sdk = yaml['sdk'];
     if (sdk is YamlMap) {
-      final versions = sdk['versions'];
-      if (versions is YamlList && versions.isNotEmpty) {
-        return '${versions.first}';
-      }
       return sdk['version'] as String?;
     }
-    return yaml['sdkTag'] as String?;
+    return null;
   }
 
   Future<bool> _isManagedFlutterSdk(String path) async {

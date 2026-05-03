@@ -170,7 +170,7 @@ void main() {
       stderr: stderr.add,
     );
     await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -226,7 +226,7 @@ void main() {
       stderr: stderr.add,
     );
     await runFluoh(
-      ['use', '3.35'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -259,13 +259,11 @@ void main() {
       );
       await _setCompatibilityStatus(
         lowPrioritySource,
-        sdkLine: '3.35',
         packageName: 'camera',
         status: 'compatible',
       );
       await _setCompatibilityStatus(
         highPrioritySource,
-        sdkLine: '3.35',
         packageName: 'camera',
         status: 'broken',
       );
@@ -286,7 +284,7 @@ void main() {
         stderr: stderr.add,
       );
       await runFluoh(
-        ['use', '3.35'],
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -341,12 +339,11 @@ releases:
   - version: 10.0.0
     upstreamRef: share_plus-v10.0.0
     sdk:
-      versionSeries: "3.35"
-      versionRange: ">=3.35.8 <3.36.0"
+      version: 3.35.8-ohos-0.0.3
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos-3.35
+    sourceBranch: ohos/3.35.8-ohos-0.0.3
     release:
       version: "1"
       tag: share_plus-v10.0.0-ohos-3.35.8-1
@@ -373,7 +370,7 @@ releases:
         stderr: stderr.add,
       );
       await runFluoh(
-        ['use', '3.35'],
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -413,7 +410,7 @@ Future<FluohEnvironment> _preparedEnvironment() async {
     stderr: stderr.add,
   );
   await runFluoh(
-    ['use', '3.35'],
+    ['sdk', 'use', '3.35.8-ohos-0.0.3'],
     environment: environment,
     stdout: stdout.add,
     stderr: stderr.add,
@@ -424,13 +421,12 @@ Future<FluohEnvironment> _preparedEnvironment() async {
 
 Future<void> _setCompatibilityStatus(
   Directory source, {
-  required String sdkLine,
   required String packageName,
   required String status,
 }) async {
   final manifest = File('${source.path}/packages/manifests/$packageName.yaml');
   final content = manifest.readAsStringSync();
-  expect(content, contains('versionSeries: "$sdkLine"'));
+  expect(content, contains('version: 3.35.8-ohos-0.0.3'));
   await manifest.writeAsString(
     content.replaceAll('status: compatible', 'status: $status'),
   );

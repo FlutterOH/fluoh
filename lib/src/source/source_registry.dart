@@ -75,7 +75,7 @@ class SourceRegistry {
             source.config.priority,
           );
           final groupKey =
-              '$packageName|${sourced.sdkLine}|${sourced.upstreamVersion}';
+              '$packageName|${sourced.sdkVersion}|${sourced.upstreamVersion}';
           final groupPriority = groupPriorities[groupKey];
           if (groupPriority != null && source.config.priority < groupPriority) {
             continue;
@@ -84,7 +84,7 @@ class SourceRegistry {
             groupPriorities[groupKey] = source.config.priority;
             adapters.removeWhere(
               (existing) =>
-                  existing.sdkLine == sourced.sdkLine &&
+                  existing.sdkVersion == sourced.sdkVersion &&
                   existing.upstreamVersion == sourced.upstreamVersion,
             );
           }
@@ -127,35 +127,35 @@ class SourceRegistry {
     final sources = await _readableSources(
       hasIndex: (source) => source.hasCompatibilityMatrix,
     );
-    final lines = <String, Map<String, _CompatibilityStatus>>{};
+    final versions = <String, Map<String, _CompatibilityStatus>>{};
 
     for (final source in sources) {
       final matrix = await _loadSourceIndex(
         source,
         (pubSource) => pubSource.loadCompatibilityMatrix(),
       );
-      for (final entry in matrix.sdkLines.entries) {
-        final packages = lines.putIfAbsent(
+      for (final entry in matrix.sdkVersions.entries) {
+        final packages = versions.putIfAbsent(
           entry.key,
           () => <String, _CompatibilityStatus>{},
         );
         _mergeCompatibilityStatus(
           packages,
-          sdkLine: entry.key,
+          sdkVersion: entry.key,
           status: 'native',
           packageNames: entry.value.native,
           source: source,
         );
         _mergeCompatibilityStatus(
           packages,
-          sdkLine: entry.key,
+          sdkVersion: entry.key,
           status: 'adapted',
           packageNames: entry.value.adapted,
           source: source,
         );
         _mergeCompatibilityStatus(
           packages,
-          sdkLine: entry.key,
+          sdkVersion: entry.key,
           status: 'blocked',
           packageNames: entry.value.blocked,
           source: source,
@@ -165,10 +165,10 @@ class SourceRegistry {
 
     return CompatibilityMatrix(
       schemaVersion: 1,
-      sdkLines: lines.map(
-        (sdkLine, packages) => MapEntry(
-          sdkLine,
-          CompatibilityLine(
+      sdkVersions: versions.map(
+        (sdkVersion, packages) => MapEntry(
+          sdkVersion,
+          CompatibilityVersion(
             native: _packagesWithStatus(packages, 'native'),
             adapted: _packagesWithStatus(packages, 'adapted'),
             blocked: _packagesWithStatus(packages, 'blocked'),
@@ -207,7 +207,7 @@ class SourceRegistry {
 
   void _mergeCompatibilityStatus(
     Map<String, _CompatibilityStatus> packages, {
-    required String sdkLine,
+    required String sdkVersion,
     required String status,
     required List<String> packageNames,
     required _NamedSource source,
@@ -226,8 +226,8 @@ class SourceRegistry {
       if (incoming.priority == existing.priority &&
           incoming.status != existing.status) {
         throw UsageException(
-          'Conflicting compatibility status for $packageName on SDK line '
-              '$sdkLine in sources ${existing.sourceName} and ${source.name}. '
+          'Conflicting compatibility status for $packageName on SDK version '
+              '$sdkVersion in sources ${existing.sourceName} and ${source.name}. '
               'Adjust source priority or select a single source.',
           '',
         );

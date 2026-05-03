@@ -68,7 +68,7 @@ void main() {
     expect(readme, contains('brew tap FlutterOH/tap'));
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
-    expect(readme, contains('fluoh update'));
+    expect(readme, contains('fluoh deps update'));
     expect(readme, contains('packages/registry.yaml'));
     expect(readme, contains('latest validated snapshot'));
     expect(readme, contains('fluoh source remove internal'));
@@ -87,7 +87,7 @@ void main() {
     expect(chineseReadme, contains('brew tap FlutterOH/tap'));
     expect(chineseReadme, contains('brew install fluoh'));
     expect(chineseReadme, contains('fluoh upgrade'));
-    expect(chineseReadme, contains('fluoh update'));
+    expect(chineseReadme, contains('fluoh deps update'));
     expect(chineseReadme, contains('packages/registry.yaml'));
     expect(chineseReadme, contains('最新校验通过的快照'));
     expect(chineseReadme, contains('fluoh source remove internal'));
@@ -122,7 +122,9 @@ void main() {
       contributing,
       contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
     );
-    expect(contributing, contains('git@github.com:FlutterOH/fluoh.git'));
+    expect(contributing, contains('git@github.com:FlutterOH/<package>.git'));
+    expect(contributing, contains('fluoh pub sync'));
+    expect(contributing, contains('fluoh pub adapt'));
     expect(
       contributing,
       contains('--repository git@github.com:FlutterOH/package.git'),
@@ -158,7 +160,12 @@ void main() {
       chineseContributing,
       contains('export PATH="\$HOME/.pub-cache/bin:\$PATH"'),
     );
-    expect(chineseContributing, contains('git@github.com:FlutterOH/fluoh.git'));
+    expect(
+      chineseContributing,
+      contains('git@github.com:FlutterOH/<package>.git'),
+    );
+    expect(chineseContributing, contains('fluoh pub sync'));
+    expect(chineseContributing, contains('fluoh pub adapt'));
     expect(
       chineseContributing,
       contains('--repository git@github.com:FlutterOH/package.git'),
