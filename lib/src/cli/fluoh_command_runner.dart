@@ -26,13 +26,20 @@ class FluohCommandRunner extends CommandRunner<int> {
   }) : _stdout = stdout ?? print,
        _stderr = stderr ?? print,
        _environment = environment ?? FluohEnvironment.current(),
+       _enableColor = stdout == null && _supportsAnsiOutput(),
        super('fluoh', 'FlutterOH SDK and pub package CLI.') {
     final env = _environment;
     addCommand(SdkCommand(environment: env, stdout: _stdout));
     addCommand(DepsCommand(environment: env, stdout: _stdout));
     addCommand(PubCommand(environment: env, stdout: _stdout));
     addCommand(SourceCommand(environment: env, stdout: _stdout));
-    addCommand(DoctorCommand(environment: env, stdout: _stdout));
+    addCommand(
+      DoctorCommand(
+        environment: env,
+        stdout: _stdout,
+        enableColor: _enableColor,
+      ),
+    );
     addCommand(UpgradeCommand(stdout: _stdout, stderr: _stderr));
 
     argParser.addFlag(
@@ -49,6 +56,7 @@ class FluohCommandRunner extends CommandRunner<int> {
   final OutputWriter _stdout;
   final OutputWriter _stderr;
   final FluohEnvironment _environment;
+  final bool _enableColor;
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -120,6 +128,13 @@ class FluohCommandRunner extends CommandRunner<int> {
       'Run "$executableName help <command>" for more information about a command.',
     ].join('\n');
   }
+}
+
+bool _supportsAnsiOutput() {
+  if (io.Platform.environment.containsKey('NO_COLOR')) {
+    return false;
+  }
+  return io.stdout.supportsAnsiEscapes;
 }
 
 const _topLevelCommandSections = [

@@ -111,7 +111,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh deps update` | 升级项目内已有 OHOS 适配依赖版本。 |
 | `fluoh pub ...` | 创建、同步、适配并发布第三方库 FlutterOH pub 仓库。 |
 | `fluoh source ...` | 管理 FlutterOH 数据源。 |
-| `fluoh doctor` | 诊断项目 SDK、FVM、OHOS 目录和依赖状态。 |
+| `fluoh doctor` | 诊断 CLI 版本、项目 SDK、FVM、OHOS 目录和依赖状态。 |
 | `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |
 
 `fluoh deps update` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。
