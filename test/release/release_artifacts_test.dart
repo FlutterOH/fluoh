@@ -69,6 +69,7 @@ void main() {
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
     expect(readme, contains('fluoh deps update'));
+    expect(readme, contains('third-party FlutterOH pub repositories'));
     expect(readme, contains('packages/registry.yaml'));
     expect(readme, contains('latest validated snapshot'));
     expect(readme, contains('fluoh source remove internal'));
@@ -88,6 +89,7 @@ void main() {
     expect(chineseReadme, contains('brew install fluoh'));
     expect(chineseReadme, contains('fluoh upgrade'));
     expect(chineseReadme, contains('fluoh deps update'));
+    expect(chineseReadme, contains('第三方库 FlutterOH pub 仓库'));
     expect(chineseReadme, contains('packages/registry.yaml'));
     expect(chineseReadme, contains('最新校验通过的快照'));
     expect(chineseReadme, contains('fluoh source remove internal'));
@@ -117,6 +119,11 @@ void main() {
       contributing,
       contains('dart pub global activate fluoh 0.0.1 --overwrite'),
     );
+    expect(
+      contributing,
+      contains('feat(pub): configure pub repository remotes'),
+    );
+    expect(contributing, isNot(contains('feat(adapter)')));
     expect(contributing, contains('dart pub global deactivate fluoh'));
     expect(
       contributing,
@@ -155,6 +162,11 @@ void main() {
       chineseContributing,
       contains('dart pub global activate fluoh 0.0.1 --overwrite'),
     );
+    expect(
+      chineseContributing,
+      contains('feat(pub): configure pub repository remotes'),
+    );
+    expect(chineseContributing, isNot(contains('feat(adapter)')));
     expect(chineseContributing, contains('dart pub global deactivate fluoh'));
     expect(
       chineseContributing,

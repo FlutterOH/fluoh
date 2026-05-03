@@ -3,8 +3,8 @@ import 'package:args/command_runner.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../context/fluoh_environment.dart';
-import '../use/use_command.dart';
 import 'sdk_manager.dart';
+import 'sdk_use_command.dart';
 
 class SdkCommand extends Command<int> {
   SdkCommand({
@@ -16,7 +16,7 @@ class SdkCommand extends Command<int> {
     addSubcommand(SdkInstallCommand(manager: manager, stdout: stdout));
     addSubcommand(SdkCurrentCommand(manager: manager, stdout: stdout));
     addSubcommand(SdkRemoveCommand(manager: manager, stdout: stdout));
-    addSubcommand(UseCommand(environment: environment, stdout: stdout));
+    addSubcommand(SdkUseCommand(environment: environment, stdout: stdout));
   }
 
   final OutputWriter _stdout;

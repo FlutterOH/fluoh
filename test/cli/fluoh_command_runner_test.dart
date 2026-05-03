@@ -18,7 +18,7 @@ void main() {
 
     expect(exitCode, 0);
     expect(stdout, [
-      'fluoh 0.0.1 - FlutterOH SDK and package adapter CLI',
+      'fluoh 0.0.1 - FlutterOH SDK and pub package CLI',
       'Dart $dartVersion',
       startsWith('Platform ${io.Platform.operatingSystem} '),
       'Repository https://github.com/FlutterOH/fluoh',
@@ -174,7 +174,7 @@ void main() {
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    expect(help, contains('Manage FlutterOH package adapter repositories.'));
+    expect(help, contains('Manage FlutterOH pub package repositories.'));
     expect(help, contains('create'));
     expect(help, contains('sync'));
     expect(help, contains('adapt'));

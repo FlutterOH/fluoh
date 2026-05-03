@@ -107,7 +107,7 @@ git diff --check
 <type>(<scope>): <subject>
 ```
 
-`scope` 可选，建议使用受影响的命令、模块或文档范围，例如 `sdk`、`deps`、`adapter`、`source`、`docs`、`ci`。
+`scope` 可选，建议使用受影响的命令、模块或文档范围，例如 `sdk`、`deps`、`pub`、`source`、`docs`、`ci`。
 
 常用 `type`：
 
@@ -122,7 +122,7 @@ git diff --check
 示例：
 
 ```text
-feat(adapter): configure adapter repository remotes
+feat(pub): configure pub repository remotes
 fix(deps): update rewritten OHOS dependencies
 docs: add Homebrew installation guide
 ci: publish package on version tags
@@ -163,15 +163,15 @@ fluoh --version
 
 正式提供 `brew tap FlutterOH/tap` 时，需要在 FlutterOH 的 tap 仓库中同步 formula。当前 formula 使用 pub.dev archive 作为下载源；版本更新时需要同步 archive URL 和版本号。
 
-## 适配仓库工作流维护
+## Pub 仓库工作流维护
 
-`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-tag>` 适配分支，并把 `origin` 设置为适配仓库最终推送位置。默认值会根据 package 名称推导：
+`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-tag>` pub 分支，并把 `origin` 设置为 pub 仓库最终推送位置。默认值会根据 package 名称推导：
 
 ```sh
 git@github.com:FlutterOH/<package>.git
 ```
 
-如果某个适配库需要推送到独立仓库，创建时使用 `--repository` 指定：
+如果某个 package 需要推送到独立 FlutterOH pub 仓库，创建时使用 `--repository` 指定：
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
@@ -181,12 +181,12 @@ fluoh pub create https://github.com/upstream/package.git \
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前适配分支并刷新 `fluoh.yaml`。
+使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前 pub 分支并刷新 `fluoh.yaml`。
 
 `fluoh pub release` 必须继续保证：
 
 - 只允许在 `ohos/*` 分支运行。
-- 当前分支和 `fluoh.yaml` 的适配分支一致。
+- 当前分支和 `fluoh.yaml` 的 pub 分支一致。
 - 工作区干净。
 - SDK tag 来自已配置的数据源。
-- release tag 和 manifest 中的 package、上游版本、SDK tag、适配版本一致。
+- release tag 和 manifest 中的 package、上游版本、SDK tag、release 版本一致。

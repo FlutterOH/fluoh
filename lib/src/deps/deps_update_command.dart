@@ -4,10 +4,10 @@ import 'package:args/command_runner.dart';
 
 import '../cli/fluoh_command_runner.dart';
 import '../context/fluoh_environment.dart';
-import '../deps/deps_analyzer.dart';
+import 'deps_analyzer.dart';
 
-class UpdateCommand extends Command<int> {
-  UpdateCommand({required this.environment, required OutputWriter stdout})
+class DepsUpdateCommand extends Command<int> {
+  DepsUpdateCommand({required this.environment, required OutputWriter stdout})
     : _stdout = stdout {
     argParser
       ..addFlag(

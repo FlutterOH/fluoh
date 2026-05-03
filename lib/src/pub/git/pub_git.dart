@@ -45,7 +45,7 @@ Future<void> ensureCleanWorkingTree(Directory repository, String action) async {
   }
 }
 
-Future<void> configureAdapterRemotes(
+Future<void> configurePubRemotes(
   Directory repository,
   String repositoryUrl,
 ) async {

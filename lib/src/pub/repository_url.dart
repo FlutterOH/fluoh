@@ -1,4 +1,4 @@
-String defaultAdapterRepositoryUrl(
+String defaultPubRepositoryUrl(
   String packageName, {
   String base = 'git@github.com:FlutterOH',
 }) {

@@ -107,7 +107,7 @@ Commit messages use Conventional Commits:
 <type>(<scope>): <subject>
 ```
 
-`scope` is optional. Prefer the affected command, module, or documentation area, such as `sdk`, `deps`, `adapter`, `source`, `docs`, or `ci`.
+`scope` is optional. Prefer the affected command, module, or documentation area, such as `sdk`, `deps`, `pub`, `source`, `docs`, or `ci`.
 
 Common `type` values:
 
@@ -122,7 +122,7 @@ Common `type` values:
 Examples:
 
 ```text
-feat(adapter): configure adapter repository remotes
+feat(pub): configure pub repository remotes
 fix(deps): update rewritten OHOS dependencies
 docs: add Homebrew installation guide
 ci: publish package on version tags
@@ -163,15 +163,15 @@ fluoh --version
 
 When an official `brew tap FlutterOH/tap` is available, sync the formula into the FlutterOH tap repository. The current formula uses the pub.dev archive as its download source; update the archive URL and version whenever releasing a new version.
 
-## Adapter Repository Workflow Maintenance
+## Pub Repository Workflow Maintenance
 
-`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-tag>` adapter branch, and sets `origin` to the final adapter repository push target. The default is derived from the package name:
+`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-tag>` pub branch, and sets `origin` to the final pub repository push target. The default is derived from the package name:
 
 ```sh
 git@github.com:FlutterOH/<package>.git
 ```
 
-If an adapter needs to be pushed to a dedicated repository, pass `--repository` when creating it:
+If a package needs to be pushed to a dedicated FlutterOH pub repository, pass `--repository` when creating it:
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
@@ -181,12 +181,12 @@ fluoh pub create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current adapter branch and refresh `fluoh.yaml`.
+Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current pub branch and refresh `fluoh.yaml`.
 
 `fluoh pub release` must continue to guarantee:
 
 - It only runs on `ohos/*` branches.
-- The current branch matches the adapter branch in `fluoh.yaml`.
+- The current branch matches the pub branch in `fluoh.yaml`.
 - The worktree is clean.
 - The SDK tag comes from configured sources.
-- The release tag matches the package, upstream version, SDK tag, and adapter version recorded in the manifest.
+- The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.

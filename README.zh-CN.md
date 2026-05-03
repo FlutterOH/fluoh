@@ -1,19 +1,19 @@
 # fluoh
 
-FlutterOH 生态命令行工具，用于管理 Flutter OHOS SDK、检查项目依赖适配状态，并辅助第三方库维护者创建 OHOS 适配仓库。
+FlutterOH 生态命令行工具，用于管理 Flutter OHOS SDK、检查项目依赖适配状态，并辅助第三方库维护者创建 FlutterOH pub 仓库。
 
 [English](README.md) | [贡献指南](CONTRIBUTING.zh-CN.md)
 
 ## 为什么需要 fluoh
 
-FlutterOH 项目通常会同时遇到三类问题：SDK 版本需要和项目绑定，pub 依赖需要确认是否已有 OHOS 适配，第三方库适配仓库需要统一命名、分支和发布规则。`fluoh` 把这些流程收敛成一组可重复执行的 CLI 命令。
+FlutterOH 项目通常会同时遇到三类问题：SDK 版本需要和项目绑定，pub 依赖需要确认是否已有 OHOS 适配，第三方库 pub 仓库需要统一命名、分支和发布规则。`fluoh` 把这些流程收敛成一组可重复执行的 CLI 命令。
 
 主要能力：
 
 - 安装和切换 Flutter OHOS SDK，并写入 FVM 兼容配置。
 - 根据 FlutterOH 数据源检查依赖兼容性，生成 OHOS 适配依赖替换。
-- 初始化第三方 package 的 FlutterOH 适配仓库，生成适配分支和 release tag。
-- 支持适配仓库 remote 配置、pub.dev 自动发布和 Homebrew 安装链路。
+- 初始化第三方 package 的 FlutterOH pub 仓库，生成 OHOS 分支和 release tag。
+- 支持 pub 仓库 remote 配置、pub.dev 自动发布和 Homebrew 安装链路。
 
 ## 安装
 
@@ -74,7 +74,7 @@ fluoh deps update --yes
 
 `fluoh deps fix` 默认写入 `dependency_overrides`。如果需要直接改写 `dependencies` 中的声明，可以使用 `--rewrite`。
 
-### 创建第三方库适配仓库
+### 创建第三方库 pub 仓库
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
@@ -92,7 +92,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的适配仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，并默认把 `origin` 设置为 `git@github.com:FlutterOH/<package>.git`。FlutterOH 适配修改只提交到 `ohos/<sdk-tag>` 分支。如果需要指定最终推送位置：
+默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，并默认把 `origin` 设置为 `git@github.com:FlutterOH/<package>.git`。FlutterOH 修改只提交到 `ohos/<sdk-tag>` 分支。如果需要指定最终推送位置：
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
@@ -109,7 +109,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh deps check` | 检查项目依赖的 OHOS 兼容状态。 |
 | `fluoh deps fix` | 写入适配依赖替换。 |
 | `fluoh deps update` | 升级项目内已有 OHOS 适配依赖版本。 |
-| `fluoh pub ...` | 创建、同步、适配并发布第三方库适配仓库。 |
+| `fluoh pub ...` | 创建、同步、适配并发布第三方库 FlutterOH pub 仓库。 |
 | `fluoh source ...` | 管理 FlutterOH 数据源。 |
 | `fluoh doctor` | 诊断项目 SDK、FVM、OHOS 目录和依赖状态。 |
 | `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |

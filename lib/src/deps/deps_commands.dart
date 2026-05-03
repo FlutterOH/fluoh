@@ -6,8 +6,8 @@ import 'package:args/command_runner.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../context/fluoh_environment.dart';
-import '../update/update_command.dart';
 import 'deps_analyzer.dart';
+import 'deps_update_command.dart';
 
 class DepsCommand extends Command<int> {
   DepsCommand({
@@ -16,7 +16,7 @@ class DepsCommand extends Command<int> {
   }) : _stdout = stdout {
     addSubcommand(DepsCheckCommand(environment: environment, stdout: stdout));
     addSubcommand(DepsFixCommand(environment: environment, stdout: stdout));
-    addSubcommand(UpdateCommand(environment: environment, stdout: stdout));
+    addSubcommand(DepsUpdateCommand(environment: environment, stdout: stdout));
   }
 
   final OutputWriter _stdout;

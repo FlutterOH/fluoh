@@ -2,7 +2,7 @@
 
 ## Project Scope
 
-`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency adapter status, rewrites project dependency declarations, and helps maintain third-party adapter repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
+`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency adapter status, rewrites project dependency declarations, and helps maintain third-party FlutterOH pub repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
 
 ## Repository Layout
 
@@ -13,8 +13,8 @@
 - `lib/src/source/`: FlutterOH data source registry and YAML source loading.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
 - `lib/src/deps/`: dependency compatibility analysis and pubspec updates.
-- `lib/src/adapter/`: adapter repository creation and release workflows.
-- `lib/src/doctor/`, `lib/src/update/`, `lib/src/upgrade/`, `lib/src/use/`: command-specific implementations.
+- `lib/src/pub/`: pub repository create, sync, adapt, and release workflows.
+- `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
 - `test/`: unit, command, integration, fixture, and release artifact tests.
 - `Formula/`: Homebrew packaging.
 - `.github/workflows/publish.yml`: pub.dev publishing automation.
@@ -44,7 +44,7 @@ Keep command classes focused on argument parsing and user-visible output. Put re
 
 Prefer structured parsing for YAML, lockfile, and source index data. Avoid ad hoc string edits when a local parser or helper already exists. When pubspec text must be rewritten, preserve unrelated user content and add regression tests for the exact layout being changed.
 
-Commands that modify a project or adapter repository must be conservative:
+Commands that modify a project or pub repository must be conservative:
 
 - Fail before destructive writes when validation is incomplete.
 - Preserve local repositories and working trees on network, GitHub, or push failures.
@@ -57,7 +57,7 @@ Use `package:test`. Name test files `*_test.dart` and write behavior-oriented te
 
 Use `test/helpers/fluoh_test_context.dart` for isolated temporary homes, projects, and repositories. Put static source indexes and mock repositories under `test/fixtures/`. Do not read or write real user configuration such as `$HOME/.fluoh`.
 
-Every command behavior change, pubspec rewrite, source index rule, SDK selection rule, adapter workflow, release validation, or publishing artifact change should include a regression test. For documentation or packaging changes, update `test/release/release_artifacts_test.dart` when the expected release surface changes.
+Every command behavior change, pubspec rewrite, source index rule, SDK selection rule, pub workflow, release validation, or publishing artifact change should include a regression test. For documentation or packaging changes, update `test/release/release_artifacts_test.dart` when the expected release surface changes.
 
 ## Documentation Standards
 
@@ -75,7 +75,7 @@ Use Conventional Commits:
 <type>(<scope>): <subject>
 ```
 
-Use scopes such as `sdk`, `deps`, `adapter`, `source`, `docs`, `ci`, `test`, or `release` when helpful. Common types are `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `ci`. Keep the first line within 72 characters.
+Use scopes such as `sdk`, `deps`, `pub`, `source`, `docs`, `ci`, `test`, or `release` when helpful. Common types are `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `ci`. Keep the first line within 72 characters.
 
 Pull requests should describe user-visible behavior, list verification commands, link related issues, and call out release or publishing impact. Include CLI output snippets when they clarify behavior.
 

@@ -7,11 +7,11 @@ import 'package:yaml/yaml.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
-import '../sdk/sdk_manager.dart';
-import '../sdk/sdk_release.dart';
+import 'sdk_manager.dart';
+import 'sdk_release.dart';
 
-class UseCommand extends Command<int> {
-  UseCommand({required this.environment, required OutputWriter stdout})
+class SdkUseCommand extends Command<int> {
+  SdkUseCommand({required this.environment, required OutputWriter stdout})
     : _stdout = stdout {
     argParser.addFlag(
       'pub-get',

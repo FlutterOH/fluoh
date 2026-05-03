@@ -3,11 +3,11 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
-import '../adapter/pub_commands.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/deps_commands.dart';
 import '../doctor/doctor_command.dart';
+import '../pub/commands/pub_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
 import '../source/source_sync.dart';
@@ -26,13 +26,13 @@ class FluohCommandRunner extends CommandRunner<int> {
   }) : _stdout = stdout ?? print,
        _stderr = stderr ?? print,
        _environment = environment ?? FluohEnvironment.current(),
-       super('fluoh', 'FlutterOH SDK and package adapter CLI.') {
+       super('fluoh', 'FlutterOH SDK and pub package CLI.') {
     final env = _environment;
-    addCommand(SourceCommand(environment: env, stdout: _stdout));
     addCommand(SdkCommand(environment: env, stdout: _stdout));
     addCommand(DepsCommand(environment: env, stdout: _stdout));
-    addCommand(DoctorCommand(environment: env, stdout: _stdout));
     addCommand(PubCommand(environment: env, stdout: _stdout));
+    addCommand(SourceCommand(environment: env, stdout: _stdout));
+    addCommand(DoctorCommand(environment: env, stdout: _stdout));
     addCommand(UpgradeCommand(stdout: _stdout, stderr: _stderr));
 
     argParser.addFlag(
@@ -93,7 +93,7 @@ class FluohCommandRunner extends CommandRunner<int> {
 
   void _printVersionInformation() {
     final dartVersion = io.Platform.version.split(' ').first;
-    _stdout('fluoh $packageVersion - FlutterOH SDK and package adapter CLI');
+    _stdout('fluoh $packageVersion - FlutterOH SDK and pub package CLI');
     _stdout('Dart $dartVersion');
     _stdout(
       'Platform ${io.Platform.operatingSystem} '

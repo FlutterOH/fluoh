@@ -1,19 +1,19 @@
 # fluoh
 
-Command-line tools for the FlutterOH ecosystem. `fluoh` manages Flutter OHOS SDK versions, checks OHOS dependency adapter status, and helps third-party package maintainers create adapter repositories.
+Command-line tools for the FlutterOH ecosystem. `fluoh` manages Flutter OHOS SDK versions, checks OHOS dependency adapter status, and helps third-party package maintainers create FlutterOH pub repositories.
 
 [简体中文](README.zh-CN.md) | [Contributing](CONTRIBUTING.md)
 
 ## Why fluoh
 
-FlutterOH projects usually need consistent SDK selection, dependency compatibility checks, and repeatable adapter repository conventions. `fluoh` turns those workflows into a small set of CLI commands.
+FlutterOH projects usually need consistent SDK selection, dependency compatibility checks, and repeatable pub repository conventions. `fluoh` turns those workflows into a small set of CLI commands.
 
 Core capabilities:
 
 - Install and switch Flutter OHOS SDKs with FVM-compatible project files.
 - Check dependencies against FlutterOH data sources and generate OHOS adapter replacements.
-- Initialize third-party package adapter repositories with adapter branches and release tags.
-- Support adapter repository remote configuration, pub.dev automated publishing, and Homebrew installation.
+- Initialize third-party FlutterOH pub repositories with OHOS branches and release tags.
+- Support pub repository remote configuration, pub.dev automated publishing, and Homebrew installation.
 
 ## Installation
 
@@ -74,7 +74,7 @@ fluoh deps update --yes
 
 `fluoh deps fix` writes `dependency_overrides` by default. Use `--rewrite` when you want to rewrite direct `dependencies` declarations instead.
 
-### Create third-party adapter repositories
+### Create third-party pub repositories
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
@@ -92,7 +92,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-Generated adapter repositories keep the upstream default branch clean, keep the upstream repository as `upstream`, and set `origin` to `git@github.com:FlutterOH/<package>.git` by default. FlutterOH changes are committed only on `ohos/<sdk-tag>` branches. To choose the final push target:
+Generated pub repositories keep the upstream default branch clean, keep the upstream repository as `upstream`, and set `origin` to `git@github.com:FlutterOH/<package>.git` by default. FlutterOH changes are committed only on `ohos/<sdk-tag>` branches. To choose the final push target:
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
@@ -109,7 +109,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh deps check` | Check OHOS compatibility for project dependencies. |
 | `fluoh deps fix` | Write adapted dependency replacements. |
 | `fluoh deps update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
-| `fluoh pub ...` | Create, sync, adapt, and release third-party adapter repositories. |
+| `fluoh pub ...` | Create, sync, adapt, and release third-party FlutterOH pub repositories. |
 | `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh doctor` | Diagnose SDK, FVM, OHOS directory, and dependency status. |
 | `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
