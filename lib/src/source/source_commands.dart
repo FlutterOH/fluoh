@@ -5,7 +5,7 @@ import 'package:args/command_runner.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
-import 'pub_source.dart';
+import 'source_sync.dart';
 
 class SourceCommand extends Command<int> {
   SourceCommand({
@@ -105,7 +105,7 @@ class SourceAddCommand extends Command<int> {
         ? config.addSource(name, cachePath, priority: priority)
         : config.addGitSource(name, urlOrPath, cachePath, priority: priority);
     if (isLocalPath) {
-      await _syncLocalSource(name, Directory(urlOrPath), Directory(cachePath));
+      await syncLocalSource(name, Directory(urlOrPath), Directory(cachePath));
     }
     await store.save(updated);
     stdout('Added source $name: $urlOrPath');
@@ -181,9 +181,9 @@ class SourceUpdateCommand extends Command<int> {
     for (final entry in sources) {
       final sourceConfig = entry.value;
       if (sourceConfig.url != null) {
-        await _syncGitSource(entry.key, sourceConfig);
+        await syncGitSource(entry.key, sourceConfig);
       }
-      await _validateSource(entry.key, sourceConfig);
+      await validateSource(entry.key, sourceConfig);
       stdout('Updated source ${entry.key}.');
     }
     return 0;
@@ -196,175 +196,6 @@ MapEntry<String, SourceConfig> _sourceEntry(FluohConfig config, String name) {
     throw UsageException('Unknown source "$name".', '');
   }
   return MapEntry(name, source);
-}
-
-Future<void> _validateSource(String name, SourceConfig sourceConfig) async {
-  final source = PubSource.directory(sourceConfig.directory);
-  final validators =
-      <({String label, bool present, Future<void> Function() validate})>[
-        (
-          label: 'sdk/index.yaml',
-          present: source.hasSdkIndex,
-          validate: () async => source.loadSdkIndex(),
-        ),
-        (
-          label: 'packages/registry.yaml',
-          present: source.hasPackageIndex,
-          validate: () async {
-            await source.loadPackageIndex();
-            await source.loadCompatibilityMatrix();
-          },
-        ),
-      ];
-  final present = validators
-      .where((entry) => entry.present)
-      .toList(growable: false);
-  if (present.isEmpty) {
-    throw UsageException(
-      'Source $name does not contain sdk/index.yaml or '
-          'packages/registry.yaml.',
-      '',
-    );
-  }
-
-  try {
-    for (final entry in present) {
-      await entry.validate();
-    }
-  } on FormatException catch (error) {
-    throw UsageException('Source $name is not valid: ${error.message}', '');
-  } on FileSystemException catch (error) {
-    throw UsageException(
-      'Source $name could not be read: ${_fileSystemMessage(error)}',
-      '',
-    );
-  }
-}
-
-String _fileSystemMessage(FileSystemException error) {
-  final path = error.path;
-  if (path == null || path.isEmpty) {
-    return error.message;
-  }
-  return '${error.message}: $path';
-}
-
-Future<void> _syncLocalSource(
-  String name,
-  Directory source,
-  Directory destination,
-) async {
-  final temp = await Directory.systemTemp.createTemp('fluoh_source_');
-  try {
-    await _copyDirectory(source, temp);
-    await _deleteIfExists(Directory('${temp.path}/.git'));
-    await _validateSource(name, SourceConfig(path: temp.path));
-    await _replaceSourceSnapshot(source: temp, destination: destination);
-  } finally {
-    await _deleteIfExists(temp);
-  }
-}
-
-Future<void> _syncGitSource(String name, SourceConfig source) async {
-  final temp = await Directory.systemTemp.createTemp('fluoh_source_');
-  try {
-    await _git([
-      'clone',
-      '--depth=1',
-      '--single-branch',
-      '--quiet',
-      source.url!,
-      temp.path,
-    ]);
-    await _deleteIfExists(Directory('${temp.path}/.git'));
-    await _validateSource(name, SourceConfig(path: temp.path));
-    await _replaceSourceSnapshot(source: temp, destination: source.directory);
-  } finally {
-    await _deleteIfExists(temp);
-  }
-}
-
-Future<void> _replaceSourceSnapshot({
-  required Directory source,
-  required Directory destination,
-}) async {
-  final parent = destination.parent;
-  await parent.create(recursive: true);
-  var staging = await parent.createTemp(
-    '.${_basename(destination.path)}-next-',
-  );
-  Directory? backup;
-  try {
-    await _copyDirectory(source, staging);
-    await _deleteIfExists(Directory('${staging.path}/.git'));
-    if (await destination.exists()) {
-      backup = await destination.rename(
-        '${parent.path}/.${_basename(destination.path)}-previous-'
-        '${DateTime.now().microsecondsSinceEpoch}',
-      );
-    }
-    try {
-      await staging.rename(destination.path);
-      staging = Directory('');
-    } catch (_) {
-      if (backup != null && !await destination.exists()) {
-        await backup.rename(destination.path);
-        backup = null;
-      }
-      rethrow;
-    }
-  } finally {
-    if (staging.path.isNotEmpty) {
-      await _deleteIfExists(staging);
-    }
-    if (backup != null) {
-      await _deleteIfExists(backup);
-    }
-  }
-}
-
-Future<void> _copyDirectory(Directory source, Directory destination) async {
-  await destination.create(recursive: true);
-  await for (final entity in source.list(recursive: false)) {
-    final name = _basename(entity.path);
-    if (name == '.git') {
-      continue;
-    }
-    final target = '${destination.path}/$name';
-    if (entity is Directory) {
-      await _copyDirectory(entity, Directory(target));
-    } else if (entity is File) {
-      await File(target).parent.create(recursive: true);
-      await entity.copy(target);
-    }
-  }
-}
-
-Future<void> _deleteIfExists(FileSystemEntity entity) async {
-  if (await entity.exists()) {
-    await entity.delete(recursive: true);
-  }
-}
-
-String _basename(String path) {
-  final normalized = path.endsWith(Platform.pathSeparator)
-      ? path.substring(0, path.length - 1)
-      : path;
-  return normalized.split(Platform.pathSeparator).last;
-}
-
-Future<void> _git(List<String> arguments, {Directory? workingDirectory}) async {
-  final result = await Process.run(
-    'git',
-    arguments,
-    workingDirectory: workingDirectory?.path,
-  );
-  if (result.exitCode != 0) {
-    throw UsageException(
-      'git ${arguments.join(' ')} failed:\n${result.stderr}',
-      '',
-    );
-  }
 }
 
 bool _looksLikeGitSource(String value) {

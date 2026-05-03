@@ -6,6 +6,61 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_test_context.dart';
 
 void main() {
+  test('does not create source config when showing command help', () async {
+    final environment = await createTestEnvironment();
+    final configFile = File('${environment.homeDirectory.path}/config.json');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await environment.homeDirectory.delete(recursive: true);
+
+    expect(
+      await runFluoh(
+        ['sdk', '--help'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(configFile.existsSync(), isFalse);
+    expect(stdout, isEmpty);
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'recreates the default source config before reading source indexes',
+    () async {
+      final environment = await createTestEnvironment();
+      final configFile = File('${environment.homeDirectory.path}/config.json');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await environment.homeDirectory.delete(recursive: true);
+
+      expect(
+        await runFluoh(
+          ['sdk', 'list'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(configFile.existsSync(), isTrue);
+      expect(
+        configFile.readAsStringSync(),
+        contains('https://github.com/FlutterOH/pub.git'),
+      );
+      expect(
+        stderr.join('\n'),
+        contains('No readable data source index found'),
+      );
+    },
+  );
+
   test('lists, installs, reports current, and removes SDKs', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);

@@ -6,6 +6,7 @@ import '../context/fluoh_environment.dart';
 const defaultSourceName = 'flutteroh';
 const defaultSourceUrl = 'https://github.com/FlutterOH/pub.git';
 const defaultSourcePriority = 10;
+const defaultSourceUrlEnvironmentKey = 'FLUOH_DEFAULT_SOURCE_URL';
 
 class FluohConfigStore {
   const FluohConfigStore(this.environment);
@@ -15,10 +16,17 @@ class FluohConfigStore {
   Future<FluohConfig> load() async {
     final file = environment.configFile;
     if (!await file.exists()) {
-      return FluohConfig.withDefaultSource(environment);
+      final config = FluohConfig.withDefaultSource(environment);
+      await save(config);
+      return config;
     }
 
-    final decoded = jsonDecode(await file.readAsString());
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(await file.readAsString());
+    } on FormatException catch (error) {
+      throw FormatException('fluoh config could not be read: ${error.message}');
+    }
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('fluoh config must be a JSON object.');
     }
@@ -41,7 +49,9 @@ class FluohConfig {
       sources: {
         defaultSourceName: SourceConfig(
           path: '${environment.homeDirectory.path}/sources/flutteroh-pub',
-          url: defaultSourceUrl,
+          url:
+              environment.processEnvironment[defaultSourceUrlEnvironmentKey] ??
+              defaultSourceUrl,
           priority: defaultSourcePriority,
         ),
       },

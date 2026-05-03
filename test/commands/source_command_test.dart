@@ -6,34 +6,275 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_test_context.dart';
 
 void main() {
-  test(
-    'lists the default FlutterOH source before user configuration',
-    () async {
-      final environment = await createTestEnvironment();
-      final stdout = <String>[];
-      final stderr = <String>[];
+  test('does not repair sources when showing nested command help', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPubSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
+    final configFile = File('${environment.homeDirectory.path}/config.json');
+    final sourceCache = Directory(
+      '${environment.homeDirectory.path}/sources/flutteroh-pub',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      expect(
-        await runFluoh(
-          ['source', 'list'],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
+    await environment.homeDirectory.delete(recursive: true);
 
-      expect(
-        stdout,
-        contains('flutteroh https://github.com/FlutterOH/pub.git'),
-      );
-      expect(stderr, isEmpty);
-    },
-  );
+    expect(
+      await runFluoh(
+        ['source', '--help'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(configFile.existsSync(), isFalse);
+    expect(sourceCache.existsSync(), isFalse);
+    expect(stdout, isEmpty);
+    expect(stderr, isEmpty);
+  });
+
+  test('lists the default FlutterOH source before user configuration', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPubSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
+    final configFile = File('${environment.homeDirectory.path}/config.json');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await environment.homeDirectory.delete(recursive: true);
+
+    expect(
+      await runFluoh(
+        ['source', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, contains('flutteroh file://${defaultSource.path}'));
+    expect(configFile.existsSync(), isTrue);
+    expect(
+      configFile.readAsStringSync(),
+      contains('file://${defaultSource.path}'),
+    );
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/flutteroh-pub/sdk/index.yaml',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('validates source configuration when source has no subcommand', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPubSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
+    final configFile = File('${environment.homeDirectory.path}/config.json');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await environment.homeDirectory.delete(recursive: true);
+
+    expect(
+      await runFluoh(
+        ['source'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(configFile.existsSync(), isTrue);
+    expect(
+      configFile.readAsStringSync(),
+      contains('file://${defaultSource.path}'),
+    );
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/flutteroh-pub/sdk/index.yaml',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(stderr.join('\n'), contains('Missing subcommand'));
+  });
+
+  test('repairs missing private git source snapshots when listing', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await initializeGitRepository(source);
+    final cachePath = '${environment.homeDirectory.path}/sources/private';
+    await File('${environment.homeDirectory.path}/config.json').writeAsString(
+      '''
+{
+  "sources": {
+    "private": {
+      "path": "$cachePath",
+      "url": "file://${source.path}",
+      "priority": 100
+    }
+  }
+}
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, contains('private file://${source.path}'));
+    expect(File('$cachePath/sdk/index.yaml').existsSync(), isTrue);
+    expect(stderr, isEmpty);
+  });
+
+  test('repairs invalid private git source snapshots when listing', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await initializeGitRepository(source);
+    final cachePath = '${environment.homeDirectory.path}/sources/private';
+    await Directory('$cachePath/packages').create(recursive: true);
+    await File(
+      '${source.path}/packages/registry.yaml',
+    ).copy('$cachePath/packages/registry.yaml');
+    await File('${environment.homeDirectory.path}/config.json').writeAsString(
+      '''
+{
+  "sources": {
+    "private": {
+      "path": "$cachePath",
+      "url": "file://${source.path}",
+      "priority": 100
+    }
+  }
+}
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, contains('private file://${source.path}'));
+    expect(
+      File('$cachePath/packages/manifests/camera.yaml').existsSync(),
+      isTrue,
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('reports missing local source snapshots when listing', () async {
+    final environment = await createTestEnvironment();
+    final cachePath = '${environment.homeDirectory.path}/sources/local';
+    await File('${environment.homeDirectory.path}/config.json').writeAsString(
+      '''
+{
+  "sources": {
+    "local": {
+      "path": "$cachePath",
+      "priority": 100
+    }
+  }
+}
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('Source local cache is missing'));
+    expect(stderr.join('\n'), contains('fluoh source add local <path>'));
+  });
+
+  test('reports malformed source configuration without replacing it', () async {
+    final environment = await createTestEnvironment();
+    final configFile = File('${environment.homeDirectory.path}/config.json');
+    await configFile.writeAsString('{');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(configFile.readAsStringSync(), '{');
+    expect(stderr.join('\n'), contains('fluoh config'));
+  });
 
   test('adds, lists, and updates a named pub source', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
+    await Directory('${source.path}/docs').create(recursive: true);
+    await File('${source.path}/docs/notes.md').writeAsString('# Notes\n');
+    await Directory(
+      '${source.path}/packages/artifacts',
+    ).create(recursive: true);
+    await File(
+      '${source.path}/packages/artifacts/cache.bin',
+    ).writeAsString('unused');
     final cachedSource = Directory(
       '${environment.homeDirectory.path}/sources/fixture',
     );
@@ -72,6 +313,19 @@ void main() {
     expect(stdout, contains('fixture ${cachedSource.path}'));
     expect(stdout, contains('Updated source fixture.'));
     expect(File('${cachedSource.path}/sdk/index.yaml').existsSync(), isTrue);
+    expect(
+      File('${cachedSource.path}/packages/registry.yaml').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${cachedSource.path}/packages/manifests/camera.yaml').existsSync(),
+      isTrue,
+    );
+    expect(File('${cachedSource.path}/docs/notes.md').existsSync(), isFalse);
+    expect(
+      File('${cachedSource.path}/packages/artifacts/cache.bin').existsSync(),
+      isFalse,
+    );
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
     expect(stderr, isEmpty);
   });
@@ -265,6 +519,14 @@ versions: {}
   test('updates a git source URL into the local source cache', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
+    await Directory('${source.path}/docs').create(recursive: true);
+    await File('${source.path}/docs/notes.md').writeAsString('# Notes\n');
+    await Directory(
+      '${source.path}/packages/artifacts',
+    ).create(recursive: true);
+    await File(
+      '${source.path}/packages/artifacts/cache.bin',
+    ).writeAsString('unused');
     await initializeGitRepository(source);
     final sourceUrl = 'file://${source.path}';
     final stdout = <String>[];
@@ -296,6 +558,30 @@ versions: {}
         '${environment.homeDirectory.path}/sources/remote/sdk/index.yaml',
       ).existsSync(),
       isTrue,
+    );
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/remote/packages/registry.yaml',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/remote/packages/manifests/camera.yaml',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/remote/docs/notes.md',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/remote/packages/artifacts/cache.bin',
+      ).existsSync(),
+      isFalse,
     );
     expect(
       Directory(
