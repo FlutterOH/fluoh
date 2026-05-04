@@ -4,8 +4,8 @@ import 'package:yaml/yaml.dart';
 
 import '../sdk/sdk_release.dart';
 
-class PubSource {
-  const PubSource.directory(this.root);
+class SourceIndex {
+  const SourceIndex.directory(this.root);
 
   final Directory root;
 
@@ -136,6 +136,9 @@ class PubSource {
     return converted;
   }
 }
+
+@Deprecated('Use SourceIndex instead.')
+typedef PubSource = SourceIndex;
 
 class PackageIndex {
   const PackageIndex({required this.schemaVersion, required this.packages});

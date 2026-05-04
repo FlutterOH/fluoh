@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../config/fluoh_config.dart';
-import 'pub_source.dart';
+import 'source_index.dart';
 
 Future<void> ensureSourceSnapshots(FluohConfig config) async {
   for (final entry in config.sources.entries) {
@@ -32,7 +32,7 @@ Future<_SnapshotState> _snapshotState(
   String name,
   SourceConfig sourceConfig,
 ) async {
-  final source = PubSource.directory(sourceConfig.directory);
+  final source = SourceIndex.directory(sourceConfig.directory);
   if (!source.hasSdkIndex && !source.hasPackageIndex) {
     return _SnapshotState.missing;
   }
@@ -48,7 +48,7 @@ Future<_SnapshotState> _snapshotState(
 enum _SnapshotState { missing, valid, invalid }
 
 Future<void> validateSource(String name, SourceConfig sourceConfig) async {
-  final source = PubSource.directory(sourceConfig.directory);
+  final source = SourceIndex.directory(sourceConfig.directory);
   final validators =
       <({String label, bool present, Future<void> Function() validate})>[
         (

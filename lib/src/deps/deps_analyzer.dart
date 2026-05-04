@@ -4,7 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../context/fluoh_environment.dart';
-import '../source/pub_source.dart';
+import '../source/source_index.dart';
 import '../source/source_registry.dart';
 
 class DepsAnalyzer {

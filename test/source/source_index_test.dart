@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 void main() {
   test('loads the fixture pub source indexes', () async {
-    final source = PubSource.directory(Directory('test/fixtures/pub_source'));
+    final source = SourceIndex.directory(Directory('test/fixtures/pub_source'));
 
     final sdkIndex = await source.loadSdkIndex();
     final packageIndex = await source.loadPackageIndex();
@@ -37,7 +37,7 @@ void main() {
       status: 'broken',
       includeReplacement: false,
     );
-    final source = PubSource.directory(root);
+    final source = SourceIndex.directory(root);
 
     final packageIndex = await source.loadPackageIndex();
     final compatibilityMatrix = await source.loadCompatibilityMatrix();
@@ -58,7 +58,7 @@ void main() {
       status: 'compatible',
       sdkVersions: const ['3.35.8-ohos-0.0.3', '3.35.8-ohos-0.0.4'],
     );
-    final source = PubSource.directory(root);
+    final source = SourceIndex.directory(root);
 
     final packageIndex = await source.loadPackageIndex();
     final compatibilityMatrix = await source.loadCompatibilityMatrix();
@@ -84,7 +84,7 @@ void main() {
       status: 'compatible',
       includeReplacement: false,
     );
-    final source = PubSource.directory(root);
+    final source = SourceIndex.directory(root);
 
     expect(
       source.loadPackageIndex,
@@ -110,7 +110,7 @@ void main() {
         fileName: 'camera',
         status: 'compatible',
       );
-      final source = PubSource.directory(root);
+      final source = SourceIndex.directory(root);
 
       expect(
         source.loadPackageIndex,

@@ -9,7 +9,7 @@ import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/deps_analyzer.dart';
 import '../cli/fluoh_installation.dart';
-import '../source/pub_source.dart';
+import '../source/source_index.dart';
 import '../version.dart';
 
 typedef DoctorVersionMetadataProvider =
@@ -150,7 +150,7 @@ class DoctorCommand extends Command<int> {
     final available = <String>[];
     final missing = <String>[];
     for (final entry in config.sources.entries) {
-      final source = PubSource.directory(entry.value.directory);
+      final source = SourceIndex.directory(entry.value.directory);
       if (source.hasSdkIndex || source.hasPackageIndex) {
         available.add(entry.key);
       } else {

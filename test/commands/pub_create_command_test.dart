@@ -301,6 +301,150 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('selects the latest stable SDK when --sdk is omitted', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final sdkRepository = Directory(
+      '${environment.homeDirectory.path}/flutter-ohos-sdk',
+    );
+    await runGit(sdkRepository, ['tag', '3.35.8-ohos-0.0.4']);
+    await File('${source.path}/sdk/index.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${sdkRepository.path}
+versions:
+  - version: 3.35.8-ohos-0.0.3
+    tag: 3.35.8-ohos-0.0.3
+    status: stable
+  - version: 3.35.8-ohos-0.0.4
+    tag: 3.35.8-ohos-0.0.4
+    status: stable
+''');
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_default_sdk'),
+    );
+    final pubRepository = Directory(
+      '${environment.homeDirectory.path}/pub_default_sdk',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['pub', 'create', upstream.path, '--output', pubRepository.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final branch = await runGit(pubRepository, ['branch', '--show-current']);
+    final manifest = File(
+      '${pubRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.4');
+    expect(manifest, contains('version: 3.35.8-ohos-0.0.4'));
+    expect(stderr, isEmpty);
+  });
+
+  test('fails before cloning when destination already exists', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_existing_dest'),
+    );
+    final pubRepository = Directory(
+      '${environment.homeDirectory.path}/pub_existing_dest',
+    );
+    await pubRepository.create(recursive: true);
+    await File('${pubRepository.path}/README.md').writeAsString('existing');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          pubRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(
+      File('${pubRepository.path}/README.md').readAsStringSync(),
+      'existing',
+    );
+    expect(stderr.join('\n'), contains('Destination already exists'));
+  });
+
+  test('fails when --package does not match the selected pubspec', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_wrong_package'),
+    );
+    final pubRepository = Directory(
+      '${environment.homeDirectory.path}/pub_wrong_package',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--package',
+          'share_plus',
+          '--path',
+          '.',
+          '--output',
+          pubRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stderr.join('\n'), contains('Package at . is camera'));
+    expect(Directory('${pubRepository.path}/.git').existsSync(), isTrue);
+  });
+
   test('does not accept removed GitHub automation flags', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);

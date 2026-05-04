@@ -5,7 +5,7 @@ import 'package:args/command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../sdk/sdk_release.dart';
-import 'pub_source.dart';
+import 'source_index.dart';
 
 class SourceRegistry {
   const SourceRegistry(this.environment);
@@ -179,7 +179,7 @@ class SourceRegistry {
   }
 
   Future<List<_NamedSource>> _readableSources({
-    required bool Function(PubSource source) hasIndex,
+    required bool Function(SourceIndex source) hasIndex,
   }) async {
     final config = await FluohConfigStore(environment).load();
     final sources =
@@ -187,7 +187,7 @@ class SourceRegistry {
             .map((entry) => _NamedSource(entry.key, entry.value))
             .where(
               (source) =>
-                  hasIndex(PubSource.directory(source.config.directory)),
+                  hasIndex(SourceIndex.directory(source.config.directory)),
             )
             .toList(growable: false)
           ..sort((a, b) {
@@ -248,10 +248,10 @@ class SourceRegistry {
 
   Future<T> _loadSourceIndex<T>(
     _NamedSource source,
-    Future<T> Function(PubSource source) load,
+    Future<T> Function(SourceIndex source) load,
   ) async {
     try {
-      return await load(PubSource.directory(source.config.directory));
+      return await load(SourceIndex.directory(source.config.directory));
     } on FormatException catch (error) {
       throw UsageException(
         'Source ${source.name} is not valid: ${error.message}',
