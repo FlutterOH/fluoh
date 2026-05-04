@@ -38,8 +38,18 @@ Future<Directory> createPubRepositoryFixture(
     stdout: stdout.add,
     stderr: stderr.add,
   );
+  await commitGeneratedPubRepository(pubRepository);
 
   return pubRepository;
+}
+
+Future<void> commitGeneratedPubRepository(
+  Directory pubRepository, {
+  String message = 'Initialize FlutterOH pub repository',
+}) async {
+  await runGit(pubRepository, ['config', 'user.email', 'fixture@example.com']);
+  await runGit(pubRepository, ['config', 'user.name', 'Fixture']);
+  await commitAll(pubRepository, message: message);
 }
 
 Future<ProcessResult> runGit(Directory repo, List<String> arguments) async {

@@ -71,34 +71,6 @@ Future<void> configurePubRemotes(
   ], workingDirectory: repository);
 }
 
-Future<void> ensureGitIdentity(Directory repository) async {
-  final email = await runGit(
-    ['config', '--get', 'user.email'],
-    workingDirectory: repository,
-    allowFailure: true,
-  );
-  if (email.exitCode != 0 || email.stdout.toString().trim().isEmpty) {
-    await runGit([
-      'config',
-      'user.email',
-      'fluoh@example.invalid',
-    ], workingDirectory: repository);
-  }
-
-  final name = await runGit(
-    ['config', '--get', 'user.name'],
-    workingDirectory: repository,
-    allowFailure: true,
-  );
-  if (name.exitCode != 0 || name.stdout.toString().trim().isEmpty) {
-    await runGit([
-      'config',
-      'user.name',
-      'fluoh',
-    ], workingDirectory: repository);
-  }
-}
-
 Future<String> upstreamDefaultBranch(Directory repository) async {
   await runGit(
     ['remote', 'set-head', 'upstream', '--auto'],

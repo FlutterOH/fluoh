@@ -165,7 +165,7 @@ fluoh --version
 
 ## Pub 仓库工作流维护
 
-`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-tag>` pub 分支，并把 `origin` 设置为 pub 仓库最终推送位置。默认值会根据 package 名称推导：
+`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-tag>` pub 分支，把 `origin` 设置为 pub 仓库最终推送位置，并配置所选 Flutter OHOS SDK 适配环境。默认仓库 URL 会根据 package 名称推导：
 
 ```sh
 git@github.com:FlutterOH/<package>.git
@@ -180,6 +180,12 @@ fluoh pub create https://github.com/upstream/package.git \
 ```
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
+
+`fluoh pub create` 会暂存生成的 `FLUOH.md`、`fluoh.yaml`、`.fvmrc` 和 `.gitignore`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
+
+```sh
+git commit -m "feat(pub): initialize FlutterOH adapter"
+```
 
 使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前 pub 分支并刷新 `fluoh.yaml`。
 

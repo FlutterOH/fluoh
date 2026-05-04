@@ -41,6 +41,7 @@ void main() {
         stdout: stdout.add,
         stderr: stderr.add,
       );
+      await commitGeneratedPubRepository(pubRepository);
       await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
 
       final pubEnvironment = FluohEnvironment(
@@ -119,8 +120,10 @@ void main() {
         'status: compatible',
       ),
     );
-    await runGit(pubRepository, ['add', 'fluoh.yaml']);
-    await runGit(pubRepository, ['commit', '-m', 'Promote manifest status']);
+    await commitGeneratedPubRepository(
+      pubRepository,
+      message: 'Promote manifest status',
+    );
     await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
 
     final pubEnvironment = FluohEnvironment(

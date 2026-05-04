@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -71,6 +72,7 @@ void main() {
       expect(manifest, contains('upstream:'));
       expect(manifest, contains('adapter:'));
       expect(manifest, contains('dependency:'));
+      expect(manifest, isNot(contains('dependencyPolicy:')));
       expect(manifest, isNot(contains('package:')));
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
@@ -83,12 +85,73 @@ void main() {
       expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
       expect(manifest, contains('status: experimental'));
       expect(manifest, contains('ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
-      expect(File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(), isTrue);
+      final guide = File('${pubRepository.path}/FLUOH.md');
+      expect(guide.existsSync(), isTrue);
+      final guideContent = guide.readAsStringSync();
+      expect(guideContent, contains('# FlutterOH Adaptation Guide'));
+      expect(guideContent, contains('## Adaptation Workflow'));
+      expect(guideContent, contains('fluoh.yaml'));
+      expect(guideContent, contains('fluoh pub release'));
+      expect(guideContent, contains('The generated files are already staged.'));
+      expect(
+        guideContent,
+        contains('You can continue adapting and commit everything together.'),
+      );
+      expect(File('${pubRepository.path}/FLUOH_TODO.md').existsSync(), isFalse);
+      expect(
+        File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(),
+        isFalse,
+      );
+      final fvmrc = File('${pubRepository.path}/.fvmrc');
+      expect(jsonDecode(fvmrc.readAsStringSync()), {
+        'flutter': '3.35.8-ohos-0.0.3',
+      });
+      final sdkLink = Link('${pubRepository.path}/.fvm/flutter_sdk');
+      final sdkDirectory = Directory('${pubRepository.path}/.fvm/flutter_sdk');
+      expect(await sdkLink.exists() || await sdkDirectory.exists(), isTrue);
+      final gitignore = File('${pubRepository.path}/.gitignore');
+      expect(gitignore.readAsStringSync(), contains('.fvm/flutter_sdk'));
+      final head = await runGit(pubRepository, ['rev-parse', 'HEAD']);
+      final upstreamHead = await runGit(pubRepository, [
+        'rev-parse',
+        'upstream/main',
+      ]);
+      expect(
+        head.stdout.toString().trim(),
+        upstreamHead.stdout.toString().trim(),
+      );
+      final status = await runGit(pubRepository, ['status', '--porcelain']);
+      expect(status.stdout.toString(), contains('A  FLUOH.md'));
+      expect(status.stdout.toString(), contains('A  .fvmrc'));
+      expect(status.stdout.toString(), contains('A  .gitignore'));
+      expect(status.stdout.toString(), isNot(contains('.fvm/')));
+      expect(status.stdout.toString(), contains('A  fluoh.yaml'));
+      final staged = await runGit(pubRepository, [
+        'diff',
+        '--cached',
+        '--name-only',
+      ]);
+      expect(
+        staged.stdout.toString().split('\n'),
+        containsAll(['FLUOH.md', 'fluoh.yaml', '.fvmrc', '.gitignore']),
+      );
+      expect(staged.stdout.toString(), isNot(contains('.fvm/flutter_sdk')));
 
       final releaseEnvironment = FluohEnvironment(
         homeDirectory: environment.homeDirectory,
         workingDirectory: pubRepository,
       );
+      await commitGeneratedPubRepository(pubRepository);
+      final committedStatus = await runGit(pubRepository, [
+        'status',
+        '--porcelain',
+      ]);
+      expect(committedStatus.stdout.toString().trim(), isEmpty);
+      final trackedSdkLink = await runGit(pubRepository, [
+        'ls-files',
+        '.fvm/flutter_sdk',
+      ]);
+      expect(trackedSdkLink.stdout.toString().trim(), isEmpty);
       expect(
         await runFluoh(
           ['pub', 'release'],
@@ -110,10 +173,89 @@ void main() {
       );
       expect(
         stdout,
+        contains('Generated FLUOH.md, fluoh.yaml, .fvmrc, and .gitignore.'),
+      );
+      expect(
+        stdout,
+        contains(
+          'Generated files are staged; you can continue adapting and commit them together.',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Commit before running fluoh pub sync, fluoh pub adapt, or fluoh pub release.',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3.'),
+      );
+      expect(
+        stdout,
         contains(
           'Created release tag '
           'camera-v0.11.0-ohos-3.35.8-0.1.0.',
         ),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'stages generated files even when upstream ignore rules match them',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_ignored_outputs'),
+      );
+      await File('${upstream.path}/.gitignore').writeAsString('''
+FLUOH.md
+fluoh.yaml
+.fvmrc
+''');
+      await runGit(upstream, ['add', '.gitignore']);
+      await runGit(upstream, ['commit', '-m', 'Ignore local fluoh outputs']);
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_ignored_outputs',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          [
+            'pub',
+            'create',
+            upstream.path,
+            '--output',
+            pubRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final staged = await runGit(pubRepository, [
+        'diff',
+        '--cached',
+        '--name-only',
+      ]);
+      expect(
+        staged.stdout.toString().split('\n'),
+        containsAll(['FLUOH.md', 'fluoh.yaml', '.fvmrc', '.gitignore']),
       );
       expect(stderr, isEmpty);
     },
@@ -318,7 +460,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('pub create leaves upstream default branch unchanged', () async {
+  test('pub create leaves upstream default branch tree unchanged', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
@@ -355,11 +497,14 @@ void main() {
       0,
     );
 
-    await runGit(pubRepository, ['checkout', 'main']);
-    expect(File('${pubRepository.path}/fluoh.yaml').existsSync(), isFalse);
-    expect(File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(), isFalse);
-    final status = await runGit(pubRepository, ['status', '--porcelain']);
-    expect(status.stdout.toString().trim(), isEmpty);
+    final mainFiles = await runGit(pubRepository, [
+      'ls-tree',
+      '-r',
+      '--name-only',
+      'main',
+    ]);
+    expect(mainFiles.stdout.toString(), isNot(contains('fluoh.yaml')));
+    expect(mainFiles.stdout.toString(), isNot(contains('FLUOH.md')));
     expect(stderr, isEmpty);
   });
 

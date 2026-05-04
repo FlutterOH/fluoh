@@ -78,6 +78,7 @@ fluoh deps update --yes
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
+git commit -m "feat(pub): initialize FlutterOH adapter"
 fluoh pub sync
 fluoh pub adapt
 fluoh pub release --push
@@ -92,7 +93,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-Generated pub repositories keep the upstream default branch clean, keep the upstream repository as `upstream`, and set `origin` to `git@github.com:FlutterOH/<package>.git` by default. FlutterOH changes are committed only on `ohos/<sdk-tag>` branches. To choose the final push target:
+Generated pub repositories keep the upstream default branch clean, keep the upstream repository as `upstream`, set `origin` to `git@github.com:FlutterOH/<package>.git` by default, and configure the selected Flutter OHOS SDK environment. `fluoh pub create` stages the generated files but does not create the initial commit; you can keep adapting and commit everything together. Commit before running `pub sync`, `pub adapt`, or `pub release`. To choose the final push target:
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \

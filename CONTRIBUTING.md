@@ -165,7 +165,7 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Pub Repository Workflow Maintenance
 
-`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-tag>` pub branch, and sets `origin` to the final pub repository push target. The default is derived from the package name:
+`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-tag>` pub branch, sets `origin` to the final pub repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
 
 ```sh
 git@github.com:FlutterOH/<package>.git
@@ -180,6 +180,12 @@ fluoh pub create https://github.com/upstream/package.git \
 ```
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
+
+`fluoh pub create` stages the generated `FLUOH.md`, `fluoh.yaml`, `.fvmrc`, and `.gitignore`, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+
+```sh
+git commit -m "feat(pub): initialize FlutterOH adapter"
+```
 
 Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current pub branch and refresh `fluoh.yaml`.
 

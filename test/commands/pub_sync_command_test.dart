@@ -41,6 +41,7 @@ void main() {
         stdout: stdout.add,
         stderr: stderr.add,
       );
+      await commitGeneratedPubRepository(pubRepository);
       await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
 
       final pubEnvironment = FluohEnvironment(
@@ -105,6 +106,7 @@ void main() {
         stdout: stdout.add,
         stderr: stderr.add,
       );
+      await commitGeneratedPubRepository(pubRepository);
 
       await runGit(pubRepository, ['checkout', 'main']);
       await File('${pubRepository.path}/LOCAL.md').writeAsString('local\n');

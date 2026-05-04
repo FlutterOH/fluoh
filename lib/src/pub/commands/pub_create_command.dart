@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
+import '../../sdk/sdk_project_environment.dart';
 import '../../sdk/sdk_release.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
@@ -82,6 +83,15 @@ class PubCreateCommand extends Command<int> {
     final upstreamRef = await currentHead(destination);
     final branch = ohosBranchForSdk(release.tag);
     await runGit(['checkout', '-b', branch], workingDirectory: destination);
+    final pubEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: destination,
+      processEnvironment: environment.processEnvironment,
+    );
+    await SdkProjectEnvironment(
+      pubEnvironment,
+    ).configure(release, writeFluohConfig: false);
+    await _ignoreFvmFlutterSdk(destination);
     await writePubManifest(
       destination: destination,
       package: package,
@@ -92,34 +102,35 @@ class PubCreateCommand extends Command<int> {
       branch: branch,
       adapterUrl: adapterUrl,
     );
-    await File('${destination.path}/FLUOH_ADAPT.md').writeAsString(
-      [
-        '# FlutterOH Pub Checklist',
-        '',
-        '- [ ] Review upstream package metadata.',
-        '- [ ] Implement OHOS platform changes.',
-        '- [ ] Run package tests.',
-        '- [ ] Run `fluoh pub release` when ready.',
-        '',
-      ].join('\n'),
+    await File('${destination.path}/FLUOH.md').writeAsString(
+      _adaptationGuideContent(
+        package: package,
+        packagePath: packagePath,
+        upstreamRef: upstreamRef,
+        sdkVersion: release.tag,
+        branch: branch,
+      ),
     );
-
-    await ensureGitIdentity(destination);
     await runGit([
       'add',
+      '-f',
+      'FLUOH.md',
       'fluoh.yaml',
-      'FLUOH_ADAPT.md',
-    ], workingDirectory: destination);
-    await runGit([
-      'commit',
-      '--quiet',
-      '-m',
-      'Initialize FlutterOH pub repository',
+      '.fvmrc',
+      '.gitignore',
     ], workingDirectory: destination);
 
     _stdout('Created pub repository at ${destination.path}.');
     _stdout('Pub branch: $branch.');
     _stdout('Origin: $adapterUrl.');
+    _stdout('Configured Flutter OHOS SDK ${release.tag}.');
+    _stdout('Generated FLUOH.md, fluoh.yaml, .fvmrc, and .gitignore.');
+    _stdout(
+      'Generated files are staged; you can continue adapting and commit them together.',
+    );
+    _stdout(
+      'Commit before running fluoh pub sync, fluoh pub adapt, or fluoh pub release.',
+    );
     return 0;
   }
 
@@ -174,4 +185,58 @@ List<int> _numericParts(String version) {
       .allMatches(version)
       .map((match) => int.parse(match.group(0)!))
       .toList(growable: false);
+}
+
+String _adaptationGuideContent({
+  required PubspecPackage package,
+  required String packagePath,
+  required String upstreamRef,
+  required String sdkVersion,
+  required String branch,
+}) {
+  return [
+    '# FlutterOH Adaptation Guide',
+    '',
+    'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
+    '',
+    '## Metadata',
+    '',
+    '- `fluoh.yaml` records the upstream package, adapter repository, SDK target, release tag, and dependency replacement metadata.',
+    '- Package path: `$packagePath`',
+    '- Upstream ref: `$upstreamRef`',
+    '- Adapter branch: `$branch`',
+    '',
+    '## Adaptation Workflow',
+    '',
+    '1. Review the upstream package metadata and platform implementation.',
+    '2. Implement or update the OHOS platform code for `${package.name}`.',
+    '3. Keep `fluoh.yaml` in sync when upstream, SDK, status, or release version values change.',
+    '4. The generated files are already staged.',
+    '5. You can continue adapting and commit everything together.',
+    '6. Commit before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release` because those commands require a clean worktree.',
+    '7. Run the package tests and any FlutterOH verification needed by the adapter.',
+    '8. Commit adapter changes with the maintainer Git identity.',
+    '9. Run `fluoh pub release` when the adapter is ready.',
+    '',
+  ].join('\n');
+}
+
+Future<void> _ignoreFvmFlutterSdk(Directory repository) async {
+  const entry = '.fvm/flutter_sdk';
+  final gitignore = File('${repository.path}/.gitignore');
+  if (!await gitignore.exists()) {
+    await gitignore.writeAsString('$entry\n');
+    return;
+  }
+
+  final content = await gitignore.readAsString();
+  final lines = content.split('\n').map((line) => line.trim()).toSet();
+  if (lines.contains(entry)) {
+    return;
+  }
+
+  final prefix = content.isEmpty || content.endsWith('\n')
+      ? content
+      : '$content\n';
+  await gitignore.writeAsString('$prefix$entry\n');
 }
