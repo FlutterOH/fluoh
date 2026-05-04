@@ -74,10 +74,7 @@ void main() {
     expect(readme, contains('latest validated snapshot'));
     expect(readme, contains('fluoh source remove internal'));
     expect(readme, isNot(contains('fluoh source use')));
-    expect(
-      readme,
-      contains('--repository git@github.com:FlutterOH/package.git'),
-    );
+    expect(readme, contains('--repo git@github.com:FlutterOH/package.git'));
     expect(readme, isNot(contains('--github')));
     expect(readme, contains('[CONTRIBUTING.md](CONTRIBUTING.md)'));
     expect(readme, isNot(contains('dart pub publish --dry-run')));
@@ -96,7 +93,7 @@ void main() {
     expect(chineseReadme, isNot(contains('fluoh source use')));
     expect(
       chineseReadme,
-      contains('--repository git@github.com:FlutterOH/package.git'),
+      contains('--repo git@github.com:FlutterOH/package.git'),
     );
     expect(chineseReadme, isNot(contains('--github')));
     expect(
@@ -134,7 +131,7 @@ void main() {
     expect(contributing, contains('fluoh pub adapt'));
     expect(
       contributing,
-      contains('--repository git@github.com:FlutterOH/package.git'),
+      contains('--repo git@github.com:FlutterOH/package.git'),
     );
     expect(contributing, isNot(contains('gh auth login')));
     expect(
@@ -180,7 +177,7 @@ void main() {
     expect(chineseContributing, contains('fluoh pub adapt'));
     expect(
       chineseContributing,
-      contains('--repository git@github.com:FlutterOH/package.git'),
+      contains('--repo git@github.com:FlutterOH/package.git'),
     );
     expect(chineseContributing, isNot(contains('gh auth login')));
     expect(chineseContributing, contains('提交前必须运行并通过'));

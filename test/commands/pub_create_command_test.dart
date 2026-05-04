@@ -205,14 +205,72 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('uses an explicit pub repository URL when provided', () async {
+  test(
+    'uses an explicit pub repository URL when provided with --repo',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_custom_remote'),
+      );
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_custom_remote',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          [
+            'pub',
+            'create',
+            upstream.path,
+            '--output',
+            pubRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+            '--repo',
+            'git@github.com:FlutterOH/camera.git',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final origin = await runGit(pubRepository, [
+        'remote',
+        'get-url',
+        'origin',
+      ]);
+      final manifest = File(
+        '${pubRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      expect(
+        origin.stdout.toString().trim(),
+        'git@github.com:FlutterOH/camera.git',
+      );
+      expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('accepts -r for explicit pub repository URLs', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_custom_remote'),
+      Directory('${environment.homeDirectory.path}/upstream_repo_aliases'),
     );
     final pubRepository = Directory(
-      '${environment.homeDirectory.path}/pub_custom_remote',
+      '${environment.homeDirectory.path}/pub_repo_alias_short',
     );
     final stdout = <String>[];
     final stderr = <String>[];
@@ -234,8 +292,8 @@ void main() {
           pubRepository.path,
           '--sdk',
           '3.35.8-ohos-0.0.3',
-          '--repository',
-          'git@github.com:FlutterOH/camera.git',
+          '-r',
+          'git@github.com:FlutterOH/camera-short.git',
         ],
         environment: environment,
         stdout: stdout.add,
@@ -245,14 +303,10 @@ void main() {
     );
 
     final origin = await runGit(pubRepository, ['remote', 'get-url', 'origin']);
-    final manifest = File(
-      '${pubRepository.path}/fluoh.yaml',
-    ).readAsStringSync();
     expect(
       origin.stdout.toString().trim(),
-      'git@github.com:FlutterOH/camera.git',
+      'git@github.com:FlutterOH/camera-short.git',
     );
-    expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
     expect(stderr, isEmpty);
   });
 

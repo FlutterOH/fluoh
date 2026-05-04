@@ -97,7 +97,7 @@ Generated pub repositories keep the upstream default branch clean, keep the upst
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
   --sdk 3.35.8-ohos-0.0.3 \
-  --repository git@github.com:FlutterOH/package.git
+  --repo git@github.com:FlutterOH/package.git
 ```
 
 ## Command Overview

@@ -23,7 +23,8 @@ class PubCreateCommand extends Command<int> {
       )
       ..addOption('sdk', help: 'Exact Flutter OHOS SDK tag to target.')
       ..addOption(
-        'repository',
+        'repo',
+        abbr: 'r',
         help: 'Final FlutterOH pub repository URL for origin and manifest.',
       );
   }
@@ -75,8 +76,7 @@ class PubCreateCommand extends Command<int> {
     }
 
     final repositoryUrl =
-        argResults!.option('repository') ??
-        defaultPubRepositoryUrl(package.name);
+        argResults!.option('repo') ?? defaultPubRepositoryUrl(package.name);
     await configurePubRemotes(destination, repositoryUrl);
 
     final upstreamRef = await currentHead(destination);
