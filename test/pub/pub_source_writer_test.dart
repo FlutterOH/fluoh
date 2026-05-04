@@ -20,14 +20,12 @@ schema: 1
 packages:
   - name: camera
     repositoryUrl: git@github.com:FlutterOH/camera.git
-    upstreamUrl: https://github.com/flutter/packages
-    status: experimental
 ''');
 
     await writePubSourcePackageUpdate(
       source,
       manifest: _manifest(packageName: 'share_plus'),
-      releaseTag: 'share_plus-v10.0.0-ohos-3.35.8-ohos-0.0.3-0.1.0',
+      releaseTag: 'share_plus-v10.0.0-ohos-3.35.8-0.1.0',
     );
 
     final registry = await File(
@@ -39,10 +37,15 @@ packages:
       registry,
       contains('    packagePath: packages/share_plus/share_plus'),
     );
-    expect(
-      File('${packages.path}/manifests/share_plus.yaml').readAsStringSync(),
-      contains('      path: packages/share_plus/share_plus'),
-    );
+    expect(registry, isNot(contains('upstreamUrl:')));
+    expect(registry, isNot(contains('status:')));
+    final manifest = File(
+      '${packages.path}/manifests/share_plus.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('      versionSeries: 3.35.8-ohos'));
+    expect(manifest, contains('      versions:'));
+    expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
+    expect(manifest, contains('      path: packages/share_plus/share_plus'));
   });
 
   test('does not duplicate packages already present in registry', () async {
@@ -60,14 +63,12 @@ schema: 1
 packages:
   - name: camera
     repositoryUrl: git@github.com:FlutterOH/camera.git
-    upstreamUrl: https://github.com/flutter/packages
-    status: experimental
 ''');
 
     await writePubSourcePackageUpdate(
       source,
       manifest: _manifest(),
-      releaseTag: 'camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0',
+      releaseTag: 'camera-v0.11.0-ohos-3.35.8-0.1.0',
     );
 
     final registry = await File(
@@ -94,9 +95,9 @@ PubManifest _manifest({String packageName = 'camera'}) {
     upstreamUrl: 'https://github.com/flutter/packages',
     upstreamPath: 'packages/$packageName/$packageName',
     upstreamRef: '$packageName-upstream',
-    flutterOhUrl: 'git@github.com:FlutterOH/$packageName.git',
-    replacementUrl: 'git@github.com:FlutterOH/$packageName.git',
-    replacementPath: 'packages/$packageName/$packageName',
+    adapterUrl: 'git@github.com:FlutterOH/$packageName.git',
+    dependencyUrl: 'https://github.com/FlutterOH/$packageName.git',
+    dependencyPath: 'packages/$packageName/$packageName',
     status: 'compatible',
   );
 }

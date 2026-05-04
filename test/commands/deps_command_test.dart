@@ -321,9 +321,7 @@ schema: 1
 packages:
   - name: share_plus
     repositoryUrl: ${environment.homeDirectory.path}/share_plus
-    upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
     packagePath: packages/share_plus/share_plus
-    status: compatible
 ''',
       );
       await File(
@@ -339,7 +337,7 @@ releases:
   - version: 10.0.0
     upstreamRef: share_plus-v10.0.0
     sdk:
-      version: 3.35.8-ohos-0.0.3
+      versionSeries: 3.35.8-ohos
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
@@ -426,7 +424,8 @@ Future<void> _setCompatibilityStatus(
 }) async {
   final manifest = File('${source.path}/packages/manifests/$packageName.yaml');
   final content = manifest.readAsStringSync();
-  expect(content, contains('version: 3.35.8-ohos-0.0.3'));
+  expect(content, contains('versionSeries: 3.35.8-ohos'));
+  expect(content, contains('        - 3.35.8-ohos-0.0.3'));
   await manifest.writeAsString(
     content.replaceAll('status: compatible', 'status: $status'),
   );

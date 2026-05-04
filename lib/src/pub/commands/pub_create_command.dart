@@ -75,9 +75,9 @@ class PubCreateCommand extends Command<int> {
       );
     }
 
-    final repositoryUrl =
+    final adapterUrl =
         argResults!.option('repo') ?? defaultPubRepositoryUrl(package.name);
-    await configurePubRemotes(destination, repositoryUrl);
+    await configurePubRemotes(destination, adapterUrl);
 
     final upstreamRef = await currentHead(destination);
     final branch = ohosBranchForSdk(release.tag);
@@ -90,7 +90,7 @@ class PubCreateCommand extends Command<int> {
       packagePath: packagePath,
       sdkVersion: release.tag,
       branch: branch,
-      flutterOhUrl: repositoryUrl,
+      adapterUrl: adapterUrl,
     );
     await File('${destination.path}/FLUOH_ADAPT.md').writeAsString(
       [
@@ -119,7 +119,7 @@ class PubCreateCommand extends Command<int> {
 
     _stdout('Created pub repository at ${destination.path}.');
     _stdout('Pub branch: $branch.');
-    _stdout('Origin: $repositoryUrl.');
+    _stdout('Origin: $adapterUrl.');
     return 0;
   }
 

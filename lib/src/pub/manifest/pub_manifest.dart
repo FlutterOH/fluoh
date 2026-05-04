@@ -14,11 +14,11 @@ class PubManifest {
     required this.branch,
     required this.releaseTag,
     required this.upstreamUrl,
-    required this.flutterOhUrl,
-    required this.replacementUrl,
+    required this.adapterUrl,
+    required this.dependencyUrl,
     this.upstreamPath,
     this.upstreamRef,
-    this.replacementPath,
+    this.dependencyPath,
     this.status,
   });
 
@@ -31,9 +31,9 @@ class PubManifest {
   final String upstreamUrl;
   final String? upstreamPath;
   final String? upstreamRef;
-  final String flutterOhUrl;
-  final String replacementUrl;
-  final String? replacementPath;
+  final String adapterUrl;
+  final String dependencyUrl;
+  final String? dependencyPath;
   final String? status;
 }
 
@@ -45,7 +45,21 @@ String pubReleaseTagForPackage({
   required String sdkVersion,
   required String releaseVersion,
 }) {
-  return '$packageName-v$upstreamVersion-ohos-$sdkVersion-$releaseVersion';
+  final flutterVersion = _flutterVersionFromSdkVersion(sdkVersion);
+  return '$packageName-v$upstreamVersion-ohos-$flutterVersion-$releaseVersion';
+}
+
+String sdkVersionSeriesFromSdkVersion(String sdkVersion) {
+  return '${_flutterVersionFromSdkVersion(sdkVersion)}-ohos';
+}
+
+String dependencyUrlForAdapterRepository(String repository) {
+  final trimmed = repository.trim();
+  final match = RegExp(r'^git@([^:]+):(.+)$').firstMatch(trimmed);
+  if (match == null) {
+    return trimmed;
+  }
+  return 'https://${match.group(1)}/${match.group(2)}';
 }
 
 Future<void> writePubManifest({
@@ -56,7 +70,8 @@ Future<void> writePubManifest({
   required String packagePath,
   required String sdkVersion,
   required String branch,
-  required String flutterOhUrl,
+  required String adapterUrl,
+  String? dependencyUrl,
   String releaseVersion = '0.1.0',
   String status = 'experimental',
 }) async {
@@ -67,39 +82,35 @@ Future<void> writePubManifest({
     releaseVersion: releaseVersion,
   );
   final path = packagePath == '.' || packagePath.isEmpty ? null : packagePath;
+  final dependencyRepositoryUrl =
+      dependencyUrl ?? dependencyUrlForAdapterRepository(adapterUrl);
   await File('${destination.path}/fluoh.yaml').writeAsString(
     [
       'schema: 1',
+      'name: ${package.name}',
       '',
-      'package:',
-      '  name: ${package.name}',
-      '  upstream:',
-      '    type: git',
-      '    url: $upstream',
-      if (path != null) '    path: $path',
-      '    ref: $upstreamRef',
-      '    version: ${package.version}',
+      'upstream:',
+      '  type: git',
+      '  url: $upstream',
+      if (path != null) '  path: $path',
+      '  ref: $upstreamRef',
+      '  version: ${package.version}',
       '',
-      'flutteroh:',
-      '  url: $flutterOhUrl',
+      'adapter:',
+      '  type: git',
+      '  url: $adapterUrl',
       '  branch: $branch',
+      '  sdkVersion: $sdkVersion',
+      '  status: $status',
       '  release:',
       '    version: $releaseVersion',
       '    tag: $tag',
       '',
-      'sdk:',
-      '  version: $sdkVersion',
-      '',
-      'status: $status',
-      '',
-      'replacement:',
-      '  source: git',
-      '  url: $flutterOhUrl',
+      'dependency:',
+      '  type: git',
+      '  url: $dependencyRepositoryUrl',
       '  ref: $tag',
       if (path != null) '  path: $path',
-      '',
-      'notes:',
-      '  summary: Adds OpenHarmony platform implementation.',
       '',
     ].join('\n'),
   );
@@ -115,28 +126,34 @@ Future<PubManifest> readPubManifest(Directory repository) async {
     throw UsageException('fluoh.yaml must contain a YAML map.', '');
   }
 
-  final package = _requiredMap(yaml, 'package');
-  final upstream = _requiredMap(package, 'upstream');
-  final sdk = _requiredMap(yaml, 'sdk');
-  final flutteroh = _requiredMap(yaml, 'flutteroh');
-  final release = _requiredMap(flutteroh, 'release');
-  final replacement = _requiredMap(yaml, 'replacement');
+  final upstream = _requiredMap(yaml, 'upstream');
+  final adapter = _requiredMap(yaml, 'adapter');
+  final release = _requiredMap(adapter, 'release');
+  final dependency = _requiredMap(yaml, 'dependency');
 
   return PubManifest(
-    packageName: _requiredString(package, 'name'),
+    packageName: _requiredString(yaml, 'name'),
     upstreamVersion: _requiredString(upstream, 'version'),
-    sdkVersion: _requiredString(sdk, 'version'),
+    sdkVersion: _requiredString(adapter, 'sdkVersion'),
     releaseVersion: _requiredString(release, 'version'),
-    branch: _requiredString(flutteroh, 'branch'),
+    branch: _requiredString(adapter, 'branch'),
     releaseTag: _requiredString(release, 'tag'),
     upstreamUrl: _requiredString(upstream, 'url'),
     upstreamPath: _optionalString(upstream, 'path'),
     upstreamRef: _optionalString(upstream, 'ref'),
-    flutterOhUrl: _requiredString(flutteroh, 'url'),
-    replacementUrl: _requiredString(replacement, 'url'),
-    replacementPath: _optionalString(replacement, 'path'),
-    status: _optionalString(yaml, 'status'),
+    adapterUrl: _requiredString(adapter, 'url'),
+    dependencyUrl: _requiredString(dependency, 'url'),
+    dependencyPath: _optionalString(dependency, 'path'),
+    status: _optionalString(adapter, 'status'),
   );
+}
+
+String _flutterVersionFromSdkVersion(String version) {
+  final match = RegExp(r'^(.+)-ohos-.+$').firstMatch(version);
+  if (match == null) {
+    throw FormatException('Invalid Flutter OHOS SDK version: $version');
+  }
+  return match.group(1)!;
 }
 
 YamlMap _requiredMap(YamlMap map, String key) {

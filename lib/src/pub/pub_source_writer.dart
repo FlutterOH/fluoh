@@ -13,7 +13,7 @@ Future<void> writePubSourcePackageUpdate(
     '${packagesDirectory.path}/manifests',
   ).create(recursive: true);
 
-  final packagePath = manifest.upstreamPath ?? manifest.replacementPath;
+  final packagePath = manifest.upstreamPath ?? manifest.dependencyPath;
   final manifestFile = File(
     '${packagesDirectory.path}/manifests/${manifest.packageName}.yaml',
   );
@@ -22,7 +22,7 @@ Future<void> writePubSourcePackageUpdate(
       'schema: 1',
       'package:',
       '  name: ${manifest.packageName}',
-      '  repositoryUrl: ${manifest.flutterOhUrl}',
+      '  repositoryUrl: ${manifest.adapterUrl}',
       '  upstreamUrl: ${manifest.upstreamUrl}',
       if (packagePath != null) '  packagePath: $packagePath',
       'releases:',
@@ -30,7 +30,7 @@ Future<void> writePubSourcePackageUpdate(
       if (manifest.upstreamRef != null)
         '    upstreamRef: ${manifest.upstreamRef}',
       '    sdk:',
-      '      version: ${manifest.sdkVersion}',
+      '      versionSeries: ${sdkVersionSeriesFromSdkVersion(manifest.sdkVersion)}',
       '      versions:',
       '        - ${manifest.sdkVersion}',
       '    status: ${manifest.status ?? 'experimental'}',
@@ -40,10 +40,10 @@ Future<void> writePubSourcePackageUpdate(
       '      tag: $releaseTag',
       '    replacement:',
       '      type: git',
-      '      url: ${manifest.replacementUrl}',
+      '      url: ${manifest.dependencyUrl}',
       '      ref: $releaseTag',
-      if (manifest.replacementPath != null)
-        '      path: ${manifest.replacementPath}',
+      if (manifest.dependencyPath != null)
+        '      path: ${manifest.dependencyPath}',
       '',
     ].join('\n'),
   );
@@ -55,10 +55,8 @@ Future<void> writePubSourcePackageUpdate(
         'schema: 1',
         'packages:',
         '  - name: ${manifest.packageName}',
-        '    repositoryUrl: ${manifest.flutterOhUrl}',
-        '    upstreamUrl: ${manifest.upstreamUrl}',
+        '    repositoryUrl: ${manifest.adapterUrl}',
         if (packagePath != null) '    packagePath: $packagePath',
-        '    status: ${manifest.status ?? 'experimental'}',
         '',
       ].join('\n'),
     );
@@ -76,10 +74,8 @@ Future<void> writePubSourcePackageUpdate(
     [
       registry.trimRight(),
       '  - name: ${manifest.packageName}',
-      '    repositoryUrl: ${manifest.flutterOhUrl}',
-      '    upstreamUrl: ${manifest.upstreamUrl}',
+      '    repositoryUrl: ${manifest.adapterUrl}',
       if (packagePath != null) '    packagePath: $packagePath',
-      '    status: ${manifest.status ?? 'experimental'}',
       '',
     ].join('\n'),
   );

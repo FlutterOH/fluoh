@@ -63,18 +63,26 @@ void main() {
         'git@github.com:FlutterOH/camera.git',
       );
       expect(upstreamRemote.stdout.toString().trim(), upstream.path);
+      final manifest = File(
+        '${pubRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      expect(manifest, contains('schema: 1'));
+      expect(manifest, contains('name: camera'));
+      expect(manifest, contains('upstream:'));
+      expect(manifest, contains('adapter:'));
+      expect(manifest, contains('dependency:'));
+      expect(manifest, isNot(contains('package:')));
+      expect(manifest, isNot(contains('flutteroh:')));
+      expect(manifest, isNot(contains('replacement:')));
+      expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
       expect(
-        File('${pubRepository.path}/fluoh.yaml').readAsStringSync(),
-        allOf(
-          contains('schema: 1'),
-          contains('name: camera'),
-          contains('url: git@github.com:FlutterOH/camera.git'),
-          contains('branch: ohos/3.35.8-ohos-0.0.3'),
-          contains('3.35.8-ohos-0.0.3'),
-          contains('status: experimental'),
-          contains('ref: camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0'),
-        ),
+        manifest,
+        contains('url: https://github.com/FlutterOH/camera.git'),
       );
+      expect(manifest, contains('branch: ohos/3.35.8-ohos-0.0.3'));
+      expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
+      expect(manifest, contains('status: experimental'));
+      expect(manifest, contains('ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
       expect(File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(), isTrue);
 
       final releaseEnvironment = FluohEnvironment(
@@ -94,7 +102,7 @@ void main() {
       final tags = await runGit(pubRepository, ['tag', '--list']);
       expect(
         tags.stdout.toString().split('\n'),
-        contains('camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0'),
+        contains('camera-v0.11.0-ohos-3.35.8-0.1.0'),
       );
       expect(
         stdout,
@@ -104,7 +112,7 @@ void main() {
         stdout,
         contains(
           'Created release tag '
-          'camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0.',
+          'camera-v0.11.0-ohos-3.35.8-0.1.0.',
         ),
       );
       expect(stderr, isEmpty);
@@ -404,7 +412,7 @@ versions:
       '${pubRepository.path}/fluoh.yaml',
     ).readAsStringSync();
     expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.4');
-    expect(manifest, contains('version: 3.35.8-ohos-0.0.4'));
+    expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.4'));
     expect(stderr, isEmpty);
   });
 

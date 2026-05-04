@@ -34,20 +34,16 @@ void main() {
     );
     expect(registryYaml.existsSync(), isTrue);
     expect(manifestYaml.existsSync(), isTrue);
-    expect(registryYaml.readAsStringSync(), contains('name: camera'));
-    expect(
-      manifestYaml.readAsStringSync(),
-      contains('version: 3.35.8-ohos-0.0.3'),
-    );
-    expect(manifestYaml.readAsStringSync(), isNot(contains('versionSeries')));
-    expect(
-      manifestYaml.readAsStringSync(),
-      contains('sourceBranch: ohos/3.35.8-ohos-0.0.3'),
-    );
-    expect(
-      manifestYaml.readAsStringSync(),
-      contains('tag: camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0'),
-    );
+    final registry = registryYaml.readAsStringSync();
+    final manifest = manifestYaml.readAsStringSync();
+    expect(registry, contains('name: camera'));
+    expect(registry, isNot(contains('upstreamUrl:')));
+    expect(registry, isNot(contains('status:')));
+    expect(manifest, contains('        - 3.35.8-ohos-0.0.3'));
+    expect(manifest, contains('versionSeries: 3.35.8-ohos'));
+    expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
+    expect(manifest, contains('sourceBranch: ohos/3.35.8-ohos-0.0.3'));
+    expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
     expect(File('${pubSource.path}/packages/index.yaml').existsSync(), isFalse);
     expect(
       File('${pubSource.path}/packages/camera.yaml').existsSync(),
@@ -126,8 +122,8 @@ void main() {
     var manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
     await File('${pubRepository.path}/fluoh.yaml').writeAsString(
       manifest.replaceFirst(
-        '  version: 3.35.8-ohos-0.0.3',
-        '  version: 3.35.8-ohos-9.9.9',
+        '  sdkVersion: 3.35.8-ohos-0.0.3',
+        '  sdkVersion: 3.35.8-ohos-9.9.9',
       ),
     );
     await runGit(pubRepository, ['add', 'fluoh.yaml']);
@@ -147,15 +143,15 @@ void main() {
     manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
     await File('${pubRepository.path}/fluoh.yaml').writeAsString(
       manifest.replaceFirst(
-        '  version: 3.35.8-ohos-9.9.9',
-        '  version: 3.35.8-ohos-0.0.3',
+        '  sdkVersion: 3.35.8-ohos-9.9.9',
+        '  sdkVersion: 3.35.8-ohos-0.0.3',
       ),
     );
     await runGit(pubRepository, ['add', 'fluoh.yaml']);
     await runGit(pubRepository, ['commit', '-m', 'Restore valid SDK tag']);
     await runGit(pubRepository, [
       'tag',
-      'camera-v0.11.0-ohos-3.35.8-ohos-0.0.3-0.1.0',
+      'camera-v0.11.0-ohos-3.35.8-0.1.0',
       'HEAD~1',
     ]);
 

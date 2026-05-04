@@ -44,14 +44,10 @@ schema: 1
 packages:
   - name: camera
     repositoryUrl: ${parent.path}/camera
-    upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
     packagePath: packages/camera/camera
-    status: compatible
   - name: share_plus
     repositoryUrl: ${parent.path}/share_plus
-    upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
     packagePath: packages/share_plus/share_plus
-    status: compatible
 ''');
 
   await File('${source.path}/packages/manifests/camera.yaml').writeAsString('''
@@ -65,7 +61,7 @@ releases:
   - version: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      version: 3.35.8-ohos-0.0.3
+      versionSeries: 3.35.8-ohos
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
@@ -81,7 +77,7 @@ releases:
   - version: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      version: 3.35.8-ohos-0.0.3
+      versionSeries: 3.35.8-ohos
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
@@ -108,7 +104,7 @@ releases:
   - version: 9.0.0
     upstreamRef: share_plus-v9.0.0
     sdk:
-      version: 3.35.8-ohos-0.0.3
+      versionSeries: 3.35.8-ohos
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible

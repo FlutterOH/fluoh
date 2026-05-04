@@ -161,9 +161,7 @@ schema: 1
 packages:
   - name: $packageName
     repositoryUrl: /tmp/$packageName
-    upstreamUrl: https://github.com/example/$packageName
     packagePath: packages/$packageName
-    status: compatible
 ''');
 }
 
@@ -188,7 +186,7 @@ releases:
   - version: 1.0.0
     upstreamRef: v1.0.0
     sdk:
-      version: ${sdkVersions.first}
+      versionSeries: 3.35.8-ohos
       versions:
 ${sdkVersions.map((version) => '        - $version').join('\n')}
     status: $status

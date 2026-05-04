@@ -54,7 +54,8 @@ class PubAdaptCommand extends Command<int> {
       packagePath: packagePath,
       sdkVersion: manifest.sdkVersion,
       branch: manifest.branch,
-      flutterOhUrl: manifest.flutterOhUrl,
+      adapterUrl: manifest.adapterUrl,
+      dependencyUrl: manifest.dependencyUrl,
       releaseVersion: manifest.releaseVersion,
       status: manifest.status ?? 'experimental',
     );
