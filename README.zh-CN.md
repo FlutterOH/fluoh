@@ -125,14 +125,16 @@ fluoh pub create https://github.com/upstream/package.git \
 https://github.com/FlutterOH/pub.git
 ```
 
-也可以接入团队内部数据源：
+也可以创建本地数据源，或接入团队内部数据源：
 
 ```sh
+fluoh source init ./flutteroh-pub-local
+fluoh source add local ./flutteroh-pub-local --priority 200
 fluoh source add internal https://github.com/example/flutteroh-pub.git --priority 200
 fluoh source update
 ```
 
-数据源会按 priority 叠加使用。团队内部源可以只提供 `packages/registry.yaml` 和 `packages/manifests/*.yaml` 来补充自有适配库，SDK 列表继续来自官方源。除了官方源 `flutteroh` 外，其他源都可以移除：
+`fluoh source init` 会创建一个 package-only 数据源模板，目录结构与 `FlutterOH/pub` 一致，用户可以自行编辑和维护。数据源会按 priority 叠加使用。团队内部源或本地源可以只提供 `packages/registry.yaml` 和 `packages/manifests/*.yaml` 来补充自有适配库，SDK 列表继续来自官方源。除了官方源 `flutteroh` 外，其他源都可以移除：
 
 ```sh
 fluoh source remove internal

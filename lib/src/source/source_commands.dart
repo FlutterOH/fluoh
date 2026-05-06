@@ -13,6 +13,7 @@ class SourceCommand extends Command<int> {
     required OutputWriter stdout,
   }) {
     addSubcommand(SourceListCommand(environment: environment, stdout: stdout));
+    addSubcommand(SourceInitCommand(stdout: stdout));
     addSubcommand(SourceAddCommand(environment: environment, stdout: stdout));
     addSubcommand(
       SourceRemoveCommand(environment: environment, stdout: stdout),
@@ -52,6 +53,61 @@ class SourceListCommand extends Command<int> {
     for (final entry in config.sources.entries) {
       stdout('${entry.key} ${entry.value.displayValue}');
     }
+    return 0;
+  }
+}
+
+class SourceInitCommand extends Command<int> {
+  SourceInitCommand({required this.stdout});
+
+  final OutputWriter stdout;
+
+  @override
+  String get name => 'init';
+
+  @override
+  String get description => 'Create a local source template.';
+
+  @override
+  String get invocation => 'fluoh source init <path>';
+
+  @override
+  Future<int> run() async {
+    final rest = argResults!.rest;
+    if (rest.length != 1) {
+      usageException('Expected a local source path.');
+    }
+
+    final source = Directory(rest.single);
+    final metadata = File('${source.path}/fluoh.yaml');
+    final registry = File('${source.path}/packages/registry.yaml');
+    final manifests = Directory('${source.path}/packages/manifests');
+    final readme = File('${source.path}/README.md');
+    final existed = await registry.exists();
+
+    await manifests.create(recursive: true);
+    if (!await metadata.exists()) {
+      await source.create(recursive: true);
+      await metadata.writeAsString(_localSourceMetadata(source));
+    }
+    if (!existed) {
+      await registry.parent.create(recursive: true);
+      await registry.writeAsString('''
+schema: 1
+packages: []
+''');
+    }
+    if (!await readme.exists()) {
+      await readme.writeAsString(_localSourceReadme());
+    }
+
+    if (existed) {
+      stdout('Local source template already exists at ${source.path}.');
+    } else {
+      stdout('Created local source template at ${source.path}.');
+    }
+    stdout('Edit packages/registry.yaml and packages/manifests/*.yaml.');
+    stdout('Add it with: fluoh source add <name> ${source.path}');
     return 0;
   }
 }
@@ -202,4 +258,30 @@ bool _looksLikeGitSource(String value) {
   return value.startsWith('file:') ||
       value.contains('://') ||
       value.endsWith('.git');
+}
+
+String _localSourceReadme() {
+  return '''
+# FlutterOH Local Source
+
+Maintain package adapter metadata in this directory, then register it with:
+
+```sh
+fluoh source add <name> .
+```
+
+Add packages to `packages/registry.yaml` and write matching package manifests in `packages/manifests/`.
+This template is package-only; SDK releases continue to come from other configured sources.
+''';
+}
+
+String _localSourceMetadata(Directory source) {
+  return '''
+schema: 1
+kind: source
+name: Local FlutterOH source
+description: Local package source maintained by fluoh users.
+minFluohVersion: 0.1.0
+repositoryUrl: file:${source.path}
+''';
 }

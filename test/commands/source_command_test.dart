@@ -330,6 +330,101 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('creates a local package source template', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/local_source');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'init', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      await runFluoh(
+        ['source', 'add', 'local', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(File('${source.path}/packages/registry.yaml').readAsStringSync(), '''
+schema: 1
+packages: []
+''');
+    expect(File('${source.path}/fluoh.yaml').readAsStringSync(), '''
+schema: 1
+kind: source
+name: Local FlutterOH source
+description: Local package source maintained by fluoh users.
+minFluohVersion: 0.1.0
+repositoryUrl: file:${source.path}
+''');
+    expect(Directory('${source.path}/packages/manifests').existsSync(), isTrue);
+    expect(File('${source.path}/README.md').existsSync(), isTrue);
+    expect(File('${source.path}/sdk/index.yaml').existsSync(), isFalse);
+    expect(
+      stdout,
+      contains('Created local source template at ${source.path}.'),
+    );
+    expect(
+      stdout,
+      contains('Add it with: fluoh source add <name> ${source.path}'),
+    );
+    expect(stdout, contains('Added source local: ${source.path}'));
+    expect(stderr, isEmpty);
+  });
+
+  test('source init preserves existing local source files', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/local_source');
+    await Directory(
+      '${source.path}/packages/manifests',
+    ).create(recursive: true);
+    final registry = File('${source.path}/packages/registry.yaml');
+    await registry.writeAsString('''
+schema: 1
+packages:
+  - name: camera
+    repositoryUrl: git@github.com:FlutterOH/camera.git
+''');
+    final metadata = File('${source.path}/fluoh.yaml');
+    await metadata.writeAsString('''
+schema: 1
+kind: source
+name: Existing source
+minFluohVersion: 0.1.0
+repositoryUrl: file:${source.path}
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'init', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(registry.readAsStringSync(), contains('name: camera'));
+    expect(metadata.readAsStringSync(), contains('name: Existing source'));
+    expect(
+      stdout,
+      contains('Local source template already exists at ${source.path}.'),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('adds local path sources as isolated cache snapshots', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);

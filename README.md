@@ -125,14 +125,22 @@ fluoh pub create https://github.com/upstream/package.git \
 https://github.com/FlutterOH/pub.git
 ```
 
-You can also use an internal team data source:
+You can also create a local source or use an internal team source:
 
 ```sh
+fluoh source init ./flutteroh-pub-local
+fluoh source add local ./flutteroh-pub-local --priority 200
 fluoh source add internal https://github.com/example/flutteroh-pub.git --priority 200
 fluoh source update
 ```
 
-Sources are layered by priority. An internal source can provide only `packages/registry.yaml` and `packages/manifests/*.yaml` to add team adapters while SDK releases continue to come from the official source. Any source except the official `flutteroh` source can be removed:
+`fluoh source init` creates a package-only source template using the same
+layout as `FlutterOH/pub` that you can edit and maintain yourself. Sources are
+layered by priority. An internal or
+local source can provide only `packages/registry.yaml` and
+`packages/manifests/*.yaml` to add team adapters while SDK releases continue to
+come from the official source. Any source except the official `flutteroh` source
+can be removed:
 
 ```sh
 fluoh source remove internal
