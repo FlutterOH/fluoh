@@ -65,7 +65,7 @@ releases:
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos-0.0.3
+    sourceBranch: ohos/3.35.8-ohos
     release:
       version: "0"
       tag: camera-v0.11.0-ohos-3.35.8-0
@@ -81,7 +81,7 @@ releases:
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos-0.0.3
+    sourceBranch: ohos/3.35.8-ohos
     release:
       version: "1"
       tag: camera-v0.11.0-ohos-3.35.8-1
@@ -108,7 +108,7 @@ releases:
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos-0.0.3
+    sourceBranch: ohos/3.35.8-ohos
     release:
       version: "1"
       tag: share_plus-v9.0.0-ohos-3.35.8-1

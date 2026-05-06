@@ -55,7 +55,6 @@ class PubAdaptCommand extends Command<int> {
       sdkVersion: manifest.sdkVersion,
       branch: manifest.branch,
       adapterUrl: manifest.adapterUrl,
-      dependencyUrl: manifest.dependencyUrl,
       releaseVersion: manifest.releaseVersion,
       status: manifest.status ?? 'experimental',
     );

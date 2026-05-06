@@ -165,7 +165,7 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Pub Repository Workflow Maintenance
 
-`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-tag>` pub branch, sets `origin` to the final pub repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
+`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-series>` pub branch, sets `origin` to the final pub repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
 
 ```sh
 git@github.com:FlutterOH/<package>.git

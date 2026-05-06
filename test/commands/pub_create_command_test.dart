@@ -58,7 +58,7 @@ void main() {
         'get-url',
         'upstream',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
       expect(
         origin.stdout.toString().trim(),
         'git@github.com:FlutterOH/camera.git',
@@ -70,21 +70,18 @@ void main() {
       expect(manifest, contains('schema: 1'));
       expect(manifest, contains('name: camera'));
       expect(manifest, contains('upstream:'));
-      expect(manifest, contains('adapter:'));
-      expect(manifest, contains('dependency:'));
+      expect(manifest, contains('fluoh:'));
+      expect(manifest, isNot(contains('adapter:')));
+      expect(manifest, isNot(contains('dependency:')));
       expect(manifest, isNot(contains('dependencyPolicy:')));
       expect(manifest, isNot(contains('package:')));
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
       expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
-      expect(
-        manifest,
-        contains('url: https://github.com/FlutterOH/camera.git'),
-      );
-      expect(manifest, contains('branch: ohos/3.35.8-ohos-0.0.3'));
+      expect(manifest, contains('branch: ohos/3.35.8-ohos'));
       expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
       expect(manifest, contains('status: experimental'));
-      expect(manifest, contains('ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
+      expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
       final guide = File('${pubRepository.path}/FLUOH.md');
       expect(guide.existsSync(), isTrue);
       final guideContent = guide.readAsStringSync();
@@ -171,22 +168,21 @@ void main() {
         stdout,
         contains('Created pub repository at ${pubRepository.path}.'),
       );
+      expect(stdout, contains('Resolving Flutter OHOS SDK.'));
       expect(
         stdout,
-        contains('Generated FLUOH.md, fluoh.yaml, .fvmrc, and .gitignore.'),
+        contains('Cloning upstream repository into ${pubRepository.path}.'),
       );
       expect(
         stdout,
         contains(
-          'Generated files are staged; you can continue adapting and commit them together.',
+          'Installing Flutter OHOS SDK 3.35.8-ohos-0.0.3; this may take a while.',
         ),
       );
-      expect(
-        stdout,
-        contains(
-          'Commit before running fluoh pub sync, fluoh pub adapt, or fluoh pub release.',
-        ),
-      );
+      expect(stdout, isNot(contains('Generated FLUOH.md')));
+      expect(stdout, isNot(contains('Generated files are staged')));
+      expect(stdout, isNot(contains('Commit before running fluoh pub sync')));
+      expect(stdout, contains('See FLUOH.md for adaptation steps.'));
       expect(
         stdout,
         contains('Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3.'),
@@ -556,7 +552,7 @@ versions:
     final manifest = File(
       '${pubRepository.path}/fluoh.yaml',
     ).readAsStringSync();
-    expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.4');
+    expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
     expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.4'));
     expect(stderr, isEmpty);
   });

@@ -37,7 +37,8 @@ class PubManifest {
   final String? status;
 }
 
-String ohosBranchForSdk(String sdkVersion) => 'ohos/$sdkVersion';
+String ohosBranchForSdk(String sdkVersion) =>
+    'ohos/${sdkVersionSeriesFromSdkVersion(sdkVersion)}';
 
 String pubReleaseTagForPackage({
   required String packageName,
@@ -71,7 +72,6 @@ Future<void> writePubManifest({
   required String sdkVersion,
   required String branch,
   required String adapterUrl,
-  String? dependencyUrl,
   String releaseVersion = '0.1.0',
   String status = 'experimental',
 }) async {
@@ -82,8 +82,6 @@ Future<void> writePubManifest({
     releaseVersion: releaseVersion,
   );
   final path = packagePath == '.' || packagePath.isEmpty ? null : packagePath;
-  final dependencyRepositoryUrl =
-      dependencyUrl ?? dependencyUrlForAdapterRepository(adapterUrl);
   await File('${destination.path}/fluoh.yaml').writeAsString(
     [
       'schema: 1',
@@ -96,7 +94,7 @@ Future<void> writePubManifest({
       '  ref: $upstreamRef',
       '  version: ${package.version}',
       '',
-      'adapter:',
+      'fluoh:',
       '  type: git',
       '  url: $adapterUrl',
       '  branch: $branch',
@@ -105,12 +103,6 @@ Future<void> writePubManifest({
       '  release:',
       '    version: $releaseVersion',
       '    tag: $tag',
-      '',
-      'dependency:',
-      '  type: git',
-      '  url: $dependencyRepositoryUrl',
-      '  ref: $tag',
-      if (path != null) '  path: $path',
       '',
     ].join('\n'),
   );
@@ -127,24 +119,28 @@ Future<PubManifest> readPubManifest(Directory repository) async {
   }
 
   final upstream = _requiredMap(yaml, 'upstream');
-  final adapter = _requiredMap(yaml, 'adapter');
-  final release = _requiredMap(adapter, 'release');
-  final dependency = _requiredMap(yaml, 'dependency');
+  final fluoh = _requiredMap(yaml, 'fluoh');
+  if (yaml.containsKey('dependency')) {
+    throw UsageException('fluoh.yaml must not contain "dependency".', '');
+  }
+  final release = _requiredMap(fluoh, 'release');
+  final upstreamPath = _optionalString(upstream, 'path');
+  final adapterUrl = _requiredString(fluoh, 'url');
 
   return PubManifest(
     packageName: _requiredString(yaml, 'name'),
     upstreamVersion: _requiredString(upstream, 'version'),
-    sdkVersion: _requiredString(adapter, 'sdkVersion'),
+    sdkVersion: _requiredString(fluoh, 'sdkVersion'),
     releaseVersion: _requiredString(release, 'version'),
-    branch: _requiredString(adapter, 'branch'),
+    branch: _requiredString(fluoh, 'branch'),
     releaseTag: _requiredString(release, 'tag'),
     upstreamUrl: _requiredString(upstream, 'url'),
-    upstreamPath: _optionalString(upstream, 'path'),
+    upstreamPath: upstreamPath,
     upstreamRef: _optionalString(upstream, 'ref'),
-    adapterUrl: _requiredString(adapter, 'url'),
-    dependencyUrl: _requiredString(dependency, 'url'),
-    dependencyPath: _optionalString(dependency, 'path'),
-    status: _optionalString(adapter, 'status'),
+    adapterUrl: adapterUrl,
+    dependencyUrl: dependencyUrlForAdapterRepository(adapterUrl),
+    dependencyPath: upstreamPath,
+    status: _optionalString(fluoh, 'status'),
   );
 }
 

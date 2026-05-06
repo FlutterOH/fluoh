@@ -90,7 +90,7 @@ PubManifest _manifest({String packageName = 'camera'}) {
     upstreamVersion: packageName == 'camera' ? '0.11.0' : '10.0.0',
     sdkVersion: '3.35.8-ohos-0.0.3',
     releaseVersion: '0.1.0',
-    branch: 'ohos/3.35.8-ohos-0.0.3',
+    branch: 'ohos/3.35.8-ohos',
     releaseTag: '$packageName-release',
     upstreamUrl: 'https://github.com/flutter/packages',
     upstreamPath: 'packages/$packageName/$packageName',

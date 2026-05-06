@@ -59,7 +59,7 @@ void main() {
       );
 
       final branch = await runGit(pubRepository, ['branch', '--show-current']);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
 
       await runGit(pubRepository, ['checkout', 'main']);
       final pubspec = File(
@@ -112,7 +112,7 @@ void main() {
       await File('${pubRepository.path}/LOCAL.md').writeAsString('local\n');
       await runGit(pubRepository, ['add', 'LOCAL.md']);
       await runGit(pubRepository, ['commit', '-m', 'Local main change']);
-      await runGit(pubRepository, ['checkout', 'ohos/3.35.8-ohos-0.0.3']);
+      await runGit(pubRepository, ['checkout', 'ohos/3.35.8-ohos']);
       await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
 
       final pubEnvironment = FluohEnvironment(
@@ -130,7 +130,7 @@ void main() {
       );
 
       final branch = await runGit(pubRepository, ['branch', '--show-current']);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos-0.0.3');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
       expect(stderr.join('\n'), contains('Not possible to fast-forward'));
     },
   );

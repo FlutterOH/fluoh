@@ -190,7 +190,7 @@ releases:
       versions:
 ${sdkVersions.map((version) => '        - $version').join('\n')}
     status: $status
-    sourceBranch: ohos/3.35.8-ohos-0.0.3
+    sourceBranch: ohos/3.35.8-ohos
     release:
       version: "1"
       tag: $packageName-v1.0.0-ohos-3.35.8-1

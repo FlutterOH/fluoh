@@ -93,7 +93,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，默认把 `origin` 设置为 `git@github.com:FlutterOH/<package>.git`，并配置所选 Flutter OHOS SDK 适配环境。`fluoh pub create` 会暂存生成文件，但不会创建初始提交；维护者可以继续适配，最后一起提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。如果需要指定最终推送位置：
+默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35.8-ohos`，默认把 `origin` 设置为 `git@github.com:FlutterOH/<package>.git`，并配置所选 Flutter OHOS SDK 适配环境。`fluoh pub create` 会暂存生成文件，但不会创建初始提交；维护者可以继续适配，最后一起提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。如果需要指定最终推送位置：
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \

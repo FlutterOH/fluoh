@@ -42,8 +42,13 @@ void main() {
     expect(manifest, contains('        - 3.35.8-ohos-0.0.3'));
     expect(manifest, contains('versionSeries: 3.35.8-ohos'));
     expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
-    expect(manifest, contains('sourceBranch: ohos/3.35.8-ohos-0.0.3'));
+    expect(manifest, contains('sourceBranch: ohos/3.35.8-ohos'));
     expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
+    expect(
+      manifest,
+      contains('      url: https://github.com/FlutterOH/camera.git'),
+    );
+    expect(manifest, contains('      ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
     expect(File('${pubSource.path}/packages/index.yaml').existsSync(), isFalse);
     expect(
       File('${pubSource.path}/packages/camera.yaml').existsSync(),
@@ -104,7 +109,7 @@ void main() {
       );
       expect(
         stderr.join('\n'),
-        contains('does not match pub branch ohos/3.35.8-ohos-0.0.3'),
+        contains('does not match pub branch ohos/3.35.8-ohos'),
       );
     },
   );

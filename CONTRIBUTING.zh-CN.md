@@ -165,7 +165,7 @@ fluoh --version
 
 ## Pub 仓库工作流维护
 
-`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-tag>` pub 分支，把 `origin` 设置为 pub 仓库最终推送位置，并配置所选 Flutter OHOS SDK 适配环境。默认仓库 URL 会根据 package 名称推导：
+`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-series>` pub 分支，把 `origin` 设置为 pub 仓库最终推送位置，并配置所选 Flutter OHOS SDK 适配环境。默认仓库 URL 会根据 package 名称推导：
 
 ```sh
 git@github.com:FlutterOH/<package>.git

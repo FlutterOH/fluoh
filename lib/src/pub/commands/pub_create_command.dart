@@ -50,6 +50,7 @@ class PubCreateCommand extends Command<int> {
     }
 
     final upstream = rest.single;
+    _stdout('Resolving Flutter OHOS SDK.');
     final release = await _resolveSdkRelease();
     final destination = Directory(
       argResults!.option('output') ??
@@ -62,6 +63,7 @@ class PubCreateCommand extends Command<int> {
       usageException('Destination already exists: ${destination.path}');
     }
 
+    _stdout('Cloning upstream repository into ${destination.path}.');
     await runGit(['clone', '--quiet', upstream, destination.path]);
 
     if (argResults!.option('path') == null && packageName != null) {
@@ -88,6 +90,14 @@ class PubCreateCommand extends Command<int> {
       workingDirectory: destination,
       processEnvironment: environment.processEnvironment,
     );
+    final sdkDirectory = SdkManager(pubEnvironment).sdkDirectory(release.tag);
+    if (await sdkDirectory.exists()) {
+      _stdout('Using installed Flutter OHOS SDK ${release.tag}.');
+    } else {
+      _stdout(
+        'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+      );
+    }
     await SdkProjectEnvironment(
       pubEnvironment,
     ).configure(release, writeFluohConfig: false);
@@ -124,13 +134,7 @@ class PubCreateCommand extends Command<int> {
     _stdout('Pub branch: $branch.');
     _stdout('Origin: $adapterUrl.');
     _stdout('Configured Flutter OHOS SDK ${release.tag}.');
-    _stdout('Generated FLUOH.md, fluoh.yaml, .fvmrc, and .gitignore.');
-    _stdout(
-      'Generated files are staged; you can continue adapting and commit them together.',
-    );
-    _stdout(
-      'Commit before running fluoh pub sync, fluoh pub adapt, or fluoh pub release.',
-    );
+    _stdout('See FLUOH.md for adaptation steps.');
     return 0;
   }
 
@@ -201,10 +205,10 @@ String _adaptationGuideContent({
     '',
     '## Metadata',
     '',
-    '- `fluoh.yaml` records the upstream package, adapter repository, SDK target, release tag, and dependency replacement metadata.',
+    '- `fluoh.yaml` records the upstream package, FlutterOH repository, SDK target, and release metadata.',
     '- Package path: `$packagePath`',
     '- Upstream ref: `$upstreamRef`',
-    '- Adapter branch: `$branch`',
+    '- FlutterOH branch: `$branch`',
     '',
     '## Adaptation Workflow',
     '',
