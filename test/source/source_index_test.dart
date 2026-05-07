@@ -145,11 +145,9 @@ Future<Directory> _createSourceRoot() async {
 Future<void> _writeSdkIndex(Directory root) async {
   await File('${root.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: /tmp/flutter-ohos-sdk
+url: /tmp/flutter-ohos-sdk
 releases:
   - version: 3.35.8-ohos-0.0.3
-    tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
 }
@@ -163,7 +161,7 @@ schema: 1
 repositories:
   - name: $packageName
     url: /tmp/$packageName
-    packagePath: packages/$packageName
+    path: packages/$packageName
 ''');
 }
 

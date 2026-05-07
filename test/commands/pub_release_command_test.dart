@@ -39,6 +39,8 @@ void main() {
     expect(registry, contains('repositories:'));
     expect(registry, contains('name: camera'));
     expect(registry, contains('url: git@github.com:FlutterOH/camera.git'));
+    expect(registry, contains('path: .'));
+    expect(registry, isNot(contains('packagePath:')));
     expect(registry, isNot(contains('upstreamUrl:')));
     expect(registry, isNot(contains('status:')));
     expect(manifest, contains('        - 3.35.8-ohos-0.0.3'));

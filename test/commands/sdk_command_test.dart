@@ -53,12 +53,49 @@ void main() {
       expect(configFile.existsSync(), isTrue);
       expect(
         configFile.readAsStringSync(),
-        contains('https://github.com/FlutterOH/pub'),
+        contains('https://github.com/FlutterOH/pub.git'),
       );
       expect(
         stderr.join('\n'),
         contains('No readable data source index found'),
       );
+    },
+  );
+
+  test(
+    'lists and removes installed SDKs without readable source indexes',
+    () async {
+      final environment = await createTestEnvironment();
+      final localSdk = Directory(
+        '${environment.homeDirectory.path}/sdks/3.34.0-ohos-0.0.1',
+      );
+      await localSdk.create(recursive: true);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['sdk', 'list'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      expect(
+        await runFluoh(
+          ['sdk', 'remove', '3.34.0-ohos-0.0.1'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stdout, contains('3.34.0-ohos-0.0.1 unknown installed'));
+      expect(stdout, contains('Removed SDK 3.34.0-ohos-0.0.1.'));
+      expect(localSdk.existsSync(), isFalse);
+      expect(stderr, isEmpty);
     },
   );
 
@@ -134,6 +171,74 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('lists installed SDKs that are missing from source indexes', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final localSdk = Directory(
+      '${environment.homeDirectory.path}/sdks/3.34.0-ohos-0.0.1',
+    );
+    await localSdk.create(recursive: true);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, contains('3.35.8-ohos-0.0.3 stable remote'));
+    expect(stdout, contains('3.34.0-ohos-0.0.1 unknown installed'));
+    expect(
+      File('${environment.homeDirectory.path}/config.json').readAsStringSync(),
+      isNot(contains('"sdks"')),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('removes installed SDKs that are missing from source indexes', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final localSdk = Directory(
+      '${environment.homeDirectory.path}/sdks/3.34.0-ohos-0.0.1',
+    );
+    await localSdk.create(recursive: true);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'remove', '3.34.0-ohos-0.0.1'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, contains('Removed SDK 3.34.0-ohos-0.0.1.'));
+    expect(localSdk.existsSync(), isFalse);
+    expect(stderr, isEmpty);
+  });
+
   test('reports no current SDK without project fluoh.yaml', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
@@ -179,15 +284,11 @@ void main() {
     await _runProcess('git', ['tag', '3.35.9-ohos-0.0.4'], sdkRepository);
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${sdkRepository.path}
+url: ${sdkRepository.path}
 releases:
   - version: 3.35.8-ohos-0.0.3
-    tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
   - version: 3.35.9-ohos-0.0.4
-    tag: 3.35.9-ohos-0.0.4
-    versionSeries: "3.35"
     status: stable
 ''');
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -268,11 +369,9 @@ releases:
     );
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${sdkRepository.path}
+url: ${sdkRepository.path}
 releases:
   - version: 3.35.8-ohos-9.9.9
-    tag: 3.35.8-ohos-9.9.9
-    versionSeries: "3.35"
     status: stable
 ''');
     final stdout = <String>[];

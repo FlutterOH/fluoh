@@ -75,11 +75,9 @@ class SdkListCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    for (final release in await manager.listReleases()) {
-      final status = await manager.sdkDirectory(release.tag).exists()
-          ? 'installed'
-          : 'remote';
-      stdout('${release.tag} ${release.channel} $status');
+    for (final sdk in await manager.listEntries()) {
+      final status = sdk.installed ? 'installed' : 'remote';
+      stdout('${sdk.tag} ${sdk.channel} $status');
     }
     return 0;
   }
@@ -161,9 +159,8 @@ class SdkRemoveCommand extends Command<int> {
       usageException('Expected an SDK version or version series.');
     }
 
-    final release = await manager.resolveRelease(rest.single);
-    await manager.remove(release.tag);
-    stdout('Removed SDK ${release.tag}.');
+    final tag = await manager.remove(rest.single);
+    stdout('Removed SDK $tag.');
     return 0;
   }
 }

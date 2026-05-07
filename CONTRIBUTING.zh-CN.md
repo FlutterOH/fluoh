@@ -151,7 +151,7 @@ dart pub publish
 Homebrew formula 位于 [Formula/fluoh.rb](Formula/fluoh.rb)。本地验证：
 
 ```sh
-brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh
+brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git
 brew install FlutterOH/fluoh/fluoh
 fluoh --version
 ```
@@ -187,7 +187,7 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 `fluoh pub release` 必须继续保证：
 
 - 只允许在 `ohos/*` 分支运行。
-- 当前分支和 `fluoh.yaml` 的 pub 分支一致。
+- 当前分支和根据 `fluoh.yaml` 推导出的 `ohos/<sdk-series>` 分支一致。
 - 工作区干净。
 - SDK tag 来自已配置的数据源。
 - release tag 和 manifest 中的 package、上游版本、SDK tag、release 版本一致。

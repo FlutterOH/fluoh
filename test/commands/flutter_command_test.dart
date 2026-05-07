@@ -264,11 +264,9 @@ exit 0
   await _runProcess('git', ['tag', '3.35.8-ohos-0.0.3'], sdkRepository);
   await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${sdkRepository.path}
+url: ${sdkRepository.path}
 releases:
   - version: 3.35.8-ohos-0.0.3
-    tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
   return source;

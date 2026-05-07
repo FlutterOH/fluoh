@@ -77,10 +77,14 @@ void main() {
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
       expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
-      expect(manifest, contains('branch: ohos/3.35'));
+      expect(manifest, isNot(contains('branch: ohos/3.35')));
       expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
       expect(manifest, contains('status: experimental'));
-      expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
+      expect(manifest, contains('release:\n    version: 0.1.0'));
+      expect(
+        manifest,
+        isNot(contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0')),
+      );
       final guide = File('${pubRepository.path}/FLUOH.md');
       expect(guide.existsSync(), isTrue);
       final guideContent = guide.readAsStringSync();
@@ -507,15 +511,11 @@ fluoh.yaml
     await runGit(sdkRepository, ['tag', '3.35.8-ohos-0.0.4']);
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${sdkRepository.path}
+url: ${sdkRepository.path}
 releases:
   - version: 3.35.8-ohos-0.0.3
-    tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
   - version: 3.35.8-ohos-0.0.4
-    tag: 3.35.8-ohos-0.0.4
-    versionSeries: "3.35"
     status: stable
 ''');
     final upstream = await createUpstreamPackageRepository(

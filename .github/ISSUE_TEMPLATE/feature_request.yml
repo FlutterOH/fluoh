@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a fluoh workflow, command, or behavior change.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for workflow improvements, new command behavior, source index changes, SDK selection rules, or pub repository automation requests.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user workflow is blocked or unnecessarily hard today?
+      placeholder: Describe the current workflow and why it is not enough.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the command, output, config, or file changes you expect.
+      placeholder: fluoh should ...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention workarounds or other designs that were considered.
+  - type: input
+    id: commands
+    attributes:
+      label: Affected commands
+      description: List the fluoh commands or domains involved.
+      placeholder: sdk, deps, pub, source, doctor
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and release impact
+      description: Note whether this changes existing CLI output, config files, source index rules, or release artifacts.
+      placeholder: This is backwards compatible because ...

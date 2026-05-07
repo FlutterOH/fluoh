@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible fluoh CLI problem.
+title: "fix: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a fluoh issue. Please include enough detail for maintainers to reproduce the behavior without reading local machine state.
+  - type: input
+    id: version
+    attributes:
+      label: fluoh version
+      description: Run `fluoh --version` and paste the first line.
+      placeholder: fluoh 0.0.1 - FlutterOH SDK and pub package CLI
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command that failed.
+      placeholder: fluoh sdk use 3.35
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: List the minimal steps needed to trigger the issue.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include relevant CLI output, errors, or generated file snippets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe what should have happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Dart version, FlutterOH SDK tag, and any relevant FLUOH_HOME/source configuration.
+      placeholder: |
+        OS:
+        Dart:
+        FlutterOH SDK:
+        FLUOH_HOME:
+        Sources:
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add links, screenshots, repository details, or notes about local changes if relevant.

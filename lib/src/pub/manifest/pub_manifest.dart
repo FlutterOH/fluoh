@@ -79,12 +79,6 @@ Future<void> writePubManifest({
   String releaseVersion = '0.1.0',
   String status = 'experimental',
 }) async {
-  final tag = pubReleaseTagForPackage(
-    packageName: package.name,
-    upstreamVersion: package.version,
-    sdkVersion: sdkVersion,
-    releaseVersion: releaseVersion,
-  );
   final path = packagePath == '.' || packagePath.isEmpty ? null : packagePath;
   await File('${destination.path}/fluoh.yaml').writeAsString(
     [
@@ -92,21 +86,17 @@ Future<void> writePubManifest({
       'name: ${package.name}',
       '',
       'upstream:',
-      '  type: git',
       '  url: $upstream',
       if (path != null) '  path: $path',
       '  ref: $upstreamRef',
       '  version: ${package.version}',
       '',
       'fluoh:',
-      '  type: git',
       '  url: $adapterUrl',
-      '  branch: $branch',
       '  sdkVersion: $sdkVersion',
       '  status: $status',
       '  release:',
       '    version: $releaseVersion',
-      '    tag: $tag',
       '',
     ].join('\n'),
   );
@@ -122,25 +112,50 @@ Future<PubManifest> readPubManifest(Directory repository) async {
     throw UsageException('fluoh.yaml must contain a YAML map.', '');
   }
 
+  _ensureAllowedKeys(yaml, 'fluoh.yaml', {
+    'schema',
+    'name',
+    'upstream',
+    'fluoh',
+  });
   final upstream = _requiredMap(yaml, 'upstream');
   final fluoh = _requiredMap(yaml, 'fluoh');
-  if (yaml.containsKey('dependency')) {
-    throw UsageException('fluoh.yaml must not contain "dependency".', '');
-  }
   final release = _requiredMap(fluoh, 'release');
+  _ensureAllowedKeys(upstream, 'fluoh.yaml upstream', {
+    'url',
+    'path',
+    'ref',
+    'version',
+  });
+  _ensureAllowedKeys(fluoh, 'fluoh.yaml fluoh', {
+    'url',
+    'sdkVersion',
+    'status',
+    'release',
+  });
+  _ensureAllowedKeys(release, 'fluoh.yaml fluoh.release', {'version'});
   final upstreamPath = _optionalString(upstream, 'path');
   final adapterUrl = _requiredString(fluoh, 'url');
+  final sdkVersion = _requiredString(fluoh, 'sdkVersion');
+  final upstreamVersion = _requiredString(upstream, 'version');
+  final releaseVersion = _requiredString(release, 'version');
+  final packageName = _requiredString(yaml, 'name');
 
   return PubManifest(
-    packageName: _requiredString(yaml, 'name'),
-    upstreamVersion: _requiredString(upstream, 'version'),
-    sdkVersion: _requiredString(fluoh, 'sdkVersion'),
-    releaseVersion: _requiredString(release, 'version'),
-    branch: _requiredString(fluoh, 'branch'),
-    releaseTag: _requiredString(release, 'tag'),
+    packageName: packageName,
+    upstreamVersion: upstreamVersion,
+    sdkVersion: sdkVersion,
+    releaseVersion: releaseVersion,
+    branch: ohosBranchForSdk(sdkVersion),
+    releaseTag: pubReleaseTagForPackage(
+      packageName: packageName,
+      upstreamVersion: upstreamVersion,
+      sdkVersion: sdkVersion,
+      releaseVersion: releaseVersion,
+    ),
     upstreamUrl: _requiredString(upstream, 'url'),
     upstreamPath: upstreamPath,
-    upstreamRef: _optionalString(upstream, 'ref'),
+    upstreamRef: _requiredString(upstream, 'ref'),
     adapterUrl: adapterUrl,
     dependencyUrl: dependencyUrlForAdapterRepository(adapterUrl),
     dependencyPath: upstreamPath,
@@ -178,4 +193,12 @@ String? _optionalString(YamlMap map, String key) {
     return null;
   }
   return '$value';
+}
+
+void _ensureAllowedKeys(YamlMap map, String label, Set<String> allowed) {
+  for (final key in map.keys) {
+    if (key is! String || !allowed.contains(key)) {
+      throw UsageException('$label must not contain "$key".', '');
+    }
+  }
 }

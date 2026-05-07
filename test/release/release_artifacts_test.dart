@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   test('publishes to pub.dev from version tags using OIDC', () {
@@ -42,6 +43,45 @@ void main() {
     expect(workflow, contains('dart test'));
   });
 
+  test('provides GitHub issue and pull request templates', () {
+    final bugTemplate = File(
+      '.github/ISSUE_TEMPLATE/bug_report.yml',
+    ).readAsStringSync();
+    final featureTemplate = File(
+      '.github/ISSUE_TEMPLATE/feature_request.yml',
+    ).readAsStringSync();
+    final issueConfig = File(
+      '.github/ISSUE_TEMPLATE/config.yml',
+    ).readAsStringSync();
+    final pullRequestTemplate = File(
+      '.github/pull_request_template.md',
+    ).readAsStringSync();
+
+    final bugYaml = loadYaml(bugTemplate) as YamlMap;
+    final featureYaml = loadYaml(featureTemplate) as YamlMap;
+    final configYaml = loadYaml(issueConfig) as YamlMap;
+
+    expect(bugYaml['name'], 'Bug report');
+    expect(bugTemplate, contains('fluoh --version'));
+    expect(bugTemplate, contains('Reproduction steps'));
+    expect(bugTemplate, contains('Actual behavior'));
+    expect(bugTemplate, contains('Expected behavior'));
+    expect(bugTemplate, contains('Environment'));
+
+    expect(featureYaml['name'], 'Feature request');
+    expect(featureTemplate, contains('Problem'));
+    expect(featureTemplate, contains('Proposed behavior'));
+    expect(featureTemplate, contains('Compatibility and release impact'));
+    expect(configYaml['blank_issues_enabled'], isFalse);
+
+    expect(pullRequestTemplate, contains('## Summary'));
+    expect(pullRequestTemplate, contains('## Verification'));
+    expect(pullRequestTemplate, contains('`dart format .`'));
+    expect(pullRequestTemplate, contains('`dart analyze`'));
+    expect(pullRequestTemplate, contains('`dart test`'));
+    expect(pullRequestTemplate, contains('## Release impact'));
+  });
+
   test('declares pub metadata and an executable for global activation', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
 
@@ -72,6 +112,7 @@ void main() {
     expect(readme, contains('third-party FlutterOH pub repositories'));
     expect(readme, contains('packages/repositories.yaml'));
     expect(readme, contains('latest validated snapshot'));
+    expect(readme, contains('https://github.com/FlutterOH/pub.git'));
     expect(readme, contains('fluoh source remove internal'));
     expect(readme, isNot(contains('fluoh source use')));
     expect(readme, contains('--repo git@github.com:FlutterOH/package.git'));
@@ -89,6 +130,7 @@ void main() {
     expect(chineseReadme, contains('第三方库 FlutterOH pub 仓库'));
     expect(chineseReadme, contains('packages/repositories.yaml'));
     expect(chineseReadme, contains('最新校验通过的快照'));
+    expect(chineseReadme, contains('https://github.com/FlutterOH/pub.git'));
     expect(chineseReadme, contains('fluoh source remove internal'));
     expect(chineseReadme, isNot(contains('fluoh source use')));
     expect(
@@ -143,7 +185,12 @@ void main() {
       contains('dart format --output=none --set-exit-if-changed .'),
     );
     expect(contributing, contains('git tag v0.0.1'));
-    expect(contributing, contains('brew tap FlutterOH/fluoh'));
+    expect(
+      contributing,
+      contains(
+        'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      ),
+    );
     expect(contributing, contains('Conventional Commits'));
 
     expect(chineseContributing, contains('dart pub publish --dry-run'));
@@ -186,7 +233,12 @@ void main() {
       contains('dart format --output=none --set-exit-if-changed .'),
     );
     expect(chineseContributing, contains('git tag v0.0.1'));
-    expect(chineseContributing, contains('brew tap FlutterOH/fluoh'));
+    expect(
+      chineseContributing,
+      contains(
+        'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      ),
+    );
     expect(chineseContributing, contains('Conventional Commits'));
   });
 

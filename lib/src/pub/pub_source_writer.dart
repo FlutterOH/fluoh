@@ -56,7 +56,7 @@ Future<void> writePubSourcePackageUpdate(
         'repositories:',
         '  - name: ${manifest.packageName}',
         '    url: ${manifest.adapterUrl}',
-        '    packagePath: $packagePath',
+        '    path: $packagePath',
         '',
       ].join('\n'),
     );
@@ -73,7 +73,7 @@ Future<void> writePubSourcePackageUpdate(
   final entry = [
     '  - name: ${manifest.packageName}',
     '    url: ${manifest.adapterUrl}',
-    '    packagePath: $packagePath',
+    '    path: $packagePath',
   ];
   final emptyRepositories = RegExp(
     r'^repositories:\s*\[\]\s*$',

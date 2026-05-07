@@ -40,11 +40,9 @@ repositoryUrl: file:${source.path}
 
   await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${sdkRepository.path}
+url: ${sdkRepository.path}
 releases:
   - version: 3.35.8-ohos-0.0.3
-    tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
 
@@ -53,10 +51,10 @@ schema: 1
 repositories:
   - name: camera
     url: ${parent.path}/camera
-    packagePath: packages/camera/camera
+    path: packages/camera/camera
   - name: share_plus
     url: ${parent.path}/share_plus
-    packagePath: packages/share_plus/share_plus
+    path: packages/share_plus/share_plus
 ''');
 
   await File('${source.path}/packages/manifests/camera.yaml').writeAsString('''

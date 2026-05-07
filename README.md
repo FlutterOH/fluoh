@@ -126,7 +126,7 @@ fluoh pub create https://github.com/upstream/package.git \
 `fluoh` uses the official FlutterOH data source by default:
 
 ```text
-https://github.com/FlutterOH/pub
+https://github.com/FlutterOH/pub.git
 ```
 
 You can also create a local source or use an internal team source:

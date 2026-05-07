@@ -160,7 +160,7 @@ dart pub publish
 The Homebrew formula lives at [Formula/fluoh.rb](Formula/fluoh.rb). Local verification:
 
 ```sh
-brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh
+brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git
 brew install FlutterOH/fluoh/fluoh
 fluoh --version
 ```
@@ -196,7 +196,7 @@ Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, 
 `fluoh pub release` must continue to guarantee:
 
 - It only runs on `ohos/*` branches.
-- The current branch matches the pub branch in `fluoh.yaml`.
+- The current branch matches the `ohos/<sdk-series>` branch inferred from `fluoh.yaml`.
 - The worktree is clean.
 - The SDK tag comes from configured sources.
 - The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.

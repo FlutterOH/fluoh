@@ -31,7 +31,12 @@ class SourceIndex {
 
   Future<SdkIndex> _readSourceSdkIndex() async {
     final yaml = await _readSourceYaml('sdk/releases.yaml');
-    final repository = _requiredString(yaml, 'repositoryUrl');
+    _ensureAllowedKeys(yaml, 'sdk/releases.yaml', {
+      'schema',
+      'url',
+      'releases',
+    });
+    final repository = _requiredString(yaml, 'url');
     final releases = yaml['releases'];
     if (releases is! List) {
       throw const FormatException('SDK source releases must be a list.');
@@ -42,15 +47,18 @@ class SourceIndex {
       releases: releases
           .map((value) {
             final release = _objectMap(value, 'SDK source release');
+            _ensureAllowedKeys(release, 'SDK source release', {
+              'version',
+              'status',
+            });
+            final version = _requiredString(release, 'version');
             return SdkRelease(
-              version: _requiredString(release, 'version'),
-              versionSeries: _requiredString(release, 'versionSeries'),
-              flutterVersion: _flutterVersionFromSdkVersion(
-                _requiredString(release, 'version'),
-              ),
+              version: version,
+              versionSeries: _versionSeriesFromSdkVersion(version),
+              flutterVersion: _flutterVersionFromSdkVersion(version),
               channel: _requiredString(release, 'status'),
               repository: repository,
-              tag: _requiredString(release, 'tag'),
+              tag: version,
             );
           })
           .toList(growable: false),
@@ -112,6 +120,10 @@ class SourceIndex {
 
   Future<List<_SourcePackageManifest>> _readSourcePackageManifests() async {
     final repositoryIndex = await _readSourceYaml('packages/repositories.yaml');
+    _ensureAllowedKeys(repositoryIndex, 'packages/repositories.yaml', {
+      'schema',
+      'repositories',
+    });
     final repositories = repositoryIndex['repositories'];
     if (repositories is! List) {
       throw const FormatException(
@@ -122,7 +134,15 @@ class SourceIndex {
     final manifests = <_SourcePackageManifest>[];
     for (final value in repositories) {
       final row = _objectMap(value, 'package source repository');
+      _ensureAllowedKeys(row, 'package source repository', {
+        'name',
+        'url',
+        'path',
+        'fixture',
+      });
       final name = _requiredString(row, 'name');
+      _requiredString(row, 'url');
+      _requiredString(row, 'path');
       final manifest = await _readSourceYaml('packages/manifests/$name.yaml');
       manifests.add(_SourcePackageManifest.fromYaml(name, row, manifest));
     }
@@ -226,6 +246,18 @@ String _requiredString(Map<String, Object?> json, String key) {
   return value;
 }
 
+void _ensureAllowedKeys(
+  Map<String, Object?> json,
+  String label,
+  Set<String> allowed,
+) {
+  for (final key in json.keys) {
+    if (!allowed.contains(key)) {
+      throw FormatException('$label must not contain "$key".');
+    }
+  }
+}
+
 Object? _yamlValue(Object? value) {
   if (value is YamlMap) {
     return {
@@ -246,6 +278,14 @@ String _flutterVersionFromSdkVersion(String version) {
     throw FormatException('Invalid Flutter OHOS SDK version: $version');
   }
   return match.group(1)!;
+}
+
+String _versionSeriesFromSdkVersion(String version) {
+  final match = RegExp(r'^(\d+)\.(\d+)\.').firstMatch(version);
+  if (match == null) {
+    throw FormatException('Invalid Flutter OHOS SDK version: $version');
+  }
+  return '${match.group(1)}.${match.group(2)}';
 }
 
 class _SourcePackageManifest {
@@ -269,10 +309,7 @@ class _SourcePackageManifest {
         '"$expectedName".',
       );
     }
-    final upstream =
-        package['upstreamUrl'] as String? ??
-        row['upstreamUrl'] as String? ??
-        '';
+    final upstream = package['upstreamUrl'] as String? ?? '';
     if (upstream.isEmpty) {
       throw FormatException(
         'Expected package manifest "$name" upstreamUrl to be a non-empty '
@@ -339,17 +376,20 @@ class _SourcePackageManifest {
 
 List<String> _sdkVersions(Map<String, Object?> sdk) {
   final versions = sdk['versions'];
-  if (versions is List) {
-    final parsed = versions.whereType<String>().toList(growable: false);
-    if (parsed.length != versions.length || parsed.isEmpty) {
-      throw const FormatException(
-        'Expected package manifest release sdk.versions to be a non-empty '
-        'string list.',
-      );
-    }
-    return parsed;
+  if (versions is! List) {
+    throw const FormatException(
+      'Expected package manifest release sdk.versions to be a non-empty '
+      'string list.',
+    );
   }
-  return [_requiredString(sdk, 'version')];
+  final parsed = versions.whereType<String>().toList(growable: false);
+  if (parsed.length != versions.length || parsed.isEmpty) {
+    throw const FormatException(
+      'Expected package manifest release sdk.versions to be a non-empty '
+      'string list.',
+    );
+  }
+  return parsed;
 }
 
 class _SourceCompatibilityStatus {

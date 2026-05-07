@@ -322,7 +322,7 @@ schema: 1
 repositories:
   - name: share_plus
     url: ${environment.homeDirectory.path}/share_plus
-    packagePath: packages/share_plus/share_plus
+    path: packages/share_plus/share_plus
 ''');
       await File(
         '${supplemental.path}/packages/manifests/share_plus.yaml',

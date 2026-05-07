@@ -493,7 +493,7 @@ repositoryUrl: file:${source.path}
       await Directory('${invalidSource.path}/sdk').create(recursive: true);
       await File('${invalidSource.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
+url: ${environment.homeDirectory.path}/flutter-ohos-sdk
 releases: {}
 ''');
       final cachedSdkIndex = File(
@@ -751,7 +751,7 @@ releases: {}
 
       await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
+url: ${environment.homeDirectory.path}/flutter-ohos-sdk
 releases: {}
 ''');
       await commitAll(source, message: 'Break source fixture');
@@ -823,11 +823,9 @@ repositories: []
     await Directory('${source.path}/packages').create(recursive: true);
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
+url: ${environment.homeDirectory.path}/flutter-ohos-sdk
 releases:
   - version: 3.35.8-ohos-0.0.3
-    tag: 3.35.8-ohos-0.0.3
-    versionSeries: "3.35"
     status: stable
 ''');
     await File('${source.path}/packages/repositories.yaml').writeAsString('''
@@ -887,7 +885,7 @@ repositories: []
     final source = await createPubSourceFixture(environment.homeDirectory);
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
-repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
+url: ${environment.homeDirectory.path}/flutter-ohos-sdk
 releases: {}
 ''');
     final stdout = <String>[];

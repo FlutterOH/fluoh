@@ -22,6 +22,7 @@ schema: 1
 repositories:
   - name: camera
     url: git@github.com:FlutterOH/camera.git
+    path: packages/camera/camera
 ''');
 
       await writePubSourcePackageUpdate(
@@ -37,8 +38,9 @@ repositories:
       expect(repositories, contains('  - name: share_plus'));
       expect(
         repositories,
-        contains('    packagePath: packages/share_plus/share_plus'),
+        contains('    path: packages/share_plus/share_plus'),
       );
+      expect(repositories, isNot(contains('    packagePath:')));
       expect(
         repositories,
         contains('    url: git@github.com:FlutterOH/share_plus.git'),
@@ -74,6 +76,7 @@ schema: 1
 repositories:
   - name: camera
     url: git@github.com:FlutterOH/camera.git
+    path: packages/camera/camera
 ''');
 
       await writePubSourcePackageUpdate(
@@ -147,7 +150,7 @@ repositories: []
     final manifest = File(
       '${source.path}/packages/manifests/camera.yaml',
     ).readAsStringSync();
-    expect(repositories, contains('    packagePath: .'));
+    expect(repositories, contains('    path: .'));
     expect(manifest, contains('  packagePath: .'));
     expect(manifest, isNot(contains('      path: .')));
   });

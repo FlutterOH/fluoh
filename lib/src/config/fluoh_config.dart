@@ -4,7 +4,7 @@ import 'dart:io';
 import '../context/fluoh_environment.dart';
 
 const defaultSourceName = 'flutteroh';
-const defaultSourceUrl = 'https://github.com/FlutterOH/pub';
+const defaultSourceUrl = 'https://github.com/FlutterOH/pub.git';
 const defaultSourcePriority = 10;
 const defaultSourceUrlEnvironmentKey = 'FLUOH_DEFAULT_SOURCE_URL';
 
