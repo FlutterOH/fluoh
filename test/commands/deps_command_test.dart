@@ -197,8 +197,8 @@ void main() {
     final secondSource = await createPubSourceFixture(
       Directory('${environment.homeDirectory.path}/second'),
     );
-    await File('${secondSource.path}/sdk/index.yaml').writeAsString(
-      File('${firstSource.path}/sdk/index.yaml').readAsStringSync(),
+    await File('${secondSource.path}/sdk/releases.yaml').writeAsString(
+      File('${firstSource.path}/sdk/releases.yaml').readAsStringSync(),
     );
     final manifest = File(
       '${secondSource.path}/packages/manifests/camera.yaml',
@@ -254,8 +254,8 @@ void main() {
       final highPrioritySource = await createPubSourceFixture(
         Directory('${environment.homeDirectory.path}/high'),
       );
-      await File('${highPrioritySource.path}/sdk/index.yaml').writeAsString(
-        File('${lowPrioritySource.path}/sdk/index.yaml').readAsStringSync(),
+      await File('${highPrioritySource.path}/sdk/releases.yaml').writeAsString(
+        File('${lowPrioritySource.path}/sdk/releases.yaml').readAsStringSync(),
       );
       await _setCompatibilityStatus(
         lowPrioritySource,
@@ -315,15 +315,15 @@ void main() {
       await Directory(
         '${supplemental.path}/packages/manifests',
       ).create(recursive: true);
-      await File('${supplemental.path}/packages/registry.yaml').writeAsString(
-        '''
+      await File(
+        '${supplemental.path}/packages/repositories.yaml',
+      ).writeAsString('''
 schema: 1
-packages:
+repositories:
   - name: share_plus
-    repositoryUrl: ${environment.homeDirectory.path}/share_plus
+    url: ${environment.homeDirectory.path}/share_plus
     packagePath: packages/share_plus/share_plus
-''',
-      );
+''');
       await File(
         '${supplemental.path}/packages/manifests/share_plus.yaml',
       ).writeAsString('''
@@ -334,14 +334,14 @@ package:
   upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
   packagePath: packages/share_plus/share_plus
 releases:
-  - version: 10.0.0
+  - upstreamVersion: 10.0.0
     upstreamRef: share_plus-v10.0.0
     sdk:
-      versionSeries: 3.35.8-ohos
+      versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos
+    fluohBranch: ohos/3.35
     release:
       version: "1"
       tag: share_plus-v10.0.0-ohos-3.35.8-1
@@ -424,7 +424,7 @@ Future<void> _setCompatibilityStatus(
 }) async {
   final manifest = File('${source.path}/packages/manifests/$packageName.yaml');
   final content = manifest.readAsStringSync();
-  expect(content, contains('versionSeries: 3.35.8-ohos'));
+  expect(content, contains('versionSeries: 3.35'));
   expect(content, contains('        - 3.35.8-ohos-0.0.3'));
   await manifest.writeAsString(
     content.replaceAll('status: compatible', 'status: $status'),

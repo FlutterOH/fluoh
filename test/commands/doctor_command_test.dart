@@ -58,8 +58,6 @@ void main() {
       expect(stdout, contains('    • Not updated: flutteroh.'));
       expect(stdout, contains('[✓] Project SDK'));
       expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
-      expect(stdout, contains('[✓] FVM'));
-      expect(stdout, contains('    • .fvm/flutter_sdk is managed by fluoh.'));
       expect(stdout, contains('[!] OpenHarmony platform'));
       expect(stdout, contains('    • Missing ohos platform directory.'));
       expect(stdout.join('\n'), contains('Dependencies needing attention:'));
@@ -71,7 +69,6 @@ void main() {
         '[!] Sources',
         '[✓] Flutter project',
         '[✓] Project SDK',
-        '[✓] FVM',
         '[!] OpenHarmony platform',
         '[!] Dependencies',
       ]);
@@ -100,17 +97,17 @@ void main() {
       contains('    • Current directory is not a Flutter project.'),
     );
     expect(
-      File('${environment.workingDirectory.path}/.fvmrc').existsSync(),
+      File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
       isFalse,
     );
     expect(stderr, isEmpty);
   });
 
-  test('reports malformed .fvmrc as a warning', () async {
+  test('reports malformed fluoh.yaml as a warning', () async {
     final environment = await createTestEnvironment();
     await writeFlutterProjectFixture(environment.workingDirectory);
     await File(
-      '${environment.workingDirectory.path}/.fvmrc',
+      '${environment.workingDirectory.path}/fluoh.yaml',
     ).writeAsString('{');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -126,7 +123,7 @@ void main() {
     expect(result.exitCode, 0);
 
     expect(stdout, contains('[!] Project SDK'));
-    expect(stdout, contains('    • .fvmrc is not valid JSON.'));
+    expect(stdout, contains('    • fluoh.yaml is not valid YAML.'));
     expect(stderr, isEmpty);
   });
 

@@ -71,10 +71,10 @@ void main() {
       final manifest = File(
         '${pubRepository.path}/fluoh.yaml',
       ).readAsStringSync();
-      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35');
       expect(manifest, contains('version: 0.12.0'));
       expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
-      expect(stdout, contains('Merged main into ohos/3.35.8-ohos.'));
+      expect(stdout, contains('Merged main into ohos/3.35.'));
       expect(stdout, contains('Updated pub manifest for camera 0.12.0.'));
       expect(stderr, isEmpty);
     },

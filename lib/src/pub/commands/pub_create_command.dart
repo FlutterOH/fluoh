@@ -22,7 +22,7 @@ class PubCreateCommand extends Command<int> {
         'output',
         help: 'Destination path for the FlutterOH pub repository.',
       )
-      ..addOption('sdk', help: 'Exact Flutter OHOS SDK tag to target.')
+      ..addOption('sdk', help: 'Flutter OHOS SDK tag or version series.')
       ..addOption(
         'repo',
         abbr: 'r',
@@ -98,10 +98,10 @@ class PubCreateCommand extends Command<int> {
         'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
       );
     }
-    await SdkProjectEnvironment(
+    final configuredSdkDirectory = await SdkProjectEnvironment(
       pubEnvironment,
     ).configure(release, writeFluohConfig: false);
-    await _ignoreFvmFlutterSdk(destination);
+    _stdout('Flutter OHOS SDK path: ${configuredSdkDirectory.path}.');
     await writePubManifest(
       destination: destination,
       package: package,
@@ -126,8 +126,6 @@ class PubCreateCommand extends Command<int> {
       '-f',
       'FLUOH.md',
       'fluoh.yaml',
-      '.fvmrc',
-      '.gitignore',
     ], workingDirectory: destination);
 
     _stdout('Created pub repository at ${destination.path}.');
@@ -146,49 +144,11 @@ class PubCreateCommand extends Command<int> {
     }
 
     final releases = await manager.listReleases();
-    final stable =
-        releases
-            .where((release) => release.channel == 'stable')
-            .toList(growable: false)
-          ..sort(_compareSdkReleasesDescending);
-    if (stable.isNotEmpty) {
-      return stable.first;
-    }
     if (releases.isEmpty) {
       usageException('No SDK releases found in configured sources.');
     }
-    return releases.first;
+    return SdkManager.latestRelease(releases, preferStable: true);
   }
-}
-
-int _compareSdkReleasesDescending(SdkRelease a, SdkRelease b) {
-  final byPublishedAt = (b.publishedAt ?? '').compareTo(a.publishedAt ?? '');
-  if (byPublishedAt != 0) {
-    return byPublishedAt;
-  }
-  return _compareNumericVersion(b.tag, a.tag);
-}
-
-int _compareNumericVersion(String a, String b) {
-  final aParts = _numericParts(a);
-  final bParts = _numericParts(b);
-  final length = aParts.length > bParts.length ? aParts.length : bParts.length;
-  for (var i = 0; i < length; i += 1) {
-    final aPart = i < aParts.length ? aParts[i] : 0;
-    final bPart = i < bParts.length ? bParts[i] : 0;
-    final compared = aPart.compareTo(bPart);
-    if (compared != 0) {
-      return compared;
-    }
-  }
-  return 0;
-}
-
-List<int> _numericParts(String version) {
-  return RegExp(r'\d+')
-      .allMatches(version)
-      .map((match) => int.parse(match.group(0)!))
-      .toList(growable: false);
 }
 
 String _adaptationGuideContent({
@@ -223,24 +183,4 @@ String _adaptationGuideContent({
     '9. Run `fluoh pub release` when the adapter is ready.',
     '',
   ].join('\n');
-}
-
-Future<void> _ignoreFvmFlutterSdk(Directory repository) async {
-  const entry = '.fvm/flutter_sdk';
-  final gitignore = File('${repository.path}/.gitignore');
-  if (!await gitignore.exists()) {
-    await gitignore.writeAsString('$entry\n');
-    return;
-  }
-
-  final content = await gitignore.readAsString();
-  final lines = content.split('\n').map((line) => line.trim()).toSet();
-  if (lines.contains(entry)) {
-    return;
-  }
-
-  final prefix = content.isEmpty || content.endsWith('\n')
-      ? content
-      : '$content\n';
-  await gitignore.writeAsString('$prefix$entry\n');
 }

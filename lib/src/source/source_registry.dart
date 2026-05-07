@@ -32,7 +32,9 @@ class SourceRegistry {
         }
         if (source.config.priority == existing.source.config.priority &&
             (release.repository != existing.release.repository ||
-                release.version != existing.release.version)) {
+                release.version != existing.release.version ||
+                release.versionSeries != existing.release.versionSeries ||
+                release.channel != existing.release.channel)) {
           throw UsageException(
             'Conflicting SDK release ${release.tag} in sources '
                 '${existing.name} and ${source.name}. Adjust source priority or '

@@ -8,6 +8,7 @@ import '../context/fluoh_environment.dart';
 import '../deps/deps_commands.dart';
 import '../doctor/doctor_command.dart';
 import '../pub/commands/pub_command.dart';
+import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
 import '../source/source_sync.dart';
@@ -29,6 +30,14 @@ class FluohCommandRunner extends CommandRunner<int> {
        _enableColor = stdout == null && _supportsAnsiOutput(),
        super('fluoh', 'FlutterOH SDK and pub package CLI.') {
     final env = _environment;
+    addCommand(
+      FlutterCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        inheritStdio: stdout == null && stderr == null,
+      ),
+    );
     addCommand(SdkCommand(environment: env, stdout: _stdout));
     addCommand(DepsCommand(environment: env, stdout: _stdout));
     addCommand(PubCommand(environment: env, stdout: _stdout));
@@ -139,6 +148,7 @@ bool _supportsAnsiOutput() {
 
 const _topLevelCommandSections = [
   CommandUsageSection('', [
+    'flutter',
     'sdk',
     'deps',
     'pub',
@@ -158,7 +168,7 @@ bool _usesSourceConfiguration(ArgResults results) {
 }
 
 bool _hasHelpFlag(ArgResults results) {
-  if (results.flag('help')) {
+  if (results.options.contains('help') && results.flag('help')) {
     return true;
   }
   final command = results.command;

@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../context/fluoh_environment.dart';
+import '../sdk/sdk_project_config.dart';
 import '../source/source_index.dart';
 import '../source/source_registry.dart';
 
@@ -72,30 +73,13 @@ class DepsAnalyzer {
   }
 
   Future<String> _readSdkVersion() async {
-    final fluohYaml = File('${environment.workingDirectory.path}/fluoh.yaml');
-    if (await fluohYaml.exists()) {
-      final content = await fluohYaml.readAsString();
-      final loaded = loadYaml(content);
-      if (loaded is YamlMap) {
-        final sdk = loaded['sdk'];
-        if (sdk is YamlMap && sdk['version'] != null) {
-          return '${sdk['version']}';
-        }
-      }
-    }
-
-    final fvmrc = File('${environment.workingDirectory.path}/.fvmrc');
-    if (await fvmrc.exists()) {
-      final match = RegExp(
-        r'"flutter"\s*:\s*"([^"]+)"',
-      ).firstMatch(await fvmrc.readAsString());
-      if (match != null) {
-        return match.group(1)!;
-      }
+    final sdkTag = await readProjectSdkTag(environment.workingDirectory);
+    if (sdkTag != null) {
+      return sdkTag;
     }
 
     throw UsageException(
-      'No SDK version found. Run "fluoh sdk use <version>".',
+      'No SDK version found. Run "fluoh sdk use <version-or-series>".',
       '',
     );
   }

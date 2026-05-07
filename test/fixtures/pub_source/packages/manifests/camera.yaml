@@ -5,14 +5,14 @@ package:
   upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
   packagePath: packages/camera/camera
 releases:
-  - version: 0.11.0
+  - upstreamVersion: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      versionSeries: 3.35.8-ohos
+      versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos
+    fluohBranch: ohos/3.35
     release:
       version: "1"
       tag: camera-v0.11.0-ohos-3.35.8-1

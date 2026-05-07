@@ -51,7 +51,11 @@ String pubReleaseTagForPackage({
 }
 
 String sdkVersionSeriesFromSdkVersion(String sdkVersion) {
-  return '${_flutterVersionFromSdkVersion(sdkVersion)}-ohos';
+  final match = RegExp(r'^(\d+)\.(\d+)\.').firstMatch(sdkVersion);
+  if (match == null) {
+    throw FormatException('Invalid Flutter OHOS SDK version: $sdkVersion');
+  }
+  return '${match.group(1)}.${match.group(2)}';
 }
 
 String dependencyUrlForAdapterRepository(String repository) {

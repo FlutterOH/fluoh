@@ -10,10 +10,10 @@ FlutterOH 项目通常会同时遇到三类问题：SDK 版本需要和项目绑
 
 主要能力：
 
-- 安装和切换 Flutter OHOS SDK，并写入 FVM 兼容配置。
+- 通过 `fluoh.yaml` 安装、缓存、切换并运行 Flutter OHOS SDK。
 - 根据 FlutterOH 数据源检查依赖兼容性，生成 OHOS 适配依赖替换。
 - 初始化第三方 package 的 FlutterOH pub 仓库，生成 OHOS 分支和 release tag。
-- 支持 pub 仓库 remote 配置、pub.dev 自动发布和 Homebrew 安装链路。
+- 支持 pub 仓库 remote 配置和 Homebrew 安装链路。
 
 ## 安装
 
@@ -44,24 +44,25 @@ brew install fluoh
 ```sh
 fluoh source update
 fluoh sdk list
-fluoh sdk use 3.22 --pub-get
+fluoh sdk use 3.35
+fluoh flutter pub get
 fluoh deps check
 fluoh deps fix --yes
 fluoh doctor
 ```
 
-`fluoh sdk use` 会安装对应 Flutter OHOS SDK，并写入 `.fvmrc`、`.fvm/flutter_sdk` 和 `fluoh.yaml`。之后可以继续使用 FVM，或直接使用 `.fvm/flutter_sdk/bin/flutter` 执行项目命令。
+`fluoh sdk use` 支持精确 SDK tag，也支持 `3.35` 这样的版本系列；版本系列会解析到该系列最新 stable SDK，并把精确 tag 写入 `fluoh.yaml`。之后用 `fluoh flutter ...` 执行项目 Flutter 命令，例如 `fluoh flutter pub get`、`fluoh flutter run` 或 `fluoh flutter build hap`。如果希望切换 SDK 后立即执行首次 `pub get`，可以给 `fluoh sdk use` 加上 `--pub-get`。
 
 ## 常见工作流
 
 ### 切换 Flutter OHOS SDK
 
-查看数据源中的 SDK，并在当前项目中使用精确 SDK tag：
+从 `fluoh sdk list` 中选择版本系列或精确 SDK tag：
 
 ```sh
-fluoh source update
 fluoh sdk list
-fluoh sdk use 3.35.8-ohos-0.0.3 --pub-get
+fluoh sdk use 3.35
+fluoh flutter --version
 ```
 
 ### 检查并修复 OHOS 依赖适配
@@ -93,7 +94,9 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35.8-ohos`，默认把 `origin` 设置为 `git@github.com:FlutterOH/<package>.git`，并配置所选 Flutter OHOS SDK 适配环境。`fluoh pub create` 会暂存生成文件，但不会创建初始提交；维护者可以继续适配，最后一起提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。如果需要指定最终推送位置：
+默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。
+
+如果需要指定最终推送位置：
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
@@ -105,14 +108,15 @@ fluoh pub create https://github.com/upstream/package.git \
 
 | 命令 | 用途 |
 | --- | --- |
-| `fluoh sdk ...` | 查看、安装、删除本地 Flutter OHOS SDK。 |
-| `fluoh sdk use <version>` | 在当前 Flutter 项目中切换 SDK。 |
+| `fluoh flutter ...` | 使用 `fluoh.yaml` 中选择的 SDK 运行 `flutter`；FlutterOH 项目中的日常 Flutter 命令优先走这个入口。 |
+| `fluoh sdk ...` | 查看、安装、删除并选择本地 Flutter OHOS SDK。 |
+| `fluoh sdk use <version-or-series>` | 在当前 Flutter 项目中切换 SDK。 |
 | `fluoh deps check` | 检查项目依赖的 OHOS 兼容状态。 |
 | `fluoh deps fix` | 写入适配依赖替换。 |
 | `fluoh deps update` | 升级项目内已有 OHOS 适配依赖版本。 |
 | `fluoh pub ...` | 创建、同步、适配并发布第三方库 FlutterOH pub 仓库。 |
 | `fluoh source ...` | 管理 FlutterOH 数据源。 |
-| `fluoh doctor` | 诊断 CLI 版本、项目 SDK、FVM、OHOS 目录和依赖状态。 |
+| `fluoh doctor` | 诊断 CLI 版本、项目 SDK、OHOS 目录和依赖状态。 |
 | `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |
 
 `fluoh deps update` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。
@@ -122,7 +126,7 @@ fluoh pub create https://github.com/upstream/package.git \
 `fluoh` 默认使用 FlutterOH 官方数据源：
 
 ```text
-https://github.com/FlutterOH/pub.git
+https://github.com/FlutterOH/pub
 ```
 
 也可以创建本地数据源，或接入团队内部数据源：
@@ -134,13 +138,13 @@ fluoh source add internal https://github.com/example/flutteroh-pub.git --priorit
 fluoh source update
 ```
 
-`fluoh source init` 会创建一个 package-only 数据源模板，目录结构与 `FlutterOH/pub` 一致，用户可以自行编辑和维护。数据源会按 priority 叠加使用。团队内部源或本地源可以只提供 `packages/registry.yaml` 和 `packages/manifests/*.yaml` 来补充自有适配库，SDK 列表继续来自官方源。除了官方源 `flutteroh` 外，其他源都可以移除：
+`fluoh source init` 会创建一个兼容 `FlutterOH/pub` 的 package-only 数据源模板。数据源会按 priority 叠加使用；团队内部源或本地源可以只提供 `packages/repositories.yaml` 和 `packages/manifests/*.yaml` 来补充自有适配库，SDK 列表继续来自官方源。除了官方源 `flutteroh` 外，其他源都可以移除：
 
 ```sh
 fluoh source remove internal
 ```
 
-远端源会以最新校验通过的快照缓存到 `FLUOH_HOME` 下；`fluoh` 不会在数据源缓存中保留 Git 历史。本地路径源也会复制到同一个缓存目录，因此原目录后续修改不会影响已配置的数据源，除非重新添加该源。
+远端源和本地源都会以最新校验通过的快照缓存到 `FLUOH_HOME` 下；`fluoh` 不会在数据源缓存中保留 Git 历史。
 
 ## 贡献
 

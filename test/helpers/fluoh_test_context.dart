@@ -23,6 +23,14 @@ Future<Directory> createPubSourceFixture(Directory parent) async {
   final source = Directory('${parent.path}/pub_source');
   await Directory('${source.path}/sdk').create(recursive: true);
   await Directory('${source.path}/packages/manifests').create(recursive: true);
+  await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test FlutterOH source
+description: Test source fixture.
+minFluohVersion: 0.0.1
+repositoryUrl: file:${source.path}
+''');
 
   final sdkRepository = await createTaggedGitRepository(
     Directory('${parent.path}/flutter-ohos-sdk'),
@@ -30,23 +38,24 @@ Future<Directory> createPubSourceFixture(Directory parent) async {
     readme: '# Mock Flutter OHOS SDK\n',
   );
 
-  await File('${source.path}/sdk/index.yaml').writeAsString('''
+  await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${sdkRepository.path}
-versions:
+releases:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
+    versionSeries: "3.35"
     status: stable
 ''');
 
-  await File('${source.path}/packages/registry.yaml').writeAsString('''
+  await File('${source.path}/packages/repositories.yaml').writeAsString('''
 schema: 1
-packages:
+repositories:
   - name: camera
-    repositoryUrl: ${parent.path}/camera
+    url: ${parent.path}/camera
     packagePath: packages/camera/camera
   - name: share_plus
-    repositoryUrl: ${parent.path}/share_plus
+    url: ${parent.path}/share_plus
     packagePath: packages/share_plus/share_plus
 ''');
 
@@ -58,14 +67,14 @@ package:
   upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
   packagePath: packages/camera/camera
 releases:
-  - version: 0.11.0
+  - upstreamVersion: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      versionSeries: 3.35.8-ohos
+      versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos
+    fluohBranch: ohos/3.35
     release:
       version: "0"
       tag: camera-v0.11.0-ohos-3.35.8-0
@@ -74,14 +83,14 @@ releases:
       url: ${parent.path}/camera
       ref: camera-v0.11.0-ohos-3.35.8-0
       path: packages/camera/camera
-  - version: 0.11.0
+  - upstreamVersion: 0.11.0
     upstreamRef: camera-v0.11.0
     sdk:
-      versionSeries: 3.35.8-ohos
+      versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos
+    fluohBranch: ohos/3.35
     release:
       version: "1"
       tag: camera-v0.11.0-ohos-3.35.8-1
@@ -101,14 +110,14 @@ package:
   upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
   packagePath: packages/share_plus/share_plus
 releases:
-  - version: 9.0.0
+  - upstreamVersion: 9.0.0
     upstreamRef: share_plus-v9.0.0
     sdk:
-      versionSeries: 3.35.8-ohos
+      versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    sourceBranch: ohos/3.35.8-ohos
+    fluohBranch: ohos/3.35
     release:
       version: "1"
       tag: share_plus-v9.0.0-ohos-3.35.8-1

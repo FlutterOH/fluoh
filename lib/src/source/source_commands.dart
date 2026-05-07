@@ -80,10 +80,10 @@ class SourceInitCommand extends Command<int> {
 
     final source = Directory(rest.single);
     final metadata = File('${source.path}/fluoh.yaml');
-    final registry = File('${source.path}/packages/registry.yaml');
+    final repositories = File('${source.path}/packages/repositories.yaml');
     final manifests = Directory('${source.path}/packages/manifests');
     final readme = File('${source.path}/README.md');
-    final existed = await registry.exists();
+    final existed = await repositories.exists();
 
     await manifests.create(recursive: true);
     if (!await metadata.exists()) {
@@ -91,10 +91,10 @@ class SourceInitCommand extends Command<int> {
       await metadata.writeAsString(_localSourceMetadata(source));
     }
     if (!existed) {
-      await registry.parent.create(recursive: true);
-      await registry.writeAsString('''
+      await repositories.parent.create(recursive: true);
+      await repositories.writeAsString('''
 schema: 1
-packages: []
+repositories: []
 ''');
     }
     if (!await readme.exists()) {
@@ -106,7 +106,7 @@ packages: []
     } else {
       stdout('Created local source template at ${source.path}.');
     }
-    stdout('Edit packages/registry.yaml and packages/manifests/*.yaml.');
+    stdout('Edit packages/repositories.yaml and packages/manifests/*.yaml.');
     stdout('Add it with: fluoh source add <name> ${source.path}');
     return 0;
   }
@@ -270,7 +270,7 @@ Maintain package adapter metadata in this directory, then register it with:
 fluoh source add <name> .
 ```
 
-Add packages to `packages/registry.yaml` and write matching package manifests in `packages/manifests/`.
+Add packages to `packages/repositories.yaml` and write matching package manifests in `packages/manifests/`.
 This template is package-only; SDK releases continue to come from other configured sources.
 ''';
 }

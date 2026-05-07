@@ -28,7 +28,7 @@ void main() {
       0,
     );
 
-    final registryYaml = File('${pubSource.path}/packages/registry.yaml');
+    final registryYaml = File('${pubSource.path}/packages/repositories.yaml');
     final manifestYaml = File(
       '${pubSource.path}/packages/manifests/camera.yaml',
     );
@@ -36,13 +36,16 @@ void main() {
     expect(manifestYaml.existsSync(), isTrue);
     final registry = registryYaml.readAsStringSync();
     final manifest = manifestYaml.readAsStringSync();
+    expect(registry, contains('repositories:'));
     expect(registry, contains('name: camera'));
+    expect(registry, contains('url: git@github.com:FlutterOH/camera.git'));
     expect(registry, isNot(contains('upstreamUrl:')));
     expect(registry, isNot(contains('status:')));
     expect(manifest, contains('        - 3.35.8-ohos-0.0.3'));
-    expect(manifest, contains('versionSeries: 3.35.8-ohos'));
+    expect(manifest, contains('upstreamVersion: 0.11.0'));
+    expect(manifest, contains('versionSeries: 3.35'));
     expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
-    expect(manifest, contains('sourceBranch: ohos/3.35.8-ohos'));
+    expect(manifest, contains('fluohBranch: ohos/3.35'));
     expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
     expect(
       manifest,
@@ -96,7 +99,7 @@ void main() {
       );
 
       await runGit(pubRepository, ['checkout', '--', 'README.md']);
-      await runGit(pubRepository, ['checkout', '-b', 'ohos/3.35.8-ohos-9.9.9']);
+      await runGit(pubRepository, ['checkout', '-b', 'ohos/3.34']);
       stderr.clear();
       expect(
         await runFluoh(
@@ -109,7 +112,7 @@ void main() {
       );
       expect(
         stderr.join('\n'),
-        contains('does not match pub branch ohos/3.35.8-ohos'),
+        contains('does not match pub branch ohos/3.35'),
       );
     },
   );

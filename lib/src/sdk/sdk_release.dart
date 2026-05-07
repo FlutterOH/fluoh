@@ -8,6 +8,7 @@ class SdkIndex {
 class SdkRelease {
   const SdkRelease({
     required this.version,
+    required this.versionSeries,
     required this.flutterVersion,
     required this.channel,
     required this.repository,
@@ -16,6 +17,7 @@ class SdkRelease {
   });
 
   final String version;
+  final String versionSeries;
   final String flutterVersion;
   final String channel;
   final String repository;

@@ -52,12 +52,12 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   final validators =
       <({String label, bool present, Future<void> Function() validate})>[
         (
-          label: 'sdk/index.yaml',
+          label: 'sdk/releases.yaml',
           present: source.hasSdkIndex,
           validate: () async => source.loadSdkIndex(),
         ),
         (
-          label: 'packages/registry.yaml',
+          label: 'packages/repositories.yaml',
           present: source.hasPackageIndex,
           validate: () async {
             await source.loadPackageIndex();
@@ -70,8 +70,8 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
       .toList(growable: false);
   if (present.isEmpty) {
     throw UsageException(
-      'Source $name does not contain sdk/index.yaml or '
-          'packages/registry.yaml.',
+      'Source $name does not contain sdk/releases.yaml or '
+          'packages/repositories.yaml.',
       '',
     );
   }
@@ -174,12 +174,16 @@ Future<void> _copySourceSnapshot(
 ) async {
   await destination.create(recursive: true);
   await _copyFileIfExists(
-    File('${source.path}/sdk/index.yaml'),
-    File('${destination.path}/sdk/index.yaml'),
+    File('${source.path}/fluoh.yaml'),
+    File('${destination.path}/fluoh.yaml'),
   );
   await _copyFileIfExists(
-    File('${source.path}/packages/registry.yaml'),
-    File('${destination.path}/packages/registry.yaml'),
+    File('${source.path}/sdk/releases.yaml'),
+    File('${destination.path}/sdk/releases.yaml'),
+  );
+  await _copyFileIfExists(
+    File('${source.path}/packages/repositories.yaml'),
+    File('${destination.path}/packages/repositories.yaml'),
   );
   await _copyYamlFilesIfExists(
     Directory('${source.path}/packages/manifests'),

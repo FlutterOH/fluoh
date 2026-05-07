@@ -13,7 +13,7 @@ Future<void> writePubSourcePackageUpdate(
     '${packagesDirectory.path}/manifests',
   ).create(recursive: true);
 
-  final packagePath = manifest.upstreamPath ?? manifest.dependencyPath;
+  final packagePath = manifest.upstreamPath ?? manifest.dependencyPath ?? '.';
   final manifestFile = File(
     '${packagesDirectory.path}/manifests/${manifest.packageName}.yaml',
   );
@@ -24,9 +24,9 @@ Future<void> writePubSourcePackageUpdate(
       '  name: ${manifest.packageName}',
       '  repositoryUrl: ${manifest.adapterUrl}',
       '  upstreamUrl: ${manifest.upstreamUrl}',
-      if (packagePath != null) '  packagePath: $packagePath',
+      '  packagePath: $packagePath',
       'releases:',
-      '  - version: ${manifest.upstreamVersion}',
+      '  - upstreamVersion: ${manifest.upstreamVersion}',
       if (manifest.upstreamRef != null)
         '    upstreamRef: ${manifest.upstreamRef}',
       '    sdk:',
@@ -34,7 +34,7 @@ Future<void> writePubSourcePackageUpdate(
       '      versions:',
       '        - ${manifest.sdkVersion}',
       '    status: ${manifest.status ?? 'experimental'}',
-      '    sourceBranch: ${manifest.branch}',
+      '    fluohBranch: ${manifest.branch}',
       '    release:',
       '      version: ${manifest.releaseVersion}',
       '      tag: $releaseTag',
@@ -48,35 +48,47 @@ Future<void> writePubSourcePackageUpdate(
     ].join('\n'),
   );
 
-  final registryFile = File('${packagesDirectory.path}/registry.yaml');
-  if (!await registryFile.exists()) {
-    await registryFile.writeAsString(
+  final repositoriesFile = File('${packagesDirectory.path}/repositories.yaml');
+  if (!await repositoriesFile.exists()) {
+    await repositoriesFile.writeAsString(
       [
         'schema: 1',
-        'packages:',
+        'repositories:',
         '  - name: ${manifest.packageName}',
-        '    repositoryUrl: ${manifest.adapterUrl}',
-        if (packagePath != null) '    packagePath: $packagePath',
+        '    url: ${manifest.adapterUrl}',
+        '    packagePath: $packagePath',
         '',
       ].join('\n'),
     );
     return;
   }
 
-  final registry = await registryFile.readAsString();
+  final repositories = await repositoriesFile.readAsString();
   if (RegExp(
     r'^\s*-\s+name:\s+' + RegExp.escape(manifest.packageName) + r'\s*$',
     multiLine: true,
-  ).hasMatch(registry)) {
+  ).hasMatch(repositories)) {
     return;
   }
-  await registryFile.writeAsString(
-    [
-      registry.trimRight(),
-      '  - name: ${manifest.packageName}',
-      '    repositoryUrl: ${manifest.adapterUrl}',
-      if (packagePath != null) '    packagePath: $packagePath',
-      '',
-    ].join('\n'),
+  final entry = [
+    '  - name: ${manifest.packageName}',
+    '    url: ${manifest.adapterUrl}',
+    '    packagePath: $packagePath',
+  ];
+  final emptyRepositories = RegExp(
+    r'^repositories:\s*\[\]\s*$',
+    multiLine: true,
+  );
+  if (emptyRepositories.hasMatch(repositories)) {
+    await repositoriesFile.writeAsString(
+      repositories.replaceFirst(
+        emptyRepositories,
+        ['repositories:', ...entry].join('\n'),
+      ),
+    );
+    return;
+  }
+  await repositoriesFile.writeAsString(
+    [repositories.trimRight(), ...entry, ''].join('\n'),
   );
 }

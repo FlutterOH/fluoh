@@ -98,13 +98,13 @@ class SdkInstallCommand extends Command<int> {
   String get description => 'Install an SDK release into the local cache.';
 
   @override
-  String get invocation => 'fluoh sdk install <version>';
+  String get invocation => 'fluoh sdk install <version-or-series>';
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
     if (rest.length != 1) {
-      usageException('Expected an SDK version.');
+      usageException('Expected an SDK version or version series.');
     }
 
     final release = await manager.resolveRelease(rest.single);
@@ -124,7 +124,7 @@ class SdkCurrentCommand extends Command<int> {
   String get name => 'current';
 
   @override
-  String get description => 'Print the current SDK tag.';
+  String get description => 'Print the current project SDK tag.';
 
   @override
   Future<int> run() async {
@@ -152,13 +152,13 @@ class SdkRemoveCommand extends Command<int> {
   String get description => 'Remove an SDK release from the local cache.';
 
   @override
-  String get invocation => 'fluoh sdk remove <version>';
+  String get invocation => 'fluoh sdk remove <version-or-series>';
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
     if (rest.length != 1) {
-      usageException('Expected an SDK version.');
+      usageException('Expected an SDK version or version series.');
     }
 
     final release = await manager.resolveRelease(rest.single);

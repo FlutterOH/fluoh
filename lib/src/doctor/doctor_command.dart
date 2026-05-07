@@ -9,6 +9,7 @@ import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/deps_analyzer.dart';
 import '../cli/fluoh_installation.dart';
+import '../sdk/sdk_project_config.dart';
 import '../source/source_index.dart';
 import '../version.dart';
 
@@ -58,7 +59,7 @@ class DoctorCommand extends Command<int> {
     checks.add(await _checkSource());
     final project = await _checkFlutterProject();
     checks.add(project.check);
-    checks.addAll(await _checkSdkFiles());
+    checks.add(await _checkSdkFiles());
     checks.add(await _checkOhosDirectory());
     if (project.isFlutterProject) {
       checks.add(await _checkDependencies());
@@ -173,52 +174,31 @@ class DoctorCommand extends Command<int> {
         : _DoctorCheck.warning('Sources', details);
   }
 
-  Future<List<_DoctorCheck>> _checkSdkFiles() async {
-    final fvmrc = File('${environment.workingDirectory.path}/.fvmrc');
-    final fluohYaml = File('${environment.workingDirectory.path}/fluoh.yaml');
-    final linkPath = '${environment.workingDirectory.path}/.fvm/flutter_sdk';
+  Future<_DoctorCheck> _checkSdkFiles() async {
     final sdkDetails = <String>[];
     var sdkHealthy = true;
-    String? fvmTag;
+    var sdkReadable = true;
+    String? sdkTag;
     try {
-      fvmTag = await _readFvmTag(fvmrc);
+      sdkTag = await readProjectSdkTag(environment.workingDirectory);
     } on FormatException {
-      sdkDetails.add('.fvmrc is not valid JSON.');
+      sdkDetails.add('fluoh.yaml is not valid YAML.');
       sdkHealthy = false;
-    }
-    final fluohTag = await _readProjectSdkTag(fluohYaml);
-
-    if (fvmTag == null && fluohTag == null) {
-      sdkDetails.add('No FlutterOH SDK selected.');
-      sdkHealthy = false;
-    } else if (fvmTag != null && fluohTag != null && fvmTag != fluohTag) {
-      sdkDetails.add('.fvmrc and fluoh.yaml select different SDKs.');
-      sdkDetails.add('.fvmrc: $fvmTag.');
-      sdkDetails.add('fluoh.yaml: $fluohTag.');
-      sdkHealthy = false;
-    } else {
-      final tag = fvmTag ?? fluohTag!;
-      sdkDetails.add('$tag.');
+      sdkReadable = false;
     }
 
-    final checks = <_DoctorCheck>[
-      sdkHealthy
-          ? _DoctorCheck.ok('Project SDK', sdkDetails)
-          : _DoctorCheck.warning('Project SDK', sdkDetails),
-    ];
-
-    if (await _isManagedFlutterSdk(linkPath)) {
-      checks.add(
-        _DoctorCheck.ok('FVM', ['.fvm/flutter_sdk is managed by fluoh.']),
-      );
-    } else {
-      checks.add(
-        _DoctorCheck.warning('FVM', [
-          '.fvm/flutter_sdk is missing or not managed by fluoh.',
-        ]),
-      );
+    if (sdkReadable) {
+      if (sdkTag == null) {
+        sdkDetails.add('No FlutterOH SDK selected.');
+        sdkHealthy = false;
+      } else {
+        sdkDetails.add('$sdkTag.');
+      }
     }
-    return checks;
+
+    return sdkHealthy
+        ? _DoctorCheck.ok('Project SDK', sdkDetails)
+        : _DoctorCheck.warning('Project SDK', sdkDetails);
   }
 
   Future<_DoctorCheck> _checkOhosDirectory() async {
@@ -266,47 +246,6 @@ class DoctorCommand extends Command<int> {
         'Dependency check skipped: ${error.message}',
       ]);
     }
-  }
-
-  Future<String?> _readFvmTag(File fvmrc) async {
-    if (!await fvmrc.exists()) {
-      return null;
-    }
-    final decoded = jsonDecode(await fvmrc.readAsString());
-    if (decoded is Map<String, Object?>) {
-      return decoded['flutter'] as String?;
-    }
-    return null;
-  }
-
-  Future<String?> _readProjectSdkTag(File fluohYaml) async {
-    if (!await fluohYaml.exists()) {
-      return null;
-    }
-    final yaml = loadYaml(await fluohYaml.readAsString());
-    if (yaml is! YamlMap) {
-      return null;
-    }
-    final sdk = yaml['sdk'];
-    if (sdk is YamlMap) {
-      return sdk['version'] as String?;
-    }
-    return null;
-  }
-
-  Future<bool> _isManagedFlutterSdk(String path) async {
-    final link = Link(path);
-    if (await link.exists()) {
-      final target = await link.target();
-      return target.startsWith(environment.sdksDirectory.path);
-    }
-
-    final marker = File('$path/FLUOH_SDK_PATH');
-    if (await marker.exists()) {
-      final target = (await marker.readAsString()).trim();
-      return target.startsWith(environment.sdksDirectory.path);
-    }
-    return false;
   }
 
   void _printChecks(List<_DoctorCheck> checks) {

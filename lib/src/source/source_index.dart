@@ -9,13 +9,13 @@ class SourceIndex {
 
   final Directory root;
 
-  bool get hasSdkIndex => File('${root.path}/sdk/index.yaml').existsSync();
+  bool get hasSdkIndex => File('${root.path}/sdk/releases.yaml').existsSync();
 
   bool get hasPackageIndex =>
-      File('${root.path}/packages/registry.yaml').existsSync();
+      File('${root.path}/packages/repositories.yaml').existsSync();
 
   bool get hasCompatibilityMatrix =>
-      File('${root.path}/packages/registry.yaml').existsSync();
+      File('${root.path}/packages/repositories.yaml').existsSync();
 
   Future<SdkIndex> loadSdkIndex() async {
     return _readSourceSdkIndex();
@@ -30,26 +30,27 @@ class SourceIndex {
   }
 
   Future<SdkIndex> _readSourceSdkIndex() async {
-    final yaml = await _readSourceYaml('sdk/index.yaml');
+    final yaml = await _readSourceYaml('sdk/releases.yaml');
     final repository = _requiredString(yaml, 'repositoryUrl');
-    final versions = yaml['versions'];
-    if (versions is! List) {
-      throw const FormatException('SDK source versions must be a list.');
+    final releases = yaml['releases'];
+    if (releases is! List) {
+      throw const FormatException('SDK source releases must be a list.');
     }
 
     return SdkIndex(
       schemaVersion: yaml['schema'] as int? ?? 1,
-      releases: versions
+      releases: releases
           .map((value) {
-            final version = _objectMap(value, 'SDK source version');
+            final release = _objectMap(value, 'SDK source release');
             return SdkRelease(
-              version: _requiredString(version, 'version'),
+              version: _requiredString(release, 'version'),
+              versionSeries: _requiredString(release, 'versionSeries'),
               flutterVersion: _flutterVersionFromSdkVersion(
-                _requiredString(version, 'version'),
+                _requiredString(release, 'version'),
               ),
-              channel: _requiredString(version, 'status'),
+              channel: _requiredString(release, 'status'),
               repository: repository,
-              tag: _requiredString(version, 'tag'),
+              tag: _requiredString(release, 'tag'),
             );
           })
           .toList(growable: false),
@@ -110,15 +111,17 @@ class SourceIndex {
   }
 
   Future<List<_SourcePackageManifest>> _readSourcePackageManifests() async {
-    final registry = await _readSourceYaml('packages/registry.yaml');
-    final packages = registry['packages'];
-    if (packages is! List) {
-      throw const FormatException('Package source packages must be a list.');
+    final repositoryIndex = await _readSourceYaml('packages/repositories.yaml');
+    final repositories = repositoryIndex['repositories'];
+    if (repositories is! List) {
+      throw const FormatException(
+        'Package source repositories must be a list.',
+      );
     }
 
     final manifests = <_SourcePackageManifest>[];
-    for (final value in packages) {
-      final row = _objectMap(value, 'package source entry');
+    for (final value in repositories) {
+      final row = _objectMap(value, 'package source repository');
       final name = _requiredString(row, 'name');
       final manifest = await _readSourceYaml('packages/manifests/$name.yaml');
       manifests.add(_SourcePackageManifest.fromYaml(name, row, manifest));
@@ -262,7 +265,7 @@ class _SourcePackageManifest {
     final name = _requiredString(package, 'name');
     if (name != expectedName) {
       throw FormatException(
-        'Package manifest "$name" does not match registry package '
+        'Package manifest "$name" does not match repository package '
         '"$expectedName".',
       );
     }
@@ -311,7 +314,7 @@ class _SourcePackageManifest {
         adapters.add(
           PackageAdapter(
             sdkVersion: sdkVersion,
-            upstreamVersion: _requiredString(release, 'version'),
+            upstreamVersion: _requiredString(release, 'upstreamVersion'),
             repository: _requiredString(replacement, 'url'),
             tag: _requiredString(replacement, 'ref'),
             path: replacement['path'] as String?,

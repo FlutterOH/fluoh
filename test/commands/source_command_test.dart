@@ -81,7 +81,7 @@ void main() {
     );
     expect(
       File(
-        '${environment.homeDirectory.path}/sources/flutteroh-pub/sdk/index.yaml',
+        '${environment.homeDirectory.path}/sources/flutteroh-pub/sdk/releases.yaml',
       ).existsSync(),
       isTrue,
     );
@@ -124,7 +124,7 @@ void main() {
     );
     expect(
       File(
-        '${environment.homeDirectory.path}/sources/flutteroh-pub/sdk/index.yaml',
+        '${environment.homeDirectory.path}/sources/flutteroh-pub/sdk/releases.yaml',
       ).existsSync(),
       isTrue,
     );
@@ -163,7 +163,7 @@ void main() {
     );
 
     expect(stdout, contains('private file://${source.path}'));
-    expect(File('$cachePath/sdk/index.yaml').existsSync(), isTrue);
+    expect(File('$cachePath/sdk/releases.yaml').existsSync(), isTrue);
     expect(stderr, isEmpty);
   });
 
@@ -174,8 +174,8 @@ void main() {
     final cachePath = '${environment.homeDirectory.path}/sources/private';
     await Directory('$cachePath/packages').create(recursive: true);
     await File(
-      '${source.path}/packages/registry.yaml',
-    ).copy('$cachePath/packages/registry.yaml');
+      '${source.path}/packages/repositories.yaml',
+    ).copy('$cachePath/packages/repositories.yaml');
     await File('${environment.homeDirectory.path}/config.json').writeAsString(
       '''
 {
@@ -265,7 +265,18 @@ void main() {
   });
 
   test('adds, lists, and updates a named pub source', () async {
-    final environment = await createTestEnvironment();
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPubSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
     final source = await createPubSourceFixture(environment.homeDirectory);
     await Directory('${source.path}/docs').create(recursive: true);
     await File('${source.path}/docs/notes.md').writeAsString('# Notes\n');
@@ -312,9 +323,10 @@ void main() {
     expect(stdout, contains('Added source fixture: ${source.path}'));
     expect(stdout, contains('fixture ${cachedSource.path}'));
     expect(stdout, contains('Updated source fixture.'));
-    expect(File('${cachedSource.path}/sdk/index.yaml').existsSync(), isTrue);
+    expect(File('${cachedSource.path}/fluoh.yaml').existsSync(), isTrue);
+    expect(File('${cachedSource.path}/sdk/releases.yaml').existsSync(), isTrue);
     expect(
-      File('${cachedSource.path}/packages/registry.yaml').existsSync(),
+      File('${cachedSource.path}/packages/repositories.yaml').existsSync(),
       isTrue,
     );
     expect(
@@ -355,10 +367,13 @@ void main() {
       0,
     );
 
-    expect(File('${source.path}/packages/registry.yaml').readAsStringSync(), '''
+    expect(
+      File('${source.path}/packages/repositories.yaml').readAsStringSync(),
+      '''
 schema: 1
-packages: []
-''');
+repositories: []
+''',
+    );
     expect(File('${source.path}/fluoh.yaml').readAsStringSync(), '''
 schema: 1
 kind: source
@@ -369,7 +384,7 @@ repositoryUrl: file:${source.path}
 ''');
     expect(Directory('${source.path}/packages/manifests').existsSync(), isTrue);
     expect(File('${source.path}/README.md').existsSync(), isTrue);
-    expect(File('${source.path}/sdk/index.yaml').existsSync(), isFalse);
+    expect(File('${source.path}/sdk/releases.yaml').existsSync(), isFalse);
     expect(
       stdout,
       contains('Created local source template at ${source.path}.'),
@@ -388,12 +403,12 @@ repositoryUrl: file:${source.path}
     await Directory(
       '${source.path}/packages/manifests',
     ).create(recursive: true);
-    final registry = File('${source.path}/packages/registry.yaml');
+    final registry = File('${source.path}/packages/repositories.yaml');
     await registry.writeAsString('''
 schema: 1
-packages:
+repositories:
   - name: camera
-    repositoryUrl: git@github.com:FlutterOH/camera.git
+    url: git@github.com:FlutterOH/camera.git
 ''');
     final metadata = File('${source.path}/fluoh.yaml');
     await metadata.writeAsString('''
@@ -443,7 +458,7 @@ repositoryUrl: file:${source.path}
       ),
       0,
     );
-    await File('${source.path}/sdk/index.yaml').writeAsString('not: valid');
+    await File('${source.path}/sdk/releases.yaml').writeAsString('not: valid');
 
     expect(
       await runFluoh(
@@ -455,9 +470,9 @@ repositoryUrl: file:${source.path}
       0,
     );
 
-    expect(File('${cachedSource.path}/sdk/index.yaml').existsSync(), isTrue);
+    expect(File('${cachedSource.path}/sdk/releases.yaml').existsSync(), isTrue);
     expect(
-      File('${cachedSource.path}/sdk/index.yaml').readAsStringSync(),
+      File('${cachedSource.path}/sdk/releases.yaml').readAsStringSync(),
       isNot('not: valid'),
     );
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
@@ -476,13 +491,13 @@ repositoryUrl: file:${source.path}
         '${environment.homeDirectory.path}/invalid',
       );
       await Directory('${invalidSource.path}/sdk').create(recursive: true);
-      await File('${invalidSource.path}/sdk/index.yaml').writeAsString('''
+      await File('${invalidSource.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
-versions: {}
+releases: {}
 ''');
       final cachedSdkIndex = File(
-        '${environment.homeDirectory.path}/sources/local/sdk/index.yaml',
+        '${environment.homeDirectory.path}/sources/local/sdk/releases.yaml',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -511,7 +526,10 @@ versions: {}
       expect(stderr.join('\n'), contains('Source local is not valid'));
       expect(cachedSdkIndex.readAsStringSync(), previousSnapshot);
       expect(Directory(invalidSource.path).existsSync(), isTrue);
-      expect(File('${invalidSource.path}/sdk/index.yaml').existsSync(), isTrue);
+      expect(
+        File('${invalidSource.path}/sdk/releases.yaml').existsSync(),
+        isTrue,
+      );
     },
   );
 
@@ -534,7 +552,18 @@ versions: {}
   });
 
   test('removes non-default sources but keeps the official source', () async {
-    final environment = await createTestEnvironment();
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPubSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
     final source = await createPubSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
@@ -568,7 +597,7 @@ versions: {}
     );
 
     expect(stdout, contains('Removed source team.'));
-    expect(stdout.last, 'flutteroh https://github.com/FlutterOH/pub.git');
+    expect(stdout.last, 'flutteroh file://${defaultSource.path}');
 
     expect(
       await runFluoh(
@@ -650,13 +679,13 @@ versions: {}
     expect(stdout, contains('Updated source remote.'));
     expect(
       File(
-        '${environment.homeDirectory.path}/sources/remote/sdk/index.yaml',
+        '${environment.homeDirectory.path}/sources/remote/sdk/releases.yaml',
       ).existsSync(),
       isTrue,
     );
     expect(
       File(
-        '${environment.homeDirectory.path}/sources/remote/packages/registry.yaml',
+        '${environment.homeDirectory.path}/sources/remote/packages/repositories.yaml',
       ).existsSync(),
       isTrue,
     );
@@ -694,7 +723,7 @@ versions: {}
       final source = await createPubSourceFixture(environment.homeDirectory);
       await initializeGitRepository(source);
       final cachedSdkIndex = File(
-        '${environment.homeDirectory.path}/sources/remote/sdk/index.yaml',
+        '${environment.homeDirectory.path}/sources/remote/sdk/releases.yaml',
       );
       final sourceUrl = 'file://${source.path}';
       final stdout = <String>[];
@@ -720,10 +749,10 @@ versions: {}
       );
       final previousSnapshot = cachedSdkIndex.readAsStringSync();
 
-      await File('${source.path}/sdk/index.yaml').writeAsString('''
+      await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
-versions: {}
+releases: {}
 ''');
       await commitAll(source, message: 'Break source fixture');
 
@@ -754,12 +783,12 @@ versions: {}
         '${environment.homeDirectory.path}/supplemental',
       );
       await Directory('${supplemental.path}/packages').create(recursive: true);
-      await File('${supplemental.path}/packages/registry.yaml').writeAsString(
-        '''
+      await File(
+        '${supplemental.path}/packages/repositories.yaml',
+      ).writeAsString('''
 schema: 1
-packages: []
-''',
-      );
+repositories: []
+''');
       final stdout = <String>[];
       final stderr = <String>[];
 
@@ -792,17 +821,18 @@ packages: []
     final source = Directory('${environment.homeDirectory.path}/schema_source');
     await Directory('${source.path}/sdk').create(recursive: true);
     await Directory('${source.path}/packages').create(recursive: true);
-    await File('${source.path}/sdk/index.yaml').writeAsString('''
+    await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
-versions:
+releases:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
+    versionSeries: "3.35"
     status: stable
 ''');
-    await File('${source.path}/packages/registry.yaml').writeAsString('''
+    await File('${source.path}/packages/repositories.yaml').writeAsString('''
 schema: 1
-packages: []
+repositories: []
 ''');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -855,10 +885,10 @@ packages: []
   test('reports invalid local source indexes as usage errors', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
-    await File('${source.path}/sdk/index.yaml').writeAsString('''
+    await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${environment.homeDirectory.path}/flutter-ohos-sdk
-versions: {}
+releases: {}
 ''');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -874,6 +904,6 @@ versions: {}
     );
 
     expect(stderr.join('\n'), contains('Source broken is not valid'));
-    expect(stderr.join('\n'), contains('SDK source versions must be a list.'));
+    expect(stderr.join('\n'), contains('SDK source releases must be a list.'));
   });
 }

@@ -70,7 +70,7 @@ void main() {
     expect(readme, contains('fluoh upgrade'));
     expect(readme, contains('fluoh deps update'));
     expect(readme, contains('third-party FlutterOH pub repositories'));
-    expect(readme, contains('packages/registry.yaml'));
+    expect(readme, contains('packages/repositories.yaml'));
     expect(readme, contains('latest validated snapshot'));
     expect(readme, contains('fluoh source remove internal'));
     expect(readme, isNot(contains('fluoh source use')));
@@ -87,7 +87,7 @@ void main() {
     expect(chineseReadme, contains('fluoh upgrade'));
     expect(chineseReadme, contains('fluoh deps update'));
     expect(chineseReadme, contains('第三方库 FlutterOH pub 仓库'));
-    expect(chineseReadme, contains('packages/registry.yaml'));
+    expect(chineseReadme, contains('packages/repositories.yaml'));
     expect(chineseReadme, contains('最新校验通过的快照'));
     expect(chineseReadme, contains('fluoh source remove internal'));
     expect(chineseReadme, isNot(contains('fluoh source use')));

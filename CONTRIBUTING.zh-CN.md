@@ -6,49 +6,46 @@ English: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 本地开发
 
-准备 Dart SDK 后安装依赖：
+在仓库根目录安装依赖并运行 CLI：
 
 ```sh
 dart pub get
-```
-
-本地运行 CLI：
-
-```sh
 dart run bin/fluoh.dart --help
 dart run bin/fluoh.dart --version
 ```
 
-如果需要像用户安装后一样直接调用 `fluoh` 命令调试，可以从仓库根目录把当前源码全局激活为本地 path 包：
+调试项目级 Flutter 命令时，进入一个 Flutter 项目并先选择 SDK：
+
+```sh
+dart /path/to/fluoh/bin/fluoh.dart sdk use 3.35
+dart /path/to/fluoh/bin/fluoh.dart flutter --version
+```
+
+项目级 Flutter 命令需要先用 `fluoh sdk use <version-or-series>` 选择项目
+SDK，然后通过 `fluoh flutter ...` 执行，避免本地调试依赖全局 `flutter` 当前指向哪个 SDK。
+
+如果需要直接调用安装后的 `fluoh` 命令名，可以把当前源码全局激活为本地 path 包：
 
 ```sh
 dart pub global activate --source path . --overwrite
 fluoh --version
 ```
 
-如果 shell 提示找不到 `fluoh`，确认 Dart pub 的全局可执行目录已经加入 `PATH`：
+如果 shell 提示找不到 `fluoh`，把 Dart pub 的全局可执行目录加入 `PATH`：
 
 ```sh
 export PATH="$HOME/.pub-cache/bin:$PATH"
 ```
 
-之后 shell 中的 `fluoh` 会指向当前仓库源码。修改代码后通常不需要重新激活；如果调整了 executable 或 package 元数据，再重新运行上面的 `dart pub global activate` 命令。
-
-如果需要调试 pub.dev 上已经发布的版本，可以激活 hosted 包：
+普通代码修改通常不需要重新激活，除非调整了 executable 或 package 元数据。调试已发布版本时，激活 hosted 包：
 
 ```sh
 dart pub global activate fluoh --overwrite
-fluoh --version
-```
-
-调试指定已发布版本时，在包名后添加版本号：
-
-```sh
 dart pub global activate fluoh 0.0.1 --overwrite
 fluoh --version
 ```
 
-调试完成后，可以用 `dart pub global activate --source path . --overwrite` 切回本地源码版本，或卸载全局激活的 `fluoh`：
+调试完成后，用 `dart pub global activate --source path . --overwrite` 切回本地源码版本，或卸载全局激活的 `fluoh`：
 
 ```sh
 dart pub global deactivate fluoh
@@ -70,15 +67,13 @@ dart analyze
 dart test
 ```
 
-`dart format .` 运行后不应留下未确认的格式化 diff；如果产生变更，需要一起检查并提交。`dart analyze` 和 `dart test` 必须通过后再提交。
-
-GitHub Actions 会在 push 到 `main`、版本 tag 和 pull request 时执行同等检查；pub.dev 发布 workflow 也必须先通过这些检查再发布：
+`dart format .` 运行后不应留下未确认的格式化 diff。GitHub Actions 会在 push 到 `main`、版本 tag 和 pull request 时执行同等检查；pub.dev 发布 workflow 必须通过：
 
 - `dart format --output=none --set-exit-if-changed .`
 - `dart analyze`
 - `dart test`
 
-发布前额外运行：
+发布前还需要运行：
 
 ```sh
 dart pub publish --dry-run
@@ -95,7 +90,7 @@ git status --short
 git diff --check
 ```
 
-同时检查待提交内容中是否误写了本机绝对路径。不要提交本机 IDE、系统或构建输出文件，例如 `.idea/`、`.vscode/`、`.DS_Store`、`.dart_tool/`、`build/`、`coverage/`。
+同时检查待提交内容中是否误写本机绝对路径。不要提交 IDE、系统或构建输出文件，例如 `.idea/`、`.vscode/`、`.DS_Store`、`.dart_tool/`、`build/`、`coverage/`。
 
 `pubspec.lock` 对 CLI 应用可以提交。发布前需要确认 `pubspec.yaml`、`lib/src/version.dart`、`CHANGELOG.md` 和 `Formula/fluoh.rb` 中的版本信息一致。
 
@@ -128,7 +123,7 @@ docs: add Homebrew installation guide
 ci: publish package on version tags
 ```
 
-提交标题使用英文祈使句或简短描述，首行不超过 72 个字符。需要说明背景、风险或验证方式时，在空行后补充正文。
+提交标题使用简短英文描述，首行不超过 72 个字符。需要说明背景、风险或验证方式时，再补充正文。
 
 ## GitHub Actions 与 pub.dev 发布
 
@@ -181,7 +176,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-`fluoh pub create` 会暂存生成的 `FLUOH.md`、`fluoh.yaml`、`.fvmrc` 和 `.gitignore`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
+`fluoh pub create` 会暂存生成的 `FLUOH.md` 和 `fluoh.yaml`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"

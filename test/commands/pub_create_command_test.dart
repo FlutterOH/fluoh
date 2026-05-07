@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -58,7 +57,7 @@ void main() {
         'get-url',
         'upstream',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35');
       expect(
         origin.stdout.toString().trim(),
         'git@github.com:FlutterOH/camera.git',
@@ -78,7 +77,7 @@ void main() {
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
       expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
-      expect(manifest, contains('branch: ohos/3.35.8-ohos'));
+      expect(manifest, contains('branch: ohos/3.35'));
       expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
       expect(manifest, contains('status: experimental'));
       expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
@@ -99,15 +98,8 @@ void main() {
         File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(),
         isFalse,
       );
-      final fvmrc = File('${pubRepository.path}/.fvmrc');
-      expect(jsonDecode(fvmrc.readAsStringSync()), {
-        'flutter': '3.35.8-ohos-0.0.3',
-      });
-      final sdkLink = Link('${pubRepository.path}/.fvm/flutter_sdk');
-      final sdkDirectory = Directory('${pubRepository.path}/.fvm/flutter_sdk');
-      expect(await sdkLink.exists() || await sdkDirectory.exists(), isTrue);
-      final gitignore = File('${pubRepository.path}/.gitignore');
-      expect(gitignore.readAsStringSync(), contains('.fvm/flutter_sdk'));
+      expect(File('${pubRepository.path}/.fvmrc').existsSync(), isFalse);
+      expect(Directory('${pubRepository.path}/.fvm').existsSync(), isFalse);
       final head = await runGit(pubRepository, ['rev-parse', 'HEAD']);
       final upstreamHead = await runGit(pubRepository, [
         'rev-parse',
@@ -119,10 +111,9 @@ void main() {
       );
       final status = await runGit(pubRepository, ['status', '--porcelain']);
       expect(status.stdout.toString(), contains('A  FLUOH.md'));
-      expect(status.stdout.toString(), contains('A  .fvmrc'));
-      expect(status.stdout.toString(), contains('A  .gitignore'));
-      expect(status.stdout.toString(), isNot(contains('.fvm/')));
       expect(status.stdout.toString(), contains('A  fluoh.yaml'));
+      expect(status.stdout.toString(), isNot(contains('.fvm')));
+      expect(status.stdout.toString(), isNot(contains('.gitignore')));
       final staged = await runGit(pubRepository, [
         'diff',
         '--cached',
@@ -130,9 +121,10 @@ void main() {
       ]);
       expect(
         staged.stdout.toString().split('\n'),
-        containsAll(['FLUOH.md', 'fluoh.yaml', '.fvmrc', '.gitignore']),
+        containsAll(['FLUOH.md', 'fluoh.yaml']),
       );
-      expect(staged.stdout.toString(), isNot(contains('.fvm/flutter_sdk')));
+      expect(staged.stdout.toString(), isNot(contains('.fvm')));
+      expect(staged.stdout.toString(), isNot(contains('.gitignore')));
 
       final releaseEnvironment = FluohEnvironment(
         homeDirectory: environment.homeDirectory,
@@ -144,11 +136,6 @@ void main() {
         '--porcelain',
       ]);
       expect(committedStatus.stdout.toString().trim(), isEmpty);
-      final trackedSdkLink = await runGit(pubRepository, [
-        'ls-files',
-        '.fvm/flutter_sdk',
-      ]);
-      expect(trackedSdkLink.stdout.toString().trim(), isEmpty);
       expect(
         await runFluoh(
           ['pub', 'release'],
@@ -177,6 +164,13 @@ void main() {
         stdout,
         contains(
           'Installing Flutter OHOS SDK 3.35.8-ohos-0.0.3; this may take a while.',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Flutter OHOS SDK path: '
+          '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3.',
         ),
       );
       expect(stdout, isNot(contains('Generated FLUOH.md')));
@@ -209,7 +203,6 @@ void main() {
       await File('${upstream.path}/.gitignore').writeAsString('''
 FLUOH.md
 fluoh.yaml
-.fvmrc
 ''');
       await runGit(upstream, ['add', '.gitignore']);
       await runGit(upstream, ['commit', '-m', 'Ignore local fluoh outputs']);
@@ -251,8 +244,9 @@ fluoh.yaml
       ]);
       expect(
         staged.stdout.toString().split('\n'),
-        containsAll(['FLUOH.md', 'fluoh.yaml', '.fvmrc', '.gitignore']),
+        containsAll(['FLUOH.md', 'fluoh.yaml']),
       );
+      expect(staged.stdout.toString(), isNot(contains('.gitignore')));
       expect(stderr, isEmpty);
     },
   );
@@ -511,15 +505,17 @@ fluoh.yaml
       '${environment.homeDirectory.path}/flutter-ohos-sdk',
     );
     await runGit(sdkRepository, ['tag', '3.35.8-ohos-0.0.4']);
-    await File('${source.path}/sdk/index.yaml').writeAsString('''
+    await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${sdkRepository.path}
-versions:
+releases:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
+    versionSeries: "3.35"
     status: stable
   - version: 3.35.8-ohos-0.0.4
     tag: 3.35.8-ohos-0.0.4
+    versionSeries: "3.35"
     status: stable
 ''');
     final upstream = await createUpstreamPackageRepository(
@@ -552,7 +548,7 @@ versions:
     final manifest = File(
       '${pubRepository.path}/fluoh.yaml',
     ).readAsStringSync();
-    expect(branch.stdout.toString().trim(), 'ohos/3.35.8-ohos');
+    expect(branch.stdout.toString().trim(), 'ohos/3.35');
     expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.4'));
     expect(stderr, isEmpty);
   });

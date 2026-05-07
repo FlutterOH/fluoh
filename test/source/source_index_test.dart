@@ -13,6 +13,7 @@ void main() {
 
     expect(sdkIndex.releases, hasLength(1));
     expect(sdkIndex.releases.single.tag, '3.35.8-ohos-0.0.3');
+    expect(sdkIndex.releases.single.versionSeries, '3.35');
 
     expect(packageIndex.packages, contains('camera'));
     expect(
@@ -99,7 +100,7 @@ void main() {
   });
 
   test(
-    'rejects manifests that disagree with the registry package name',
+    'rejects manifests that disagree with the repository package name',
     () async {
       final root = await _createSourceRoot();
       await _writeSdkIndex(root);
@@ -119,7 +120,7 @@ void main() {
             (error) => error.message,
             'message',
             contains(
-              'Package manifest "path_provider" does not match registry package '
+              'Package manifest "path_provider" does not match repository package '
               '"camera"',
             ),
           ),
@@ -142,12 +143,13 @@ Future<Directory> _createSourceRoot() async {
 }
 
 Future<void> _writeSdkIndex(Directory root) async {
-  await File('${root.path}/sdk/index.yaml').writeAsString('''
+  await File('${root.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: /tmp/flutter-ohos-sdk
-versions:
+releases:
   - version: 3.35.8-ohos-0.0.3
     tag: 3.35.8-ohos-0.0.3
+    versionSeries: "3.35"
     status: stable
 ''');
 }
@@ -156,11 +158,11 @@ Future<void> _writePackageRegistry(
   Directory root, {
   required String packageName,
 }) async {
-  await File('${root.path}/packages/registry.yaml').writeAsString('''
+  await File('${root.path}/packages/repositories.yaml').writeAsString('''
 schema: 1
-packages:
+repositories:
   - name: $packageName
-    repositoryUrl: /tmp/$packageName
+    url: /tmp/$packageName
     packagePath: packages/$packageName
 ''');
 }
@@ -183,14 +185,14 @@ package:
   upstreamUrl: https://github.com/example/$packageName
   packagePath: packages/$packageName
 releases:
-  - version: 1.0.0
+  - upstreamVersion: 1.0.0
     upstreamRef: v1.0.0
     sdk:
-      versionSeries: 3.35.8-ohos
+      versionSeries: 3.35
       versions:
 ${sdkVersions.map((version) => '        - $version').join('\n')}
     status: $status
-    sourceBranch: ohos/3.35.8-ohos
+    fluohBranch: ohos/3.35
     release:
       version: "1"
       tag: $packageName-v1.0.0-ohos-3.35.8-1

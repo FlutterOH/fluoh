@@ -51,7 +51,7 @@ void main() {
   });
 
   test('builds FlutterOH SDK version series from SDK patch tags', () {
-    expect(sdkVersionSeriesFromSdkVersion('3.35.8-ohos-0.0.3'), '3.35.8-ohos');
+    expect(sdkVersionSeriesFromSdkVersion('3.35.8-ohos-0.0.3'), '3.35');
   });
 
   test('writes fluoh metadata without a separate dependency block', () async {
@@ -72,7 +72,7 @@ void main() {
       upstreamRef: 'image_gallery_saver-v2.0.3',
       packagePath: '.',
       sdkVersion: '3.35.8-ohos-0.0.3',
-      branch: 'ohos/3.35.8-ohos',
+      branch: 'ohos/3.35',
       adapterUrl: 'git@github.com:FlutterOH/image_gallery_saver.git',
     );
 
@@ -120,7 +120,7 @@ void main() {
         upstreamRef: 'share_plus-v10.0.0',
         packagePath: 'packages/share_plus/share_plus',
         sdkVersion: '3.35.8-ohos-0.0.3',
-        branch: 'ohos/3.35.8-ohos',
+        branch: 'ohos/3.35',
         adapterUrl: 'git@github.com:FlutterOH/share_plus.git',
       );
 
@@ -154,7 +154,7 @@ upstream:
 adapter:
   type: git
   url: git@github.com:FlutterOH/camera.git
-  branch: ohos/3.35.8-ohos
+  branch: ohos/3.35
   sdkVersion: 3.35.8-ohos-0.0.3
   status: compatible
   release:
@@ -203,7 +203,7 @@ upstream:
 fluoh:
   type: git
   url: git@github.com:FlutterOH/camera.git
-  branch: ohos/3.35.8-ohos
+  branch: ohos/3.35
   sdkVersion: 3.35.8-ohos-0.0.3
   status: compatible
   release:

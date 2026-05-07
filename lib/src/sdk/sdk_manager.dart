@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import '../context/fluoh_environment.dart';
 import '../source/source_registry.dart';
+import 'sdk_project_config.dart';
 import 'sdk_release.dart';
 
 class SdkManager {
@@ -16,15 +17,26 @@ class SdkManager {
   }
 
   Future<SdkRelease> resolveRelease(String version) async {
+    final query = version.trim();
     final releases = await listReleases();
     final exactMatches = releases.where(
-      (release) => release.tag == version || release.version == version,
+      (release) => release.tag == query || release.version == query,
     );
     if (exactMatches.isNotEmpty) {
       return exactMatches.first;
     }
 
-    throw UsageException('No SDK release matches "$version".', '');
+    final seriesMatches = releases.where(
+      (release) => release.versionSeries == query,
+    );
+    if (seriesMatches.isNotEmpty) {
+      return latestRelease(seriesMatches, preferStable: true);
+    }
+
+    throw UsageException(
+      'No SDK release matches "$version". Run "fluoh sdk list".',
+      '',
+    );
   }
 
   Future<Directory> install(SdkRelease release) async {
@@ -57,32 +69,31 @@ class SdkManager {
     if (await destination.exists()) {
       await destination.delete(recursive: true);
     }
-    if (await environment.currentSdkFile.exists()) {
-      final current = await environment.currentSdkFile.readAsString();
-      if (current.trim() == release.tag) {
-        await environment.currentSdkFile.delete();
-      }
-    }
   }
 
   Future<String?> currentSdkTag() async {
-    final projectTag = await _projectSdkTag();
-    if (projectTag != null) {
-      return projectTag;
-    }
-    if (!await environment.currentSdkFile.exists()) {
-      return null;
-    }
-    return (await environment.currentSdkFile.readAsString()).trim();
+    return _projectSdkTag();
   }
 
   Directory sdkDirectory(String tag) {
     return Directory('${environment.sdksDirectory.path}/$tag');
   }
 
-  Future<void> markCurrent(SdkRelease release) async {
-    await environment.homeDirectory.create(recursive: true);
-    await environment.currentSdkFile.writeAsString(release.tag);
+  static SdkRelease latestRelease(
+    Iterable<SdkRelease> releases, {
+    bool preferStable = false,
+  }) {
+    var candidates = releases.toList(growable: false);
+    if (preferStable) {
+      final stable = candidates
+          .where((release) => release.channel == 'stable')
+          .toList(growable: false);
+      if (stable.isNotEmpty) {
+        candidates = stable;
+      }
+    }
+    candidates.sort(_compareSdkReleasesDescending);
+    return candidates.first;
   }
 
   String _resolveRepositoryPath(String repository) {
@@ -99,14 +110,38 @@ class SdkManager {
   }
 
   Future<String?> _projectSdkTag() async {
-    final fvmrc = File('${environment.workingDirectory.path}/.fvmrc');
-    if (!await fvmrc.exists()) {
-      return null;
-    }
-    final content = await fvmrc.readAsString();
-    final match = RegExp(r'"flutter"\s*:\s*"([^"]+)"').firstMatch(content);
-    return match?.group(1);
+    return readProjectSdkTag(environment.workingDirectory);
   }
+}
+
+int _compareSdkReleasesDescending(SdkRelease a, SdkRelease b) {
+  final byPublishedAt = (b.publishedAt ?? '').compareTo(a.publishedAt ?? '');
+  if (byPublishedAt != 0) {
+    return byPublishedAt;
+  }
+  return _compareNumericVersion(b.tag, a.tag);
+}
+
+int _compareNumericVersion(String a, String b) {
+  final aParts = _numericParts(a);
+  final bParts = _numericParts(b);
+  final length = aParts.length > bParts.length ? aParts.length : bParts.length;
+  for (var i = 0; i < length; i += 1) {
+    final aPart = i < aParts.length ? aParts[i] : 0;
+    final bPart = i < bParts.length ? bParts[i] : 0;
+    final compared = aPart.compareTo(bPart);
+    if (compared != 0) {
+      return compared;
+    }
+  }
+  return 0;
+}
+
+List<int> _numericParts(String version) {
+  return RegExp(r'\d+')
+      .allMatches(version)
+      .map((match) => int.parse(match.group(0)!))
+      .toList(growable: false);
 }
 
 Future<void> _git(List<String> arguments, {Directory? workingDirectory}) async {

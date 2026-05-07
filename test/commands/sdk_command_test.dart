@@ -53,7 +53,7 @@ void main() {
       expect(configFile.existsSync(), isTrue);
       expect(
         configFile.readAsStringSync(),
-        contains('https://github.com/FlutterOH/pub.git'),
+        contains('https://github.com/FlutterOH/pub'),
       );
       expect(
         stderr.join('\n'),
@@ -134,6 +134,93 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('reports no current SDK without project fluoh.yaml', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    expect(
+      await runFluoh(
+        ['sdk', 'install', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'current'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    expect(stdout, contains('No SDK selected.'));
+    expect(stderr, isEmpty);
+  });
+
+  test('resolves SDK version series to the latest release', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final sdkRepository = Directory(
+      '${environment.homeDirectory.path}/flutter-ohos-sdk',
+    );
+    await _runProcess('git', ['tag', '3.35.9-ohos-0.0.4'], sdkRepository);
+    await File('${source.path}/sdk/releases.yaml').writeAsString('''
+schema: 1
+repositoryUrl: ${sdkRepository.path}
+releases:
+  - version: 3.35.8-ohos-0.0.3
+    tag: 3.35.8-ohos-0.0.3
+    versionSeries: "3.35"
+    status: stable
+  - version: 3.35.9-ohos-0.0.4
+    tag: 3.35.9-ohos-0.0.4
+    versionSeries: "3.35"
+    status: stable
+''');
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      File(
+        '${environment.workingDirectory.path}/fluoh.yaml',
+      ).readAsStringSync(),
+      contains('version: 3.35.9-ohos-0.0.4'),
+    );
+    expect(stdout, contains('Using Flutter OHOS SDK 3.35.9-ohos-0.0.4.'));
+    expect(stderr, isEmpty);
+  });
+
   test('stops when equal-priority sources disagree on an SDK tag', () async {
     final environment = await createTestEnvironment();
     final firstSource = await createPubSourceFixture(
@@ -179,12 +266,13 @@ void main() {
       tag: '3.35.8-ohos-0.0.3',
       readme: '# sdk\n',
     );
-    await File('${source.path}/sdk/index.yaml').writeAsString('''
+    await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 repositoryUrl: ${sdkRepository.path}
-versions:
+releases:
   - version: 3.35.8-ohos-9.9.9
     tag: 3.35.8-ohos-9.9.9
+    versionSeries: "3.35"
     status: stable
 ''');
     final stdout = <String>[];
@@ -214,4 +302,19 @@ versions:
     );
     expect(stderr.join('\n'), contains('3.35.8-ohos-9.9.9'));
   });
+}
+
+Future<void> _runProcess(
+  String executable,
+  List<String> arguments,
+  Directory workingDirectory,
+) async {
+  final result = await Process.run(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory.path,
+  );
+  if (result.exitCode != 0) {
+    fail('$executable ${arguments.join(' ')} failed:\n${result.stderr}');
+  }
 }

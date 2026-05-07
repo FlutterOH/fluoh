@@ -114,6 +114,7 @@ void main() {
     expect(exitCode, 0);
     final help = stdout.join('\n');
     _expectInOrder(help, [
+      '  flutter',
       '  sdk',
       '  deps',
       '  pub',

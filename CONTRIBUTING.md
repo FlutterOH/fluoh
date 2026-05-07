@@ -6,49 +6,52 @@ This document is for `fluoh` contributors and maintainers. General users should 
 
 ## Local Development
 
-Install dependencies after preparing a Dart SDK:
+Install dependencies and run the CLI from the repository root:
 
 ```sh
 dart pub get
-```
-
-Run the CLI locally:
-
-```sh
 dart run bin/fluoh.dart --help
 dart run bin/fluoh.dart --version
 ```
 
-To debug with the same `fluoh` command users run after installation, globally activate the current source checkout as a local path package from the repository root:
+To debug project-level Flutter commands, run them from a Flutter project and
+select the SDK first:
+
+```sh
+dart /path/to/fluoh/bin/fluoh.dart sdk use 3.35
+dart /path/to/fluoh/bin/fluoh.dart flutter --version
+```
+
+Use `fluoh flutter ...` after selecting the project SDK with
+`fluoh sdk use <version-or-series>` so local tests do not depend on the global
+`flutter` binary.
+
+To debug with the installed command name, activate this checkout as a local path
+package:
 
 ```sh
 dart pub global activate --source path . --overwrite
 fluoh --version
 ```
 
-If your shell cannot find `fluoh`, make sure Dart pub's global executable directory is on `PATH`:
+If your shell cannot find `fluoh`, add Dart pub's global executable directory
+to `PATH`:
 
 ```sh
 export PATH="$HOME/.pub-cache/bin:$PATH"
 ```
 
-After this, `fluoh` in your shell points at this repository's source. Code changes usually do not require reactivation; rerun the `dart pub global activate` command when changing executables or package metadata.
-
-To debug a version already published on pub.dev, activate the hosted package:
+Code changes usually do not require reactivation unless executable or package
+metadata changed. To debug a published package, activate the hosted version:
 
 ```sh
 dart pub global activate fluoh --overwrite
-fluoh --version
-```
-
-To debug a specific published version, add the version after the package name:
-
-```sh
 dart pub global activate fluoh 0.0.1 --overwrite
 fluoh --version
 ```
 
-After debugging, use `dart pub global activate --source path . --overwrite` to switch back to the local source version, or deactivate the globally activated `fluoh`:
+Switch back with `dart pub global activate --source path . --overwrite`, or
+deactivate `fluoh`:
 
 ```sh
 dart pub global deactivate fluoh
@@ -70,15 +73,15 @@ dart analyze
 dart test
 ```
 
-`dart format .` should not leave unreviewed formatting diffs. If it changes files, review and include those changes in the commit. `dart analyze` and `dart test` must pass before committing.
-
-GitHub Actions runs the same checks on pushes to `main`, version tags, and pull requests. The pub.dev publishing workflow must pass these checks before publishing:
+`dart format .` should not leave unreviewed formatting diffs. GitHub Actions
+runs the same checks on pushes to `main`, version tags, and pull requests. The
+pub.dev publishing workflow must pass:
 
 - `dart format --output=none --set-exit-if-changed .`
 - `dart analyze`
 - `dart test`
 
-Run this additional check before publishing:
+Before publishing, also run:
 
 ```sh
 dart pub publish --dry-run
@@ -95,7 +98,7 @@ git status --short
 git diff --check
 ```
 
-Also check that staged changes do not contain local absolute paths. Do not commit local IDE, system, or build output files such as `.idea/`, `.vscode/`, `.DS_Store`, `.dart_tool/`, `build/`, or `coverage/`.
+Also check that staged changes do not contain local absolute paths. Do not commit IDE, system, or build output files such as `.idea/`, `.vscode/`, `.DS_Store`, `.dart_tool/`, `build/`, or `coverage/`.
 
 `pubspec.lock` may be committed for this CLI application. Before publishing, make sure the version metadata in `pubspec.yaml`, `lib/src/version.dart`, `CHANGELOG.md`, and `Formula/fluoh.rb` is consistent.
 
@@ -128,7 +131,8 @@ docs: add Homebrew installation guide
 ci: publish package on version tags
 ```
 
-Use an imperative or concise English subject. Keep the first line within 72 characters. Add a body after a blank line when background, risk, or verification details are useful.
+Use a concise English subject and keep the first line within 72 characters. Add
+a body when background, risk, or verification details are useful.
 
 ## GitHub Actions and pub.dev Publishing
 
@@ -181,7 +185,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh pub create` stages the generated `FLUOH.md`, `fluoh.yaml`, `.fvmrc`, and `.gitignore`, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh pub create` stages the generated `FLUOH.md` and `fluoh.yaml`, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"

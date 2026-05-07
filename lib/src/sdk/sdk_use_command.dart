@@ -25,29 +25,27 @@ class SdkUseCommand extends Command<int> {
   String get name => 'use';
 
   @override
-  String get description => 'Use a Flutter OHOS SDK version here.';
+  String get description => 'Use a Flutter OHOS SDK version or series here.';
 
   @override
-  String get invocation => 'fluoh sdk use <version>';
+  String get invocation => 'fluoh sdk use <version-or-series>';
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
     if (rest.length != 1) {
-      usageException('Expected an SDK version.');
+      usageException('Expected an SDK version or version series.');
     }
 
     await _ensureFlutterProject();
+    await _ensureProjectConfigIsNotPubManifest();
     final manager = SdkManager(environment);
     final release = await manager.resolveRelease(rest.single);
-    _stdout('Will modify ${environment.workingDirectory.path}/.fvmrc.');
-    _stdout(
-      'Will modify ${environment.workingDirectory.path}/.fvm/flutter_sdk.',
-    );
     _stdout('Will modify ${environment.workingDirectory.path}/fluoh.yaml.');
     final sdkDirectory = await SdkProjectEnvironment(
       environment,
     ).configure(release);
+    _stdout('Flutter OHOS SDK path: ${sdkDirectory.path}.');
     if (argResults!.flag('pub-get')) {
       await _runPubGet(sdkDirectory);
     }
@@ -70,6 +68,22 @@ class SdkUseCommand extends Command<int> {
     final flutter = dependencies is YamlMap ? dependencies['flutter'] : null;
     if (flutter is! YamlMap || flutter['sdk'] != 'flutter') {
       throw UsageException('Current directory is not a Flutter project.', '');
+    }
+  }
+
+  Future<void> _ensureProjectConfigIsNotPubManifest() async {
+    final fluohYaml = File('${environment.workingDirectory.path}/fluoh.yaml');
+    if (!await fluohYaml.exists()) {
+      return;
+    }
+
+    final yaml = loadYaml(await fluohYaml.readAsString());
+    if (yaml is YamlMap && yaml['fluoh'] is YamlMap) {
+      throw UsageException(
+        'Current directory is a FlutterOH pub repository. '
+            'Refusing to replace pub repository metadata in fluoh.yaml.',
+        '',
+      );
     }
   }
 
