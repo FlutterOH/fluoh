@@ -96,6 +96,8 @@ fluoh pub create https://github.com/upstream/monorepo.git \
 
 Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata, an adaptation guide, and AI agent instructions. `fluoh pub create` stages generated files but does not commit. Commit before running `pub sync`, `pub adapt`, or `pub release`.
 
+`fluoh pub release` only validates the adapter and creates or pushes the release tag. FlutterOH/pub source metadata updates should go through a pull request or the scheduled source ingestion process.
+
 To choose the final push target:
 
 ```sh

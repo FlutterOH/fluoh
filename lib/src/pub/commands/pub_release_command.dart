@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
@@ -7,21 +5,15 @@ import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
-import '../pub_source_writer.dart';
 
 class PubReleaseCommand extends Command<int> {
   PubReleaseCommand({required this.environment, required OutputWriter stdout})
     : _stdout = stdout {
-    argParser
-      ..addFlag(
-        'push',
-        negatable: false,
-        help: 'Push the release tag to origin after creating or validating it.',
-      )
-      ..addOption(
-        'source-update',
-        help: 'Write a FlutterOH/pub package update into this source path.',
-      );
+    argParser.addFlag(
+      'push',
+      negatable: false,
+      help: 'Push the release tag to origin after creating or validating it.',
+    );
   }
 
   final FluohEnvironment environment;
@@ -87,7 +79,6 @@ class PubReleaseCommand extends Command<int> {
         ], workingDirectory: environment.workingDirectory);
         _stdout('Pushed release tag $tag.');
       }
-      await _writeSourceUpdateIfRequested(manifest, tag);
       return 0;
     }
 
@@ -100,7 +91,6 @@ class PubReleaseCommand extends Command<int> {
       ], workingDirectory: environment.workingDirectory);
       _stdout('Pushed release tag $tag.');
     }
-    await _writeSourceUpdateIfRequested(manifest, tag);
     _stdout('Created release tag $tag.');
     return 0;
   }
@@ -110,21 +100,5 @@ class PubReleaseCommand extends Command<int> {
     if (!releases.any((release) => release.tag == sdkTag)) {
       usageException('SDK tag $sdkTag was not found in configured sources.');
     }
-  }
-
-  Future<void> _writeSourceUpdateIfRequested(
-    PubManifest manifest,
-    String releaseTag,
-  ) async {
-    final sourcePath = argResults!.option('source-update');
-    if (sourcePath == null || sourcePath.isEmpty) {
-      return;
-    }
-    await writePubSourcePackageUpdate(
-      Directory(sourcePath),
-      manifest: manifest,
-      releaseTag: releaseTag,
-    );
-    _stdout('Wrote pub source update for ${manifest.packageName}.');
   }
 }

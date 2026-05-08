@@ -7,10 +7,9 @@ import '../helpers/fluoh_test_context.dart';
 import '../helpers/pub_test_context.dart';
 
 void main() {
-  test('release writes a pub source package update', () async {
+  test('release creates a tag', () async {
     final environment = await createTestEnvironment();
     final pubRepository = await createPubRepositoryFixture(environment);
-    final pubSource = Directory('${environment.homeDirectory.path}/pub_update');
     final releaseEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
       workingDirectory: pubRepository,
@@ -20,7 +19,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['pub', 'release', '--source-update', pubSource.path],
+        ['pub', 'release'],
         environment: releaseEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -28,50 +27,15 @@ void main() {
       0,
     );
 
-    final registryYaml = File('${pubSource.path}/packages/repositories.yaml');
-    final manifestYaml = File(
-      '${pubSource.path}/packages/manifests/camera.yaml',
-    );
-    expect(registryYaml.existsSync(), isTrue);
-    expect(manifestYaml.existsSync(), isTrue);
-    final registry = registryYaml.readAsStringSync();
-    final manifest = manifestYaml.readAsStringSync();
-    expect(registry, contains('repositories:'));
-    expect(registry, contains('name: camera'));
-    expect(registry, contains('url: git@github.com:FlutterOH/camera.git'));
-    expect(registry, contains('path: .'));
-    expect(registry, isNot(contains('packagePath:')));
-    expect(registry, isNot(contains('upstreamUrl:')));
-    expect(registry, isNot(contains('status:')));
-    expect(manifest, contains('        - 3.35.8-ohos-0.0.3'));
-    expect(manifest, contains('upstream:'));
-    expect(manifest, contains('      version: 0.11.0'));
-    expect(manifest, contains('versionSeries: 3.35'));
-    expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
-    expect(manifest, contains('        ref: ohos/3.35'));
-    expect(manifest, isNot(contains('fluohBranch:')));
-    expect(manifest, isNot(contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0')));
+    final tags = await runGit(pubRepository, ['tag', '--list']);
     expect(
-      manifest,
-      contains('        url: https://github.com/FlutterOH/camera.git'),
-    );
-    expect(manifest, contains('        ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
-    expect(File('${pubSource.path}/packages/index.yaml').existsSync(), isFalse);
-    expect(
-      File('${pubSource.path}/packages/camera.yaml').existsSync(),
-      isFalse,
+      tags.stdout.toString().split('\n'),
+      contains('camera-v0.11.0-ohos-3.35.8-0.1.0'),
     );
     expect(
-      await runFluoh(
-        ['source', 'add', 'generated', pubSource.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
+      stdout,
+      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
     );
-    expect(stdout, contains('Wrote pub source update for camera.'));
-    expect(stdout, contains('Added source generated: ${pubSource.path}'));
     expect(stderr, isEmpty);
   });
 

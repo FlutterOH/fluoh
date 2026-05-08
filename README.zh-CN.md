@@ -96,6 +96,8 @@ fluoh pub create https://github.com/upstream/monorepo.git \
 
 默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据、适配指南和 AI agent 指令。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。
 
+`fluoh pub release` 只负责校验适配库并创建或推送 release tag。FlutterOH/pub 数据源元数据更新应通过 PR，或等待定时数据源拉取流程处理。
+
 如果需要指定最终推送位置：
 
 ```sh

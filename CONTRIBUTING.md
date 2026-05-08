@@ -200,3 +200,5 @@ Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, 
 - The worktree is clean.
 - The SDK tag comes from configured sources.
 - The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.
+
+Adapter repository release commands must not write FlutterOH/pub source metadata directly. Register released adapters through a FlutterOH/pub pull request or the scheduled source ingestion process.

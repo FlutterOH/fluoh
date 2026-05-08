@@ -191,3 +191,5 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 - 工作区干净。
 - SDK tag 来自已配置的数据源。
 - release tag 和 manifest 中的 package、上游版本、SDK tag、release 版本一致。
+
+适配仓库的 release 命令不得直接写入 FlutterOH/pub 数据源元数据。已发布适配库应通过 FlutterOH/pub PR 注册，或等待定时数据源拉取流程处理。
