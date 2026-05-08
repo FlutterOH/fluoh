@@ -185,7 +185,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, and `fluoh.yaml`, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, `fluoh.yaml`, and `fluoh_test/` when the selected package is a Flutter package or plugin, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"
@@ -193,12 +193,15 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 
 Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current pub branch and refresh `fluoh.yaml`.
 
+Use `fluoh_test/test` for automated adapter checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` executes the automated checks from the selected Flutter OHOS SDK.
+
 `fluoh pub release` must continue to guarantee:
 
 - It only runs on `ohos/*` branches.
 - The current branch matches the `ohos/<sdk-series>` branch inferred from `fluoh.yaml`.
 - The worktree is clean.
 - The SDK tag comes from configured sources.
+- `fluoh test run` passes for Flutter adapter packages.
 - The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.
 
 Adapter repository release commands must not write FlutterOH/pub source metadata directly. Register released adapters through a FlutterOH/pub pull request or the scheduled source ingestion process.

@@ -109,6 +109,9 @@ void main() {
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
     expect(readme, contains('fluoh deps update'));
+    expect(readme, contains('fluoh test init'));
+    expect(readme, contains('fluoh test run'));
+    expect(readme, contains('fluoh_test/example'));
     expect(readme, contains('third-party FlutterOH pub repositories'));
     expect(readme, contains('packages/repositories.yaml'));
     expect(readme, contains('latest validated snapshot'));
@@ -129,6 +132,9 @@ void main() {
     expect(chineseReadme, contains('brew install fluoh'));
     expect(chineseReadme, contains('fluoh upgrade'));
     expect(chineseReadme, contains('fluoh deps update'));
+    expect(chineseReadme, contains('fluoh test init'));
+    expect(chineseReadme, contains('fluoh test run'));
+    expect(chineseReadme, contains('fluoh_test/example'));
     expect(chineseReadme, contains('第三方库 FlutterOH pub 仓库'));
     expect(chineseReadme, contains('packages/repositories.yaml'));
     expect(chineseReadme, contains('最新校验通过的快照'));
@@ -175,6 +181,8 @@ void main() {
     expect(contributing, contains('git@github.com:FlutterOH/<package>.git'));
     expect(contributing, contains('fluoh pub sync'));
     expect(contributing, contains('fluoh pub adapt'));
+    expect(contributing, contains('fluoh test run'));
+    expect(contributing, contains('fluoh_test/test'));
     expect(
       contributing,
       contains('--repo git@github.com:FlutterOH/package.git'),
@@ -228,6 +236,8 @@ void main() {
     );
     expect(chineseContributing, contains('fluoh pub sync'));
     expect(chineseContributing, contains('fluoh pub adapt'));
+    expect(chineseContributing, contains('fluoh test run'));
+    expect(chineseContributing, contains('fluoh_test/test'));
     expect(
       chineseContributing,
       contains('--repo git@github.com:FlutterOH/package.git'),

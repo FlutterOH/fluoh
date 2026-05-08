@@ -12,11 +12,24 @@ class PubCommand extends Command<int> {
   PubCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
+    required OutputWriter stderr,
   }) : _stdout = stdout {
-    addSubcommand(PubCreateCommand(environment: environment, stdout: stdout));
+    addSubcommand(
+      PubCreateCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+      ),
+    );
     addSubcommand(PubSyncCommand(environment: environment, stdout: stdout));
     addSubcommand(PubAdaptCommand(environment: environment, stdout: stdout));
-    addSubcommand(PubReleaseCommand(environment: environment, stdout: stdout));
+    addSubcommand(
+      PubReleaseCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+      ),
+    );
   }
 
   final OutputWriter _stdout;

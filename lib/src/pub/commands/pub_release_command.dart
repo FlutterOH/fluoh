@@ -3,12 +3,17 @@ import 'package:args/command_runner.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
+import '../../testing/test_workspace.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
 
 class PubReleaseCommand extends Command<int> {
-  PubReleaseCommand({required this.environment, required OutputWriter stdout})
-    : _stdout = stdout {
+  PubReleaseCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    required OutputWriter stderr,
+  }) : _stdout = stdout,
+       _stderr = stderr {
     argParser.addFlag(
       'push',
       negatable: false,
@@ -18,6 +23,7 @@ class PubReleaseCommand extends Command<int> {
 
   final FluohEnvironment environment;
   final OutputWriter _stdout;
+  final OutputWriter _stderr;
 
   @override
   String get name => 'release';
@@ -41,6 +47,16 @@ class PubReleaseCommand extends Command<int> {
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
     await _ensureSdkTagExists(manifest.sdkVersion);
+    _stdout('Running fluoh test run before release.');
+    final testResult = await runFluohTestWorkspace(
+      environment: environment,
+      stdout: _stdout,
+      stderr: _stderr,
+    );
+    if (testResult != 0) {
+      return testResult;
+    }
+    await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
 
     final expectedTag = pubReleaseTagForPackage(
       packageName: manifest.packageName,

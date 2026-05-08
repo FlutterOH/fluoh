@@ -7,14 +7,19 @@ import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../../sdk/sdk_project_environment.dart';
 import '../../sdk/sdk_release.dart';
+import '../../testing/test_workspace.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
 import '../manifest/pubspec_package.dart';
 import '../repository_url.dart';
 
 class PubCreateCommand extends Command<int> {
-  PubCreateCommand({required this.environment, required OutputWriter stdout})
-    : _stdout = stdout {
+  PubCreateCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    required OutputWriter stderr,
+  }) : _stdout = stdout,
+       _stderr = stderr {
     argParser
       ..addOption('package', help: 'Package name to adapt in a monorepo.')
       ..addOption('path', help: 'Package path inside the upstream repository.')
@@ -32,6 +37,7 @@ class PubCreateCommand extends Command<int> {
 
   final FluohEnvironment environment;
   final OutputWriter _stdout;
+  final OutputWriter _stderr;
 
   @override
   String get name => 'create';
@@ -129,6 +135,11 @@ class PubCreateCommand extends Command<int> {
       sdkVersion: release.tag,
       branch: branch,
     );
+    final testInitResult = await initializeFluohTestWorkspace(
+      environment: pubEnvironment,
+      stdout: _stdout,
+      stderr: _stderr,
+    );
     await runGit([
       'add',
       '-f',
@@ -136,12 +147,19 @@ class PubCreateCommand extends Command<int> {
       'FLUOH.md',
       'fluoh.yaml',
     ], workingDirectory: destination);
+    if (testInitResult.created) {
+      await runGit(['add', 'fluoh_test'], workingDirectory: destination);
+    }
 
     _stdout('Created pub repository at ${destination.path}.');
     _stdout('Pub branch: $branch.');
     _stdout('Origin: $adapterUrl.');
     _stdout('Configured Flutter OHOS SDK ${release.tag}.');
-    _stdout('See FLUOH.md and AGENTS.md for adaptation steps.');
+    if (testInitResult.created) {
+      _stdout('See FLUOH.md, AGENTS.md, and fluoh_test/ for adaptation steps.');
+    } else {
+      _stdout('See FLUOH.md and AGENTS.md for adaptation steps.');
+    }
     return 0;
   }
 
@@ -233,6 +251,8 @@ String _agentsInstructionsContent({
     '- When intentionally retargeting the adapter SDK, update `fluoh.yaml` and keep the branch and release metadata consistent.',
     '- `fluoh pub sync` updates the clean upstream branch from `upstream` and requires a clean worktree.',
     '- `fluoh pub adapt` merges the synchronized upstream branch into the current FlutterOH branch and refreshes `fluoh.yaml`; it also requires a clean worktree.',
+    '- Use `fluoh test init` to create or refresh the low-intrusion verification workspace when needed.',
+    '- Use `fluoh test run` before publishing or releasing; `fluoh pub release` runs it for Flutter adapters.',
     '- `fluoh pub release` is for final release validation and tagging after the adapter is ready.',
     '',
     '## Working Rules',
@@ -271,13 +291,14 @@ String _adaptationGuideContent({
     '',
     '1. Review the upstream package metadata and platform implementation.',
     '2. Implement or update the OHOS platform code for `${package.name}`.',
-    '3. Keep `fluoh.yaml` in sync when upstream, SDK, status, or release version values change.',
-    '4. The generated files are already staged.',
-    '5. You can continue adapting and commit everything together.',
-    '6. Commit before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release` because those commands require a clean worktree.',
-    '7. Run the package tests and any FlutterOH verification needed by the adapter.',
-    '8. Commit adapter changes with the maintainer Git identity.',
-    '9. Run `fluoh pub release` when the adapter is ready.',
+    '3. Keep `fluoh_test/test` focused on automated adapter checks and `fluoh_test/example` for manual platform verification.',
+    '4. Keep `fluoh.yaml` in sync when upstream, SDK, status, or release version values change.',
+    '5. The generated files are already staged.',
+    '6. You can continue adapting and commit everything together.',
+    '7. Commit before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release` because those commands require a clean worktree.',
+    '8. Run `fluoh test run`; it is also enforced by `fluoh pub release` for Flutter adapters.',
+    '9. Commit adapter changes with the maintainer Git identity.',
+    '10. Run `fluoh pub release` when the adapter is ready.',
     '',
   ].join('\n');
 }

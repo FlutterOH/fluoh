@@ -176,7 +176,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-`fluoh pub create` 会暂存生成的 `AGENTS.md`、`FLUOH.md` 和 `fluoh.yaml`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
+`fluoh pub create` 会暂存生成的 `AGENTS.md`、`FLUOH.md`、`fluoh.yaml`，以及 Flutter package/plugin 的 `fluoh_test/`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"
@@ -184,12 +184,15 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 
 使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前 pub 分支并刷新 `fluoh.yaml`。
 
+`fluoh_test/test` 用于发布前必须通过的自动化适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会使用当前选择的 Flutter OHOS SDK 执行自动化检查。
+
 `fluoh pub release` 必须继续保证：
 
 - 只允许在 `ohos/*` 分支运行。
 - 当前分支和根据 `fluoh.yaml` 推导出的 `ohos/<sdk-series>` 分支一致。
 - 工作区干净。
 - SDK tag 来自已配置的数据源。
+- Flutter 适配库的 `fluoh test run` 通过。
 - release tag 和 manifest 中的 package、上游版本、SDK tag、release 版本一致。
 
 适配仓库的 release 命令不得直接写入 FlutterOH/pub 数据源元数据。已发布适配库应通过 FlutterOH/pub PR 注册，或等待定时数据源拉取流程处理。

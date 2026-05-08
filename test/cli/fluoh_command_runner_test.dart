@@ -118,6 +118,7 @@ void main() {
       '  sdk',
       '  deps',
       '  pub',
+      '  test',
       '  source',
       '  doctor',
       '  upgrade',
@@ -160,6 +161,18 @@ void main() {
     );
     help = stdout.join('\n');
     _expectInOrder(help, ['  check', '  fix', '  update']);
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['test', '--help'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    help = stdout.join('\n');
+    _expectInOrder(help, ['  init', '  run']);
     expect(stderr, isEmpty);
   });
 
