@@ -133,6 +133,30 @@ void main() {
       expect(agentsContent, contains('fluoh flutter pub get'));
       expect(agentsContent, contains('fluoh flutter analyze'));
       expect(agentsContent, contains('fluoh sdk list'));
+      expect(agentsContent, contains('## Adaptation Workflow'));
+      expect(
+        agentsContent,
+        contains('Keep the generated `0.1.0` for the first release'),
+      );
+      expect(
+        agentsContent,
+        contains('increment it only when releasing after an existing tag'),
+      );
+      expect(
+        agentsContent,
+        contains(
+          'Record the adapter-facing release notes in `FLUOH_CHANGELOG.md`',
+        ),
+      );
+      expect(
+        agentsContent,
+        contains('Do not use the upstream package `CHANGELOG.md`'),
+      );
+      expect(agentsContent, contains('Keep `fluoh_test/example` usable'));
+      expect(
+        agentsContent,
+        contains('Run `fluoh pub release` only after the adapter is ready'),
+      );
       expect(
         agentsContent,
         contains('Do not run `fluoh sdk use` in this pub adapter repository'),
@@ -381,6 +405,7 @@ Keep the public Dart API stable.
     expect(agentsContent, contains('Keep the public Dart API stable.'));
     expect(agentsContent, contains('## FlutterOH Agent Instructions'));
     expect(agentsContent, contains('## Use fluoh'));
+    expect(agentsContent, contains('## Adaptation Workflow'));
     expect(agentsContent, isNot(contains('# AGENTS.md')));
     final status = await runGit(pubRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('M  AGENTS.md'));
