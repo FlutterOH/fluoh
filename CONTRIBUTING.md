@@ -185,7 +185,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, `fluoh.yaml`, and `fluoh_test/` when the selected package is a Flutter package or plugin, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, `fluoh.yaml`, and `fluoh_test/` when the selected package is a Flutter package or plugin, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"
@@ -201,6 +201,8 @@ Use `fluoh_test/test` for automated adapter checks that must pass before release
 - The current branch matches the `ohos/<sdk-series>` branch inferred from `fluoh.yaml`.
 - The worktree is clean.
 - The SDK tag comes from configured sources.
+- The manifest release version is newer than previous release tags for the same package, upstream version, and SDK.
+- Missing or incomplete `FLUOH_CHANGELOG.md` release notes are reported as warnings, not release blockers.
 - Package Flutter tests and `fluoh_test` pass through `fluoh test run` for Flutter adapter packages.
 - The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.
 

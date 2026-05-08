@@ -103,6 +103,9 @@ void main() {
         guideContent,
         contains('You can continue adapting and commit everything together.'),
       );
+      final releaseNotes = File('${pubRepository.path}/FLUOH_CHANGELOG.md');
+      expect(releaseNotes.existsSync(), isTrue);
+      expect(releaseNotes.readAsStringSync(), contains('## 0.1.0'));
       final agents = File('${pubRepository.path}/AGENTS.md');
       expect(agents.existsSync(), isTrue);
       final agentsContent = agents.readAsStringSync();
@@ -171,6 +174,7 @@ void main() {
       final status = await runGit(pubRepository, ['status', '--porcelain']);
       expect(status.stdout.toString(), contains('A  AGENTS.md'));
       expect(status.stdout.toString(), contains('A  FLUOH.md'));
+      expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
       expect(status.stdout.toString(), contains('A  fluoh.yaml'));
       expect(status.stdout.toString(), isNot(contains('.fvm')));
       expect(status.stdout.toString(), isNot(contains('.gitignore')));
@@ -181,7 +185,12 @@ void main() {
       ]);
       expect(
         staged.stdout.toString().split('\n'),
-        containsAll(['AGENTS.md', 'FLUOH.md', 'fluoh.yaml']),
+        containsAll([
+          'AGENTS.md',
+          'FLUOH.md',
+          'FLUOH_CHANGELOG.md',
+          'fluoh.yaml',
+        ]),
       );
       expect(staged.stdout.toString(), isNot(contains('.fvm')));
       expect(staged.stdout.toString(), isNot(contains('.gitignore')));
@@ -266,6 +275,7 @@ void main() {
       await File('${upstream.path}/.gitignore').writeAsString('''
 AGENTS.md
 FLUOH.md
+FLUOH_CHANGELOG.md
 fluoh.yaml
 ''');
       await runGit(upstream, ['add', '.gitignore']);
@@ -308,7 +318,12 @@ fluoh.yaml
       ]);
       expect(
         staged.stdout.toString().split('\n'),
-        containsAll(['AGENTS.md', 'FLUOH.md', 'fluoh.yaml']),
+        containsAll([
+          'AGENTS.md',
+          'FLUOH.md',
+          'FLUOH_CHANGELOG.md',
+          'fluoh.yaml',
+        ]),
       );
       expect(staged.stdout.toString(), isNot(contains('.gitignore')));
       expect(stderr, isEmpty);
@@ -621,6 +636,7 @@ Keep the public Dart API stable.
     ]);
     expect(mainFiles.stdout.toString(), isNot(contains('fluoh.yaml')));
     expect(mainFiles.stdout.toString(), isNot(contains('FLUOH.md')));
+    expect(mainFiles.stdout.toString(), isNot(contains('FLUOH_CHANGELOG.md')));
     expect(mainFiles.stdout.toString(), isNot(contains('AGENTS.md')));
     expect(stderr, isEmpty);
   });

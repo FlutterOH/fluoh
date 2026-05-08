@@ -346,6 +346,7 @@ environment:
         containsAll([
           'AGENTS.md',
           'FLUOH.md',
+          'FLUOH_CHANGELOG.md',
           'fluoh.yaml',
           'fluoh_test/pubspec.yaml',
           'fluoh_test/test/contract_test.dart',

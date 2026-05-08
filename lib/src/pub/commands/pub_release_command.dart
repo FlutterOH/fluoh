@@ -6,6 +6,7 @@ import '../../sdk/sdk_manager.dart';
 import '../../testing/test_workspace.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
+import '../pub_release_validator.dart';
 
 class PubReleaseCommand extends Command<int> {
   PubReleaseCommand({
@@ -47,17 +48,6 @@ class PubReleaseCommand extends Command<int> {
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
     await _ensureSdkTagExists(manifest.sdkVersion);
-    _stdout('Running fluoh test run before release.');
-    final testResult = await runFluohTestWorkspace(
-      environment: environment,
-      stdout: _stdout,
-      stderr: _stderr,
-    );
-    if (testResult != 0) {
-      return testResult;
-    }
-    await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
-
     final expectedTag = pubReleaseTagForPackage(
       packageName: manifest.packageName,
       upstreamVersion: manifest.upstreamVersion,
@@ -70,6 +60,30 @@ class PubReleaseCommand extends Command<int> {
         'Release tag $tag does not match manifest values. Expected $expectedTag.',
       );
     }
+    await validatePubReleaseMetadata(
+      repository: environment.workingDirectory,
+      manifest: manifest,
+      tag: tag,
+    );
+    final warnings = await pubReleaseMetadataWarnings(
+      repository: environment.workingDirectory,
+      manifest: manifest,
+      tag: tag,
+    );
+    for (final warning in warnings) {
+      _stderr(warning);
+    }
+
+    _stdout('Running fluoh test run before release.');
+    final testResult = await runFluohTestWorkspace(
+      environment: environment,
+      stdout: _stdout,
+      stderr: _stderr,
+    );
+    if (testResult != 0) {
+      return testResult;
+    }
+    await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
 
     final existing = (await runGit(
       ['tag', '--list', tag],
@@ -83,7 +97,8 @@ class PubReleaseCommand extends Command<int> {
       final headCommit = await currentHead(environment.workingDirectory);
       if (tagCommit != headCommit) {
         usageException(
-          'Release tag $tag already exists on a different commit.',
+          'Release tag $tag already exists on a different commit. '
+          'Update fluoh.yaml package.version before releasing new changes.',
         );
       }
       _stdout('Release tag already exists: $tag.');

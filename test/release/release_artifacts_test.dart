@@ -113,6 +113,7 @@ void main() {
     expect(readme, contains('fluoh test run'));
     expect(readme, contains("adapter package's own Flutter tests"));
     expect(readme, contains('fluoh_test/example'));
+    expect(readme, contains('FLUOH_CHANGELOG.md'));
     expect(readme, contains('third-party FlutterOH pub repositories'));
     expect(readme, contains('packages/repositories.yaml'));
     expect(readme, contains('latest validated snapshot'));
@@ -137,6 +138,7 @@ void main() {
     expect(chineseReadme, contains('fluoh test run'));
     expect(chineseReadme, contains('适配库自身的 Flutter 测试'));
     expect(chineseReadme, contains('fluoh_test/example'));
+    expect(chineseReadme, contains('FLUOH_CHANGELOG.md'));
     expect(chineseReadme, contains('第三方库 FlutterOH pub 仓库'));
     expect(chineseReadme, contains('packages/repositories.yaml'));
     expect(chineseReadme, contains('最新校验通过的快照'));
@@ -148,6 +150,8 @@ void main() {
       contains('--repo git@github.com:FlutterOH/package.git'),
     );
     expect(chineseReadme, contains('通过 PR'));
+    expect(contributing, contains('FLUOH_CHANGELOG.md'));
+    expect(chineseContributing, contains('FLUOH_CHANGELOG.md'));
     expect(chineseReadme, contains('定时数据源拉取流程'));
     expect(chineseReadme, isNot(contains('--github')));
     expect(

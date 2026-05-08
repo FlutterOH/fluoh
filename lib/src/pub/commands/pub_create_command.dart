@@ -117,6 +117,7 @@ class PubCreateCommand extends Command<int> {
       sdkVersion: release.tag,
       branch: branch,
       adapterUrl: adapterUrl,
+      releaseVersion: _initialReleaseVersion,
     );
     await File('${destination.path}/FLUOH.md').writeAsString(
       _adaptationGuideContent(
@@ -125,6 +126,13 @@ class PubCreateCommand extends Command<int> {
         upstreamRef: upstreamRef,
         sdkVersion: release.tag,
         branch: branch,
+      ),
+    );
+    await File('${destination.path}/FLUOH_CHANGELOG.md').writeAsString(
+      _fluohChangelogContent(
+        package: package,
+        sdkVersion: release.tag,
+        releaseVersion: _initialReleaseVersion,
       ),
     );
     await _writeAgentsInstructions(
@@ -145,6 +153,7 @@ class PubCreateCommand extends Command<int> {
       '-f',
       'AGENTS.md',
       'FLUOH.md',
+      'FLUOH_CHANGELOG.md',
       'fluoh.yaml',
     ], workingDirectory: destination);
     if (testInitResult.created) {
@@ -177,6 +186,8 @@ class PubCreateCommand extends Command<int> {
     return SdkManager.latestRelease(releases, preferStable: true);
   }
 }
+
+const _initialReleaseVersion = '0.1.0';
 
 Future<void> _writeAgentsInstructions({
   required Directory destination,
@@ -240,6 +251,7 @@ String _agentsInstructionsContent({
     '- FlutterOH branch: `$branch`',
     '- FlutterOH metadata: `fluoh.yaml`',
     '- Full adaptation guide: `FLUOH.md`',
+    '- FlutterOH release notes: `FLUOH_CHANGELOG.md`',
     '',
     '## Use fluoh',
     '',
@@ -253,6 +265,7 @@ String _agentsInstructionsContent({
     '- `fluoh pub adapt` merges the synchronized upstream branch into the current FlutterOH branch and refreshes `fluoh.yaml`; it also requires a clean worktree.',
     '- Use `fluoh test init` to create or refresh the low-intrusion verification workspace when needed.',
     '- Use `fluoh test run` before publishing or releasing; it runs package Flutter tests when present, equivalent to `fluoh flutter test` in the package path, plus `fluoh_test`. `fluoh pub release` runs it for Flutter adapters.',
+    '- Keep `FLUOH_CHANGELOG.md` updated for the current `fluoh.yaml` package version before `fluoh pub release`.',
     '- `fluoh pub release` is for final release validation and tagging after the adapter is ready.',
     '',
     '## Working Rules',
@@ -263,6 +276,7 @@ String _agentsInstructionsContent({
     '- Prefer focused OHOS platform changes near the package implementation; avoid broad rewrites outside the package path.',
     '- Preserve local work, generated metadata, and upstream history. Do not delete `fluoh.yaml` or `FLUOH.md`.',
     '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
+    '- Update `FLUOH_CHANGELOG.md` when release notes change.',
     '- Commit local changes before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release`.',
     '',
   ].join('\n');
@@ -297,8 +311,24 @@ String _adaptationGuideContent({
     '6. You can continue adapting and commit everything together.',
     '7. Commit before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release` because those commands require a clean worktree.',
     '8. Run `fluoh test run`; it runs package Flutter tests when present, equivalent to `fluoh flutter test` in the package path, plus `fluoh_test`, and is also enforced by `fluoh pub release` for Flutter adapters.',
-    '9. Commit adapter changes with the maintainer Git identity.',
-    '10. Run `fluoh pub release` when the adapter is ready.',
+    '9. Update `FLUOH_CHANGELOG.md` for the current `fluoh.yaml` package version.',
+    '10. Commit adapter changes with the maintainer Git identity.',
+    '11. Run `fluoh pub release` when the adapter is ready.',
+    '',
+  ].join('\n');
+}
+
+String _fluohChangelogContent({
+  required PubspecPackage package,
+  required String sdkVersion,
+  required String releaseVersion,
+}) {
+  return [
+    '# FlutterOH Changelog',
+    '',
+    '## $releaseVersion',
+    '',
+    '- Initial FlutterOH adapter release for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
     '',
   ].join('\n');
 }

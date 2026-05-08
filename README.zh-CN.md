@@ -94,9 +94,9 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据、适配指南、AI agent 指令，以及 Flutter package/plugin 的 `fluoh_test/`。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。
+默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据、适配指南、FlutterOH release notes、AI agent 指令，以及 Flutter package/plugin 的 `fluoh_test/`。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。
 
-`fluoh test init` 会创建 `fluoh_test/test` 自动化检查和用于人工平台验证的 `fluoh_test/example` app。`fluoh test run` 会先在存在 `test/**/*_test.dart` 时运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再运行 `fluoh_test`；`fluoh pub release` 会在创建或推送 Flutter 适配库 release tag 前执行它。FlutterOH/pub 数据源元数据更新应通过 PR，或等待定时数据源拉取流程处理。
+`fluoh test init` 会创建 `fluoh_test/test` 自动化检查和用于人工平台验证的 `fluoh_test/example` app。`fluoh test run` 会先在存在 `test/**/*_test.dart` 时运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再运行 `fluoh_test`；`fluoh pub release` 会在创建或推送 Flutter 适配库 release tag 前校验 release 版本、在 `FLUOH_CHANGELOG.md` 未记录当前 release 时提示 warning，并执行测试。FlutterOH/pub 数据源元数据更新应通过 PR，或等待定时数据源拉取流程处理。
 
 如果需要指定最终推送位置：
 
