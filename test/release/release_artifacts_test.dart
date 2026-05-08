@@ -108,7 +108,7 @@ void main() {
     expect(readme, contains('brew tap FlutterOH/tap'));
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
-    expect(readme, contains('fluoh deps update'));
+    expect(readme, contains('fluoh pub upgrade'));
     expect(readme, contains('fluoh test init'));
     expect(readme, contains('fluoh test run'));
     expect(readme, contains("adapter package's own Flutter tests"));
@@ -132,7 +132,7 @@ void main() {
     expect(chineseReadme, contains('brew tap FlutterOH/tap'));
     expect(chineseReadme, contains('brew install fluoh'));
     expect(chineseReadme, contains('fluoh upgrade'));
-    expect(chineseReadme, contains('fluoh deps update'));
+    expect(chineseReadme, contains('fluoh pub upgrade'));
     expect(chineseReadme, contains('fluoh test init'));
     expect(chineseReadme, contains('fluoh test run'));
     expect(chineseReadme, contains('适配库自身的 Flutter 测试'));

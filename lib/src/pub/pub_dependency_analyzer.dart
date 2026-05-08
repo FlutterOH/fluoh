@@ -8,12 +8,12 @@ import '../sdk/sdk_project_config.dart';
 import '../source/source_index.dart';
 import '../source/source_registry.dart';
 
-class DepsAnalyzer {
-  const DepsAnalyzer(this.environment);
+class PubDependencyAnalyzer {
+  const PubDependencyAnalyzer(this.environment);
 
   final FluohEnvironment environment;
 
-  Future<DepsReport> analyze() async {
+  Future<PubDependencyReport> analyze() async {
     final sdkVersion = await _readSdkVersion();
     final pubspec = await _readYamlFile('pubspec.yaml');
     final lock = await _readYamlFile('pubspec.lock');
@@ -69,7 +69,10 @@ class DepsAnalyzer {
       return a.name.compareTo(b.name);
     });
 
-    return DepsReport(sdkVersion: sdkVersion, dependencies: dependencies);
+    return PubDependencyReport(
+      sdkVersion: sdkVersion,
+      dependencies: dependencies,
+    );
   }
 
   Future<String> _readSdkVersion() async {
@@ -270,8 +273,11 @@ List<int> _numericParts(String version) {
       .toList(growable: false);
 }
 
-class DepsReport {
-  const DepsReport({required this.sdkVersion, required this.dependencies});
+class PubDependencyReport {
+  const PubDependencyReport({
+    required this.sdkVersion,
+    required this.dependencies,
+  });
 
   final String sdkVersion;
   final List<DependencyCompatibility> dependencies;

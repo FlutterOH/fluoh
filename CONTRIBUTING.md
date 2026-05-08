@@ -110,7 +110,7 @@ Commit messages use Conventional Commits:
 <type>(<scope>): <subject>
 ```
 
-`scope` is optional. Prefer the affected command, module, or documentation area, such as `sdk`, `deps`, `pub`, `source`, `docs`, or `ci`.
+`scope` is optional. Prefer the affected command, module, or documentation area, such as `sdk`, `pub`, `source`, `docs`, or `ci`.
 
 Common `type` values:
 
@@ -126,7 +126,7 @@ Examples:
 
 ```text
 feat(pub): configure pub repository remotes
-fix(deps): update rewritten OHOS dependencies
+fix(pub): upgrade rewritten OHOS dependencies
 docs: add Homebrew installation guide
 ci: publish package on version tags
 ```

@@ -5,8 +5,10 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../context/fluoh_environment.dart';
 import 'pub_adapt_command.dart';
 import 'pub_create_command.dart';
+import 'pub_dependency_commands.dart';
 import 'pub_release_command.dart';
 import 'pub_sync_command.dart';
+import 'pub_upgrade_command.dart';
 
 class PubCommand extends Command<int> {
   PubCommand({
@@ -14,6 +16,9 @@ class PubCommand extends Command<int> {
     required OutputWriter stdout,
     required OutputWriter stderr,
   }) : _stdout = stdout {
+    addSubcommand(PubCheckCommand(environment: environment, stdout: stdout));
+    addSubcommand(PubFixCommand(environment: environment, stdout: stdout));
+    addSubcommand(PubUpgradeCommand(environment: environment, stdout: stdout));
     addSubcommand(
       PubCreateCommand(
         environment: environment,
@@ -38,7 +43,8 @@ class PubCommand extends Command<int> {
   String get name => 'pub';
 
   @override
-  String get description => 'Manage FlutterOH pub package repositories.';
+  String get description =>
+      'Manage FlutterOH pub dependencies and repositories.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -71,5 +77,11 @@ class PubCommand extends Command<int> {
 }
 
 const _pubCommandSections = [
-  CommandUsageSection('', ['create', 'sync', 'adapt', 'release']),
+  CommandUsageSection('Project dependencies:', ['check', 'fix', 'upgrade']),
+  CommandUsageSection('Adapter repositories:', [
+    'create',
+    'sync',
+    'adapt',
+    'release',
+  ]),
 ];

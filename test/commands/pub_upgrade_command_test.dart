@@ -30,7 +30,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['deps', 'update'],
+        ['pub', 'upgrade'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -44,7 +44,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['deps', 'update', '--yes'],
+        ['pub', 'upgrade', '--yes'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -108,7 +108,7 @@ dependency_overrides:
 
     expect(
       await runFluoh(
-        ['deps', 'update', '--yes'],
+        ['pub', 'upgrade', '--yes'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -169,7 +169,7 @@ dependencies:
 
     expect(
       await runFluoh(
-        ['deps', 'update', '--yes'],
+        ['pub', 'upgrade', '--yes'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

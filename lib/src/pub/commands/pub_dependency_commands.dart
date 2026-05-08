@@ -3,66 +3,12 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
-import '../cli/command_usage.dart';
-import '../cli/fluoh_command_runner.dart';
-import '../context/fluoh_environment.dart';
-import 'deps_analyzer.dart';
-import 'deps_update_command.dart';
+import '../../cli/fluoh_command_runner.dart';
+import '../../context/fluoh_environment.dart';
+import '../pub_dependency_analyzer.dart';
 
-class DepsCommand extends Command<int> {
-  DepsCommand({
-    required FluohEnvironment environment,
-    required OutputWriter stdout,
-  }) : _stdout = stdout {
-    addSubcommand(DepsCheckCommand(environment: environment, stdout: stdout));
-    addSubcommand(DepsFixCommand(environment: environment, stdout: stdout));
-    addSubcommand(DepsUpdateCommand(environment: environment, stdout: stdout));
-  }
-
-  final OutputWriter _stdout;
-
-  @override
-  String get name => 'deps';
-
-  @override
-  String get description => 'Check and fix Flutter OHOS dependency adapters.';
-
-  @override
-  String get usage => '$description\n\n$_usageWithoutDescription';
-
-  @override
-  void printUsage() {
-    _stdout(usage);
-  }
-
-  @override
-  Never usageException(String message) {
-    throw UsageException(message, _usageWithoutDescription);
-  }
-
-  String get _usageWithoutDescription {
-    return [
-      'Usage: $invocation',
-      argParser.usage,
-      '',
-      formatCommandUsage(
-        subcommands,
-        sections: _depsCommandSections,
-        isSubcommand: true,
-        lineLength: argParser.usageLineLength,
-      ),
-      '',
-      'Run "${runner!.executableName} help" to see global options.',
-    ].join('\n');
-  }
-}
-
-const _depsCommandSections = [
-  CommandUsageSection('', ['check', 'fix', 'update']),
-];
-
-class DepsCheckCommand extends Command<int> {
-  DepsCheckCommand({required this.environment, required this.stdout}) {
+class PubCheckCommand extends Command<int> {
+  PubCheckCommand({required this.environment, required this.stdout}) {
     argParser.addFlag(
       'json',
       negatable: false,
@@ -81,7 +27,7 @@ class DepsCheckCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final report = await DepsAnalyzer(environment).analyze();
+    final report = await PubDependencyAnalyzer(environment).analyze();
     if (argResults!.flag('json')) {
       stdout(jsonEncode(report.toJson()));
       return 0;
@@ -95,8 +41,8 @@ class DepsCheckCommand extends Command<int> {
   }
 }
 
-class DepsFixCommand extends Command<int> {
-  DepsFixCommand({required this.environment, required this.stdout}) {
+class PubFixCommand extends Command<int> {
+  PubFixCommand({required this.environment, required this.stdout}) {
     argParser
       ..addFlag(
         'yes',
@@ -127,7 +73,7 @@ class DepsFixCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final report = await DepsAnalyzer(environment).analyze();
+    final report = await PubDependencyAnalyzer(environment).analyze();
     final allowVersionChange = argResults!.flag('allow-version-change');
     final rewrite = argResults!.flag('rewrite');
     final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');

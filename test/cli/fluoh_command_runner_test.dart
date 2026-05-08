@@ -116,7 +116,6 @@ void main() {
     _expectInOrder(help, [
       '  flutter',
       '  sdk',
-      '  deps',
       '  pub',
       '  test',
       '  source',
@@ -153,18 +152,6 @@ void main() {
     stdout.clear();
     expect(
       await runFluoh(
-        ['deps', '--help'],
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-    help = stdout.join('\n');
-    _expectInOrder(help, ['  check', '  fix', '  update']);
-
-    stdout.clear();
-    expect(
-      await runFluoh(
         ['test', '--help'],
         stdout: stdout.add,
         stderr: stderr.add,
@@ -188,7 +175,13 @@ void main() {
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    expect(help, contains('Manage FlutterOH pub package repositories.'));
+    expect(
+      help,
+      contains('Manage FlutterOH pub dependencies and repositories.'),
+    );
+    expect(help, contains('check'));
+    expect(help, contains('fix'));
+    expect(help, contains('upgrade'));
     expect(help, contains('create'));
     expect(help, contains('sync'));
     expect(help, contains('adapt'));
@@ -208,10 +201,17 @@ void main() {
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    _expectInOrder(help, ['  create', '  sync', '  adapt', '  release']);
-    expect(help, isNot(contains('Repository setup:')));
-    expect(help, isNot(contains('Upstream adaptation:')));
-    expect(help, isNot(contains('Release:')));
+    _expectInOrder(help, [
+      'Project dependencies:',
+      '  check',
+      '  fix',
+      '  upgrade',
+      'Adapter repositories:',
+      '  create',
+      '  sync',
+      '  adapt',
+      '  release',
+    ]);
     expect(stderr, isEmpty);
   });
 }

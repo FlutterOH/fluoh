@@ -14,7 +14,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['deps', 'check'],
+        ['pub', 'check'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -23,7 +23,7 @@ void main() {
     );
     expect(
       await runFluoh(
-        ['deps', 'check', '--json'],
+        ['pub', 'check', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -74,7 +74,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['deps', 'fix'],
+          ['pub', 'fix'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -90,7 +90,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['deps', 'fix', '--yes'],
+          ['pub', 'fix', '--yes'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -125,7 +125,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['deps', 'fix', '--yes', '--rewrite'],
+        ['pub', 'fix', '--yes', '--rewrite'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -178,7 +178,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['deps', 'check'],
+        ['pub', 'check'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -234,7 +234,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['deps', 'check'],
+        ['pub', 'check'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -292,7 +292,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['deps', 'check'],
+          ['pub', 'check'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -382,7 +382,7 @@ releases:
 
       expect(
         await runFluoh(
-          ['deps', 'check'],
+          ['pub', 'check'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,

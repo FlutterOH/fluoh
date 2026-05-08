@@ -102,7 +102,7 @@ git diff --check
 <type>(<scope>): <subject>
 ```
 
-`scope` 可选，建议使用受影响的命令、模块或文档范围，例如 `sdk`、`deps`、`pub`、`source`、`docs`、`ci`。
+`scope` 可选，建议使用受影响的命令、模块或文档范围，例如 `sdk`、`pub`、`source`、`docs`、`ci`。
 
 常用 `type`：
 
@@ -118,7 +118,7 @@ git diff --check
 
 ```text
 feat(pub): configure pub repository remotes
-fix(deps): update rewritten OHOS dependencies
+fix(pub): upgrade rewritten OHOS dependencies
 docs: add Homebrew installation guide
 ci: publish package on version tags
 ```

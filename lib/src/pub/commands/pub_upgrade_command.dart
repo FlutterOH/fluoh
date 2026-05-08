@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
-import '../cli/fluoh_command_runner.dart';
-import '../context/fluoh_environment.dart';
-import 'deps_analyzer.dart';
+import '../../cli/fluoh_command_runner.dart';
+import '../../context/fluoh_environment.dart';
+import '../pub_dependency_analyzer.dart';
 
-class DepsUpdateCommand extends Command<int> {
-  DepsUpdateCommand({required this.environment, required OutputWriter stdout})
+class PubUpgradeCommand extends Command<int> {
+  PubUpgradeCommand({required this.environment, required OutputWriter stdout})
     : _stdout = stdout {
     argParser
       ..addFlag(
@@ -26,14 +26,14 @@ class DepsUpdateCommand extends Command<int> {
   final OutputWriter _stdout;
 
   @override
-  String get name => 'update';
+  String get name => 'upgrade';
 
   @override
   String get description =>
-      'Update existing OHOS adapter dependency overrides.';
+      'Upgrade existing OHOS adapter dependency overrides.';
 
   @override
-  String get invocation => 'fluoh deps update';
+  String get invocation => 'fluoh pub upgrade';
 
   @override
   Future<int> run() async {
@@ -47,7 +47,7 @@ class DepsUpdateCommand extends Command<int> {
     }
 
     final allowVersionChange = argResults!.flag('allow-version-change');
-    final report = await DepsAnalyzer(environment).analyze();
+    final report = await PubDependencyAnalyzer(environment).analyze();
     final plans = <AdapterUpdatePlan>[];
 
     for (final dependency in report.dependencies) {

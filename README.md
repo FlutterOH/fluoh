@@ -46,8 +46,8 @@ fluoh source update
 fluoh sdk list
 fluoh sdk use 3.35
 fluoh flutter pub get
-fluoh deps check
-fluoh deps fix --yes
+fluoh pub check
+fluoh pub fix --yes
 fluoh doctor
 ```
 
@@ -68,12 +68,12 @@ fluoh flutter --version
 ### Check and fix OHOS dependency adapters
 
 ```sh
-fluoh deps check
-fluoh deps fix --yes
-fluoh deps update --yes
+fluoh pub check
+fluoh pub fix --yes
+fluoh pub upgrade --yes
 ```
 
-`fluoh deps fix` writes `dependency_overrides` by default. Use `--rewrite` when you want to rewrite direct `dependencies` declarations instead.
+`fluoh pub fix` writes `dependency_overrides` by default. Use `--rewrite` when you want to rewrite direct `dependencies` declarations instead.
 
 ### Create third-party pub repositories
 
@@ -113,16 +113,16 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh flutter ...` | Run `flutter` from the SDK selected in `fluoh.yaml`; use this for normal Flutter commands in a FlutterOH project. |
 | `fluoh sdk ...` | List, install, remove, and select local Flutter OHOS SDKs. |
 | `fluoh sdk use <version-or-series>` | Switch the SDK for the current Flutter project. |
-| `fluoh deps check` | Check OHOS compatibility for project dependencies. |
-| `fluoh deps fix` | Write adapted dependency replacements. |
-| `fluoh deps update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
-| `fluoh pub ...` | Create, sync, adapt, and release third-party FlutterOH pub repositories. |
+| `fluoh pub check` | Check OHOS compatibility for project dependencies. |
+| `fluoh pub fix` | Write adapted dependency replacements. |
+| `fluoh pub upgrade` | Upgrade existing OHOS-adapted dependency versions in the current project. |
+| `fluoh pub create/sync/adapt/release` | Create, sync, adapt, and release third-party FlutterOH pub repositories. |
 | `fluoh test ...` | Create `fluoh_test` and run package plus `fluoh_test` verification for adapted Flutter packages. |
 | `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh doctor` | Diagnose CLI version, project SDK, and OHOS directory status. |
 | `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
 
-`fluoh deps update` and `fluoh upgrade` are intentionally different: `deps update` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.
+`fluoh pub upgrade` and `fluoh upgrade` are intentionally different: `pub upgrade` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.
 
 ## Data Sources
 

@@ -12,8 +12,7 @@
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
 - `lib/src/source/`: FlutterOH data source registry and YAML source loading.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
-- `lib/src/deps/`: dependency compatibility analysis and pubspec updates.
-- `lib/src/pub/`: pub repository create, sync, adapt, and release workflows.
+- `lib/src/pub/`: pub dependency analysis and commands, plus repository create, sync, adapt, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
 - `test/`: unit, command, integration, fixture, and release artifact tests.
 - `Formula/`: Homebrew packaging.
@@ -75,7 +74,7 @@ Use Conventional Commits:
 <type>(<scope>): <subject>
 ```
 
-Use scopes such as `sdk`, `deps`, `pub`, `source`, `docs`, `ci`, `test`, or `release` when helpful. Common types are `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `ci`. Keep the first line within 72 characters.
+Use scopes such as `sdk`, `pub`, `source`, `docs`, `ci`, `test`, or `release` when helpful. Common types are `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `ci`. Keep the first line within 72 characters.
 
 Pull requests should describe user-visible behavior, list verification commands, link related issues, and call out release or publishing impact. Include CLI output snippets when they clarify behavior.
 
