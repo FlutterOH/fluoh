@@ -114,6 +114,17 @@ Future<int> runFluohTestWorkspace({
   }
 
   final flutter = await _flutterExecutableForEnvironment(environment);
+  final packageTest = await _runAdapterPackageTests(
+    environment: environment,
+    flutter: flutter,
+    package: package,
+    stdout: stdout,
+    stderr: stderr,
+  );
+  if (packageTest != 0) {
+    return packageTest;
+  }
+
   stdout('Running fluoh_test pub get.');
   final pubGet = await _runProcess(
     flutter.path,
@@ -144,6 +155,63 @@ Future<int> runFluohTestWorkspace({
 
   stdout('fluoh_test passed.');
   return 0;
+}
+
+Future<int> _runAdapterPackageTests({
+  required FluohEnvironment environment,
+  required File flutter,
+  required FlutterAdapterPackage package,
+  required OutputWriter stdout,
+  required OutputWriter stderr,
+}) async {
+  if (!await _hasFlutterTests(package.directory)) {
+    stdout('Skipping ${package.name} package tests: no test files found.');
+    return 0;
+  }
+
+  stdout('Running ${package.name} package pub get.');
+  final pubGet = await _runProcess(
+    flutter.path,
+    ['pub', 'get'],
+    workingDirectory: package.directory,
+    environment: environment,
+    stdout: stdout,
+    stderr: stderr,
+  );
+  if (pubGet != 0) {
+    stdout('${package.name} package pub get failed.');
+    return pubGet;
+  }
+
+  stdout('Running ${package.name} package Flutter tests.');
+  final test = await _runProcess(
+    flutter.path,
+    ['test'],
+    workingDirectory: package.directory,
+    environment: environment,
+    stdout: stdout,
+    stderr: stderr,
+  );
+  if (test != 0) {
+    stdout('${package.name} package tests failed.');
+    return test;
+  }
+
+  stdout('${package.name} package tests passed.');
+  return 0;
+}
+
+Future<bool> _hasFlutterTests(Directory packageDirectory) async {
+  final testDirectory = Directory('${packageDirectory.path}/test');
+  if (!await testDirectory.exists()) {
+    return false;
+  }
+  await for (final entity in testDirectory.list(recursive: true)) {
+    if (entity is File && entity.path.endsWith('_test.dart')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 Future<FlutterAdapterPackage?> findFlutterAdapterPackage(
@@ -534,7 +602,7 @@ Run from the adapter repository root:
 fluoh test run
 ```
 
-The command runs the tests in this `fluoh_test` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
+The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the tests in this `fluoh_test` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
 
 ## Manual Verification
 

@@ -184,7 +184,7 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 
 使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前 pub 分支并刷新 `fluoh.yaml`。
 
-`fluoh_test/test` 用于发布前必须通过的自动化适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会使用当前选择的 Flutter OHOS SDK 执行自动化检查。
+`fluoh_test/test` 用于发布前必须通过的自动化适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会在存在 `test/**/*_test.dart` 时先运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再使用当前选择的 Flutter OHOS SDK 执行 `fluoh_test` 自动化检查。
 
 `fluoh pub release` 必须继续保证：
 
@@ -192,7 +192,7 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 - 当前分支和根据 `fluoh.yaml` 推导出的 `ohos/<sdk-series>` 分支一致。
 - 工作区干净。
 - SDK tag 来自已配置的数据源。
-- Flutter 适配库的 `fluoh test run` 通过。
+- Flutter 适配库自身测试和 `fluoh_test` 通过 `fluoh test run`。
 - release tag 和 manifest 中的 package、上游版本、SDK tag、release 版本一致。
 
 适配仓库的 release 命令不得直接写入 FlutterOH/pub 数据源元数据。已发布适配库应通过 FlutterOH/pub PR 注册，或等待定时数据源拉取流程处理。

@@ -111,6 +111,7 @@ void main() {
     expect(readme, contains('fluoh deps update'));
     expect(readme, contains('fluoh test init'));
     expect(readme, contains('fluoh test run'));
+    expect(readme, contains("adapter package's own Flutter tests"));
     expect(readme, contains('fluoh_test/example'));
     expect(readme, contains('third-party FlutterOH pub repositories'));
     expect(readme, contains('packages/repositories.yaml'));
@@ -134,6 +135,7 @@ void main() {
     expect(chineseReadme, contains('fluoh deps update'));
     expect(chineseReadme, contains('fluoh test init'));
     expect(chineseReadme, contains('fluoh test run'));
+    expect(chineseReadme, contains('适配库自身的 Flutter 测试'));
     expect(chineseReadme, contains('fluoh_test/example'));
     expect(chineseReadme, contains('第三方库 FlutterOH pub 仓库'));
     expect(chineseReadme, contains('packages/repositories.yaml'));
@@ -182,6 +184,7 @@ void main() {
     expect(contributing, contains('fluoh pub sync'));
     expect(contributing, contains('fluoh pub adapt'));
     expect(contributing, contains('fluoh test run'));
+    expect(contributing, contains("adapter package's own Flutter tests"));
     expect(contributing, contains('fluoh_test/test'));
     expect(
       contributing,
@@ -237,6 +240,7 @@ void main() {
     expect(chineseContributing, contains('fluoh pub sync'));
     expect(chineseContributing, contains('fluoh pub adapt'));
     expect(chineseContributing, contains('fluoh test run'));
+    expect(chineseContributing, contains('适配库自身的 Flutter 测试'));
     expect(chineseContributing, contains('fluoh_test/test'));
     expect(
       chineseContributing,

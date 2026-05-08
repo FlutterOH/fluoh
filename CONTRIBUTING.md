@@ -193,7 +193,7 @@ git commit -m "feat(pub): initialize FlutterOH adapter"
 
 Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current pub branch and refresh `fluoh.yaml`.
 
-Use `fluoh_test/test` for automated adapter checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` executes the automated checks from the selected Flutter OHOS SDK.
+Use `fluoh_test/test` for automated adapter checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` runs the adapter package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then executes the `fluoh_test` automated checks from the selected Flutter OHOS SDK.
 
 `fluoh pub release` must continue to guarantee:
 
@@ -201,7 +201,7 @@ Use `fluoh_test/test` for automated adapter checks that must pass before release
 - The current branch matches the `ohos/<sdk-series>` branch inferred from `fluoh.yaml`.
 - The worktree is clean.
 - The SDK tag comes from configured sources.
-- `fluoh test run` passes for Flutter adapter packages.
+- Package Flutter tests and `fluoh_test` pass through `fluoh test run` for Flutter adapter packages.
 - The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.
 
 Adapter repository release commands must not write FlutterOH/pub source metadata directly. Register released adapters through a FlutterOH/pub pull request or the scheduled source ingestion process.

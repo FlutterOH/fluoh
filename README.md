@@ -96,7 +96,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
 
 Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata, an adaptation guide, AI agent instructions, and `fluoh_test/` for Flutter packages or plugins. `fluoh pub create` stages generated files but does not commit. Commit before running `pub sync`, `pub adapt`, or `pub release`.
 
-`fluoh test init` creates `fluoh_test/test` automated checks and a `fluoh_test/example` app for manual platform verification. `fluoh test run` runs the automated checks and is executed by `fluoh pub release` before creating or pushing a Flutter adapter release tag. FlutterOH/pub source metadata updates should go through a pull request or the scheduled source ingestion process.
+`fluoh test init` creates `fluoh_test/test` automated checks and a `fluoh_test/example` app for manual platform verification. `fluoh test run` first runs the adapter package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs `fluoh_test`; `fluoh pub release` executes it before creating or pushing a Flutter adapter release tag. FlutterOH/pub source metadata updates should go through a pull request or the scheduled source ingestion process.
 
 To choose the final push target:
 
@@ -117,7 +117,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh deps fix` | Write adapted dependency replacements. |
 | `fluoh deps update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
 | `fluoh pub ...` | Create, sync, adapt, and release third-party FlutterOH pub repositories. |
-| `fluoh test ...` | Create and run the `fluoh_test` verification workspace for adapted Flutter packages. |
+| `fluoh test ...` | Create `fluoh_test` and run package plus `fluoh_test` verification for adapted Flutter packages. |
 | `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh doctor` | Diagnose CLI version, project SDK, and OHOS directory status. |
 | `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
