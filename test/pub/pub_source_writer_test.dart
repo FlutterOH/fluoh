@@ -50,12 +50,16 @@ repositories:
       final manifest = File(
         '${packages.path}/manifests/share_plus.yaml',
       ).readAsStringSync();
-      expect(manifest, contains('  - upstreamVersion: 10.0.0'));
+      expect(manifest, contains('upstream:'));
+      expect(manifest, contains('      version: 10.0.0'));
       expect(manifest, contains('      versionSeries: 3.35'));
       expect(manifest, contains('      versions:'));
       expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
-      expect(manifest, contains('    fluohBranch: ohos/3.35'));
-      expect(manifest, contains('      path: packages/share_plus/share_plus'));
+      expect(manifest, contains('        ref: ohos/3.35'));
+      expect(
+        manifest,
+        contains('        path: packages/share_plus/share_plus'),
+      );
     },
   );
 
@@ -151,12 +155,81 @@ repositories: []
       '${source.path}/packages/manifests/camera.yaml',
     ).readAsStringSync();
     expect(repositories, contains('    path: .'));
-    expect(manifest, contains('  packagePath: .'));
-    expect(manifest, isNot(contains('      path: .')));
+    expect(manifest, isNot(contains('path: .')));
+  });
+
+  test(
+    'uses adapter paths when upstream and adapter package paths differ',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_pub_source_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+      final source = Directory('${root.path}/source');
+
+      await writePubSourcePackageUpdate(
+        source,
+        manifest: _manifest(
+          upstreamPath: 'packages/camera/camera',
+          dependencyPath: 'adapter/camera',
+        ),
+        releaseTag: 'camera-v0.11.0-ohos-3.35.8-0.1.0',
+      );
+
+      final repositories = File(
+        '${source.path}/packages/repositories.yaml',
+      ).readAsStringSync();
+      final manifest = File(
+        '${source.path}/packages/manifests/camera.yaml',
+      ).readAsStringSync();
+      expect(repositories, contains('    path: adapter/camera'));
+      expect(repositories, isNot(contains('packages/camera/camera')));
+      expect(manifest, contains('    path: adapter/camera'));
+      expect(manifest, contains('        path: adapter/camera'));
+      expect(manifest, contains('    path: packages/camera/camera'));
+      expect(manifest, isNot(contains('        path: packages/camera/camera')));
+    },
+  );
+
+  test('does not use upstream paths for root adapter source updates', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_pub_source_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final source = Directory('${root.path}/source');
+
+    await writePubSourcePackageUpdate(
+      source,
+      manifest: _manifest(
+        withPath: false,
+        upstreamPath: 'packages/camera/camera',
+      ),
+      releaseTag: 'camera-v0.11.0-ohos-3.35.8-0.1.0',
+    );
+
+    final repositories = File(
+      '${source.path}/packages/repositories.yaml',
+    ).readAsStringSync();
+    final manifest = File(
+      '${source.path}/packages/manifests/camera.yaml',
+    ).readAsStringSync();
+    expect(repositories, contains('    path: .'));
+    expect(repositories, isNot(contains('packages/camera/camera')));
+    expect(manifest, contains('    path: packages/camera/camera'));
+    expect(manifest, isNot(contains('        path: packages/camera/camera')));
   });
 }
 
-PubManifest _manifest({String packageName = 'camera', bool withPath = true}) {
+PubManifest _manifest({
+  String packageName = 'camera',
+  bool withPath = true,
+  String? upstreamPath,
+  String? dependencyPath,
+}) {
   final packagePath = withPath ? 'packages/$packageName/$packageName' : null;
   return PubManifest(
     packageName: packageName,
@@ -166,11 +239,11 @@ PubManifest _manifest({String packageName = 'camera', bool withPath = true}) {
     branch: 'ohos/3.35',
     releaseTag: '$packageName-release',
     upstreamUrl: 'https://github.com/flutter/packages',
-    upstreamPath: packagePath,
+    upstreamPath: upstreamPath ?? packagePath,
     upstreamRef: '$packageName-upstream',
     adapterUrl: 'git@github.com:FlutterOH/$packageName.git',
     dependencyUrl: 'https://github.com/FlutterOH/$packageName.git',
-    dependencyPath: packagePath,
+    dependencyPath: dependencyPath ?? packagePath,
     status: 'compatible',
   );
 }

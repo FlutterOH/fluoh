@@ -94,7 +94,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。
+默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据、适配指南和 AI agent 指令。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync`、`pub adapt` 或 `pub release` 前需要先提交。
 
 如果需要指定最终推送位置：
 
@@ -116,7 +116,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh deps update` | 升级项目内已有 OHOS 适配依赖版本。 |
 | `fluoh pub ...` | 创建、同步、适配并发布第三方库 FlutterOH pub 仓库。 |
 | `fluoh source ...` | 管理 FlutterOH 数据源。 |
-| `fluoh doctor` | 诊断 CLI 版本、项目 SDK、OHOS 目录和依赖状态。 |
+| `fluoh doctor` | 诊断 CLI 版本、项目 SDK 和 OHOS 目录状态。 |
 | `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |
 
 `fluoh deps update` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。

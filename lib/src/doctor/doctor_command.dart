@@ -7,7 +7,6 @@ import 'package:yaml/yaml.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
-import '../deps/deps_analyzer.dart';
 import '../cli/fluoh_installation.dart';
 import '../sdk/sdk_project_config.dart';
 import '../source/source_index.dart';
@@ -57,13 +56,9 @@ class DoctorCommand extends Command<int> {
     final checks = <_DoctorCheck>[];
     checks.add(await _checkToolVersion());
     checks.add(await _checkSource());
-    final project = await _checkFlutterProject();
-    checks.add(project.check);
+    checks.add(await _checkFlutterProject());
     checks.add(await _checkSdkFiles());
     checks.add(await _checkOhosDirectory());
-    if (project.isFlutterProject) {
-      checks.add(await _checkDependencies());
-    }
 
     _printChecks(checks);
     return 0;
@@ -109,15 +104,12 @@ class DoctorCommand extends Command<int> {
     return _DoctorCheck.ok('fluoh ($packageVersion)', details);
   }
 
-  Future<_FlutterProjectCheck> _checkFlutterProject() async {
+  Future<_DoctorCheck> _checkFlutterProject() async {
     final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
     if (!await pubspec.exists()) {
-      return _FlutterProjectCheck(
-        _DoctorCheck.warning('Flutter project', [
-          'Current directory is not a Flutter project.',
-        ]),
-        isFlutterProject: false,
-      );
+      return _DoctorCheck.warning('Flutter project', [
+        'Current directory is not a Flutter project.',
+      ]);
     }
 
     try {
@@ -125,21 +117,17 @@ class DoctorCommand extends Command<int> {
       final dependencies = yaml is YamlMap ? yaml['dependencies'] : null;
       final flutter = dependencies is YamlMap ? dependencies['flutter'] : null;
       if (flutter is YamlMap && flutter['sdk'] == 'flutter') {
-        return _FlutterProjectCheck(
-          _DoctorCheck.ok('Flutter project', ['Detected Flutter project.']),
-          isFlutterProject: true,
-        );
+        return _DoctorCheck.ok('Flutter project', [
+          'Detected Flutter project.',
+        ]);
       }
     } on FormatException {
       // Report as a project warning below.
     }
 
-    return _FlutterProjectCheck(
-      _DoctorCheck.warning('Flutter project', [
-        'Current directory is not a Flutter project.',
-      ]),
-      isFlutterProject: false,
-    );
+    return _DoctorCheck.warning('Flutter project', [
+      'Current directory is not a Flutter project.',
+    ]);
   }
 
   Future<_DoctorCheck> _checkSource() async {
@@ -213,41 +201,6 @@ class DoctorCommand extends Command<int> {
     ]);
   }
 
-  Future<_DoctorCheck> _checkDependencies() async {
-    try {
-      final report = await DepsAnalyzer(environment).analyze();
-      final needingAttention = report.dependencies
-          .where(
-            (dependency) =>
-                dependency.status == DependencyStatus.unknown ||
-                dependency.status == DependencyStatus.blocked,
-          )
-          .map((dependency) => dependency.name)
-          .toList(growable: false);
-      if (needingAttention.isEmpty) {
-        return _DoctorCheck.ok('Dependencies', [
-          'No unknown or blocked packages.',
-        ]);
-      }
-
-      return _DoctorCheck.warning('Dependencies', [
-        'Dependencies needing attention: ${needingAttention.join(', ')}.',
-      ]);
-    } on UsageException catch (error) {
-      return _DoctorCheck.warning('Dependencies', [
-        'Dependency check skipped: ${error.message}',
-      ]);
-    } on FileSystemException catch (error) {
-      return _DoctorCheck.warning('Dependencies', [
-        'Dependency check skipped: ${error.message}',
-      ]);
-    } on FormatException catch (error) {
-      return _DoctorCheck.warning('Dependencies', [
-        'Dependency check skipped: ${error.message}',
-      ]);
-    }
-  }
-
   void _printChecks(List<_DoctorCheck> checks) {
     _stdout('Doctor summary:');
     for (final check in checks) {
@@ -298,13 +251,6 @@ class _DoctorStyle {
     };
     return '$color$text\u001b[0m';
   }
-}
-
-class _FlutterProjectCheck {
-  const _FlutterProjectCheck(this.check, {required this.isFlutterProject});
-
-  final _DoctorCheck check;
-  final bool isFlutterProject;
 }
 
 class _DoctorCheck {

@@ -18,10 +18,5 @@ Future<String?> readProjectSdkTag(Directory workingDirectory) async {
     return '${sdk['version']}';
   }
 
-  final fluoh = loaded['fluoh'];
-  if (fluoh is YamlMap && fluoh['sdkVersion'] != null) {
-    return '${fluoh['sdkVersion']}';
-  }
-
   return null;
 }

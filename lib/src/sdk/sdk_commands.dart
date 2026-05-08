@@ -75,9 +75,11 @@ class SdkListCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    var index = 1;
     for (final sdk in await manager.listEntries()) {
       final status = sdk.installed ? 'installed' : 'remote';
-      stdout('${sdk.tag} ${sdk.channel} $status');
+      stdout('[$index] ${sdk.tag} ${sdk.channel} $status');
+      index += 1;
     }
     return 0;
   }

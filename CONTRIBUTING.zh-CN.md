@@ -176,7 +176,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-`fluoh pub create` 会暂存生成的 `FLUOH.md` 和 `fluoh.yaml`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
+`fluoh pub create` 会暂存生成的 `AGENTS.md`、`FLUOH.md` 和 `fluoh.yaml`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"

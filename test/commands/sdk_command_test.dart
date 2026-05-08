@@ -92,7 +92,7 @@ void main() {
         0,
       );
 
-      expect(stdout, contains('3.34.0-ohos-0.0.1 unknown installed'));
+      expect(stdout, contains('[1] 3.34.0-ohos-0.0.1 unknown installed'));
       expect(stdout, contains('Removed SDK 3.34.0-ohos-0.0.1.'));
       expect(localSdk.existsSync(), isFalse);
       expect(stderr, isEmpty);
@@ -158,7 +158,7 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('3.35.8-ohos-0.0.3 stable remote'));
+    expect(stdout, contains('[1] 3.35.8-ohos-0.0.3 stable remote'));
     expect(stdout, contains('Installed SDK 3.35.8-ohos-0.0.3.'));
     expect(stdout, contains('Current SDK: 3.35.8-ohos-0.0.3'));
     expect(stdout, contains('Removed SDK 3.35.8-ohos-0.0.3.'));
@@ -198,8 +198,8 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('3.35.8-ohos-0.0.3 stable remote'));
-    expect(stdout, contains('3.34.0-ohos-0.0.1 unknown installed'));
+    expect(stdout, contains('[1] 3.35.8-ohos-0.0.3 stable remote'));
+    expect(stdout, contains('[2] 3.34.0-ohos-0.0.1 unknown installed'));
     expect(
       File('${environment.homeDirectory.path}/config.json').readAsStringSync(),
       isNot(contains('"sdks"')),

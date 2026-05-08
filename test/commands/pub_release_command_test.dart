@@ -44,16 +44,18 @@ void main() {
     expect(registry, isNot(contains('upstreamUrl:')));
     expect(registry, isNot(contains('status:')));
     expect(manifest, contains('        - 3.35.8-ohos-0.0.3'));
-    expect(manifest, contains('upstreamVersion: 0.11.0'));
+    expect(manifest, contains('upstream:'));
+    expect(manifest, contains('      version: 0.11.0'));
     expect(manifest, contains('versionSeries: 3.35'));
     expect(manifest, isNot(contains('      version: 3.35.8-ohos-0.0.3')));
-    expect(manifest, contains('fluohBranch: ohos/3.35'));
-    expect(manifest, contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0'));
+    expect(manifest, contains('        ref: ohos/3.35'));
+    expect(manifest, isNot(contains('fluohBranch:')));
+    expect(manifest, isNot(contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0')));
     expect(
       manifest,
-      contains('      url: https://github.com/FlutterOH/camera.git'),
+      contains('        url: https://github.com/FlutterOH/camera.git'),
     );
-    expect(manifest, contains('      ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
+    expect(manifest, contains('        ref: camera-v0.11.0-ohos-3.35.8-0.1.0'));
     expect(File('${pubSource.path}/packages/index.yaml').existsSync(), isFalse);
     expect(
       File('${pubSource.path}/packages/camera.yaml').existsSync(),
@@ -132,8 +134,8 @@ void main() {
     var manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
     await File('${pubRepository.path}/fluoh.yaml').writeAsString(
       manifest.replaceFirst(
-        '  sdkVersion: 3.35.8-ohos-0.0.3',
-        '  sdkVersion: 3.35.8-ohos-9.9.9',
+        'sdk:\n  version: 3.35.8-ohos-0.0.3',
+        'sdk:\n  version: 3.35.8-ohos-9.9.9',
       ),
     );
     await runGit(pubRepository, ['add', 'fluoh.yaml']);
@@ -153,8 +155,8 @@ void main() {
     manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
     await File('${pubRepository.path}/fluoh.yaml').writeAsString(
       manifest.replaceFirst(
-        '  sdkVersion: 3.35.8-ohos-9.9.9',
-        '  sdkVersion: 3.35.8-ohos-0.0.3',
+        'sdk:\n  version: 3.35.8-ohos-9.9.9',
+        'sdk:\n  version: 3.35.8-ohos-0.0.3',
       ),
     );
     await runGit(pubRepository, ['add', 'fluoh.yaml']);

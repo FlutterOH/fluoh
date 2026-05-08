@@ -61,8 +61,6 @@ void main() {
 schema: 1
 sdk:
   version: 3.35.8-ohos-0.0.3
-sources:
-  - fixture
 ''',
     );
     final stdout = <String>[];

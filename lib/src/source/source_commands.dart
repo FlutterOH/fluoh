@@ -50,8 +50,10 @@ class SourceListCommand extends Command<int> {
       return 0;
     }
 
+    var index = 1;
     for (final entry in config.sources.entries) {
-      stdout('${entry.key} ${entry.value.displayValue}');
+      stdout('[$index] ${entry.key} ${entry.value.displayValue}');
+      index += 1;
     }
     return 0;
   }

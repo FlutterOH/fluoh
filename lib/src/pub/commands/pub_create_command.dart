@@ -121,9 +121,18 @@ class PubCreateCommand extends Command<int> {
         branch: branch,
       ),
     );
+    await _writeAgentsInstructions(
+      destination: destination,
+      package: package,
+      packagePath: packagePath,
+      upstreamRef: upstreamRef,
+      sdkVersion: release.tag,
+      branch: branch,
+    );
     await runGit([
       'add',
       '-f',
+      'AGENTS.md',
       'FLUOH.md',
       'fluoh.yaml',
     ], workingDirectory: destination);
@@ -132,7 +141,7 @@ class PubCreateCommand extends Command<int> {
     _stdout('Pub branch: $branch.');
     _stdout('Origin: $adapterUrl.');
     _stdout('Configured Flutter OHOS SDK ${release.tag}.');
-    _stdout('See FLUOH.md for adaptation steps.');
+    _stdout('See FLUOH.md and AGENTS.md for adaptation steps.');
     return 0;
   }
 
@@ -149,6 +158,94 @@ class PubCreateCommand extends Command<int> {
     }
     return SdkManager.latestRelease(releases, preferStable: true);
   }
+}
+
+Future<void> _writeAgentsInstructions({
+  required Directory destination,
+  required PubspecPackage package,
+  required String packagePath,
+  required String upstreamRef,
+  required String sdkVersion,
+  required String branch,
+}) async {
+  final file = File('${destination.path}/AGENTS.md');
+  final existing = await file.exists() ? await file.readAsString() : null;
+  final generated = _agentsInstructionsContent(
+    package: package,
+    packagePath: packagePath,
+    upstreamRef: upstreamRef,
+    sdkVersion: sdkVersion,
+    branch: branch,
+    includeTitle: existing == null || existing.trim().isEmpty,
+  );
+
+  if (existing == null || existing.trim().isEmpty) {
+    await file.writeAsString(generated);
+    return;
+  }
+
+  await file.writeAsString(
+    '$existing${_markdownAppendSeparator(existing)}$generated',
+  );
+}
+
+String _markdownAppendSeparator(String content) {
+  if (content.endsWith('\n\n')) {
+    return '';
+  }
+  if (content.endsWith('\n')) {
+    return '\n';
+  }
+  return '\n\n';
+}
+
+String _agentsInstructionsContent({
+  required PubspecPackage package,
+  required String packagePath,
+  required String upstreamRef,
+  required String sdkVersion,
+  required String branch,
+  required bool includeTitle,
+}) {
+  return [
+    if (includeTitle) '# AGENTS.md',
+    if (includeTitle) '',
+    '## FlutterOH Agent Instructions',
+    '',
+    'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
+    'Use this file as the AI working contract. Use `FLUOH.md` for the full maintainer workflow and `fluoh.yaml` as the metadata source of truth.',
+    '',
+    '## Fast Context',
+    '',
+    '- Package path: `$packagePath`',
+    '- Upstream ref at creation: `$upstreamRef`',
+    '- FlutterOH branch: `$branch`',
+    '- FlutterOH metadata: `fluoh.yaml`',
+    '- Full adaptation guide: `FLUOH.md`',
+    '',
+    '## Use fluoh',
+    '',
+    '- Prefer `fluoh flutter <args>` for Flutter commands so the SDK selected in `fluoh.yaml` is used.',
+    '- Start with `fluoh flutter pub get` when dependencies may be stale.',
+    '- Use `fluoh flutter analyze`, `fluoh flutter test`, and package-specific build or smoke commands when they apply.',
+    '- Use `fluoh sdk list` to inspect available SDKs.',
+    '- Do not run `fluoh sdk use` in this pub adapter repository; it is for Flutter apps and refuses to replace pub repository metadata.',
+    '- When intentionally retargeting the adapter SDK, update `fluoh.yaml` and keep the branch and release metadata consistent.',
+    '- `fluoh pub sync` updates the clean upstream branch from `upstream` and requires a clean worktree.',
+    '- `fluoh pub adapt` merges the synchronized upstream branch into the current FlutterOH branch and refreshes `fluoh.yaml`; it also requires a clean worktree.',
+    '- `fluoh pub release` is for final release validation and tagging after the adapter is ready.',
+    '',
+    '## Working Rules',
+    '',
+    '- Read `FLUOH.md`, `fluoh.yaml`, and the package `pubspec.yaml` before making code changes.',
+    '- If the package path is not `.`, inspect that directory first and adapt verification commands to the upstream layout.',
+    '- Keep upstream APIs and non-OHOS platform behavior compatible unless the adaptation requires a targeted change.',
+    '- Prefer focused OHOS platform changes near the package implementation; avoid broad rewrites outside the package path.',
+    '- Preserve local work, generated metadata, and upstream history. Do not delete `fluoh.yaml` or `FLUOH.md`.',
+    '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
+    '- Commit local changes before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release`.',
+    '',
+  ].join('\n');
 }
 
 String _adaptationGuideContent({

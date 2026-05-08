@@ -68,19 +68,25 @@ void main() {
       ).readAsStringSync();
       expect(manifest, contains('schema: 1'));
       expect(manifest, contains('name: camera'));
+      expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
+      expect(manifest, contains('package:'));
       expect(manifest, contains('upstream:'));
-      expect(manifest, contains('fluoh:'));
       expect(manifest, isNot(contains('adapter:')));
       expect(manifest, isNot(contains('dependency:')));
       expect(manifest, isNot(contains('dependencyPolicy:')));
-      expect(manifest, isNot(contains('package:')));
+      expect(manifest, isNot(contains('fluoh:')));
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
       expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
+      expect(manifest, contains('ref: ohos/3.35'));
       expect(manifest, isNot(contains('branch: ohos/3.35')));
-      expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.3'));
+      expect(manifest, isNot(contains('sdkVersion:')));
       expect(manifest, contains('status: experimental'));
-      expect(manifest, contains('release:\n    version: 0.1.0'));
+      expect(manifest, isNot(contains('release:')));
+      expect(manifest, contains('version: 0.1.0'));
+      expect(manifest, contains('version: 0.11.0'));
+      expect(manifest, isNot(contains('tag: 0.1.0')));
+      expect(manifest, isNot(contains('tag: 0.11.0')));
       expect(
         manifest,
         isNot(contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0')),
@@ -97,6 +103,55 @@ void main() {
         guideContent,
         contains('You can continue adapting and commit everything together.'),
       );
+      final agents = File('${pubRepository.path}/AGENTS.md');
+      expect(agents.existsSync(), isTrue);
+      final agentsContent = agents.readAsStringSync();
+      expect(agentsContent, contains('# AGENTS.md'));
+      expect(agentsContent, contains('## FlutterOH Agent Instructions'));
+      expect(
+        agentsContent,
+        contains(
+          'This repository adapts `camera` 0.11.0 for Flutter OHOS SDK '
+          '`3.35.8-ohos-0.0.3`.',
+        ),
+      );
+      expect(agentsContent, contains('- Package path: `.`'));
+      expect(agentsContent, contains('- FlutterOH branch: `ohos/3.35`'));
+      expect(agentsContent, contains('fluoh.yaml'));
+      expect(agentsContent, contains('FLUOH.md'));
+      expect(agentsContent, contains('## Use fluoh'));
+      expect(
+        agentsContent,
+        contains(
+          'Prefer `fluoh flutter <args>` for Flutter commands so the SDK '
+          'selected in `fluoh.yaml` is used.',
+        ),
+      );
+      expect(agentsContent, contains('fluoh flutter pub get'));
+      expect(agentsContent, contains('fluoh flutter analyze'));
+      expect(agentsContent, contains('fluoh sdk list'));
+      expect(
+        agentsContent,
+        contains('Do not run `fluoh sdk use` in this pub adapter repository'),
+      );
+      expect(
+        agentsContent,
+        contains(
+          'When intentionally retargeting the adapter SDK, update `fluoh.yaml`',
+        ),
+      );
+      expect(
+        agentsContent,
+        isNot(contains('Use `fluoh sdk use <version-or-series>`')),
+      );
+      expect(
+        agentsContent,
+        contains(
+          'Commit local changes before running `fluoh pub sync`, '
+          '`fluoh pub adapt`, or `fluoh pub release`.',
+        ),
+      );
+      expect(agentsContent, isNot(contains('## Adaptation Checklist')));
       expect(File('${pubRepository.path}/FLUOH_TODO.md').existsSync(), isFalse);
       expect(
         File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(),
@@ -114,6 +169,7 @@ void main() {
         upstreamHead.stdout.toString().trim(),
       );
       final status = await runGit(pubRepository, ['status', '--porcelain']);
+      expect(status.stdout.toString(), contains('A  AGENTS.md'));
       expect(status.stdout.toString(), contains('A  FLUOH.md'));
       expect(status.stdout.toString(), contains('A  fluoh.yaml'));
       expect(status.stdout.toString(), isNot(contains('.fvm')));
@@ -125,7 +181,7 @@ void main() {
       ]);
       expect(
         staged.stdout.toString().split('\n'),
-        containsAll(['FLUOH.md', 'fluoh.yaml']),
+        containsAll(['AGENTS.md', 'FLUOH.md', 'fluoh.yaml']),
       );
       expect(staged.stdout.toString(), isNot(contains('.fvm')));
       expect(staged.stdout.toString(), isNot(contains('.gitignore')));
@@ -180,7 +236,10 @@ void main() {
       expect(stdout, isNot(contains('Generated FLUOH.md')));
       expect(stdout, isNot(contains('Generated files are staged')));
       expect(stdout, isNot(contains('Commit before running fluoh pub sync')));
-      expect(stdout, contains('See FLUOH.md for adaptation steps.'));
+      expect(
+        stdout,
+        contains('See FLUOH.md and AGENTS.md for adaptation steps.'),
+      );
       expect(
         stdout,
         contains('Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3.'),
@@ -205,6 +264,7 @@ void main() {
         Directory('${environment.homeDirectory.path}/upstream_ignored_outputs'),
       );
       await File('${upstream.path}/.gitignore').writeAsString('''
+AGENTS.md
 FLUOH.md
 fluoh.yaml
 ''');
@@ -248,12 +308,74 @@ fluoh.yaml
       ]);
       expect(
         staged.stdout.toString().split('\n'),
-        containsAll(['FLUOH.md', 'fluoh.yaml']),
+        containsAll(['AGENTS.md', 'FLUOH.md', 'fluoh.yaml']),
       );
       expect(staged.stdout.toString(), isNot(contains('.gitignore')));
       expect(stderr, isEmpty);
     },
   );
+
+  test('preserves existing upstream AGENTS.md instructions', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_existing_agents'),
+    );
+    await File('${upstream.path}/AGENTS.md').writeAsString('''
+# Upstream Agent Notes
+
+Keep the public Dart API stable.
+''');
+    await runGit(upstream, ['add', 'AGENTS.md']);
+    await runGit(upstream, ['commit', '-m', 'Add upstream agent notes']);
+    final pubRepository = Directory(
+      '${environment.homeDirectory.path}/pub_existing_agents',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          pubRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final agentsContent = File(
+      '${pubRepository.path}/AGENTS.md',
+    ).readAsStringSync();
+    expect(agentsContent, contains('# Upstream Agent Notes'));
+    expect(agentsContent, contains('Keep the public Dart API stable.'));
+    expect(agentsContent, contains('## FlutterOH Agent Instructions'));
+    expect(agentsContent, contains('## Use fluoh'));
+    expect(agentsContent, isNot(contains('# AGENTS.md')));
+    final status = await runGit(pubRepository, ['status', '--porcelain']);
+    expect(status.stdout.toString(), contains('M  AGENTS.md'));
+    final mainAgents = await runGit(pubRepository, ['show', 'main:AGENTS.md']);
+    expect(
+      mainAgents.stdout.toString(),
+      '# Upstream Agent Notes\n\nKeep the public Dart API stable.\n',
+    );
+    expect(stderr, isEmpty);
+  });
 
   test('uses --path as a package path inside a monorepo upstream', () async {
     final environment = await createTestEnvironment();
@@ -499,6 +621,7 @@ fluoh.yaml
     ]);
     expect(mainFiles.stdout.toString(), isNot(contains('fluoh.yaml')));
     expect(mainFiles.stdout.toString(), isNot(contains('FLUOH.md')));
+    expect(mainFiles.stdout.toString(), isNot(contains('AGENTS.md')));
     expect(stderr, isEmpty);
   });
 
@@ -549,7 +672,7 @@ releases:
       '${pubRepository.path}/fluoh.yaml',
     ).readAsStringSync();
     expect(branch.stdout.toString().trim(), 'ohos/3.35');
-    expect(manifest, contains('sdkVersion: 3.35.8-ohos-0.0.4'));
+    expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.4'));
     expect(stderr, isEmpty);
   });
 

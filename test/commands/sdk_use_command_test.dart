@@ -47,7 +47,7 @@ void main() {
     ).readAsStringSync();
     expect(fluohConfig, isNot(contains('line:')));
     expect(fluohConfig, contains('version: 3.35.8-ohos-0.0.3'));
-    expect(fluohConfig, contains('sources:\n  - flutteroh\n  - fixture'));
+    expect(fluohConfig, isNot(contains('sources:')));
     expect(fluohConfig, isNot(contains(environment.homeDirectory.path)));
     expect(fluohConfig, isNot(contains(RegExp(r'^\s+path:', multiLine: true))));
     expect(
@@ -176,10 +176,18 @@ void main() {
     final manifest = File('${environment.workingDirectory.path}/fluoh.yaml');
     await manifest.writeAsString('''
 schema: 1
-upstream:
+sdk:
+  version: 3.35.8-ohos-0.0.3
+package:
   name: camera
-fluoh:
-  sdkVersion: 3.35.8-ohos-0.0.3
+  version: 0.1.0
+  git:
+    url: git@github.com:FlutterOH/camera.git
+upstream:
+  version: 0.11.0
+  git:
+    url: https://github.com/flutter/packages.git
+    ref: camera-v0.11.0
 ''');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -205,7 +213,7 @@ fluoh:
       stderr.join('\n'),
       contains('Refusing to replace pub repository metadata in fluoh.yaml.'),
     );
-    expect(manifest.readAsStringSync(), contains('fluoh:\n  sdkVersion'));
+    expect(manifest.readAsStringSync(), contains('package:\n  name: camera'));
   });
 }
 

@@ -42,16 +42,19 @@ class PubAdaptCommand extends Command<int> {
       'rev-parse',
       defaultBranch,
     ], workingDirectory: repository)).stdout.toString().trim();
-    final packagePath = manifest.upstreamPath ?? '.';
+    final upstreamPath = manifest.upstreamPath ?? '.';
+    final dependencyPath = manifest.dependencyPath;
     final package = await readPubspecPackage(
-      packageDirectory(repository, packagePath),
+      packageDirectory(repository, upstreamPath),
     );
     await writePubManifest(
       destination: repository,
       package: package,
       upstream: manifest.upstreamUrl,
       upstreamRef: upstreamRef,
-      packagePath: packagePath,
+      packagePath: dependencyPath ?? '.',
+      dependencyPath: dependencyPath,
+      upstreamPath: upstreamPath,
       sdkVersion: manifest.sdkVersion,
       branch: manifest.branch,
       adapterUrl: manifest.adapterUrl,

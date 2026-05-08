@@ -179,27 +179,33 @@ Future<void> _writePackageManifest(
 schema: 1
 package:
   name: $packageName
-  repositoryUrl: /tmp/$packageName
-  upstreamUrl: https://github.com/example/$packageName
-  packagePath: packages/$packageName
+  git:
+    url: /tmp/$packageName
+    path: packages/$packageName
+upstream:
+  git:
+    url: https://github.com/example/$packageName
+    path: packages/$packageName
 releases:
-  - upstreamVersion: 1.0.0
-    upstreamRef: v1.0.0
+  - upstream:
+      version: 1.0.0
+      git:
+        ref: v1.0.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
     sdk:
       versionSeries: 3.35
       versions:
 ${sdkVersions.map((version) => '        - $version').join('\n')}
     status: $status
-    fluohBranch: ohos/3.35
-    release:
-      version: "1"
-      tag: $packageName-v1.0.0-ohos-3.35.8-1
 ${includeReplacement ? '''
     replacement:
-      type: git
-      url: /tmp/$packageName
-      ref: $packageName-v1.0.0-ohos-3.35.8-1
-      path: packages/$packageName
+      git:
+        url: /tmp/$packageName
+        ref: $packageName-v1.0.0-ohos-3.35.8-1
+        path: packages/$packageName
 ''' : ''}
 ''');
 }

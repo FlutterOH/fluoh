@@ -76,15 +76,26 @@ void main() {
     );
 
     final content = File('${root.path}/fluoh.yaml').readAsStringSync();
-    expect(content, contains('fluoh:'));
+    expect(content, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
+    expect(content, contains('package:'));
+    expect(content, contains('  name: image_gallery_saver'));
+    expect(content, contains('  version: 0.1.0'));
+    expect(content, contains('  status: experimental'));
+    expect(content, contains('upstream:'));
+    expect(content, contains('  version: 2.0.3'));
     expect(content, isNot(contains('type: git')));
     expect(content, isNot(contains('branch: ohos/3.35')));
     expect(content, isNot(contains('adapter:')));
     expect(content, isNot(contains('dependency:')));
+    expect(content, isNot(contains('fluoh:')));
+    expect(content, isNot(contains('sdkVersion:')));
     expect(
       content,
       contains('url: git@github.com:FlutterOH/image_gallery_saver.git'),
     );
+    expect(content, contains('ref: ohos/3.35'));
+    expect(content, isNot(contains('tag: 0.1.0')));
+    expect(content, isNot(contains('tag: 2.0.3')));
     expect(content, isNot(contains('tag: image_gallery_saver')));
 
     final manifest = await readPubManifest(root);
@@ -128,4 +139,36 @@ void main() {
       expect(manifest.dependencyPath, 'packages/share_plus/share_plus');
     },
   );
+
+  test('writes separate upstream and dependency package paths', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'fluoh_manifest_split_path_',
+    );
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+
+    await writePubManifest(
+      destination: root,
+      package: const PubspecPackage(name: 'share_plus', version: '10.0.0'),
+      upstream: 'https://github.com/fluttercommunity/plus_plugins',
+      upstreamRef: 'share_plus-v10.0.0',
+      packagePath: 'adapter/share_plus',
+      dependencyPath: 'adapter/share_plus',
+      upstreamPath: 'packages/share_plus/share_plus',
+      sdkVersion: '3.35.8-ohos-0.0.3',
+      branch: 'ohos/3.35',
+      adapterUrl: 'https://github.com/FlutterOH/share_plus.git',
+    );
+
+    final content = File('${root.path}/fluoh.yaml').readAsStringSync();
+    expect(content, contains('    path: adapter/share_plus'));
+    expect(content, contains('    path: packages/share_plus/share_plus'));
+
+    final manifest = await readPubManifest(root);
+    expect(manifest.dependencyPath, 'adapter/share_plus');
+    expect(manifest.upstreamPath, 'packages/share_plus/share_plus');
+  });
 }

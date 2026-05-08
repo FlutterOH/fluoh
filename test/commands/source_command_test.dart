@@ -73,7 +73,7 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('flutteroh file://${defaultSource.path}'));
+    expect(stdout, contains('[1] flutteroh file://${defaultSource.path}'));
     expect(configFile.existsSync(), isTrue);
     expect(
       configFile.readAsStringSync(),
@@ -162,7 +162,7 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('private file://${source.path}'));
+    expect(stdout, contains('[1] private file://${source.path}'));
     expect(File('$cachePath/sdk/releases.yaml').existsSync(), isTrue);
     expect(stderr, isEmpty);
   });
@@ -202,7 +202,7 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('private file://${source.path}'));
+    expect(stdout, contains('[1] private file://${source.path}'));
     expect(
       File('$cachePath/packages/manifests/camera.yaml').existsSync(),
       isTrue,
@@ -321,7 +321,7 @@ void main() {
     );
 
     expect(stdout, contains('Added source fixture: ${source.path}'));
-    expect(stdout, contains('fixture ${cachedSource.path}'));
+    expect(stdout, contains('[2] fixture ${cachedSource.path}'));
     expect(stdout, contains('Updated source fixture.'));
     expect(File('${cachedSource.path}/fluoh.yaml').existsSync(), isTrue);
     expect(File('${cachedSource.path}/sdk/releases.yaml').existsSync(), isTrue);
@@ -597,7 +597,7 @@ releases: {}
     );
 
     expect(stdout, contains('Removed source team.'));
-    expect(stdout.last, 'flutteroh file://${defaultSource.path}');
+    expect(stdout.last, '[1] flutteroh file://${defaultSource.path}');
 
     expect(
       await runFluoh(

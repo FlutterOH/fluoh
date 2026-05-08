@@ -238,6 +238,13 @@ Map<String, Object?> _objectMap(Object? value, String label) {
   return value;
 }
 
+Map<String, Object?>? _optionalObjectMap(Object? value, String label) {
+  if (value == null) {
+    return null;
+  }
+  return _objectMap(value, label);
+}
+
 String _requiredString(Map<String, Object?> json, String key) {
   final value = json[key];
   if (value is! String || value.isEmpty) {
@@ -301,7 +308,23 @@ class _SourcePackageManifest {
     Map<String, Object?> row,
     Map<String, Object?> yaml,
   ) {
+    _ensureAllowedKeys(yaml, 'package manifest', {
+      'schema',
+      'package',
+      'upstream',
+      'releases',
+    });
     final package = _objectMap(yaml['package'], 'package manifest package');
+    _ensureAllowedKeys(package, 'package manifest package', {'name', 'git'});
+    final packageGit = _objectMap(
+      package['git'],
+      'package manifest package git',
+    );
+    _ensureAllowedKeys(packageGit, 'package manifest package git', {
+      'url',
+      'ref',
+      'path',
+    });
     final name = _requiredString(package, 'name');
     if (name != expectedName) {
       throw FormatException(
@@ -309,13 +332,18 @@ class _SourcePackageManifest {
         '"$expectedName".',
       );
     }
-    final upstream = package['upstreamUrl'] as String? ?? '';
-    if (upstream.isEmpty) {
-      throw FormatException(
-        'Expected package manifest "$name" upstreamUrl to be a non-empty '
-        'string.',
-      );
-    }
+    final upstream = _objectMap(yaml['upstream'], 'package manifest upstream');
+    _ensureAllowedKeys(upstream, 'package manifest upstream', {'git'});
+    final upstreamGit = _objectMap(
+      upstream['git'],
+      'package manifest upstream git',
+    );
+    _ensureAllowedKeys(upstreamGit, 'package manifest upstream git', {
+      'url',
+      'ref',
+      'path',
+    });
+    final upstreamUrl = _requiredString(upstreamGit, 'url');
 
     final releases = yaml['releases'];
     if (releases is! List) {
@@ -328,7 +356,52 @@ class _SourcePackageManifest {
     final compatibility = <_SourceCompatibilityStatus>[];
     for (final value in releases) {
       final release = _objectMap(value, 'package manifest release');
+      _ensureAllowedKeys(release, 'package manifest release', {
+        'upstream',
+        'package',
+        'sdk',
+        'status',
+        'replacement',
+      });
       final status = _requiredString(release, 'status');
+      final releaseUpstream = _objectMap(
+        release['upstream'],
+        'package manifest release upstream',
+      );
+      _ensureAllowedKeys(releaseUpstream, 'package manifest release upstream', {
+        'version',
+        'git',
+      });
+      final releaseUpstreamGit = _optionalObjectMap(
+        releaseUpstream['git'],
+        'package manifest release upstream git',
+      );
+      if (releaseUpstreamGit != null) {
+        _ensureAllowedKeys(
+          releaseUpstreamGit,
+          'package manifest release upstream git',
+          {'url', 'ref', 'path'},
+        );
+      }
+      final releasePackage = _objectMap(
+        release['package'],
+        'package manifest release package',
+      );
+      _ensureAllowedKeys(releasePackage, 'package manifest release package', {
+        'version',
+        'git',
+      });
+      final releasePackageGit = _optionalObjectMap(
+        releasePackage['git'],
+        'package manifest release package git',
+      );
+      if (releasePackageGit != null) {
+        _ensureAllowedKeys(
+          releasePackageGit,
+          'package manifest release package git',
+          {'url', 'ref', 'path'},
+        );
+      }
       final sdk = _objectMap(release['sdk'], 'package manifest release sdk');
       final sdkVersions = _sdkVersions(sdk);
       compatibility.addAll(
@@ -347,14 +420,24 @@ class _SourcePackageManifest {
         release['replacement'],
         'package manifest replacement',
       );
+      _ensureAllowedKeys(replacement, 'package manifest replacement', {'git'});
+      final replacementGit = _objectMap(
+        replacement['git'],
+        'package manifest replacement git',
+      );
+      _ensureAllowedKeys(replacementGit, 'package manifest replacement git', {
+        'url',
+        'ref',
+        'path',
+      });
       for (final sdkVersion in sdkVersions) {
         adapters.add(
           PackageAdapter(
             sdkVersion: sdkVersion,
-            upstreamVersion: _requiredString(release, 'upstreamVersion'),
-            repository: _requiredString(replacement, 'url'),
-            tag: _requiredString(replacement, 'ref'),
-            path: replacement['path'] as String?,
+            upstreamVersion: _requiredString(releaseUpstream, 'version'),
+            repository: _requiredString(replacementGit, 'url'),
+            tag: _requiredString(replacementGit, 'ref'),
+            path: replacementGit['path'] as String?,
           ),
         );
       }
@@ -362,7 +445,7 @@ class _SourcePackageManifest {
 
     return _SourcePackageManifest(
       name: name,
-      upstream: upstream,
+      upstream: upstreamUrl,
       adapters: adapters,
       compatibility: compatibility,
     );

@@ -78,7 +78,9 @@ class SdkUseCommand extends Command<int> {
     }
 
     final yaml = loadYaml(await fluohYaml.readAsString());
-    if (yaml is YamlMap && yaml['fluoh'] is YamlMap) {
+    if (yaml is YamlMap &&
+        yaml['package'] is YamlMap &&
+        yaml['upstream'] is YamlMap) {
       throw UsageException(
         'Current directory is a FlutterOH pub repository. '
             'Refusing to replace pub repository metadata in fluoh.yaml.',

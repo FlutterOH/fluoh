@@ -76,30 +76,45 @@ Future<void> writePubManifest({
   required String sdkVersion,
   required String branch,
   required String adapterUrl,
+  String? dependencyPath,
+  String? upstreamPath,
   String releaseVersion = '0.1.0',
   String status = 'experimental',
 }) async {
-  final path = packagePath == '.' || packagePath.isEmpty ? null : packagePath;
+  final packageGitPath = _manifestPath(dependencyPath ?? packagePath);
+  final upstreamGitPath = _manifestPath(upstreamPath ?? packagePath);
   await File('${destination.path}/fluoh.yaml').writeAsString(
     [
       'schema: 1',
-      'name: ${package.name}',
+      '',
+      'sdk:',
+      '  version: $sdkVersion',
+      '',
+      'package:',
+      '  name: ${package.name}',
+      '  version: $releaseVersion',
+      '  status: $status',
+      '  git:',
+      '    url: $adapterUrl',
+      '    ref: $branch',
+      if (packageGitPath != null) '    path: $packageGitPath',
       '',
       'upstream:',
-      '  url: $upstream',
-      if (path != null) '  path: $path',
-      '  ref: $upstreamRef',
       '  version: ${package.version}',
-      '',
-      'fluoh:',
-      '  url: $adapterUrl',
-      '  sdkVersion: $sdkVersion',
-      '  status: $status',
-      '  release:',
-      '    version: $releaseVersion',
+      '  git:',
+      '    url: $upstream',
+      '    ref: $upstreamRef',
+      if (upstreamGitPath != null) '    path: $upstreamGitPath',
       '',
     ].join('\n'),
   );
+}
+
+String? _manifestPath(String? path) {
+  if (path == null || path.isEmpty || path == '.') {
+    return null;
+  }
+  return path;
 }
 
 Future<PubManifest> readPubManifest(Directory repository) async {
@@ -114,52 +129,61 @@ Future<PubManifest> readPubManifest(Directory repository) async {
 
   _ensureAllowedKeys(yaml, 'fluoh.yaml', {
     'schema',
-    'name',
+    'sdk',
+    'dependencyPolicy',
+    'package',
     'upstream',
-    'fluoh',
   });
+  final sdk = _requiredMap(yaml, 'sdk');
+  final package = _requiredMap(yaml, 'package');
   final upstream = _requiredMap(yaml, 'upstream');
-  final fluoh = _requiredMap(yaml, 'fluoh');
-  final release = _requiredMap(fluoh, 'release');
-  _ensureAllowedKeys(upstream, 'fluoh.yaml upstream', {
-    'url',
-    'path',
-    'ref',
+  final packageGit = _requiredMap(package, 'git');
+  final upstreamGit = _requiredMap(upstream, 'git');
+  _ensureAllowedKeys(sdk, 'fluoh.yaml sdk', {'version'});
+  _ensureAllowedKeys(package, 'fluoh.yaml package', {
+    'name',
     'version',
-  });
-  _ensureAllowedKeys(fluoh, 'fluoh.yaml fluoh', {
-    'url',
-    'sdkVersion',
     'status',
-    'release',
+    'git',
   });
-  _ensureAllowedKeys(release, 'fluoh.yaml fluoh.release', {'version'});
-  final upstreamPath = _optionalString(upstream, 'path');
-  final adapterUrl = _requiredString(fluoh, 'url');
-  final sdkVersion = _requiredString(fluoh, 'sdkVersion');
+  _ensureAllowedKeys(packageGit, 'fluoh.yaml package.git', {
+    'url',
+    'ref',
+    'path',
+  });
+  _ensureAllowedKeys(upstream, 'fluoh.yaml upstream', {'version', 'git'});
+  _ensureAllowedKeys(upstreamGit, 'fluoh.yaml upstream.git', {
+    'url',
+    'ref',
+    'path',
+  });
+  final packagePath = _optionalString(packageGit, 'path');
+  final upstreamPath = _optionalString(upstreamGit, 'path');
+  final adapterUrl = _requiredString(packageGit, 'url');
+  final sdkVersion = _requiredString(sdk, 'version');
   final upstreamVersion = _requiredString(upstream, 'version');
-  final releaseVersion = _requiredString(release, 'version');
-  final packageName = _requiredString(yaml, 'name');
+  final releaseVersion = _requiredString(package, 'version');
+  final packageName = _requiredString(package, 'name');
 
   return PubManifest(
     packageName: packageName,
     upstreamVersion: upstreamVersion,
     sdkVersion: sdkVersion,
     releaseVersion: releaseVersion,
-    branch: ohosBranchForSdk(sdkVersion),
+    branch: _optionalString(packageGit, 'ref') ?? ohosBranchForSdk(sdkVersion),
     releaseTag: pubReleaseTagForPackage(
       packageName: packageName,
       upstreamVersion: upstreamVersion,
       sdkVersion: sdkVersion,
       releaseVersion: releaseVersion,
     ),
-    upstreamUrl: _requiredString(upstream, 'url'),
+    upstreamUrl: _requiredString(upstreamGit, 'url'),
     upstreamPath: upstreamPath,
-    upstreamRef: _requiredString(upstream, 'ref'),
+    upstreamRef: _requiredString(upstreamGit, 'ref'),
     adapterUrl: adapterUrl,
     dependencyUrl: dependencyUrlForAdapterRepository(adapterUrl),
-    dependencyPath: upstreamPath,
-    status: _optionalString(fluoh, 'status'),
+    dependencyPath: packagePath,
+    status: _optionalString(package, 'status'),
   );
 }
 

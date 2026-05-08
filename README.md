@@ -94,7 +94,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata. `fluoh pub create` stages generated files but does not commit. Commit before running `pub sync`, `pub adapt`, or `pub release`.
+Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata, an adaptation guide, and AI agent instructions. `fluoh pub create` stages generated files but does not commit. Commit before running `pub sync`, `pub adapt`, or `pub release`.
 
 To choose the final push target:
 
@@ -116,7 +116,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh deps update` | Upgrade existing OHOS-adapted dependency versions in the current project. |
 | `fluoh pub ...` | Create, sync, adapt, and release third-party FlutterOH pub repositories. |
 | `fluoh source ...` | Manage FlutterOH data sources. |
-| `fluoh doctor` | Diagnose CLI version, SDK, OHOS directory, and dependency status. |
+| `fluoh doctor` | Diagnose CLI version, project SDK, and OHOS directory status. |
 | `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
 
 `fluoh deps update` and `fluoh upgrade` are intentionally different: `deps update` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.

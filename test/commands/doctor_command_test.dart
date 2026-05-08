@@ -8,73 +8,66 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_test_context.dart';
 
 void main() {
-  test(
-    'reports project, SDK, source, platform, and dependency status',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await createPubSourceFixture(environment.homeDirectory);
-      await writeFlutterProjectFixture(environment.workingDirectory);
-      final stdout = <String>[];
-      final stderr = <String>[];
+  test('reports project, SDK, source, and platform status', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      await runFluoh(
-        ['source', 'add', 'fixture', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
 
-      final result = await _runDoctorCommand(
-        environment: environment,
-        versionMetadataProvider: () async => const DoctorVersionMetadata(
-          latestVersion: '0.0.1',
-          currentVersionPublished: '2026-05-01',
-        ),
-      );
-      stdout.addAll(result.stdout);
-      stderr.addAll(result.stderr);
+    final result = await _runDoctorCommand(
+      environment: environment,
+      versionMetadataProvider: () async => const DoctorVersionMetadata(
+        latestVersion: '0.0.1',
+        currentVersionPublished: '2026-05-01',
+      ),
+    );
+    stdout.addAll(result.stdout);
+    stderr.addAll(result.stderr);
 
-      expect(result.exitCode, 0);
+    expect(result.exitCode, 0);
 
-      expect(stdout, contains('Doctor summary:'));
-      expect(stdout, contains('[✓] fluoh (0.0.1)'));
-      expect(
-        stdout,
-        contains('    • Installed with dart pub global activate.'),
-      );
-      expect(stdout, contains('    • Current version published: 2026-05-01.'));
-      expect(stdout, contains('    • Up to date.'));
-      expect(stdout.join('\n'), isNot(contains('\u001b[')));
-      expect(stdout, contains('[✓] Flutter project'));
-      expect(stdout, contains('    • Detected Flutter project.'));
-      expect(stdout, contains('[!] Sources'));
-      expect(stdout, contains('    • Available: fixture.'));
-      expect(stdout, contains('    • Not updated: flutteroh.'));
-      expect(stdout, contains('[✓] Project SDK'));
-      expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
-      expect(stdout, contains('[!] OpenHarmony platform'));
-      expect(stdout, contains('    • Missing ohos platform directory.'));
-      expect(stdout.join('\n'), contains('Dependencies needing attention:'));
-      expect(stdout.join('\n'), contains('mystery_package'));
-      expect(stdout.join('\n'), contains('camera_platform_interface'));
-      expect(stdout, contains('Doctor found issues in 3 categories.'));
-      _expectInOrder(stdout.join('\n'), [
-        '[✓] fluoh (0.0.1)',
-        '[!] Sources',
-        '[✓] Flutter project',
-        '[✓] Project SDK',
-        '[!] OpenHarmony platform',
-        '[!] Dependencies',
-      ]);
-      expect(stderr, isEmpty);
-    },
-  );
+    expect(stdout, contains('Doctor summary:'));
+    expect(stdout, contains('[✓] fluoh (0.0.1)'));
+    expect(stdout, contains('    • Installed with dart pub global activate.'));
+    expect(stdout, contains('    • Current version published: 2026-05-01.'));
+    expect(stdout, contains('    • Up to date.'));
+    expect(stdout.join('\n'), isNot(contains('\u001b[')));
+    expect(stdout, contains('[✓] Flutter project'));
+    expect(stdout, contains('    • Detected Flutter project.'));
+    expect(stdout, contains('[!] Sources'));
+    expect(stdout, contains('    • Available: fixture.'));
+    expect(stdout, contains('    • Not updated: flutteroh.'));
+    expect(stdout, contains('[✓] Project SDK'));
+    expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
+    expect(stdout, contains('[!] OpenHarmony platform'));
+    expect(stdout, contains('    • Missing ohos platform directory.'));
+    expect(stdout.join('\n'), isNot(contains('Dependencies')));
+    expect(stdout.join('\n'), isNot(contains('mystery_package')));
+    expect(stdout.join('\n'), isNot(contains('camera_platform_interface')));
+    expect(stdout, contains('Doctor found issues in 2 categories.'));
+    _expectInOrder(stdout.join('\n'), [
+      '[✓] fluoh (0.0.1)',
+      '[!] Sources',
+      '[✓] Flutter project',
+      '[✓] Project SDK',
+      '[!] OpenHarmony platform',
+    ]);
+    expect(stderr, isEmpty);
+  });
 
   test('reports non-Flutter projects without modifying files', () async {
     final environment = await createTestEnvironment();

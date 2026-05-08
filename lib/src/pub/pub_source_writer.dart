@@ -13,37 +13,45 @@ Future<void> writePubSourcePackageUpdate(
     '${packagesDirectory.path}/manifests',
   ).create(recursive: true);
 
-  final packagePath = manifest.upstreamPath ?? manifest.dependencyPath ?? '.';
-  final manifestFile = File(
+  final packagePath = manifest.dependencyPath ?? '.';
+  final upstreamPath = manifest.upstreamPath ?? '.';
+  final sourceManifestFile = File(
     '${packagesDirectory.path}/manifests/${manifest.packageName}.yaml',
   );
-  await manifestFile.writeAsString(
+  await sourceManifestFile.writeAsString(
     [
       'schema: 1',
       'package:',
       '  name: ${manifest.packageName}',
-      '  repositoryUrl: ${manifest.adapterUrl}',
-      '  upstreamUrl: ${manifest.upstreamUrl}',
-      '  packagePath: $packagePath',
+      '  git:',
+      '    url: ${manifest.adapterUrl}',
+      if (packagePath != '.') '    path: $packagePath',
+      'upstream:',
+      '  git:',
+      '    url: ${manifest.upstreamUrl}',
+      if (upstreamPath != '.') '    path: $upstreamPath',
       'releases:',
-      '  - upstreamVersion: ${manifest.upstreamVersion}',
-      if (manifest.upstreamRef != null)
-        '    upstreamRef: ${manifest.upstreamRef}',
+      '  - upstream:',
+      '      version: ${manifest.upstreamVersion}',
+      if (manifest.upstreamRef != null) ...[
+        '      git:',
+        '        ref: ${manifest.upstreamRef}',
+      ],
+      '    package:',
+      '      version: ${manifest.releaseVersion}',
+      '      git:',
+      '        ref: ${manifest.branch}',
       '    sdk:',
       '      versionSeries: ${sdkVersionSeriesFromSdkVersion(manifest.sdkVersion)}',
       '      versions:',
       '        - ${manifest.sdkVersion}',
       '    status: ${manifest.status ?? 'experimental'}',
-      '    fluohBranch: ${manifest.branch}',
-      '    release:',
-      '      version: ${manifest.releaseVersion}',
-      '      tag: $releaseTag',
       '    replacement:',
-      '      type: git',
-      '      url: ${manifest.dependencyUrl}',
-      '      ref: $releaseTag',
+      '      git:',
+      '        url: ${manifest.dependencyUrl}',
+      '        ref: $releaseTag',
       if (manifest.dependencyPath != null)
-        '      path: ${manifest.dependencyPath}',
+        '        path: ${manifest.dependencyPath}',
       '',
     ].join('\n'),
   );

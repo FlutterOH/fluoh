@@ -185,7 +185,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh pub create` stages the generated `FLUOH.md` and `fluoh.yaml`, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, and `fluoh.yaml`, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
 git commit -m "feat(pub): initialize FlutterOH adapter"

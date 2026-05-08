@@ -61,42 +61,50 @@ repositories:
 schema: 1
 package:
   name: camera
-  repositoryUrl: ${parent.path}/camera
-  upstreamUrl: https://github.com/flutter/packages/tree/main/packages/camera/camera
-  packagePath: packages/camera/camera
+  git:
+    url: ${parent.path}/camera
+    path: packages/camera/camera
+upstream:
+  git:
+    url: https://github.com/flutter/packages/tree/main/packages/camera/camera
+    path: packages/camera/camera
 releases:
-  - upstreamVersion: 0.11.0
-    upstreamRef: camera-v0.11.0
-    sdk:
-      versionSeries: 3.35
-      versions:
-        - 3.35.8-ohos-0.0.3
-    status: compatible
-    fluohBranch: ohos/3.35
-    release:
+  - upstream:
+      version: 0.11.0
+      git:
+        ref: camera-v0.11.0
+    package:
       version: "0"
-      tag: camera-v0.11.0-ohos-3.35.8-0
-    replacement:
-      type: git
-      url: ${parent.path}/camera
-      ref: camera-v0.11.0-ohos-3.35.8-0
-      path: packages/camera/camera
-  - upstreamVersion: 0.11.0
-    upstreamRef: camera-v0.11.0
+      git:
+        ref: ohos/3.35
     sdk:
       versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    fluohBranch: ohos/3.35
-    release:
-      version: "1"
-      tag: camera-v0.11.0-ohos-3.35.8-1
     replacement:
-      type: git
-      url: ${parent.path}/camera
-      ref: camera-v0.11.0-ohos-3.35.8-1
-      path: packages/camera/camera
+      git:
+        url: ${parent.path}/camera
+        ref: camera-v0.11.0-ohos-3.35.8-0
+        path: packages/camera/camera
+  - upstream:
+      version: 0.11.0
+      git:
+        ref: camera-v0.11.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
+    sdk:
+      versionSeries: 3.35
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    replacement:
+      git:
+        url: ${parent.path}/camera
+        ref: camera-v0.11.0-ohos-3.35.8-1
+        path: packages/camera/camera
 ''');
 
   await File('${source.path}/packages/manifests/share_plus.yaml').writeAsString(
@@ -104,26 +112,32 @@ releases:
 schema: 1
 package:
   name: share_plus
-  repositoryUrl: ${parent.path}/share_plus
-  upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
-  packagePath: packages/share_plus/share_plus
+  git:
+    url: ${parent.path}/share_plus
+    path: packages/share_plus/share_plus
+upstream:
+  git:
+    url: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
+    path: packages/share_plus/share_plus
 releases:
-  - upstreamVersion: 9.0.0
-    upstreamRef: share_plus-v9.0.0
+  - upstream:
+      version: 9.0.0
+      git:
+        ref: share_plus-v9.0.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
     sdk:
       versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    fluohBranch: ohos/3.35
-    release:
-      version: "1"
-      tag: share_plus-v9.0.0-ohos-3.35.8-1
     replacement:
-      type: git
-      url: ${parent.path}/share_plus
-      ref: share_plus-v9.0.0-ohos-3.35.8-1
-      path: packages/share_plus/share_plus
+      git:
+        url: ${parent.path}/share_plus
+        ref: share_plus-v9.0.0-ohos-3.35.8-1
+        path: packages/share_plus/share_plus
 ''',
   );
 

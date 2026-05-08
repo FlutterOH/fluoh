@@ -330,26 +330,32 @@ repositories:
 schema: 1
 package:
   name: share_plus
-  repositoryUrl: ${environment.homeDirectory.path}/share_plus
-  upstreamUrl: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
-  packagePath: packages/share_plus/share_plus
+  git:
+    url: ${environment.homeDirectory.path}/share_plus
+    path: packages/share_plus/share_plus
+upstream:
+  git:
+    url: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
+    path: packages/share_plus/share_plus
 releases:
-  - upstreamVersion: 10.0.0
-    upstreamRef: share_plus-v10.0.0
+  - upstream:
+      version: 10.0.0
+      git:
+        ref: share_plus-v10.0.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
     sdk:
       versionSeries: 3.35
       versions:
         - 3.35.8-ohos-0.0.3
     status: compatible
-    fluohBranch: ohos/3.35
-    release:
-      version: "1"
-      tag: share_plus-v10.0.0-ohos-3.35.8-1
     replacement:
-      type: git
-      url: ${environment.homeDirectory.path}/share_plus
-      ref: share_plus-v10.0.0-ohos-3.35.8-1
-      path: packages/share_plus/share_plus
+      git:
+        url: ${environment.homeDirectory.path}/share_plus
+        ref: share_plus-v10.0.0-ohos-3.35.8-1
+        path: packages/share_plus/share_plus
 ''');
       await writeFlutterProjectFixture(environment.workingDirectory);
       final stdout = <String>[];
