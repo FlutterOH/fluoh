@@ -191,7 +191,7 @@ The command only configures local remotes. It does not create remote repositorie
 git commit -m "feat(pub): initialize FlutterOH adapter"
 ```
 
-Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, then `fluoh pub adapt` to merge that branch into the current pub branch and refresh `fluoh.yaml`.
+Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, merge that branch into the current pub branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep `package.version` unchanged until the new FlutterOH adaptation is complete.
 
 Use `fluoh_test/test` for automated adapter checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` runs the adapter package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then executes the `fluoh_test` automated checks from the selected Flutter OHOS SDK.
 

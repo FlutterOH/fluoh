@@ -81,7 +81,6 @@ fluoh pub upgrade --yes
 fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
 git commit -m "feat(pub): initialize FlutterOH adapter"
 fluoh pub sync
-fluoh pub adapt
 fluoh pub release --push
 ```
 
@@ -94,7 +93,7 @@ fluoh pub create https://github.com/upstream/monorepo.git \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata, an adaptation guide, FlutterOH release notes, AI agent instructions, and `fluoh_test/` for Flutter packages or plugins. `fluoh pub create` stages generated files but does not commit. Commit before running `pub sync`, `pub adapt`, or `pub release`.
+Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata, an adaptation guide, FlutterOH release notes, AI agent instructions, and `fluoh_test/` for Flutter packages or plugins. `fluoh pub create` stages generated files but does not commit. Commit before running `pub sync` or `pub release`. `fluoh pub sync` fast-forwards the upstream branch, merges it into the current pub branch, and refreshes only the upstream metadata in `fluoh.yaml`; update the FlutterOH package version after the new adaptation is complete.
 
 `fluoh test init` creates `fluoh_test/test` automated checks and a `fluoh_test/example` app for manual platform verification. `fluoh test run` first runs the adapter package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs `fluoh_test`; `fluoh pub release` verifies the release version, warns when `FLUOH_CHANGELOG.md` does not document the release, and runs tests before creating or pushing a Flutter adapter release tag. FlutterOH/pub source metadata updates should go through a pull request or the scheduled source ingestion process.
 
@@ -116,7 +115,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh pub check` | Check OHOS compatibility for project dependencies. |
 | `fluoh pub fix` | Write adapted dependency replacements. |
 | `fluoh pub upgrade` | Upgrade existing OHOS-adapted dependency versions in the current project. |
-| `fluoh pub create/sync/adapt/release` | Create, sync, adapt, and release third-party FlutterOH pub repositories. |
+| `fluoh pub create/sync/release` | Create, sync, and release third-party FlutterOH pub repositories. |
 | `fluoh test ...` | Create `fluoh_test` and run package plus `fluoh_test` verification for adapted Flutter packages. |
 | `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh doctor` | Diagnose CLI version, project SDK, and OHOS directory status. |

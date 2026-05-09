@@ -110,6 +110,22 @@ Future<void> writePubManifest({
   );
 }
 
+Future<void> updatePubManifestUpstream({
+  required Directory destination,
+  required String upstreamVersion,
+  required String upstreamRef,
+}) async {
+  final file = File('${destination.path}/fluoh.yaml');
+  final content = await file.readAsString();
+  await file.writeAsString(
+    _updatedPubManifestUpstream(
+      content,
+      upstreamVersion: upstreamVersion,
+      upstreamRef: upstreamRef,
+    ),
+  );
+}
+
 String? _manifestPath(String? path) {
   if (path == null || path.isEmpty || path == '.') {
     return null;
@@ -225,4 +241,142 @@ void _ensureAllowedKeys(YamlMap map, String label, Set<String> allowed) {
       throw UsageException('$label must not contain "$key".', '');
     }
   }
+}
+
+String _updatedPubManifestUpstream(
+  String content, {
+  required String upstreamVersion,
+  required String upstreamRef,
+}) {
+  final lines = content.split('\n');
+  if (content.endsWith('\n')) {
+    lines.removeLast();
+  }
+
+  final upstreamIndex = _topLevelKeyIndex(lines, 'upstream');
+  if (upstreamIndex == -1) {
+    throw UsageException('fluoh.yaml missing "upstream".', '');
+  }
+  final upstreamEnd = _topLevelSectionEnd(lines, upstreamIndex);
+  _upsertScalarLine(
+    lines,
+    start: upstreamIndex + 1,
+    end: upstreamEnd,
+    key: 'version',
+    value: upstreamVersion,
+    insertIndex: upstreamIndex + 1,
+    indent: '  ',
+  );
+
+  final gitIndex = _nestedKeyIndex(
+    lines,
+    start: upstreamIndex + 1,
+    end: upstreamEnd,
+    key: 'git',
+  );
+  if (gitIndex == -1) {
+    throw UsageException('fluoh.yaml missing "upstream.git".', '');
+  }
+  final gitIndent = _lineIndent(lines[gitIndex]);
+  final gitEnd = _nestedSectionEnd(lines, gitIndex, upstreamEnd, gitIndent);
+  _upsertScalarLine(
+    lines,
+    start: gitIndex + 1,
+    end: gitEnd,
+    key: 'ref',
+    value: upstreamRef,
+    insertIndex: gitIndex + 1,
+    indent: '$gitIndent  ',
+  );
+
+  return '${lines.join('\n')}\n';
+}
+
+void _upsertScalarLine(
+  List<String> lines, {
+  required int start,
+  required int end,
+  required String key,
+  required String value,
+  required int insertIndex,
+  required String indent,
+}) {
+  for (var i = start; i < end; i += 1) {
+    final match = RegExp(
+      '^([ \\t]*${RegExp.escape(key)}\\s*:\\s*)(.*?)(\\s+#.*)?\$',
+    ).firstMatch(lines[i]);
+    if (match == null) {
+      continue;
+    }
+    final quote = _scalarQuote(match.group(2) ?? '');
+    lines[i] = '${match.group(1)}$quote$value$quote${match.group(3) ?? ''}';
+    return;
+  }
+
+  lines.insert(insertIndex, '$indent$key: $value');
+}
+
+String _scalarQuote(String value) {
+  final trimmed = value.trimLeft();
+  if (trimmed.startsWith("'")) {
+    return "'";
+  }
+  if (trimmed.startsWith('"')) {
+    return '"';
+  }
+  return '';
+}
+
+int _topLevelKeyIndex(List<String> lines, String name) {
+  return lines.indexWhere(
+    (line) => RegExp('^${RegExp.escape(name)}:(?:\\s.*)?\$').hasMatch(line),
+  );
+}
+
+int _topLevelSectionEnd(List<String> lines, int sectionIndex) {
+  for (var i = sectionIndex + 1; i < lines.length; i += 1) {
+    final line = lines[i];
+    if (line.isNotEmpty && !line.startsWith(' ') && !line.startsWith('\t')) {
+      return i;
+    }
+  }
+  return lines.length;
+}
+
+int _nestedKeyIndex(
+  List<String> lines, {
+  required int start,
+  required int end,
+  required String key,
+}) {
+  for (var i = start; i < end; i += 1) {
+    if (RegExp(
+      '^[ \\t]+${RegExp.escape(key)}\\s*:(?:\\s.*)?\$',
+    ).hasMatch(lines[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+String _lineIndent(String line) {
+  return RegExp(r'^[ \t]*').firstMatch(line)!.group(0)!;
+}
+
+int _nestedSectionEnd(
+  List<String> lines,
+  int sectionIndex,
+  int limit,
+  String indent,
+) {
+  for (var i = sectionIndex + 1; i < limit; i += 1) {
+    final line = lines[i];
+    if (line.trim().isEmpty) {
+      continue;
+    }
+    if (!line.startsWith('$indent ') && !line.startsWith('$indent\t')) {
+      return i;
+    }
+  }
+  return limit;
 }

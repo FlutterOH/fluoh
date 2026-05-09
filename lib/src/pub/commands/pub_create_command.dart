@@ -261,8 +261,7 @@ String _agentsInstructionsContent({
     '- Use `fluoh sdk list` to inspect available SDKs.',
     '- Do not run `fluoh sdk use` in this pub adapter repository; it is for Flutter apps and refuses to replace pub repository metadata.',
     '- When intentionally retargeting the adapter SDK, update `fluoh.yaml` and keep the branch and release metadata consistent.',
-    '- `fluoh pub sync` updates the clean upstream branch from `upstream` and requires a clean worktree.',
-    '- `fluoh pub adapt` merges the synchronized upstream branch into the current FlutterOH branch and refreshes `fluoh.yaml`; it also requires a clean worktree.',
+    '- `fluoh pub sync` updates the clean upstream branch from `upstream`, merges it into the current FlutterOH branch, refreshes upstream metadata in `fluoh.yaml`, and requires a clean worktree.',
     '- Use `fluoh test init` to create or refresh the low-intrusion verification workspace when needed.',
     '- Use `fluoh test run` before publishing or releasing; it runs package Flutter tests when present, equivalent to `fluoh flutter test` in the package path, plus `fluoh_test`. `fluoh pub release` runs it for Flutter adapters.',
     '- Keep `FLUOH_CHANGELOG.md` updated for the current `fluoh.yaml` package version before `fluoh pub release`.',
@@ -291,7 +290,7 @@ String _agentsInstructionsContent({
     '- Preserve local work, generated metadata, and upstream history. Do not delete `fluoh.yaml` or `FLUOH.md`.',
     '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
     '- Update `FLUOH_CHANGELOG.md` when release notes change.',
-    '- Commit local changes before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release`.',
+    '- Commit local changes before running `fluoh pub sync` or `fluoh pub release`.',
     '',
   ].join('\n');
 }
@@ -323,7 +322,7 @@ String _adaptationGuideContent({
     '4. Keep `fluoh.yaml` in sync when upstream, SDK, status, or release version values change.',
     '5. The generated files are already staged.',
     '6. You can continue adapting and commit everything together.',
-    '7. Commit before running `fluoh pub sync`, `fluoh pub adapt`, or `fluoh pub release` because those commands require a clean worktree.',
+    '7. Commit before running `fluoh pub sync` or `fluoh pub release` because those commands require a clean worktree.',
     '8. Run `fluoh test run`; it runs package Flutter tests when present, equivalent to `fluoh flutter test` in the package path, plus `fluoh_test`, and is also enforced by `fluoh pub release` for Flutter adapters.',
     '9. Update `FLUOH_CHANGELOG.md` for the current `fluoh.yaml` package version.',
     '10. Commit adapter changes with the maintainer Git identity.',

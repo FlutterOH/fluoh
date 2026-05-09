@@ -184,7 +184,6 @@ void main() {
     expect(help, contains('upgrade'));
     expect(help, contains('create'));
     expect(help, contains('sync'));
-    expect(help, contains('adapt'));
     expect(help, contains('release'));
     expect(stderr, isEmpty);
   });
@@ -209,7 +208,6 @@ void main() {
       'Adapter repositories:',
       '  create',
       '  sync',
-      '  adapt',
       '  release',
     ]);
     expect(stderr, isEmpty);

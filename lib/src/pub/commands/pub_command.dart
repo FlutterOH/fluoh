@@ -3,7 +3,6 @@ import 'package:args/command_runner.dart';
 import '../../cli/command_usage.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../context/fluoh_environment.dart';
-import 'pub_adapt_command.dart';
 import 'pub_create_command.dart';
 import 'pub_dependency_commands.dart';
 import 'pub_release_command.dart';
@@ -27,7 +26,6 @@ class PubCommand extends Command<int> {
       ),
     );
     addSubcommand(PubSyncCommand(environment: environment, stdout: stdout));
-    addSubcommand(PubAdaptCommand(environment: environment, stdout: stdout));
     addSubcommand(
       PubReleaseCommand(
         environment: environment,
@@ -78,10 +76,5 @@ class PubCommand extends Command<int> {
 
 const _pubCommandSections = [
   CommandUsageSection('Project dependencies:', ['check', 'fix', 'upgrade']),
-  CommandUsageSection('Adapter repositories:', [
-    'create',
-    'sync',
-    'adapt',
-    'release',
-  ]),
+  CommandUsageSection('Adapter repositories:', ['create', 'sync', 'release']),
 ];

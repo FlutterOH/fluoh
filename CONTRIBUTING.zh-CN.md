@@ -182,7 +182,7 @@ fluoh pub create https://github.com/upstream/package.git \
 git commit -m "feat(pub): initialize FlutterOH adapter"
 ```
 
-使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，然后使用 `fluoh pub adapt` 把该分支合入当前 pub 分支并刷新 `fluoh.yaml`。
+使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，把该分支合入当前 pub 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 `package.version` 不变。
 
 `fluoh_test/test` 用于发布前必须通过的自动化适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会在存在 `test/**/*_test.dart` 时先运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再使用当前选择的 Flutter OHOS SDK 执行 `fluoh_test` 自动化检查。
 

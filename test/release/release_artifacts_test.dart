@@ -186,7 +186,7 @@ void main() {
     );
     expect(contributing, contains('git@github.com:FlutterOH/<package>.git'));
     expect(contributing, contains('fluoh pub sync'));
-    expect(contributing, contains('fluoh pub adapt'));
+    expect(contributing, isNot(contains('fluoh pub adapt')));
     expect(contributing, contains('fluoh test run'));
     expect(contributing, contains("adapter package's own Flutter tests"));
     expect(contributing, contains('fluoh_test/test'));
@@ -242,7 +242,7 @@ void main() {
       contains('git@github.com:FlutterOH/<package>.git'),
     );
     expect(chineseContributing, contains('fluoh pub sync'));
-    expect(chineseContributing, contains('fluoh pub adapt'));
+    expect(chineseContributing, isNot(contains('fluoh pub adapt')));
     expect(chineseContributing, contains('fluoh test run'));
     expect(chineseContributing, contains('适配库自身的 Flutter 测试'));
     expect(chineseContributing, contains('fluoh_test/test'));

@@ -12,7 +12,7 @@
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
 - `lib/src/source/`: FlutterOH data source registry and YAML source loading.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
-- `lib/src/pub/`: pub dependency analysis and commands, plus repository create, sync, adapt, and release workflows.
+- `lib/src/pub/`: pub dependency analysis and commands, plus repository create, sync, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
 - `test/`: unit, command, integration, fixture, and release artifact tests.
 - `Formula/`: Homebrew packaging.

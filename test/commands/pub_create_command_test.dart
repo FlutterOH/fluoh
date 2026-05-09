@@ -174,8 +174,8 @@ void main() {
       expect(
         agentsContent,
         contains(
-          'Commit local changes before running `fluoh pub sync`, '
-          '`fluoh pub adapt`, or `fluoh pub release`.',
+          'Commit local changes before running `fluoh pub sync` '
+          'or `fluoh pub release`.',
         ),
       );
       expect(agentsContent, isNot(contains('## Adaptation Checklist')));
