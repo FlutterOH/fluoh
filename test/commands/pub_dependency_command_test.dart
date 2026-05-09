@@ -31,12 +31,32 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('camera adapted camera-v0.11.0-ohos-3.35.8-1'));
+    expect(stdout, contains('Ready to fix:'));
     expect(
       stdout,
-      contains('share_plus version-mismatch share_plus-v9.0.0-ohos-3.35.8-1'),
+      contains('  camera 0.11.0: override -> camera-v0.11.0-ohos-3.35.8-1'),
     );
-    expect(stdout, contains('mystery_package unknown'));
+    expect(stdout, contains('Needs decision:'));
+    expect(
+      stdout,
+      anyElement(contains('share_plus 10.0.0: Adapter targets upstream 9.0.0')),
+    );
+    expect(stdout, contains('Unavailable:'));
+    expect(
+      stdout,
+      contains('  mystery_package 1.0.0: No known OHOS adapter is available.'),
+    );
+    expect(stdout, contains('Transitive dependencies:'));
+    expect(
+      stdout,
+      contains(
+        '  camera_platform_interface 2.9.0: Transitive dependency; fluoh only rewrites direct dependencies.',
+      ),
+    );
+    expect(
+      stdout,
+      contains('Next: run `fluoh pub fix`, then `fluoh flutter pub get`.'),
+    );
 
     final jsonReport = jsonDecode(stdout.last) as Map<String, Object?>;
     final dependencies = jsonReport['dependencies'] as List<Object?>;
@@ -47,6 +67,8 @@ void main() {
           containsPair('name', 'camera'),
           containsPair('status', 'adapted'),
           containsPair('direct', true),
+          containsPair('actionable', true),
+          containsPair('recommendedAction', 'write-override'),
         ),
       ),
     );
@@ -74,7 +96,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['pub', 'fix'],
+          ['pub', 'fix', '--dry-run'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -90,7 +112,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['pub', 'fix', '--yes'],
+          ['pub', 'fix'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -105,7 +127,15 @@ void main() {
         stdout,
         contains('Would override camera -> camera-v0.11.0-ohos-3.35.8-1'),
       );
-      expect(stdout, contains('Wrote 1 dependency override.'));
+      expect(
+        stdout,
+        contains('override camera -> camera-v0.11.0-ohos-3.35.8-1'),
+      );
+      expect(
+        stdout,
+        contains('Updated pubspec.yaml with 1 dependency change.'),
+      );
+      expect(stdout, contains('Next: run `fluoh flutter pub get`.'));
       expect(pubspec, contains('dependency_overrides:'));
       expect(pubspec, contains('camera-v0.11.0-ohos-3.35.8-1'));
       expect(pubspec, contains('path: packages/camera/camera'));
@@ -115,17 +145,83 @@ void main() {
     },
   );
 
-  test('rewrites direct dependencies instead of writing overrides', () async {
+  test('reports existing dependency override conflicts', () async {
     final environment = await _preparedEnvironment();
     final pubspecFile = File(
       '${environment.workingDirectory.path}/pubspec.yaml',
+    );
+    await pubspecFile.writeAsString('''
+${pubspecFile.readAsStringSync()}
+dependency_overrides:
+  camera:
+    path: ../camera
+''');
+    final checkStdout = <String>[];
+    final fixStdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['pub', 'check'],
+        environment: environment,
+        stdout: checkStdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      await runFluoh(
+        ['pub', 'fix'],
+        environment: environment,
+        stdout: fixStdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final pubspec = pubspecFile.readAsStringSync();
+    expect(checkStdout, contains('Needs manual action:'));
+    expect(
+      checkStdout,
+      contains(
+        '  camera 0.11.0: dependency_overrides already contains this package.',
+      ),
+    );
+    expect(
+      checkStdout,
+      contains(
+        'Summary: 0 ready, 1 needs decision, 1 manual, 1 unavailable, 0 already OK, 1 transitive.',
+      ),
+    );
+    expect(
+      fixStdout,
+      contains(
+        'Skipped camera: dependency_overrides already contains this package.',
+      ),
+    );
+    expect(pubspec, contains('path: ../camera'));
+    expect(pubspec, isNot(contains('camera-v0.11.0-ohos-3.35.8-1')));
+    expect(stderr, isEmpty);
+  });
+
+  test('rewrites direct dependencies from project policy', () async {
+    final environment = await _preparedEnvironment();
+    final pubspecFile = File(
+      '${environment.workingDirectory.path}/pubspec.yaml',
+    );
+    final configFile = File('${environment.workingDirectory.path}/fluoh.yaml');
+    await configFile.writeAsString(
+      configFile.readAsStringSync().replaceFirst(
+        'replacementMode: overrides',
+        'replacementMode: rewrite',
+      ),
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        ['pub', 'fix', '--yes', '--rewrite'],
+        ['pub', 'fix'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -141,6 +237,70 @@ void main() {
     expect(pubspec, contains('path: packages/camera/camera'));
     expect(pubspec, isNot(contains('dependency_overrides:')));
     expect(stderr, isEmpty);
+  });
+
+  test('allows version-mismatch adapters from project policy', () async {
+    final environment = await _preparedEnvironment();
+    final pubspecFile = File(
+      '${environment.workingDirectory.path}/pubspec.yaml',
+    );
+    final configFile = File('${environment.workingDirectory.path}/fluoh.yaml');
+    await configFile.writeAsString(
+      configFile.readAsStringSync().replaceFirst(
+        'versionMismatch: skip',
+        'versionMismatch: allow',
+      ),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['pub', 'fix'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final pubspec = pubspecFile.readAsStringSync();
+    expect(
+      stdout,
+      contains('override share_plus -> share_plus-v9.0.0-ohos-3.35.8-1'),
+    );
+    expect(pubspec, contains('camera-v0.11.0-ohos-3.35.8-1'));
+    expect(pubspec, contains('share_plus-v9.0.0-ohos-3.35.8-1'));
+    expect(stderr, isEmpty);
+  });
+
+  test('reports malformed dependency policy', () async {
+    final environment = await _preparedEnvironment();
+    final configFile = File('${environment.workingDirectory.path}/fluoh.yaml');
+    await configFile.writeAsString('''
+schema: 1
+sdk:
+  version: 3.35.8-ohos-0.0.3
+dependencyPolicy: true
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['pub', 'check'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(
+      stderr.join('\n'),
+      contains('dependencyPolicy in fluoh.yaml must be a YAML map.'),
+    );
   });
 
   test('selects adapter version 10 over version 9 numerically', () async {
@@ -185,7 +345,10 @@ void main() {
       ),
       0,
     );
-    expect(stdout, contains('camera adapted camera-v0.11.0-ohos-3.35.8-10'));
+    expect(
+      stdout,
+      contains('  camera 0.11.0: override -> camera-v0.11.0-ohos-3.35.8-10'),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -299,7 +462,13 @@ void main() {
         ),
         0,
       );
-      expect(stdout, contains('camera blocked camera-v0.11.0-ohos-3.35.8-1'));
+      expect(
+        stdout,
+        contains(
+          '  camera 0.11.0: Configured sources mark this package as blocked for OHOS.',
+        ),
+      );
+      expect(stdout.join('\n'), isNot(contains('camera blocked camera-v')));
       expect(stderr, isEmpty);
     },
   );
@@ -390,10 +559,15 @@ releases:
         0,
       );
 
-      expect(stdout, contains('camera adapted camera-v0.11.0-ohos-3.35.8-1'));
       expect(
         stdout,
-        contains('share_plus adapted share_plus-v10.0.0-ohos-3.35.8-1'),
+        contains('  camera 0.11.0: override -> camera-v0.11.0-ohos-3.35.8-1'),
+      );
+      expect(
+        stdout,
+        contains(
+          '  share_plus 10.0.0: override -> share_plus-v10.0.0-ohos-3.35.8-1',
+        ),
       );
       expect(stderr, isEmpty);
     },

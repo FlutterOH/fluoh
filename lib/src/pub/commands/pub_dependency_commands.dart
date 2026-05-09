@@ -5,7 +5,9 @@ import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
 import '../../context/fluoh_environment.dart';
-import '../pub_dependency_analyzer.dart';
+import '../pub_dependency_plan.dart';
+import '../pub_dependency_policy.dart';
+import '../pubspec_dependency_editor.dart';
 
 class PubCheckCommand extends Command<int> {
   PubCheckCommand({required this.environment, required this.stdout}) {
@@ -27,38 +29,30 @@ class PubCheckCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final report = await PubDependencyAnalyzer(environment).analyze();
+    final policy = await readPubDependencyPolicy(environment.workingDirectory);
+    final plan = await buildPubDependencyPlan(
+      environment: environment,
+      policy: policy,
+      purpose: PubDependencyPlanPurpose.fix,
+    );
     if (argResults!.flag('json')) {
-      stdout(jsonEncode(report.toJson()));
+      stdout(jsonEncode(plan.toJson()));
       return 0;
     }
 
-    for (final dependency in report.dependencies) {
-      final adapterTag = dependency.adapter?.tag;
-      stdout([dependency.name, dependency.status.label, ?adapterTag].join(' '));
-    }
+    _printCheckPlan(stdout, plan);
     return 0;
   }
 }
 
 class PubFixCommand extends Command<int> {
   PubFixCommand({required this.environment, required this.stdout}) {
-    argParser
-      ..addFlag(
-        'yes',
-        negatable: false,
-        help: 'Write the generated dependency changes.',
-      )
-      ..addFlag(
-        'allow-version-change',
-        negatable: false,
-        help: 'Allow adapters that target a different upstream version.',
-      )
-      ..addFlag(
-        'rewrite',
-        negatable: false,
-        help: 'Rewrite direct dependencies instead of adding overrides.',
-      );
+    argParser.addFlag(
+      'dry-run',
+      abbr: 'n',
+      negatable: false,
+      help: 'Show planned dependency changes without writing pubspec.yaml.',
+    );
   }
 
   final FluohEnvironment environment;
@@ -69,299 +63,206 @@ class PubFixCommand extends Command<int> {
 
   @override
   String get description =>
-      'Generate dependency replacements for adapted packages.';
+      'Apply recommended OHOS dependency adapter changes.';
 
   @override
   Future<int> run() async {
-    final report = await PubDependencyAnalyzer(environment).analyze();
-    final allowVersionChange = argResults!.flag('allow-version-change');
-    final rewrite = argResults!.flag('rewrite');
-    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
-    final content = await pubspec.readAsString();
-    final existingOverrides = _existingOverrideNames(content);
-    final plans = report.dependencies
-        .where((dependency) {
-          if (!dependency.direct || dependency.adapter == null) {
-            return false;
-          }
-          if (dependency.status == DependencyStatus.adapted) {
-            return true;
-          }
-          return allowVersionChange &&
-              dependency.status == DependencyStatus.versionMismatch;
-        })
-        .toList(growable: false);
-    final writablePlans = plans
-        .where((plan) => rewrite || !existingOverrides.contains(plan.name))
-        .toList(growable: false);
+    final dryRun = argResults!.flag('dry-run');
+    final policy = await readPubDependencyPolicy(environment.workingDirectory);
+    final plan = await buildPubDependencyPlan(
+      environment: environment,
+      policy: policy,
+      purpose: PubDependencyPlanPurpose.fix,
+    );
+    _printMutationPlan(stdout, plan, dryRun: dryRun);
 
-    for (final plan in plans) {
-      if (!rewrite && existingOverrides.contains(plan.name)) {
-        stdout(
-          'Would skip ${plan.name}: dependency_overrides already contains it.',
-        );
-      } else if (rewrite) {
-        stdout('Would rewrite ${plan.name} -> ${plan.adapter!.tag}');
-      } else {
-        stdout('Would override ${plan.name} -> ${plan.adapter!.tag}');
-      }
-    }
-
-    if (!argResults!.flag('yes')) {
+    if (plan.changes.isEmpty || dryRun) {
       return 0;
     }
 
-    stdout('Will modify ${pubspec.path}.');
-    final wrote = rewrite
-        ? await _rewriteDependencies(writablePlans)
-        : await _writeOverrides(writablePlans);
-    stdout(
-      rewrite
-          ? 'Rewrote $wrote dependenc${wrote == 1 ? 'y' : 'ies'}.'
-          : 'Wrote $wrote dependency override${wrote == 1 ? '' : 's'}.',
+    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
+    final applied = await applyPubspecDependencyChanges(
+      pubspec: pubspec,
+      changes: plan.changes,
     );
+    stdout(
+      'Updated pubspec.yaml with $applied dependency change${_s(applied)}.',
+    );
+    _printNextStep(stdout);
     return 0;
   }
+}
 
-  Future<int> _writeOverrides(List<DependencyCompatibility> plans) async {
-    if (plans.isEmpty) {
-      return 0;
+void _printCheckPlan(OutputWriter stdout, PubDependencyPlan plan) {
+  stdout('Dependency compatibility for Flutter OHOS SDK ${plan.sdkVersion}.');
+  stdout(
+    'Policy: replacementMode=${plan.policy.replacementMode.yamlValue}, '
+    'versionMismatch=${plan.policy.versionMismatch.yamlValue}.',
+  );
+
+  final ready = plan.entries
+      .where((entry) => entry.changes.isNotEmpty)
+      .toList(growable: false);
+  final needsDecision = plan.entries
+      .where((entry) => entry.status == PubDependencyPlanStatus.versionMismatch)
+      .toList(growable: false);
+  final manual = plan.entries
+      .where(
+        (entry) =>
+            entry.dependency.direct &&
+            const {
+              PubDependencyPlanStatus.overrideExists,
+            }.contains(entry.status),
+      )
+      .toList(growable: false);
+  final unavailable = plan.entries
+      .where(
+        (entry) =>
+            entry.dependency.direct &&
+            const {
+              PubDependencyPlanStatus.blocked,
+              PubDependencyPlanStatus.sdkMismatch,
+              PubDependencyPlanStatus.unknown,
+            }.contains(entry.status),
+      )
+      .toList(growable: false);
+  final ok = plan.entries
+      .where(
+        (entry) =>
+            entry.dependency.direct &&
+            const {
+              PubDependencyPlanStatus.alreadyCurrent,
+              PubDependencyPlanStatus.native,
+            }.contains(entry.status),
+      )
+      .toList(growable: false);
+  final transitive = plan.entries
+      .where((entry) => entry.status == PubDependencyPlanStatus.transitive)
+      .toList(growable: false);
+
+  _printEntries(stdout, 'Ready to fix:', ready);
+  _printEntries(stdout, 'Needs decision:', needsDecision);
+  _printEntries(stdout, 'Needs manual action:', manual);
+  _printEntries(stdout, 'Unavailable:', unavailable);
+  _printEntries(stdout, 'Already OK:', ok);
+  _printEntries(stdout, 'Transitive dependencies:', transitive);
+
+  stdout(
+    'Summary: ${ready.length} ready, ${needsDecision.length} needs decision, '
+    '${manual.length} manual, ${unavailable.length} unavailable, '
+    '${ok.length} already OK, ${transitive.length} transitive.',
+  );
+  if (ready.isNotEmpty) {
+    stdout('Next: run `fluoh pub fix`, then `fluoh flutter pub get`.');
+  } else {
+    stdout('No dependency changes are currently available.');
+  }
+}
+
+void _printMutationPlan(
+  OutputWriter stdout,
+  PubDependencyPlan plan, {
+  required bool dryRun,
+}) {
+  final changes = plan.changes;
+  if (changes.isEmpty) {
+    stdout('No dependency changes are currently available.');
+  } else {
+    for (final change in changes) {
+      stdout('${dryRun ? 'Would ' : ''}${_changeMessage(change)}');
     }
-
-    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
-    final content = await pubspec.readAsString();
-    final lines = content.split('\n');
-    final sectionIndex = _ensureOverrideSection(lines);
-    var overrideEnd = _overrideSectionEnd(lines, sectionIndex);
-    var wrote = 0;
-
-    for (final plan in plans) {
-      final existing = _overrideBlockRange(lines, sectionIndex, plan.name);
-      if (existing != null) {
-        continue;
-      }
-
-      final block = _overrideYamlLines(plan);
-      lines.insertAll(overrideEnd, block);
-      overrideEnd += block.length;
-      wrote += 1;
-    }
-
-    if (wrote == 0) {
-      return 0;
-    }
-
-    await pubspec.writeAsString(
-      '${_trimTrailingEmptyLines(lines).join('\n')}\n',
-    );
-    return wrote;
   }
 
-  Future<int> _rewriteDependencies(List<DependencyCompatibility> plans) async {
-    if (plans.isEmpty) {
-      return 0;
-    }
-
-    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
-    final lines = (await pubspec.readAsString()).split('\n');
-    final sectionIndex = _topLevelSectionIndex(lines, 'dependencies');
-    if (sectionIndex == -1) {
-      return 0;
-    }
-
-    var wrote = 0;
-    for (final plan in plans) {
-      final existing = _dependencyBlockRange(lines, sectionIndex, plan.name);
-      if (existing == null) {
-        continue;
-      }
-      lines.replaceRange(
-        existing.start,
-        existing.end,
-        _dependencyYamlLines(plan),
-      );
-      _removeOverrideBlock(lines, plan.name);
-      wrote += 1;
-    }
-
-    if (wrote == 0) {
-      return 0;
-    }
-
-    await pubspec.writeAsString(
-      '${_trimTrailingEmptyLines(lines).join('\n')}\n',
-    );
-    return wrote;
+  final skippedVersionMismatch = plan.entries
+      .where((entry) => entry.status == PubDependencyPlanStatus.versionMismatch)
+      .toList(growable: false);
+  for (final entry in skippedVersionMismatch) {
+    stdout('Skipped ${entry.dependency.name}: ${entry.reason}');
   }
-
-  int _ensureOverrideSection(List<String> lines) {
-    final existing = _topLevelSectionIndex(lines, 'dependency_overrides');
-    if (existing != -1) {
-      return existing;
-    }
-
-    while (lines.isNotEmpty && lines.last.isEmpty) {
-      lines.removeLast();
-    }
-    if (lines.isNotEmpty) {
-      lines.add('');
-    }
-    lines.add('dependency_overrides:');
-    return lines.length - 1;
+  final skippedManual = plan.entries
+      .where(
+        (entry) =>
+            entry.dependency.direct &&
+            const {
+              PubDependencyPlanStatus.overrideExists,
+            }.contains(entry.status),
+      )
+      .toList(growable: false);
+  for (final entry in skippedManual) {
+    stdout('Skipped ${entry.dependency.name}: ${entry.reason}');
   }
-
-  int _overrideSectionEnd(List<String> lines, int sectionIndex) {
-    for (var i = sectionIndex + 1; i < lines.length; i += 1) {
-      final line = lines[i];
-      if (line.isNotEmpty && !line.startsWith(' ') && !line.startsWith('\t')) {
-        return i;
-      }
-    }
-    return lines.length;
-  }
-
-  int _topLevelSectionIndex(List<String> lines, String name) {
-    return lines.indexWhere(
-      (line) => RegExp('^${RegExp.escape(name)}:\\s*\$').hasMatch(line),
-    );
-  }
-
-  _LineRange? _overrideBlockRange(
-    List<String> lines,
-    int sectionIndex,
-    String packageName,
-  ) {
-    final end = _overrideSectionEnd(lines, sectionIndex);
-    final packagePattern = RegExp(
-      r'^  ' + RegExp.escape(packageName) + r':\s*$',
-    );
-    for (var i = sectionIndex + 1; i < end; i += 1) {
-      if (!packagePattern.hasMatch(lines[i])) {
-        continue;
-      }
-
-      var blockEnd = end;
-      for (var j = i + 1; j < end; j += 1) {
-        if (RegExp(r'^  \S').hasMatch(lines[j])) {
-          blockEnd = j;
-          break;
-        }
-      }
-      return _LineRange(i, blockEnd);
-    }
-    return null;
-  }
-
-  List<String> _overrideYamlLines(DependencyCompatibility plan) {
-    final adapter = plan.adapter!;
-    return _gitDependencyLines(
-      plan.name,
-      adapter.repository,
-      adapter.tag,
-      adapter.path,
+  if (skippedVersionMismatch.isNotEmpty &&
+      plan.policy.versionMismatch == PubDependencyVersionMismatchMode.skip) {
+    stdout(
+      'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
+      'version-mismatch adapters.',
     );
   }
 
-  List<String> _dependencyYamlLines(DependencyCompatibility plan) {
-    final adapter = plan.adapter!;
-    return _gitDependencyLines(
-      plan.name,
-      adapter.repository,
-      adapter.tag,
-      adapter.path,
-    );
+  if (changes.isNotEmpty && dryRun) {
+    stdout('Dry run only; pubspec.yaml was not modified.');
+  }
+  if (changes.isNotEmpty && dryRun) {
+    stdout('Run `fluoh pub fix` to apply these changes.');
+  }
+}
+
+void _printEntries(
+  OutputWriter stdout,
+  String title,
+  List<PubDependencyPlanEntry> entries,
+) {
+  if (entries.isEmpty) {
+    return;
   }
 
-  List<String> _gitDependencyLines(
-    String packageName,
-    String repository,
-    String tag,
-    String? path,
-  ) {
+  stdout('');
+  stdout(title);
+  for (final entry in entries) {
+    stdout('  ${_entryMessage(entry)}');
+  }
+}
+
+String _entryMessage(PubDependencyPlanEntry entry) {
+  final dependency = entry.dependency;
+  final adapter = dependency.adapter;
+  if (entry.changes.isNotEmpty) {
     return [
-      '  $packageName:',
-      '    git:',
-      '      url: $repository',
-      '      ref: $tag',
-      if (path != null && path.isNotEmpty) '      path: $path',
-    ];
+      '${dependency.name} ${dependency.version}:',
+      entry.changes.map(_changeSummary).join('; '),
+    ].join(' ');
   }
-
-  _LineRange? _dependencyBlockRange(
-    List<String> lines,
-    int sectionIndex,
-    String packageName,
-  ) {
-    final end = _overrideSectionEnd(lines, sectionIndex);
-    final scalarPattern = RegExp(
-      r'^  ' + RegExp.escape(packageName) + r':(?:\s+.*)?$',
-    );
-    for (var i = sectionIndex + 1; i < end; i += 1) {
-      if (!scalarPattern.hasMatch(lines[i])) {
-        continue;
-      }
-
-      var blockEnd = i + 1;
-      if (RegExp(r'^  \S[^:]*:\s*$').hasMatch(lines[i])) {
-        blockEnd = end;
-        for (var j = i + 1; j < end; j += 1) {
-          if (RegExp(r'^  \S').hasMatch(lines[j])) {
-            blockEnd = j;
-            break;
-          }
-        }
-      }
-      return _LineRange(i, blockEnd);
-    }
-    return null;
+  if (entry.status == PubDependencyPlanStatus.versionMismatch &&
+      adapter != null) {
+    return '${dependency.name} ${dependency.version}: ${entry.reason}';
   }
-
-  void _removeOverrideBlock(List<String> lines, String packageName) {
-    final sectionIndex = _topLevelSectionIndex(lines, 'dependency_overrides');
-    if (sectionIndex == -1) {
-      return;
-    }
-    final block = _overrideBlockRange(lines, sectionIndex, packageName);
-    if (block == null) {
-      return;
-    }
-    lines.removeRange(block.start, block.end);
-    final end = _overrideSectionEnd(lines, sectionIndex);
-    final hasEntries = lines
-        .sublist(sectionIndex + 1, end)
-        .any((line) => RegExp(r'^  \S').hasMatch(line));
-    if (!hasEntries) {
-      lines.removeAt(sectionIndex);
-    }
-  }
-
-  Set<String> _existingOverrideNames(String content) {
-    final lines = content.split('\n');
-    final sectionIndex = _topLevelSectionIndex(lines, 'dependency_overrides');
-    if (sectionIndex == -1) {
-      return const {};
-    }
-    final end = _overrideSectionEnd(lines, sectionIndex);
-    return lines
-        .sublist(sectionIndex + 1, end)
-        .map((line) => RegExp(r'^  ([A-Za-z0-9_]+):').firstMatch(line))
-        .whereType<RegExpMatch>()
-        .map((match) => match.group(1)!)
-        .toSet();
-  }
-
-  List<String> _trimTrailingEmptyLines(List<String> lines) {
-    final trimmed = lines.toList(growable: true);
-    while (trimmed.isNotEmpty && trimmed.last.isEmpty) {
-      trimmed.removeLast();
-    }
-    return trimmed;
-  }
+  return '${dependency.name} ${dependency.version}: ${entry.reason}';
 }
 
-class _LineRange {
-  const _LineRange(this.start, this.end);
-
-  final int start;
-  final int end;
+String _changeMessage(PubspecDependencyChange change) {
+  return switch (change.kind) {
+    PubspecDependencyChangeKind.writeOverride =>
+      'override ${change.packageName} -> ${change.nextRef}',
+    PubspecDependencyChangeKind.rewriteDependency =>
+      'rewrite ${change.packageName} -> ${change.nextRef}',
+    PubspecDependencyChangeKind.updateRef =>
+      'update ${change.packageName} ${change.currentRef} -> ${change.nextRef}',
+  };
 }
+
+String _changeSummary(PubspecDependencyChange change) {
+  return switch (change.kind) {
+    PubspecDependencyChangeKind.writeOverride =>
+      'override -> ${change.nextRef}',
+    PubspecDependencyChangeKind.rewriteDependency =>
+      'rewrite -> ${change.nextRef}',
+    PubspecDependencyChangeKind.updateRef =>
+      'update ${change.currentRef} -> ${change.nextRef}',
+  };
+}
+
+void _printNextStep(OutputWriter stdout) {
+  stdout('Next: run `fluoh flutter pub get`.');
+}
+
+String _s(int count) => count == 1 ? '' : 's';

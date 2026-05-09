@@ -52,6 +52,7 @@ String _newProjectFluohConfig(SdkRelease release) {
     '  version: ${release.tag}',
     'dependencyPolicy:',
     '  replacementMode: overrides',
+    '  versionMismatch: skip',
     '',
   ].join('\n');
 }

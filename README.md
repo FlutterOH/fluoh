@@ -47,7 +47,8 @@ fluoh sdk list
 fluoh sdk use 3.35
 fluoh flutter pub get
 fluoh pub check
-fluoh pub fix --yes
+fluoh pub fix
+fluoh flutter pub get
 fluoh doctor
 ```
 
@@ -69,11 +70,11 @@ fluoh flutter --version
 
 ```sh
 fluoh pub check
-fluoh pub fix --yes
-fluoh pub upgrade --yes
+fluoh pub fix
+fluoh flutter pub get
 ```
 
-`fluoh pub fix` writes `dependency_overrides` by default. Use `--rewrite` when you want to rewrite direct `dependencies` declarations instead.
+`fluoh pub check` groups dependencies by compatibility and prints the next step. `fluoh pub fix` updates `pubspec.yaml` with recommended OHOS adapter refs; use `fluoh pub fix --dry-run` to preview changes. By default it writes `dependency_overrides`; set `dependencyPolicy.replacementMode: rewrite` in `fluoh.yaml` when you want to rewrite direct `dependencies` declarations instead. Version-mismatch adapters are skipped unless `dependencyPolicy.versionMismatch` is set to `allow`. Use `fluoh pub upgrade` when a project already uses OHOS adapters and you only want to refresh existing adapter refs.
 
 ### Create third-party pub repositories
 
@@ -113,15 +114,15 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh sdk ...` | List, install, remove, and select local Flutter OHOS SDKs. |
 | `fluoh sdk use <version-or-series>` | Switch the SDK for the current Flutter project. |
 | `fluoh pub check` | Check OHOS compatibility for project dependencies. |
-| `fluoh pub fix` | Write adapted dependency replacements. |
-| `fluoh pub upgrade` | Upgrade existing OHOS-adapted dependency versions in the current project. |
+| `fluoh pub fix` | Add missing OHOS adapter refs and refresh existing ones in `pubspec.yaml`. |
+| `fluoh pub upgrade` | Upgrade existing OHOS adapter refs without adding new replacements. |
 | `fluoh pub create/sync/release` | Create, sync, and release third-party FlutterOH pub repositories. |
 | `fluoh test ...` | Create `fluoh_test` and run package plus `fluoh_test` verification for adapted Flutter packages. |
 | `fluoh source ...` | Manage FlutterOH data sources. |
 | `fluoh doctor` | Diagnose CLI version, project SDK, and OHOS directory status. |
 | `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
 
-`fluoh pub upgrade` and `fluoh upgrade` are intentionally different: `pub upgrade` upgrades OHOS-adapted dependencies in the current project; `upgrade` upgrades the CLI tool itself.
+`fluoh pub upgrade` and `fluoh upgrade` are intentionally different: `pub upgrade` refreshes existing OHOS adapter refs in the current project; `upgrade` upgrades the CLI tool itself.
 
 ## Data Sources
 

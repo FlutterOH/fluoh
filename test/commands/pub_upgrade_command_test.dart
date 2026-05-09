@@ -30,7 +30,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['pub', 'upgrade'],
+        ['pub', 'upgrade', '--dry-run'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -44,7 +44,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['pub', 'upgrade', '--yes'],
+        ['pub', 'upgrade'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -61,7 +61,8 @@ void main() {
         'Would update camera camera-v0.11.0-ohos-3.35.8-0 -> camera-v0.11.0-ohos-3.35.8-1',
       ),
     );
-    expect(stdout, contains('Updated 1 dependency override.'));
+    expect(stdout, contains('Updated 1 OHOS dependency ref.'));
+    expect(stdout, contains('Next: run `fluoh flutter pub get`.'));
     expect(pubspec, contains('camera-v0.11.0-ohos-3.35.8-1'));
     expect(pubspec, isNot(contains('camera-v0.11.0-ohos-3.35.8-0')));
     expect(stderr, isEmpty);
@@ -108,7 +109,7 @@ dependency_overrides:
 
     expect(
       await runFluoh(
-        ['pub', 'upgrade', '--yes'],
+        ['pub', 'upgrade'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -174,7 +175,7 @@ dependency_overrides:
 
     expect(
       await runFluoh(
-        ['pub', 'upgrade', '--yes'],
+        ['pub', 'upgrade'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -230,7 +231,7 @@ dependencies:
 
     expect(
       await runFluoh(
-        ['pub', 'upgrade', '--yes'],
+        ['pub', 'upgrade'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -241,7 +242,7 @@ dependencies:
     final updated = pubspec.readAsStringSync();
     expect(updated, contains('camera-v0.11.0-ohos-3.35.8-1'));
     expect(updated, isNot(contains('camera-v0.11.0-ohos-3.35.8-0')));
-    expect(stdout, contains('Updated 1 OHOS dependency.'));
+    expect(stdout, contains('Updated 1 OHOS dependency ref.'));
     expect(stderr, isEmpty);
   });
 }

@@ -47,7 +47,8 @@ fluoh sdk list
 fluoh sdk use 3.35
 fluoh flutter pub get
 fluoh pub check
-fluoh pub fix --yes
+fluoh pub fix
+fluoh flutter pub get
 fluoh doctor
 ```
 
@@ -69,11 +70,11 @@ fluoh flutter --version
 
 ```sh
 fluoh pub check
-fluoh pub fix --yes
-fluoh pub upgrade --yes
+fluoh pub fix
+fluoh flutter pub get
 ```
 
-`fluoh pub fix` 默认写入 `dependency_overrides`。如果需要直接改写 `dependencies` 中的声明，可以使用 `--rewrite`。
+`fluoh pub check` 会按兼容状态分组依赖并提示下一步。`fluoh pub fix` 会把推荐的 OHOS adapter ref 写入 `pubspec.yaml`；如果只想预览，使用 `fluoh pub fix --dry-run`。默认写入 `dependency_overrides`；如果希望直接改写 `dependencies` 中的声明，在 `fluoh.yaml` 中设置 `dependencyPolicy.replacementMode: rewrite`。上游版本不一致的 adapter 默认跳过，除非把 `dependencyPolicy.versionMismatch` 设为 `allow`。项目已经使用 OHOS adapter、只想刷新已有 ref 时，使用 `fluoh pub upgrade`。
 
 ### 创建第三方库 pub 仓库
 
@@ -113,15 +114,15 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh sdk ...` | 查看、安装、删除并选择本地 Flutter OHOS SDK。 |
 | `fluoh sdk use <version-or-series>` | 在当前 Flutter 项目中切换 SDK。 |
 | `fluoh pub check` | 检查项目依赖的 OHOS 兼容状态。 |
-| `fluoh pub fix` | 写入适配依赖替换。 |
-| `fluoh pub upgrade` | 升级项目内已有 OHOS 适配依赖版本。 |
+| `fluoh pub fix` | 在 `pubspec.yaml` 中新增缺失的 OHOS adapter ref，并刷新已有 ref。 |
+| `fluoh pub upgrade` | 只升级已有 OHOS adapter ref，不新增依赖替换。 |
 | `fluoh pub create/sync/release` | 创建、同步并发布第三方库 FlutterOH pub 仓库。 |
 | `fluoh test ...` | 为已适配 Flutter package 创建 `fluoh_test`，并运行库自身和 `fluoh_test` 验证。 |
 | `fluoh source ...` | 管理 FlutterOH 数据源。 |
 | `fluoh doctor` | 诊断 CLI 版本、项目 SDK 和 OHOS 目录状态。 |
 | `fluoh upgrade` | 升级 `fluoh` CLI 工具本身。 |
 
-`fluoh pub upgrade` 和 `fluoh upgrade` 的语义不同：前者更新当前项目内已兼容 OHOS 的第三方库版本，后者升级 CLI 工具本身。
+`fluoh pub upgrade` 和 `fluoh upgrade` 的语义不同：前者刷新当前项目已有 OHOS adapter ref，后者升级 CLI 工具本身。
 
 ## 数据源
 
