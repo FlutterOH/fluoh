@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 
 import '../../cli/command_usage.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import 'pub_create_command.dart';
 import 'pub_dependency_commands.dart';
@@ -14,28 +15,47 @@ class PubCommand extends Command<int> {
     required FluohEnvironment environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
-  }) : _stdout = stdout {
-    addSubcommand(PubCheckCommand(environment: environment, stdout: stdout));
-    addSubcommand(PubFixCommand(environment: environment, stdout: stdout));
-    addSubcommand(PubUpgradeCommand(environment: environment, stdout: stdout));
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
+    addSubcommand(
+      PubCheckCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      PubFixCommand(environment: environment, stdout: stdout, output: _output),
+    );
+    addSubcommand(
+      PubUpgradeCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
     addSubcommand(
       PubCreateCommand(
         environment: environment,
         stdout: stdout,
         stderr: stderr,
+        output: _output,
       ),
     );
-    addSubcommand(PubSyncCommand(environment: environment, stdout: stdout));
+    addSubcommand(
+      PubSyncCommand(environment: environment, stdout: stdout, output: _output),
+    );
     addSubcommand(
       PubReleaseCommand(
         environment: environment,
         stdout: stdout,
         stderr: stderr,
+        output: _output,
       ),
     );
   }
 
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'pub';
@@ -49,7 +69,7 @@ class PubCommand extends Command<int> {
 
   @override
   void printUsage() {
-    _stdout(usage);
+    _output.write(usage);
   }
 
   @override
@@ -67,6 +87,7 @@ class PubCommand extends Command<int> {
         sections: _pubCommandSections,
         isSubcommand: true,
         lineLength: argParser.usageLineLength,
+        style: _output.style,
       ),
       '',
       'Run "${runner!.executableName} help" to see global options.',

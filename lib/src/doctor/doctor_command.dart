@@ -8,6 +8,7 @@ import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../cli/fluoh_installation.dart';
+import '../cli/terminal_output.dart';
 import '../sdk/sdk_project_config.dart';
 import '../source/source_index.dart';
 import '../version.dart';
@@ -33,17 +34,37 @@ class DoctorCommand extends Command<int> {
     DoctorVersionMetadataProvider? versionMetadataProvider,
     DoctorScriptUriProvider? scriptUriProvider,
     bool enableColor = false,
-  }) : _stdout = stdout,
+    TerminalOutput? output,
+  }) : _output =
+           output ??
+           TerminalOutput(
+             stdout: stdout,
+             style: TerminalStyle(
+               capabilities: TerminalCapabilities(
+                 ansi: enableColor,
+                 decorated: enableColor,
+                 unicode: true,
+               ),
+             ),
+           ),
        _versionMetadataProvider =
            versionMetadataProvider ?? _fetchFluohVersionMetadata,
        _scriptUriProvider = scriptUriProvider ?? (() => Platform.script),
-       _style = _DoctorStyle(enableColor: enableColor);
+       _style =
+           output?.style ??
+           TerminalStyle(
+             capabilities: TerminalCapabilities(
+               ansi: enableColor,
+               decorated: enableColor,
+               unicode: true,
+             ),
+           );
 
   final FluohEnvironment environment;
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
   final DoctorVersionMetadataProvider _versionMetadataProvider;
   final DoctorScriptUriProvider _scriptUriProvider;
-  final _DoctorStyle _style;
+  final TerminalStyle _style;
 
   @override
   String get name => 'doctor';
@@ -202,12 +223,16 @@ class DoctorCommand extends Command<int> {
   }
 
   void _printChecks(List<_DoctorCheck> checks) {
-    _stdout('Doctor summary:');
+    _output.section('Doctor summary:');
     for (final check in checks) {
-      final marker = check.status == _DoctorCheckStatus.ok ? '✓' : '!';
-      _stdout(_style.header(check.status, '[$marker] ${check.title}'));
+      final marker = check.status == _DoctorCheckStatus.ok
+          ? _style.symbols.success
+          : _style.symbols.warning;
+      _output.write(
+        _style.status(check.status.terminalStatus, '[$marker] ${check.title}'),
+      );
       for (final detail in check.details) {
-        _stdout('    • $detail');
+        _output.detail(detail);
       }
     }
 
@@ -215,11 +240,11 @@ class DoctorCommand extends Command<int> {
         .where((check) => check.status == _DoctorCheckStatus.warning)
         .length;
     if (issueCount == 0) {
-      _stdout('Doctor found no issues.');
+      _output.success('Doctor found no issues.');
     } else if (issueCount == 1) {
-      _stdout('Doctor found issues in 1 category.');
+      _output.warning('Doctor found issues in 1 category.');
     } else {
-      _stdout('Doctor found issues in $issueCount categories.');
+      _output.warning('Doctor found issues in $issueCount categories.');
     }
   }
 }
@@ -232,24 +257,6 @@ String _installationDescription(FluohInstallation installation) {
       return 'Installed with Homebrew.';
     case FluohInstallMethod.localSourceCheckout:
       return 'Running from a local source checkout.';
-  }
-}
-
-class _DoctorStyle {
-  const _DoctorStyle({required this.enableColor});
-
-  final bool enableColor;
-
-  String header(_DoctorCheckStatus status, String text) {
-    if (!enableColor) {
-      return text;
-    }
-
-    final color = switch (status) {
-      _DoctorCheckStatus.ok => '\u001b[32m',
-      _DoctorCheckStatus.warning => '\u001b[33m',
-    };
-    return '$color$text\u001b[0m';
   }
 }
 
@@ -270,6 +277,15 @@ class _DoctorCheck {
 }
 
 enum _DoctorCheckStatus { ok, warning }
+
+extension on _DoctorCheckStatus {
+  TerminalStatus get terminalStatus {
+    return switch (this) {
+      _DoctorCheckStatus.ok => TerminalStatus.ok,
+      _DoctorCheckStatus.warning => TerminalStatus.warning,
+    };
+  }
+}
 
 Future<DoctorVersionMetadata?> _fetchFluohVersionMetadata() async {
   final client = HttpClient();

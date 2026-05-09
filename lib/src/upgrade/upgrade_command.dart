@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import '../cli/fluoh_command_runner.dart';
 import '../cli/fluoh_installation.dart';
+import '../cli/terminal_output.dart';
 
 typedef UpgradeProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
@@ -14,10 +15,12 @@ class UpgradeCommand extends Command<int> {
   UpgradeCommand({
     required OutputWriter stdout,
     OutputWriter? stderr,
+    TerminalOutput? output,
     UpgradeProcessRunner? processRunner,
     UpgradeScriptUriProvider? scriptUriProvider,
   }) : _stdout = stdout,
        _stderr = stderr ?? stdout,
+       _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr),
        _processRunner =
            processRunner ??
            ((executable, arguments) => Process.run(executable, arguments)),
@@ -31,6 +34,7 @@ class UpgradeCommand extends Command<int> {
 
   final OutputWriter _stdout;
   final OutputWriter _stderr;
+  final TerminalOutput _output;
   final UpgradeProcessRunner _processRunner;
   final UpgradeScriptUriProvider _scriptUriProvider;
 
@@ -46,16 +50,18 @@ class UpgradeCommand extends Command<int> {
 
     if (!argResults!.flag('yes')) {
       if (plan.refusalMessage != null) {
-        _stdout(plan.refusalMessage!);
+        _output.warning(plan.refusalMessage!);
         return 0;
       }
-      _stdout('Upgrade command: ${plan.displayCommand}');
-      _stdout('Run with --yes to execute.');
+      _output.info(
+        'Upgrade command: ${_output.style.command(plan.displayCommand)}',
+      );
+      _output.next('Run with --yes to execute.');
       return 0;
     }
 
     if (plan.refusalMessage != null) {
-      _stderr(plan.refusalMessage!);
+      _output.error(plan.refusalMessage!);
       return 64;
     }
 

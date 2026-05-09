@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../cli/fluoh_command_runner.dart';
+import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import '../pub/manifest/pubspec_package.dart';
 import '../sdk/sdk_manager.dart';
@@ -42,15 +43,17 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
   required FluohEnvironment environment,
   required OutputWriter stdout,
   required OutputWriter stderr,
+  TerminalOutput? output,
   bool force = false,
 }) async {
+  final terminal = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
   final package = await findFlutterAdapterPackage(environment.workingDirectory);
   if (package == null) {
     final packageName = await _packageNameOrDirectory(
       environment.workingDirectory,
     );
     final reason = '$packageName is not a Flutter package.';
-    stdout('Skipping fluoh test init: $reason');
+    terminal.skipped('Skipping fluoh test init: $reason');
     return FluohTestInitResult.skipped(reason);
   }
 
@@ -67,7 +70,10 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
     await testDirectory.delete(recursive: true);
   }
 
-  final flutter = await _flutterExecutableForEnvironment(environment);
+  final flutter = await _flutterExecutableForEnvironment(
+    environment,
+    output: terminal,
+  );
   await testDirectory.create(recursive: true);
   await _writeTestWorkspace(testDirectory, package);
   await _createExampleProject(
@@ -77,11 +83,12 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
     package: package,
     stdout: stdout,
     stderr: stderr,
+    output: terminal,
   );
 
-  stdout('Created fluoh_test for ${package.name}.');
-  stdout('Run "fluoh test run" before publishing the adapter.');
-  stdout('Use fluoh_test/example for manual platform verification.');
+  terminal.success('Created fluoh_test for ${package.name}.');
+  terminal.next('Run "fluoh test run" before publishing the adapter.');
+  terminal.next('Use fluoh_test/example for manual platform verification.');
   return FluohTestInitResult.created(package);
 }
 
@@ -89,13 +96,17 @@ Future<int> runFluohTestWorkspace({
   required FluohEnvironment environment,
   required OutputWriter stdout,
   required OutputWriter stderr,
+  TerminalOutput? output,
 }) async {
+  final terminal = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
   final package = await findFlutterAdapterPackage(environment.workingDirectory);
   if (package == null) {
     final packageName = await _packageNameOrDirectory(
       environment.workingDirectory,
     );
-    stdout('Skipping fluoh test run: $packageName is not a Flutter package.');
+    terminal.skipped(
+      'Skipping fluoh test run: $packageName is not a Flutter package.',
+    );
     return 0;
   }
 
@@ -113,19 +124,23 @@ Future<int> runFluohTestWorkspace({
     );
   }
 
-  final flutter = await _flutterExecutableForEnvironment(environment);
+  final flutter = await _flutterExecutableForEnvironment(
+    environment,
+    output: terminal,
+  );
   final packageTest = await _runAdapterPackageTests(
     environment: environment,
     flutter: flutter,
     package: package,
     stdout: stdout,
     stderr: stderr,
+    output: terminal,
   );
   if (packageTest != 0) {
     return packageTest;
   }
 
-  stdout('Running fluoh_test pub get.');
+  terminal.step('Running fluoh_test pub get.');
   final pubGet = await _runProcess(
     flutter.path,
     ['pub', 'get'],
@@ -135,11 +150,11 @@ Future<int> runFluohTestWorkspace({
     stderr: stderr,
   );
   if (pubGet != 0) {
-    stdout('fluoh_test pub get failed.');
+    terminal.failure('fluoh_test pub get failed.');
     return pubGet;
   }
 
-  stdout('Running fluoh_test tests.');
+  terminal.step('Running fluoh_test tests.');
   final test = await _runProcess(
     flutter.path,
     ['test'],
@@ -149,11 +164,11 @@ Future<int> runFluohTestWorkspace({
     stderr: stderr,
   );
   if (test != 0) {
-    stdout('fluoh_test failed.');
+    terminal.failure('fluoh_test failed.');
     return test;
   }
 
-  stdout('fluoh_test passed.');
+  terminal.success('fluoh_test passed.');
   return 0;
 }
 
@@ -163,13 +178,16 @@ Future<int> _runAdapterPackageTests({
   required FlutterAdapterPackage package,
   required OutputWriter stdout,
   required OutputWriter stderr,
+  required TerminalOutput output,
 }) async {
   if (!await _hasFlutterTests(package.directory)) {
-    stdout('Skipping ${package.name} package tests: no test files found.');
+    output.skipped(
+      'Skipping ${package.name} package tests: no test files found.',
+    );
     return 0;
   }
 
-  stdout('Running ${package.name} package pub get.');
+  output.step('Running ${package.name} package pub get.');
   final pubGet = await _runProcess(
     flutter.path,
     ['pub', 'get'],
@@ -179,11 +197,11 @@ Future<int> _runAdapterPackageTests({
     stderr: stderr,
   );
   if (pubGet != 0) {
-    stdout('${package.name} package pub get failed.');
+    output.failure('${package.name} package pub get failed.');
     return pubGet;
   }
 
-  stdout('Running ${package.name} package Flutter tests.');
+  output.step('Running ${package.name} package Flutter tests.');
   final test = await _runProcess(
     flutter.path,
     ['test'],
@@ -193,11 +211,11 @@ Future<int> _runAdapterPackageTests({
     stderr: stderr,
   );
   if (test != 0) {
-    stdout('${package.name} package tests failed.');
+    output.failure('${package.name} package tests failed.');
     return test;
   }
 
-  stdout('${package.name} package tests passed.');
+  output.success('${package.name} package tests passed.');
   return 0;
 }
 
@@ -324,8 +342,9 @@ const _platformOrder = [
 ];
 
 Future<File> _flutterExecutableForEnvironment(
-  FluohEnvironment environment,
-) async {
+  FluohEnvironment environment, {
+  TerminalOutput? output,
+}) async {
   final sdkTag = await readProjectSdkTag(environment.workingDirectory);
   if (sdkTag == null || sdkTag.isEmpty) {
     throw UsageException(
@@ -338,7 +357,12 @@ Future<File> _flutterExecutableForEnvironment(
   var sdkDirectory = manager.sdkDirectory(sdkTag);
   if (!await sdkDirectory.exists()) {
     final release = await manager.resolveRelease(sdkTag);
-    sdkDirectory = await manager.install(release);
+    sdkDirectory = output == null
+        ? await manager.install(release)
+        : await output.withProgress(
+            'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+            () => manager.install(release),
+          );
   }
   final flutter = File('${sdkDirectory.path}/bin/flutter');
   if (!await flutter.exists()) {
@@ -402,9 +426,10 @@ Future<void> _createExampleProject({
   required FlutterAdapterPackage package,
   required OutputWriter stdout,
   required OutputWriter stderr,
+  required TerminalOutput output,
 }) async {
   final example = Directory('${testDirectory.path}/example');
-  stdout(
+  output.step(
     'Creating fluoh_test/example with fluoh flutter create '
     'for ${package.platforms.join(',')}.',
   );

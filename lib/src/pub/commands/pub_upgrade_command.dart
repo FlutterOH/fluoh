@@ -3,14 +3,18 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../pub_dependency_plan.dart';
 import '../pub_dependency_policy.dart';
 import '../pubspec_dependency_editor.dart';
 
 class PubUpgradeCommand extends Command<int> {
-  PubUpgradeCommand({required this.environment, required OutputWriter stdout})
-    : _stdout = stdout {
+  PubUpgradeCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addFlag(
       'dry-run',
       abbr: 'n',
@@ -20,7 +24,7 @@ class PubUpgradeCommand extends Command<int> {
   }
 
   final FluohEnvironment environment;
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'upgrade';
@@ -45,22 +49,24 @@ class PubUpgradeCommand extends Command<int> {
         .toList(growable: false);
     if (changes.isEmpty) {
       if (skippedVersionMismatch.isEmpty) {
-        _stdout('No existing OHOS adapter refs need upgrades.');
+        _output.skipped('No existing OHOS adapter refs need upgrades.');
       }
       _printSkippedVersionMismatch(skippedVersionMismatch);
       return 0;
     }
 
     for (final change in changes) {
-      _stdout(
+      _output.step(
         '${dryRun ? 'Would ' : ''}update ${change.packageName} '
         '${change.currentRef} -> ${change.nextRef}',
       );
     }
     _printSkippedVersionMismatch(skippedVersionMismatch);
     if (dryRun) {
-      _stdout('Dry run only; pubspec.yaml was not modified.');
-      _stdout('Run `fluoh pub upgrade` to apply these changes.');
+      _output.warning('Dry run only; pubspec.yaml was not modified.');
+      _output.next(
+        'Run ${_output.style.code('fluoh pub upgrade')} to apply these changes.',
+      );
       return 0;
     }
 
@@ -69,17 +75,19 @@ class PubUpgradeCommand extends Command<int> {
       pubspec: pubspec,
       changes: changes,
     );
-    _stdout('Updated $applied OHOS dependency ref${applied == 1 ? '' : 's'}.');
-    _stdout('Next: run `fluoh flutter pub get`.');
+    _output.success(
+      'Updated $applied OHOS dependency ref${applied == 1 ? '' : 's'}.',
+    );
+    _output.next('Next: run ${_output.style.code('fluoh flutter pub get')}.');
     return 0;
   }
 
   void _printSkippedVersionMismatch(List<PubDependencyPlanEntry> entries) {
     for (final entry in entries) {
-      _stdout('Skipped ${entry.dependency.name}: ${entry.reason}');
+      _output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
     }
     if (entries.isNotEmpty) {
-      _stdout(
+      _output.warning(
         'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
         'version-mismatch adapters.',
       );

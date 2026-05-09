@@ -40,7 +40,8 @@ void main() {
 
     expect(configFile.existsSync(), isFalse);
     expect(sourceCache.existsSync(), isFalse);
-    expect(stdout, isEmpty);
+    expect(stdout.join('\n'), contains('Available subcommands:'));
+    expect(stdout.join('\n'), contains('  list'));
     expect(stderr, isEmpty);
   });
 

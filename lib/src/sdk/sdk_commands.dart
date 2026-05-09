@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
+import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 import 'sdk_use_command.dart';
@@ -10,16 +11,27 @@ class SdkCommand extends Command<int> {
   SdkCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
-  }) : _stdout = stdout {
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     final manager = SdkManager(environment);
-    addSubcommand(SdkListCommand(manager: manager, stdout: stdout));
-    addSubcommand(SdkInstallCommand(manager: manager, stdout: stdout));
-    addSubcommand(SdkCurrentCommand(manager: manager, stdout: stdout));
-    addSubcommand(SdkRemoveCommand(manager: manager, stdout: stdout));
-    addSubcommand(SdkUseCommand(environment: environment, stdout: stdout));
+    addSubcommand(
+      SdkListCommand(manager: manager, stdout: stdout, output: _output),
+    );
+    addSubcommand(
+      SdkInstallCommand(manager: manager, stdout: stdout, output: _output),
+    );
+    addSubcommand(
+      SdkCurrentCommand(manager: manager, stdout: stdout, output: _output),
+    );
+    addSubcommand(
+      SdkRemoveCommand(manager: manager, stdout: stdout, output: _output),
+    );
+    addSubcommand(
+      SdkUseCommand(environment: environment, stdout: stdout, output: _output),
+    );
   }
 
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'sdk';
@@ -32,7 +44,7 @@ class SdkCommand extends Command<int> {
 
   @override
   void printUsage() {
-    _stdout(usage);
+    _output.write(usage);
   }
 
   @override
@@ -50,6 +62,7 @@ class SdkCommand extends Command<int> {
         sections: _sdkCommandSections,
         isSubcommand: true,
         lineLength: argParser.usageLineLength,
+        style: _output.style,
       ),
       '',
       'Run "${runner!.executableName} help" to see global options.',
@@ -62,10 +75,15 @@ const _sdkCommandSections = [
 ];
 
 class SdkListCommand extends Command<int> {
-  SdkListCommand({required this.manager, required this.stdout});
+  SdkListCommand({
+    required this.manager,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final SdkManager manager;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'list';
@@ -75,8 +93,30 @@ class SdkListCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    final entries = await manager.listEntries();
+    if (_output.style.capabilities.decorated) {
+      _output.table(
+        columns: const [
+          TerminalTableColumn('#', style: TerminalTableCellStyle.muted),
+          TerminalTableColumn('Version', style: TerminalTableCellStyle.value),
+          TerminalTableColumn('Channel', style: TerminalTableCellStyle.muted),
+          TerminalTableColumn('Status', style: TerminalTableCellStyle.status),
+        ],
+        rows: [
+          for (var index = 0; index < entries.length; index += 1)
+            [
+              '${index + 1}',
+              entries[index].tag,
+              entries[index].channel,
+              entries[index].installed ? 'installed' : 'remote',
+            ],
+        ],
+      );
+      return 0;
+    }
+
     var index = 1;
-    for (final sdk in await manager.listEntries()) {
+    for (final sdk in entries) {
       final status = sdk.installed ? 'installed' : 'remote';
       stdout('[$index] ${sdk.tag} ${sdk.channel} $status');
       index += 1;
@@ -86,10 +126,15 @@ class SdkListCommand extends Command<int> {
 }
 
 class SdkInstallCommand extends Command<int> {
-  SdkInstallCommand({required this.manager, required this.stdout});
+  SdkInstallCommand({
+    required this.manager,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final SdkManager manager;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'install';
@@ -108,17 +153,25 @@ class SdkInstallCommand extends Command<int> {
     }
 
     final release = await manager.resolveRelease(rest.single);
-    await manager.install(release);
-    stdout('Installed SDK ${release.tag}.');
+    await _output.withProgress(
+      'Installing SDK ${release.tag}.',
+      () => manager.install(release),
+    );
+    _output.success('Installed SDK ${release.tag}.');
     return 0;
   }
 }
 
 class SdkCurrentCommand extends Command<int> {
-  SdkCurrentCommand({required this.manager, required this.stdout});
+  SdkCurrentCommand({
+    required this.manager,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final SdkManager manager;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'current';
@@ -130,20 +183,25 @@ class SdkCurrentCommand extends Command<int> {
   Future<int> run() async {
     final tag = await manager.currentSdkTag();
     if (tag == null || tag.isEmpty) {
-      stdout('No SDK selected.');
+      _output.warning('No SDK selected.');
       return 1;
     }
 
-    stdout('Current SDK: $tag');
+    _output.info('Current SDK: $tag');
     return 0;
   }
 }
 
 class SdkRemoveCommand extends Command<int> {
-  SdkRemoveCommand({required this.manager, required this.stdout});
+  SdkRemoveCommand({
+    required this.manager,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final SdkManager manager;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'remove';
@@ -162,7 +220,7 @@ class SdkRemoveCommand extends Command<int> {
     }
 
     final tag = await manager.remove(rest.single);
-    stdout('Removed SDK $tag.');
+    _output.success('Removed SDK $tag.');
     return 0;
   }
 }

@@ -1,5 +1,7 @@
 import 'package:args/command_runner.dart';
 
+import 'terminal_output.dart';
+
 class CommandUsageSection {
   const CommandUsageSection(this.title, this.commandNames);
 
@@ -12,6 +14,7 @@ String formatCommandUsage(
   required List<CommandUsageSection> sections,
   required bool isSubcommand,
   int? lineLength,
+  TerminalStyle style = const TerminalStyle(),
 }) {
   final visible = _visibleCommands(commands);
   final used = <String>{};
@@ -56,7 +59,7 @@ String formatCommandUsage(
       buffer
         ..writeln()
         ..writeln()
-        ..write(section.title);
+        ..write(style.section(section.title));
     }
     for (final name in section.commandNames) {
       final command = visible[name]!;
@@ -67,7 +70,8 @@ String formatCommandUsage(
       );
       buffer
         ..writeln()
-        ..write('  ${name.padRight(nameLength)}   ${lines.first}');
+        ..write('  ${style.command(name.padRight(nameLength))}   ')
+        ..write(lines.first);
       for (final line in lines.skip(1)) {
         buffer
           ..writeln()

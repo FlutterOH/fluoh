@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
+import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import 'source_sync.dart';
@@ -11,30 +13,92 @@ class SourceCommand extends Command<int> {
   SourceCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
-  }) {
-    addSubcommand(SourceListCommand(environment: environment, stdout: stdout));
-    addSubcommand(SourceInitCommand(stdout: stdout));
-    addSubcommand(SourceAddCommand(environment: environment, stdout: stdout));
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     addSubcommand(
-      SourceRemoveCommand(environment: environment, stdout: stdout),
+      SourceListCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(SourceInitCommand(stdout: stdout, output: _output));
+    addSubcommand(
+      SourceAddCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
     );
     addSubcommand(
-      SourceUpdateCommand(environment: environment, stdout: stdout),
+      SourceRemoveCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      SourceUpdateCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
     );
   }
+
+  final TerminalOutput _output;
 
   @override
   String get name => 'source';
 
   @override
   String get description => 'Manage FlutterOH/pub data sources.';
+
+  @override
+  String get usage => '$description\n\n$_usageWithoutDescription';
+
+  @override
+  void printUsage() {
+    _output.write(usage);
+  }
+
+  @override
+  Never usageException(String message) {
+    throw UsageException(message, _usageWithoutDescription);
+  }
+
+  String get _usageWithoutDescription {
+    return [
+      'Usage: $invocation',
+      argParser.usage,
+      '',
+      formatCommandUsage(
+        subcommands,
+        sections: _sourceCommandSections,
+        isSubcommand: true,
+        lineLength: argParser.usageLineLength,
+        style: _output.style,
+      ),
+      '',
+      'Run "${runner!.executableName} help" to see global options.',
+    ].join('\n');
+  }
 }
 
+const _sourceCommandSections = [
+  CommandUsageSection('', ['list', 'init', 'add', 'remove', 'update']),
+];
+
 class SourceListCommand extends Command<int> {
-  SourceListCommand({required this.environment, required this.stdout});
+  SourceListCommand({
+    required this.environment,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'list';
@@ -46,12 +110,32 @@ class SourceListCommand extends Command<int> {
   Future<int> run() async {
     final config = await FluohConfigStore(environment).load();
     if (config.sources.isEmpty) {
-      stdout('No sources configured.');
+      _output.warning('No sources configured.');
+      return 0;
+    }
+
+    final sources = config.sources.entries.toList(growable: false);
+    if (_output.style.capabilities.decorated) {
+      _output.table(
+        columns: const [
+          TerminalTableColumn('#', style: TerminalTableCellStyle.muted),
+          TerminalTableColumn('Name', style: TerminalTableCellStyle.value),
+          TerminalTableColumn('Source', style: TerminalTableCellStyle.path),
+        ],
+        rows: [
+          for (var index = 0; index < sources.length; index += 1)
+            [
+              '${index + 1}',
+              sources[index].key,
+              sources[index].value.displayValue,
+            ],
+        ],
+      );
       return 0;
     }
 
     var index = 1;
-    for (final entry in config.sources.entries) {
+    for (final entry in sources) {
       stdout('[$index] ${entry.key} ${entry.value.displayValue}');
       index += 1;
     }
@@ -60,9 +144,11 @@ class SourceListCommand extends Command<int> {
 }
 
 class SourceInitCommand extends Command<int> {
-  SourceInitCommand({required this.stdout});
+  SourceInitCommand({required this.stdout, TerminalOutput? output})
+    : _output = output ?? TerminalOutput(stdout: stdout);
 
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'init';
@@ -104,18 +190,30 @@ repositories: []
     }
 
     if (existed) {
-      stdout('Local source template already exists at ${source.path}.');
+      _output.skipped(
+        'Local source template already exists at ${_output.style.path(source.path)}.',
+      );
     } else {
-      stdout('Created local source template at ${source.path}.');
+      _output.success(
+        'Created local source template at ${_output.style.path(source.path)}.',
+      );
     }
-    stdout('Edit packages/repositories.yaml and packages/manifests/*.yaml.');
-    stdout('Add it with: fluoh source add <name> ${source.path}');
+    _output.next(
+      'Edit packages/repositories.yaml and packages/manifests/*.yaml.',
+    );
+    _output.next(
+      'Add it with: fluoh source add <name> ${_output.style.path(source.path)}',
+    );
     return 0;
   }
 }
 
 class SourceAddCommand extends Command<int> {
-  SourceAddCommand({required this.environment, required this.stdout}) {
+  SourceAddCommand({
+    required this.environment,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addOption(
       'priority',
       help: 'Source priority. Higher values win when indexes overlap.',
@@ -125,6 +223,7 @@ class SourceAddCommand extends Command<int> {
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'add';
@@ -167,16 +266,21 @@ class SourceAddCommand extends Command<int> {
       await syncLocalSource(name, Directory(urlOrPath), Directory(cachePath));
     }
     await store.save(updated);
-    stdout('Added source $name: $urlOrPath');
+    _output.success('Added source $name: ${_output.style.path(urlOrPath)}');
     return 0;
   }
 }
 
 class SourceRemoveCommand extends Command<int> {
-  SourceRemoveCommand({required this.environment, required this.stdout});
+  SourceRemoveCommand({
+    required this.environment,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'remove';
@@ -203,16 +307,21 @@ class SourceRemoveCommand extends Command<int> {
     } on ArgumentError catch (error) {
       usageException(error.message);
     }
-    stdout('Removed source $name.');
+    _output.success('Removed source $name.');
     return 0;
   }
 }
 
 class SourceUpdateCommand extends Command<int> {
-  SourceUpdateCommand({required this.environment, required this.stdout});
+  SourceUpdateCommand({
+    required this.environment,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'update';
@@ -241,10 +350,10 @@ class SourceUpdateCommand extends Command<int> {
     for (final entry in sources) {
       final sourceConfig = entry.value;
       if (sourceConfig.url != null) {
-        await syncGitSource(entry.key, sourceConfig);
+        await syncGitSource(entry.key, sourceConfig, output: _output);
       }
       await validateSource(entry.key, sourceConfig);
-      stdout('Updated source ${entry.key}.');
+      _output.success('Updated source ${entry.key}.');
     }
     return 0;
   }

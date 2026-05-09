@@ -6,6 +6,7 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import '../cli/fluoh_command_runner.dart';
+import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 
@@ -14,14 +15,17 @@ class FlutterCommand extends Command<int> {
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
+    TerminalOutput? output,
     bool inheritStdio = false,
   }) : _stdout = stdout,
        _stderr = stderr,
+       _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr),
        _inheritStdio = inheritStdio;
 
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
+  final TerminalOutput _output;
   final bool _inheritStdio;
 
   @override
@@ -49,10 +53,11 @@ class FlutterCommand extends Command<int> {
     var sdkDirectory = manager.sdkDirectory(sdkTag);
     if (!await sdkDirectory.exists()) {
       final release = await manager.resolveRelease(sdkTag);
-      _stdout(
+      sdkDirectory = await _output.withProgress(
         'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+        () => manager.install(release),
+        showWhenPlain: true,
       );
-      sdkDirectory = await manager.install(release);
     }
     final flutter = File('${sdkDirectory.path}/bin/flutter');
     if (!await flutter.exists()) {

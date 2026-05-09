@@ -3,14 +3,18 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
 import '../manifest/pubspec_package.dart';
 
 class PubSyncCommand extends Command<int> {
-  PubSyncCommand({required this.environment, required OutputWriter stdout})
-    : _stdout = stdout {
+  PubSyncCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser
       ..addFlag(
         'continue',
@@ -25,7 +29,7 @@ class PubSyncCommand extends Command<int> {
   }
 
   final FluohEnvironment environment;
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'sync';
@@ -50,7 +54,7 @@ class PubSyncCommand extends Command<int> {
       final branch = await currentBranch(repository);
       _ensurePubBranch(branch, manifest);
       await runGit(['merge', '--abort'], workingDirectory: repository);
-      _stdout('Aborted pub sync merge.');
+      _output.warning('Aborted pub sync merge.');
       return 0;
     }
     if (shouldContinue) {
@@ -61,11 +65,14 @@ class PubSyncCommand extends Command<int> {
     final manifest = await readPubManifest(repository);
     final startingBranch = await currentBranch(repository);
     _ensurePubBranch(startingBranch, manifest);
-    await runGit(['fetch', 'upstream'], workingDirectory: repository);
+    await _output.withProgress(
+      'Fetching upstream.',
+      () => runGit(['fetch', 'upstream'], workingDirectory: repository),
+    );
     final defaultBranch = await upstreamDefaultBranch(repository);
     var switchedBranches = false;
     try {
-      _stdout('Checking out $defaultBranch.');
+      _output.step('Checking out $defaultBranch.');
       await runGit(['checkout', defaultBranch], workingDirectory: repository);
       switchedBranches = true;
       await runGit([
@@ -73,12 +80,14 @@ class PubSyncCommand extends Command<int> {
         '--ff-only',
         'upstream/$defaultBranch',
       ], workingDirectory: repository);
-      _stdout('Synchronized $defaultBranch from upstream/$defaultBranch.');
+      _output.success(
+        'Synchronized $defaultBranch from upstream/$defaultBranch.',
+      );
     } finally {
       if (switchedBranches &&
           startingBranch.isNotEmpty &&
           startingBranch != defaultBranch) {
-        _stdout('Checking out $startingBranch.');
+        _output.step('Checking out $startingBranch.');
         await runGit([
           'checkout',
           startingBranch,
@@ -143,9 +152,9 @@ class PubSyncCommand extends Command<int> {
       );
     }
     if (await _isMergeInProgress(repository)) {
-      _stdout('Merged $defaultBranch into $pubBranch.');
+      _output.success('Merged $defaultBranch into $pubBranch.');
     } else {
-      _stdout('Pub branch $pubBranch already contains $defaultBranch.');
+      _output.skipped('Pub branch $pubBranch already contains $defaultBranch.');
     }
 
     return _updateManifestAndCommit(
@@ -183,7 +192,7 @@ class PubSyncCommand extends Command<int> {
       allowFailure: true,
     );
     if (!mergeInProgress && changed.exitCode == 0) {
-      _stdout(
+      _output.skipped(
         'Pub branch $pubBranch already matches ${package.name} '
         '${package.version}.',
       );
@@ -195,10 +204,10 @@ class PubSyncCommand extends Command<int> {
       '-m',
       'Sync upstream ${package.name} ${package.version}',
     ], workingDirectory: repository);
-    _stdout(
+    _output.success(
       'Updated upstream metadata for ${package.name} ${package.version}.',
     );
-    _stdout(
+    _output.next(
       'Complete OHOS adaptation, then update package.version and '
       'FLUOH_CHANGELOG.md before release.',
     );

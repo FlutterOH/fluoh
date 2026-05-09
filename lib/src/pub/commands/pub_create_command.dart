@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../../sdk/sdk_project_environment.dart';
@@ -18,8 +19,10 @@ class PubCreateCommand extends Command<int> {
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
+    TerminalOutput? output,
   }) : _stdout = stdout,
        _stderr = stderr {
+    _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser
       ..addOption('package', help: 'Package name to adapt in a monorepo.')
       ..addOption('path', help: 'Package path inside the upstream repository.')
@@ -38,6 +41,7 @@ class PubCreateCommand extends Command<int> {
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
+  late final TerminalOutput _output;
 
   @override
   String get name => 'create';
@@ -56,7 +60,7 @@ class PubCreateCommand extends Command<int> {
     }
 
     final upstream = rest.single;
-    _stdout('Resolving Flutter OHOS SDK.');
+    _output.step('Resolving Flutter OHOS SDK.');
     final release = await _resolveSdkRelease();
     final destination = Directory(
       argResults!.option('output') ??
@@ -69,8 +73,11 @@ class PubCreateCommand extends Command<int> {
       usageException('Destination already exists: ${destination.path}');
     }
 
-    _stdout('Cloning upstream repository into ${destination.path}.');
-    await runGit(['clone', '--quiet', upstream, destination.path]);
+    await _output.withProgress(
+      'Cloning upstream repository into ${_output.style.path(destination.path)}.',
+      () => runGit(['clone', '--quiet', upstream, destination.path]),
+      showWhenPlain: true,
+    );
 
     if (argResults!.option('path') == null && packageName != null) {
       packagePath = await findPackagePath(destination, packageName);
@@ -97,17 +104,22 @@ class PubCreateCommand extends Command<int> {
       processEnvironment: environment.processEnvironment,
     );
     final sdkDirectory = SdkManager(pubEnvironment).sdkDirectory(release.tag);
-    if (await sdkDirectory.exists()) {
-      _stdout('Using installed Flutter OHOS SDK ${release.tag}.');
-    } else {
-      _stdout(
-        'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
-      );
+    final sdkInstalled = await sdkDirectory.exists();
+    if (sdkInstalled) {
+      _output.info('Using installed Flutter OHOS SDK ${release.tag}.');
     }
-    final configuredSdkDirectory = await SdkProjectEnvironment(
-      pubEnvironment,
-    ).configure(release, writeFluohConfig: false);
-    _stdout('Flutter OHOS SDK path: ${configuredSdkDirectory.path}.');
+    final configuredSdkDirectory = await _output.withProgress(
+      sdkInstalled
+          ? 'Configuring Flutter OHOS SDK ${release.tag}.'
+          : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+      () => SdkProjectEnvironment(
+        pubEnvironment,
+      ).configure(release, writeFluohConfig: false),
+      showWhenPlain: !sdkInstalled,
+    );
+    _output.info(
+      'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}.',
+    );
     await writePubManifest(
       destination: destination,
       package: package,
@@ -147,6 +159,7 @@ class PubCreateCommand extends Command<int> {
       environment: pubEnvironment,
       stdout: _stdout,
       stderr: _stderr,
+      output: _output,
     );
     await runGit([
       'add',
@@ -160,14 +173,18 @@ class PubCreateCommand extends Command<int> {
       await runGit(['add', 'fluoh_test'], workingDirectory: destination);
     }
 
-    _stdout('Created pub repository at ${destination.path}.');
-    _stdout('Pub branch: $branch.');
-    _stdout('Origin: $adapterUrl.');
-    _stdout('Configured Flutter OHOS SDK ${release.tag}.');
+    _output.success(
+      'Created pub repository at ${_output.style.path(destination.path)}.',
+    );
+    _output.info('Pub branch: $branch.');
+    _output.info('Origin: ${_output.style.url(adapterUrl)}.');
+    _output.success('Configured Flutter OHOS SDK ${release.tag}.');
     if (testInitResult.created) {
-      _stdout('See FLUOH.md, AGENTS.md, and fluoh_test/ for adaptation steps.');
+      _output.next(
+        'See FLUOH.md, AGENTS.md, and fluoh_test/ for adaptation steps.',
+      );
     } else {
-      _stdout('See FLUOH.md and AGENTS.md for adaptation steps.');
+      _output.next('See FLUOH.md and AGENTS.md for adaptation steps.');
     }
     return 0;
   }

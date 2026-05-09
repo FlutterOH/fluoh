@@ -4,13 +4,17 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../cli/fluoh_command_runner.dart';
+import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 import 'sdk_project_environment.dart';
 
 class SdkUseCommand extends Command<int> {
-  SdkUseCommand({required this.environment, required OutputWriter stdout})
-    : _stdout = stdout {
+  SdkUseCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addFlag(
       'pub-get',
       negatable: false,
@@ -19,7 +23,7 @@ class SdkUseCommand extends Command<int> {
   }
 
   final FluohEnvironment environment;
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'use';
@@ -41,16 +45,24 @@ class SdkUseCommand extends Command<int> {
     await _ensureProjectConfigIsNotPubManifest();
     final manager = SdkManager(environment);
     final release = await manager.resolveRelease(rest.single);
-    _stdout('Will modify ${environment.workingDirectory.path}/fluoh.yaml.');
-    final sdkDirectory = await SdkProjectEnvironment(
-      environment,
-    ).configure(release);
-    _stdout('Flutter OHOS SDK path: ${sdkDirectory.path}.');
+    _output.step(
+      'Will modify ${_output.style.path(environment.workingDirectory.path)}/fluoh.yaml.',
+    );
+    final installed = await manager.sdkDirectory(release.tag).exists();
+    final sdkDirectory = await _output.withProgress(
+      installed
+          ? 'Configuring Flutter OHOS SDK ${release.tag}.'
+          : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+      () => SdkProjectEnvironment(environment).configure(release),
+    );
+    _output.info(
+      'Flutter OHOS SDK path: ${_output.style.path(sdkDirectory.path)}.',
+    );
     if (argResults!.flag('pub-get')) {
       await _runPubGet(sdkDirectory);
     }
 
-    _stdout('Using Flutter OHOS SDK ${release.tag}.');
+    _output.success('Using Flutter OHOS SDK ${release.tag}.');
     return 0;
   }
 

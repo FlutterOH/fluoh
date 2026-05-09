@@ -15,6 +15,7 @@ import '../testing/test_commands.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
 import 'command_usage.dart';
+import 'terminal_output.dart';
 
 typedef OutputWriter = void Function(String message);
 
@@ -27,7 +28,18 @@ class FluohCommandRunner extends CommandRunner<int> {
   }) : _stdout = stdout ?? print,
        _stderr = stderr ?? print,
        _environment = environment ?? FluohEnvironment.current(),
-       _enableColor = stdout == null && _supportsAnsiOutput(),
+       _output = TerminalOutput(
+         stdout: stdout ?? print,
+         stderr: stderr ?? print,
+         transient: stdout == null ? io.stdout.write : null,
+         style: TerminalStyle(
+           capabilities: TerminalCapabilities.detect(
+             enableFormatting: stdout == null,
+             environment:
+                 (environment ?? FluohEnvironment.current()).processEnvironment,
+           ),
+         ),
+       ),
        super('fluoh', 'FlutterOH SDK and pub package CLI.') {
     final env = _environment;
     addCommand(
@@ -35,21 +47,36 @@ class FluohCommandRunner extends CommandRunner<int> {
         environment: env,
         stdout: _stdout,
         stderr: _stderr,
+        output: _output,
         inheritStdio: stdout == null && stderr == null,
       ),
     );
-    addCommand(SdkCommand(environment: env, stdout: _stdout));
-    addCommand(PubCommand(environment: env, stdout: _stdout, stderr: _stderr));
-    addCommand(TestCommand(environment: env, stdout: _stdout, stderr: _stderr));
-    addCommand(SourceCommand(environment: env, stdout: _stdout));
+    addCommand(SdkCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
-      DoctorCommand(
+      PubCommand(
         environment: env,
         stdout: _stdout,
-        enableColor: _enableColor,
+        stderr: _stderr,
+        output: _output,
       ),
     );
-    addCommand(UpgradeCommand(stdout: _stdout, stderr: _stderr));
+    addCommand(
+      TestCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
+    );
+    addCommand(
+      SourceCommand(environment: env, stdout: _stdout, output: _output),
+    );
+    addCommand(
+      DoctorCommand(environment: env, stdout: _stdout, output: _output),
+    );
+    addCommand(
+      UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
+    );
 
     argParser.addFlag(
       'version',
@@ -65,14 +92,14 @@ class FluohCommandRunner extends CommandRunner<int> {
   final OutputWriter _stdout;
   final OutputWriter _stderr;
   final FluohEnvironment _environment;
-  final bool _enableColor;
+  final TerminalOutput _output;
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
 
   @override
   void printUsage() {
-    _stdout(usage);
+    _output.write(usage);
   }
 
   @override
@@ -92,31 +119,41 @@ class FluohCommandRunner extends CommandRunner<int> {
       if (_usesSourceConfiguration(results)) {
         final config = await FluohConfigStore(_environment).load();
         if (_repairsSourceSnapshots(results)) {
-          await ensureSourceSnapshots(config);
+          await ensureSourceSnapshots(
+            config,
+            output: _output.style.capabilities.decorated ? _output : null,
+          );
         }
       }
 
       return await runCommand(results) ?? 0;
     } on UsageException catch (error) {
-      _stderr(error.message);
-      _stderr('');
-      _stderr(error.usage);
+      _output.error(error.message);
+      _output.writeError('');
+      _output.writeError(error.usage);
       return 64;
     } on FormatException catch (error) {
-      _stderr(error.message);
+      _output.error(error.message);
       return 64;
     }
   }
 
   void _printVersionInformation() {
     final dartVersion = io.Platform.version.split(' ').first;
-    _stdout('fluoh $packageVersion - FlutterOH SDK and pub package CLI');
-    _stdout('Dart $dartVersion');
-    _stdout(
-      'Platform ${io.Platform.operatingSystem} '
+    final style = _output.style;
+    _output.write(
+      '${style.header('fluoh')} ${style.value(packageVersion)} - '
+      'FlutterOH SDK and pub package CLI',
+    );
+    _output.write('${style.label('Dart')} $dartVersion');
+    _output.write(
+      '${style.label('Platform')} ${io.Platform.operatingSystem} '
       '${io.Platform.operatingSystemVersion}',
     );
-    _stdout('Repository https://github.com/FlutterOH/fluoh');
+    _output.write(
+      '${style.label('Repository')} '
+      '${style.url('https://github.com/FlutterOH/fluoh')}',
+    );
   }
 
   String get _usageWithoutDescription {
@@ -132,18 +169,12 @@ class FluohCommandRunner extends CommandRunner<int> {
         sections: _topLevelCommandSections,
         isSubcommand: false,
         lineLength: argParser.usageLineLength,
+        style: _output.style,
       ),
       '',
       'Run "$executableName help <command>" for more information about a command.',
     ].join('\n');
   }
-}
-
-bool _supportsAnsiOutput() {
-  if (io.Platform.environment.containsKey('NO_COLOR')) {
-    return false;
-  }
-  return io.stdout.supportsAnsiEscapes;
 }
 
 const _topLevelCommandSections = [

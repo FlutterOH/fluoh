@@ -2,10 +2,14 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
 import 'source_index.dart';
 
-Future<void> ensureSourceSnapshots(FluohConfig config) async {
+Future<void> ensureSourceSnapshots(
+  FluohConfig config, {
+  TerminalOutput? output,
+}) async {
   for (final entry in config.sources.entries) {
     final source = entry.value;
     final state = await _snapshotState(entry.key, source);
@@ -24,7 +28,7 @@ Future<void> ensureSourceSnapshots(FluohConfig config) async {
       await validateSource(entry.key, source);
     }
 
-    await syncGitSource(entry.key, source);
+    await syncGitSource(entry.key, source, output: output);
   }
 }
 
@@ -113,23 +117,39 @@ Future<void> syncLocalSource(
   }
 }
 
-Future<void> syncGitSource(String name, SourceConfig source) async {
+Future<void> syncGitSource(
+  String name,
+  SourceConfig source, {
+  TerminalOutput? output,
+}) async {
   final temp = await Directory.systemTemp.createTemp('fluoh_source_');
   try {
-    await git([
-      'clone',
-      '--depth=1',
-      '--single-branch',
-      '--quiet',
-      source.url!,
-      temp.path,
-    ]);
+    await _withOptionalProgress(
+      output,
+      'Syncing source $name.',
+      () => git([
+        'clone',
+        '--depth=1',
+        '--single-branch',
+        '--quiet',
+        source.url!,
+        temp.path,
+      ]),
+    );
     await deleteIfExists(Directory('${temp.path}/.git'));
     await validateSource(name, SourceConfig(path: temp.path));
     await replaceSourceSnapshot(source: temp, destination: source.directory);
   } finally {
     await deleteIfExists(temp);
   }
+}
+
+Future<T> _withOptionalProgress<T>(
+  TerminalOutput? output,
+  String message,
+  Future<T> Function() task,
+) {
+  return output == null ? task() : output.withProgress(message, task);
 }
 
 Future<void> replaceSourceSnapshot({

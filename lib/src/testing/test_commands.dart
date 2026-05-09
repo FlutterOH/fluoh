@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
+import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'test_workspace.dart';
 
@@ -10,16 +11,27 @@ class TestCommand extends Command<int> {
     required FluohEnvironment environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
-  }) : _stdout = stdout {
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
     addSubcommand(
-      TestInitCommand(environment: environment, stdout: stdout, stderr: stderr),
+      TestInitCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+        output: _output,
+      ),
     );
     addSubcommand(
-      TestRunCommand(environment: environment, stdout: stdout, stderr: stderr),
+      TestRunCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+        output: _output,
+      ),
     );
   }
 
-  final OutputWriter _stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'test';
@@ -32,7 +44,7 @@ class TestCommand extends Command<int> {
 
   @override
   void printUsage() {
-    _stdout(usage);
+    _output.write(usage);
   }
 
   @override
@@ -50,6 +62,7 @@ class TestCommand extends Command<int> {
         sections: _testCommandSections,
         isSubcommand: true,
         lineLength: argParser.usageLineLength,
+        style: _output.style,
       ),
       '',
       'Run "${runner!.executableName} help" to see global options.',
@@ -62,8 +75,10 @@ class TestInitCommand extends Command<int> {
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
+    TerminalOutput? output,
   }) : _stdout = stdout,
        _stderr = stderr {
+    _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser.addFlag(
       'force',
       negatable: false,
@@ -74,6 +89,7 @@ class TestInitCommand extends Command<int> {
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
+  late final TerminalOutput _output;
 
   @override
   String get name => 'init';
@@ -87,6 +103,7 @@ class TestInitCommand extends Command<int> {
       environment: environment,
       stdout: _stdout,
       stderr: _stderr,
+      output: _output,
       force: argResults!.flag('force'),
     );
     return 0;
@@ -98,12 +115,15 @@ class TestRunCommand extends Command<int> {
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
+    TerminalOutput? output,
   }) : _stdout = stdout,
-       _stderr = stderr;
+       _stderr = stderr,
+       _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
 
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
+  final TerminalOutput _output;
 
   @override
   String get name => 'run';
@@ -118,6 +138,7 @@ class TestRunCommand extends Command<int> {
       environment: environment,
       stdout: _stdout,
       stderr: _stderr,
+      output: _output,
     );
   }
 }

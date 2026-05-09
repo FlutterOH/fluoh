@@ -4,13 +4,18 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../pub_dependency_plan.dart';
 import '../pub_dependency_policy.dart';
 import '../pubspec_dependency_editor.dart';
 
 class PubCheckCommand extends Command<int> {
-  PubCheckCommand({required this.environment, required this.stdout}) {
+  PubCheckCommand({
+    required this.environment,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addFlag(
       'json',
       negatable: false,
@@ -20,6 +25,7 @@ class PubCheckCommand extends Command<int> {
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'check';
@@ -40,13 +46,17 @@ class PubCheckCommand extends Command<int> {
       return 0;
     }
 
-    _printCheckPlan(stdout, plan);
+    _printCheckPlan(_output, plan);
     return 0;
   }
 }
 
 class PubFixCommand extends Command<int> {
-  PubFixCommand({required this.environment, required this.stdout}) {
+  PubFixCommand({
+    required this.environment,
+    required this.stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addFlag(
       'dry-run',
       abbr: 'n',
@@ -57,6 +67,7 @@ class PubFixCommand extends Command<int> {
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
+  final TerminalOutput _output;
 
   @override
   String get name => 'fix';
@@ -74,7 +85,7 @@ class PubFixCommand extends Command<int> {
       policy: policy,
       purpose: PubDependencyPlanPurpose.fix,
     );
-    _printMutationPlan(stdout, plan, dryRun: dryRun);
+    _printMutationPlan(_output, plan, dryRun: dryRun);
 
     if (plan.changes.isEmpty || dryRun) {
       return 0;
@@ -85,17 +96,19 @@ class PubFixCommand extends Command<int> {
       pubspec: pubspec,
       changes: plan.changes,
     );
-    stdout(
+    _output.success(
       'Updated pubspec.yaml with $applied dependency change${_s(applied)}.',
     );
-    _printNextStep(stdout);
+    _printNextStep(_output);
     return 0;
   }
 }
 
-void _printCheckPlan(OutputWriter stdout, PubDependencyPlan plan) {
-  stdout('Dependency compatibility for Flutter OHOS SDK ${plan.sdkVersion}.');
-  stdout(
+void _printCheckPlan(TerminalOutput output, PubDependencyPlan plan) {
+  output.heading(
+    'Dependency compatibility for Flutter OHOS SDK ${plan.sdkVersion}.',
+  );
+  output.info(
     'Policy: replacementMode=${plan.policy.replacementMode.yamlValue}, '
     'versionMismatch=${plan.policy.versionMismatch.yamlValue}.',
   );
@@ -140,36 +153,39 @@ void _printCheckPlan(OutputWriter stdout, PubDependencyPlan plan) {
       .where((entry) => entry.status == PubDependencyPlanStatus.transitive)
       .toList(growable: false);
 
-  _printEntries(stdout, 'Ready to fix:', ready);
-  _printEntries(stdout, 'Needs decision:', needsDecision);
-  _printEntries(stdout, 'Needs manual action:', manual);
-  _printEntries(stdout, 'Unavailable:', unavailable);
-  _printEntries(stdout, 'Already OK:', ok);
-  _printEntries(stdout, 'Transitive dependencies:', transitive);
+  _printEntries(output, 'Ready to fix:', ready);
+  _printEntries(output, 'Needs decision:', needsDecision);
+  _printEntries(output, 'Needs manual action:', manual);
+  _printEntries(output, 'Unavailable:', unavailable);
+  _printEntries(output, 'Already OK:', ok);
+  _printEntries(output, 'Transitive dependencies:', transitive);
 
-  stdout(
+  output.info(
     'Summary: ${ready.length} ready, ${needsDecision.length} needs decision, '
     '${manual.length} manual, ${unavailable.length} unavailable, '
     '${ok.length} already OK, ${transitive.length} transitive.',
   );
   if (ready.isNotEmpty) {
-    stdout('Next: run `fluoh pub fix`, then `fluoh flutter pub get`.');
+    output.next(
+      'Next: run ${output.style.code('fluoh pub fix')}, then '
+      '${output.style.code('fluoh flutter pub get')}.',
+    );
   } else {
-    stdout('No dependency changes are currently available.');
+    output.skipped('No dependency changes are currently available.');
   }
 }
 
 void _printMutationPlan(
-  OutputWriter stdout,
+  TerminalOutput output,
   PubDependencyPlan plan, {
   required bool dryRun,
 }) {
   final changes = plan.changes;
   if (changes.isEmpty) {
-    stdout('No dependency changes are currently available.');
+    output.skipped('No dependency changes are currently available.');
   } else {
     for (final change in changes) {
-      stdout('${dryRun ? 'Would ' : ''}${_changeMessage(change)}');
+      output.step('${dryRun ? 'Would ' : ''}${_changeMessage(change)}');
     }
   }
 
@@ -177,7 +193,7 @@ void _printMutationPlan(
       .where((entry) => entry.status == PubDependencyPlanStatus.versionMismatch)
       .toList(growable: false);
   for (final entry in skippedVersionMismatch) {
-    stdout('Skipped ${entry.dependency.name}: ${entry.reason}');
+    output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
   }
   final skippedManual = plan.entries
       .where(
@@ -189,26 +205,28 @@ void _printMutationPlan(
       )
       .toList(growable: false);
   for (final entry in skippedManual) {
-    stdout('Skipped ${entry.dependency.name}: ${entry.reason}');
+    output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
   }
   if (skippedVersionMismatch.isNotEmpty &&
       plan.policy.versionMismatch == PubDependencyVersionMismatchMode.skip) {
-    stdout(
+    output.warning(
       'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
       'version-mismatch adapters.',
     );
   }
 
   if (changes.isNotEmpty && dryRun) {
-    stdout('Dry run only; pubspec.yaml was not modified.');
+    output.warning('Dry run only; pubspec.yaml was not modified.');
   }
   if (changes.isNotEmpty && dryRun) {
-    stdout('Run `fluoh pub fix` to apply these changes.');
+    output.next(
+      'Run ${output.style.code('fluoh pub fix')} to apply these changes.',
+    );
   }
 }
 
 void _printEntries(
-  OutputWriter stdout,
+  TerminalOutput output,
   String title,
   List<PubDependencyPlanEntry> entries,
 ) {
@@ -216,27 +234,42 @@ void _printEntries(
     return;
   }
 
-  stdout('');
-  stdout(title);
+  output.blank();
+  output.section(title);
+  if (output.style.capabilities.decorated) {
+    output.table(
+      columns: const [
+        TerminalTableColumn('Package', style: TerminalTableCellStyle.value),
+        TerminalTableColumn('Version', style: TerminalTableCellStyle.muted),
+        TerminalTableColumn('Details'),
+      ],
+      rows: [
+        for (final entry in entries)
+          [
+            entry.dependency.name,
+            entry.dependency.version,
+            _entryDetails(entry),
+          ],
+      ],
+    );
+    return;
+  }
+
   for (final entry in entries) {
-    stdout('  ${_entryMessage(entry)}');
+    output.indented(_entryMessage(entry));
   }
 }
 
 String _entryMessage(PubDependencyPlanEntry entry) {
   final dependency = entry.dependency;
-  final adapter = dependency.adapter;
+  return '${dependency.name} ${dependency.version}: ${_entryDetails(entry)}';
+}
+
+String _entryDetails(PubDependencyPlanEntry entry) {
   if (entry.changes.isNotEmpty) {
-    return [
-      '${dependency.name} ${dependency.version}:',
-      entry.changes.map(_changeSummary).join('; '),
-    ].join(' ');
+    return entry.changes.map(_changeSummary).join('; ');
   }
-  if (entry.status == PubDependencyPlanStatus.versionMismatch &&
-      adapter != null) {
-    return '${dependency.name} ${dependency.version}: ${entry.reason}';
-  }
-  return '${dependency.name} ${dependency.version}: ${entry.reason}';
+  return entry.reason;
 }
 
 String _changeMessage(PubspecDependencyChange change) {
@@ -261,8 +294,8 @@ String _changeSummary(PubspecDependencyChange change) {
   };
 }
 
-void _printNextStep(OutputWriter stdout) {
-  stdout('Next: run `fluoh flutter pub get`.');
+void _printNextStep(TerminalOutput output) {
+  output.next('Next: run ${output.style.code('fluoh flutter pub get')}.');
 }
 
 String _s(int count) => count == 1 ? '' : 's';

@@ -1,6 +1,7 @@
 import 'package:args/command_runner.dart';
 
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../../testing/test_workspace.dart';
@@ -13,8 +14,10 @@ class PubReleaseCommand extends Command<int> {
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
+    TerminalOutput? output,
   }) : _stdout = stdout,
        _stderr = stderr {
+    _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser.addFlag(
       'push',
       negatable: false,
@@ -25,6 +28,7 @@ class PubReleaseCommand extends Command<int> {
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
+  late final TerminalOutput _output;
 
   @override
   String get name => 'release';
@@ -71,14 +75,15 @@ class PubReleaseCommand extends Command<int> {
       tag: tag,
     );
     for (final warning in warnings) {
-      _stderr(warning);
+      _output.warningError(warning);
     }
 
-    _stdout('Running fluoh test run before release.');
+    _output.step('Running fluoh test run before release.');
     final testResult = await runFluohTestWorkspace(
       environment: environment,
       stdout: _stdout,
       stderr: _stderr,
+      output: _output,
     );
     if (testResult != 0) {
       return testResult;
@@ -101,14 +106,14 @@ class PubReleaseCommand extends Command<int> {
           'Update fluoh.yaml package.version before releasing new changes.',
         );
       }
-      _stdout('Release tag already exists: $tag.');
+      _output.skipped('Release tag already exists: $tag.');
       if (argResults!.flag('push')) {
         await runGit([
           'push',
           'origin',
           tag,
         ], workingDirectory: environment.workingDirectory);
-        _stdout('Pushed release tag $tag.');
+        _output.success('Pushed release tag $tag.');
       }
       return 0;
     }
@@ -120,9 +125,9 @@ class PubReleaseCommand extends Command<int> {
         'origin',
         tag,
       ], workingDirectory: environment.workingDirectory);
-      _stdout('Pushed release tag $tag.');
+      _output.success('Pushed release tag $tag.');
     }
-    _stdout('Created release tag $tag.');
+    _output.success('Created release tag $tag.');
     return 0;
   }
 
