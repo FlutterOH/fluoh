@@ -132,6 +132,67 @@ dependency_overrides:
     expect(stderr, isEmpty);
   });
 
+  test('updates quoted OHOS refs and preserves quote style', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
+    await pubspec.writeAsString('''
+name: fixture_app
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera:
+    git:
+      url: ${environment.homeDirectory.path}/camera
+      ref: 'camera-v0.11.0-ohos-3.35.8-0' # keep comment
+  share_plus: 10.0.0
+  mystery_package: ^1.0.0
+
+dependency_overrides:
+  camera:
+    git:
+      url: ${environment.homeDirectory.path}/camera
+      ref: "camera-v0.11.0-ohos-3.35.8-0"
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['pub', 'upgrade', '--yes'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final updated = pubspec.readAsStringSync();
+    expect(
+      updated,
+      contains("ref: 'camera-v0.11.0-ohos-3.35.8-1' # keep comment"),
+    );
+    expect(updated, contains('ref: "camera-v0.11.0-ohos-3.35.8-1"'));
+    expect(updated, isNot(contains('camera-v0.11.0-ohos-3.35.8-0')));
+    expect(stdout, contains('Updated 2 OHOS dependency refs.'));
+    expect(stderr, isEmpty);
+  });
+
   test('updates rewritten OHOS dependencies without overrides', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);

@@ -92,21 +92,39 @@ class PubUpgradeCommand extends Command<int> {
     }
 
     var updated = content;
+    final appliedPlans = <AdapterUpdatePlan>[];
+    final failedPlans = <AdapterUpdatePlan>[];
     for (final plan in plans) {
-      updated = _replaceSectionRef(
+      final result = _replaceSectionRef(
         updated,
         plan.section,
         plan.packageName,
         plan.currentRef,
         plan.nextRef,
       );
+      updated = result.content;
+      if (result.replaced) {
+        appliedPlans.add(plan);
+      } else {
+        failedPlans.add(plan);
+      }
+    }
+
+    if (failedPlans.isNotEmpty) {
+      final failed = failedPlans
+          .map((plan) => '${plan.section}.${plan.packageName}')
+          .join(', ');
+      throw UsageException(
+        'Could not update OHOS dependency refs: $failed.',
+        '',
+      );
     }
 
     await pubspec.writeAsString(updated);
-    final overrideCount = plans
+    final overrideCount = appliedPlans
         .where((plan) => plan.section == 'dependency_overrides')
         .length;
-    final dependencyCount = plans
+    final dependencyCount = appliedPlans
         .where((plan) => plan.section == 'dependencies')
         .length;
     if (dependencyCount == 0) {
@@ -118,7 +136,7 @@ class PubUpgradeCommand extends Command<int> {
         'Updated $dependencyCount OHOS dependenc${dependencyCount == 1 ? 'y' : 'ies'}.',
       );
     } else {
-      _stdout('Updated ${plans.length} OHOS dependency refs.');
+      _stdout('Updated ${appliedPlans.length} OHOS dependency refs.');
     }
     return 0;
   }
@@ -145,7 +163,7 @@ class PubUpgradeCommand extends Command<int> {
     );
   }
 
-  String _replaceSectionRef(
+  ({String content, bool replaced}) _replaceSectionRef(
     String content,
     String section,
     String packageName,
@@ -155,6 +173,7 @@ class PubUpgradeCommand extends Command<int> {
     final lines = content.split('\n');
     var inOverrides = false;
     var inPackage = false;
+    var replaced = false;
 
     for (var i = 0; i < lines.length; i += 1) {
       final line = lines[i];
@@ -179,13 +198,17 @@ class PubUpgradeCommand extends Command<int> {
         continue;
       }
 
-      lines[i] = line.replaceFirstMapped(
-        RegExp(r'(\bref:\s*)' + RegExp.escape(currentRef) + r'\b'),
-        (match) => '${match.group(1)}$nextRef',
-      );
+      final ref = _parseRefLine(line);
+      if (ref == null || ref.value != currentRef) {
+        continue;
+      }
+
+      lines[i] =
+          '${ref.prefix}${ref.quote ?? ''}$nextRef${ref.quote ?? ''}${ref.suffix}';
+      replaced = true;
     }
 
-    return lines.join('\n');
+    return (content: lines.join('\n'), replaced: replaced);
   }
 
   Map<String, String> _parseSectionRefs(String content, String section) {
@@ -212,14 +235,59 @@ class PubUpgradeCommand extends Command<int> {
         continue;
       }
 
-      final refMatch = RegExp(r'^\s+ref:\s*(\S+)\s*$').firstMatch(line);
-      if (refMatch != null && currentPackage != null) {
-        refs[currentPackage] = refMatch.group(1)!;
+      final ref = _parseRefLine(line);
+      if (ref != null && currentPackage != null) {
+        refs[currentPackage] = ref.value;
       }
     }
 
     return refs;
   }
+}
+
+_ParsedRefLine? _parseRefLine(String line) {
+  final match = RegExp(
+    r'''^(\s+ref:\s*)(?:"([^"]+)"|'([^']+)'|([^#\s]+))(\s*(?:#.*)?)$''',
+  ).firstMatch(line);
+  if (match == null) {
+    return null;
+  }
+
+  if (match.group(2) != null) {
+    return _ParsedRefLine(
+      prefix: match.group(1)!,
+      value: match.group(2)!,
+      quote: '"',
+      suffix: match.group(5)!,
+    );
+  }
+  if (match.group(3) != null) {
+    return _ParsedRefLine(
+      prefix: match.group(1)!,
+      value: match.group(3)!,
+      quote: "'",
+      suffix: match.group(5)!,
+    );
+  }
+  return _ParsedRefLine(
+    prefix: match.group(1)!,
+    value: match.group(4)!,
+    suffix: match.group(5)!,
+  );
+}
+
+class _ParsedRefLine {
+  const _ParsedRefLine({
+    required this.prefix,
+    required this.value,
+    required this.suffix,
+    this.quote,
+  });
+
+  final String prefix;
+  final String value;
+  final String? quote;
+  final String suffix;
 }
 
 class AdapterUpdatePlan {

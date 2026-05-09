@@ -143,6 +143,7 @@ class SourceAddCommand extends Command<int> {
     }
 
     final name = rest[0];
+    _ensureValidSourceName(name);
     if (name == defaultSourceName) {
       usageException('Cannot replace the official source.');
     }
@@ -194,6 +195,7 @@ class SourceRemoveCommand extends Command<int> {
     }
 
     final name = rest.single;
+    _ensureValidSourceName(name);
     final store = FluohConfigStore(environment);
     final config = await store.load();
     try {
@@ -231,7 +233,7 @@ class SourceUpdateCommand extends Command<int> {
 
     final sources = rest.isEmpty
         ? config.sources.entries.toList(growable: false)
-        : [_sourceEntry(config, rest.single)];
+        : [_sourceEntry(config, _validatedSourceName(rest.single))];
     if (sources.isEmpty) {
       usageException('No sources configured.');
     }
@@ -254,6 +256,18 @@ MapEntry<String, SourceConfig> _sourceEntry(FluohConfig config, String name) {
     throw UsageException('Unknown source "$name".', '');
   }
   return MapEntry(name, source);
+}
+
+String _validatedSourceName(String name) {
+  final error = sourceNameValidationError(name);
+  if (error != null) {
+    throw UsageException('Invalid source name "$name": $error', '');
+  }
+  return name;
+}
+
+void _ensureValidSourceName(String name) {
+  _validatedSourceName(name);
 }
 
 bool _looksLikeGitSource(String value) {

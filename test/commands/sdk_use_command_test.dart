@@ -100,6 +100,52 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test(
+    'updates existing project fluoh config without removing user fields',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      final manifest = File('${environment.workingDirectory.path}/fluoh.yaml');
+      await manifest.writeAsString('''
+schema: 1
+# Keep project-specific fluoh settings.
+sdk:
+  version: 3.34.0-ohos-0.0.1 # selected SDK
+dependencyPolicy:
+  replacementMode: rewrite
+custom:
+  keep: true
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final updated = manifest.readAsStringSync();
+      expect(updated, contains('version: 3.35.8-ohos-0.0.3 # selected SDK'));
+      expect(updated, contains('# Keep project-specific fluoh settings.'));
+      expect(updated, contains('replacementMode: rewrite'));
+      expect(updated, contains('custom:\n  keep: true'));
+      expect(stderr, isEmpty);
+    },
+  );
+
   test('runs flutter pub get from the selected SDK when requested', () async {
     final environment = await createTestEnvironment();
     final source = await _createPubGetSdkSourceFixture(

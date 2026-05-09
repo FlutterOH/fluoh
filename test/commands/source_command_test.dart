@@ -264,6 +264,77 @@ void main() {
     expect(stderr.join('\n'), contains('fluoh config'));
   });
 
+  test(
+    'reports invalid source priority without throwing a stack trace',
+    () async {
+      final environment = await createTestEnvironment();
+      final cachePath = '${environment.homeDirectory.path}/sources/local';
+      await File('${environment.homeDirectory.path}/config.json').writeAsString(
+        '''
+{
+  "sources": {
+    "local": {
+      "path": "$cachePath",
+      "priority": "high"
+    }
+  }
+}
+''',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['source', 'list'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stdout, isEmpty);
+      expect(stderr.join('\n'), contains('source priority must be an integer'));
+      expect(stderr.join('\n'), isNot(contains('Unhandled exception')));
+    },
+  );
+
+  test('reports invalid configured source names before syncing', () async {
+    final environment = await createTestEnvironment();
+    final victim = Directory('${environment.homeDirectory.path}/victim');
+    await victim.create(recursive: true);
+    await File('${victim.path}/keep.txt').writeAsString('user file\n');
+    await File('${environment.homeDirectory.path}/config.json').writeAsString(
+      '''
+{
+  "sources": {
+    "../victim": {
+      "path": "${environment.homeDirectory.path}/sources/../victim",
+      "priority": 100
+    }
+  }
+}
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'list'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('Invalid source name "../victim"'));
+    expect(File('${victim.path}/keep.txt').readAsStringSync(), 'user file\n');
+  });
+
   test('adds, lists, and updates a named pub source', () async {
     final baseEnvironment = await createTestEnvironment();
     final defaultSource = await createPubSourceFixture(
@@ -479,6 +550,44 @@ repositoryUrl: file:${source.path}
     expect(stdout, contains('Updated source local.'));
     expect(stderr, isEmpty);
   });
+
+  test(
+    'rejects unsafe source names without replacing target directories',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = Directory(
+        '${environment.homeDirectory.path}/package_source',
+      );
+      await Directory('${source.path}/packages').create(recursive: true);
+      await File('${source.path}/packages/repositories.yaml').writeAsString('''
+schema: 1
+repositories: []
+''');
+      final victim = Directory('${environment.homeDirectory.path}/victim');
+      await victim.create(recursive: true);
+      await File('${victim.path}/keep.txt').writeAsString('user file\n');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['source', 'add', '../victim', source.path],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stdout, isEmpty);
+      expect(stderr.join('\n'), contains('Invalid source name "../victim"'));
+      expect(File('${victim.path}/keep.txt').readAsStringSync(), 'user file\n');
+      expect(
+        File('${victim.path}/packages/repositories.yaml').existsSync(),
+        isFalse,
+      );
+    },
+  );
 
   test(
     'keeps existing cache when adding an invalid local path source',

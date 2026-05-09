@@ -7,6 +7,7 @@ const defaultSourceName = 'flutteroh';
 const defaultSourceUrl = 'https://github.com/FlutterOH/pub.git';
 const defaultSourcePriority = 10;
 const defaultSourceUrlEnvironmentKey = 'FLUOH_DEFAULT_SOURCE_URL';
+final _sourceNamePattern = RegExp(r'^[A-Za-z0-9_.-]+$');
 
 class FluohConfigStore {
   const FluohConfigStore(this.environment);
@@ -67,12 +68,16 @@ class FluohConfig {
     final sourceMap = sources as Map<String, Object?>? ?? const {};
 
     return FluohConfig(
-      sources: sourceMap.map(
-        (name, value) => MapEntry(
+      sources: sourceMap.map((name, value) {
+        final error = sourceNameValidationError(name);
+        if (error != null) {
+          throw FormatException('Invalid source name "$name": $error');
+        }
+        return MapEntry(
           name,
           SourceConfig.fromJson(_jsonObject(value, 'source "$name"')),
-        ),
-      ),
+        );
+      }),
     );
   }
 
@@ -133,10 +138,14 @@ class SourceConfig {
     if (url != null && url is! String) {
       throw const FormatException('source url must be a string.');
     }
+    final priority = json['priority'];
+    if (priority != null && priority is! int) {
+      throw const FormatException('source priority must be an integer.');
+    }
     return SourceConfig(
       path: path,
       url: url as String?,
-      priority: json['priority'] as int? ?? defaultSourcePriority,
+      priority: priority as int? ?? defaultSourcePriority,
     );
   }
 
@@ -160,4 +169,17 @@ Map<String, Object?> _jsonObject(Object? value, String label) {
     throw FormatException('Expected $label to be a JSON object.');
   }
   return value;
+}
+
+String? sourceNameValidationError(String name) {
+  if (name.isEmpty) {
+    return 'source name must not be empty.';
+  }
+  if (name == '.' || name == '..') {
+    return 'source name must not be "." or "..".';
+  }
+  if (!_sourceNamePattern.hasMatch(name)) {
+    return 'source name must contain only letters, numbers, "_", ".", or "-".';
+  }
+  return null;
 }

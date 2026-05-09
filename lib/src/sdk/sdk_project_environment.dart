@@ -29,15 +29,88 @@ class SdkProjectEnvironment {
   }
 
   Future<void> _writeProjectFluohConfig(SdkRelease release) async {
-    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
-      [
-        'schema: 1',
-        'sdk:',
-        '  version: ${release.tag}',
-        'dependencyPolicy:',
-        '  replacementMode: overrides',
-        '',
-      ].join('\n'),
-    );
+    final config = File('${environment.workingDirectory.path}/fluoh.yaml');
+    if (!await config.exists()) {
+      await config.writeAsString(_newProjectFluohConfig(release));
+      return;
+    }
+
+    final content = await config.readAsString();
+    if (content.trim().isEmpty) {
+      await config.writeAsString(_newProjectFluohConfig(release));
+      return;
+    }
+
+    await config.writeAsString(_updatedProjectFluohConfig(content, release));
   }
+}
+
+String _newProjectFluohConfig(SdkRelease release) {
+  return [
+    'schema: 1',
+    'sdk:',
+    '  version: ${release.tag}',
+    'dependencyPolicy:',
+    '  replacementMode: overrides',
+    '',
+  ].join('\n');
+}
+
+String _updatedProjectFluohConfig(String content, SdkRelease release) {
+  final lines = content.split('\n');
+  if (content.endsWith('\n')) {
+    lines.removeLast();
+  }
+
+  final sdkIndex = _topLevelKeyIndex(lines, 'sdk');
+  if (sdkIndex != -1) {
+    if (_isTopLevelBlockSection(lines[sdkIndex], 'sdk')) {
+      _upsertSdkVersion(lines, sdkIndex, release.tag);
+    } else {
+      lines[sdkIndex] = 'sdk:';
+      lines.insert(sdkIndex + 1, '  version: ${release.tag}');
+    }
+    return '${lines.join('\n')}\n';
+  }
+
+  final schemaIndex = _topLevelKeyIndex(lines, 'schema');
+  final insertIndex = schemaIndex == -1 ? 0 : schemaIndex + 1;
+  lines.insertAll(insertIndex, ['sdk:', '  version: ${release.tag}']);
+  return '${lines.join('\n')}\n';
+}
+
+void _upsertSdkVersion(List<String> lines, int sdkIndex, String sdkTag) {
+  final end = _topLevelSectionEnd(lines, sdkIndex);
+  for (var i = sdkIndex + 1; i < end; i += 1) {
+    final match = RegExp(
+      r'^([ \t]+)version\s*:(?:\s*[^#]*)?(\s+#.*)?$',
+    ).firstMatch(lines[i]);
+    if (match == null) {
+      continue;
+    }
+    lines[i] = '${match.group(1)}version: $sdkTag${match.group(2) ?? ''}';
+    return;
+  }
+
+  lines.insert(sdkIndex + 1, '  version: $sdkTag');
+}
+
+int _topLevelKeyIndex(List<String> lines, String name) {
+  return lines.indexWhere(
+    (line) => RegExp('^${RegExp.escape(name)}:(?:\\s.*)?\$').hasMatch(line),
+  );
+}
+
+bool _isTopLevelBlockSection(String line, String name) {
+  return RegExp('^${RegExp.escape(name)}:\\s*(?:#.*)?\$').hasMatch(line);
+}
+
+int _topLevelSectionEnd(List<String> lines, int sectionIndex) {
+  for (var i = sectionIndex + 1; i < lines.length; i += 1) {
+    final line = lines[i];
+    if (line.isNotEmpty && !line.startsWith(' ') && !line.startsWith('\t')) {
+      return i;
+    }
+  }
+  return lines.length;
 }
