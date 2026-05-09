@@ -52,7 +52,7 @@ fluoh pub get
 fluoh doctor
 ```
 
-`fluoh sdk use` 支持精确 SDK tag，也支持 `3.35` 这样的版本系列；版本系列会解析到该系列最新 stable SDK，并把精确 tag 写入 `fluoh.yaml`。之后用 `fluoh flutter ...` 执行项目 Flutter 命令，例如 `fluoh flutter pub get`、`fluoh flutter run` 或 `fluoh flutter build hap`。如果希望切换 SDK 后立即执行首次 `pub get`，可以给 `fluoh sdk use` 加上 `--pub-get`。
+`fluoh sdk use` 支持精确 SDK tag，也支持 `3.35` 这样的版本系列；版本系列会解析到该系列最新 stable SDK，并把精确 tag 写入 `fluoh.yaml`。之后用 `fluoh flutter ...` 或快捷可执行入口 `fluohf ...` 执行项目 Flutter 命令，例如 `fluohf pub get`、`fluohf run` 或 `fluohf build hap`。如果希望切换 SDK 后立即执行首次 `pub get`，可以给 `fluoh sdk use` 加上 `--pub-get`。
 
 使用 `fluoh pub get` 可以通过已选择的 SDK 解析依赖。在适配仓库中，如果存在 `fluoh_test` 和 `fluoh_test/example`，它也会为这些工作区执行 `pub get`。
 
@@ -114,7 +114,7 @@ fluoh pub create https://github.com/upstream/package.git \
 
 | 命令 | 用途 |
 | --- | --- |
-| `fluoh flutter ...` | 使用 `fluoh.yaml` 中选择的 SDK 运行 `flutter`；FlutterOH 项目中的日常 Flutter 命令优先走这个入口。 |
+| `fluoh flutter ...` / `fluohf ...` | 使用 `fluoh.yaml` 中选择的 SDK 运行 `flutter`；FlutterOH 项目中的日常 Flutter 命令优先走这个入口。 |
 | `fluoh clean` | 通过已选择的 SDK 执行 `flutter clean`，并删除生成的 `fluoh_test` 产物。 |
 | `fluoh sdk ...` | 查看、安装、删除并选择本地 Flutter OHOS SDK。 |
 | `fluoh sdk use <version-or-series>` | 在当前 Flutter 项目中切换 SDK。 |

@@ -23,10 +23,13 @@ typedef OutputWriter = void Function(String message);
 
 class FluohCommandRunner extends CommandRunner<int> {
   FluohCommandRunner({
+    String executableName = 'fluoh',
     OutputWriter? stdout,
     OutputWriter? stderr,
     FluohEnvironment? environment,
     Iterable<Command<int>> commands = const <Command<int>>[],
+    String? flutterInvocation,
+    String? flutterGlobalHelpInvocation,
   }) : _stdout = stdout ?? print,
        _stderr = stderr ?? print,
        _environment = environment ?? FluohEnvironment.current(),
@@ -43,7 +46,7 @@ class FluohCommandRunner extends CommandRunner<int> {
          ),
        ),
        super(
-         'fluoh',
+         executableName,
          'FlutterOH SDK and pub package CLI.',
          suggestionDistanceLimit: 0,
        ) {
@@ -55,6 +58,8 @@ class FluohCommandRunner extends CommandRunner<int> {
         stderr: _stderr,
         output: _output,
         inheritStdio: stdout == null && stderr == null,
+        invocation: flutterInvocation ?? '$executableName flutter <args>',
+        globalHelpInvocation: flutterGlobalHelpInvocation,
       ),
     );
     addCommand(
@@ -231,6 +236,8 @@ class FluohCommandRunner extends CommandRunner<int> {
         style: _output.style,
       ),
       '',
+      'Shortcut: use "fluohf <args>" for "fluoh flutter <args>".',
+      '',
       'Run "$executableName help <command>" for more information about a command.',
     ].join('\n');
   }
@@ -290,4 +297,20 @@ Future<int> runFluoh(
     stderr: stderr,
     environment: environment,
   ).run(arguments);
+}
+
+Future<int> runFluohFlutter(
+  List<String> arguments, {
+  OutputWriter? stdout,
+  OutputWriter? stderr,
+  FluohEnvironment? environment,
+}) {
+  return FluohCommandRunner(
+    executableName: 'fluohf',
+    stdout: stdout,
+    stderr: stderr,
+    environment: environment,
+    flutterInvocation: 'fluohf <args>',
+    flutterGlobalHelpInvocation: 'fluoh help',
+  ).run(['flutter', ...arguments]);
 }

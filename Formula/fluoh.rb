@@ -14,9 +14,11 @@ class Fluoh < Formula
 
     system "dart", "pub", "global", "activate", "--source", "path", "."
     bin.install_symlink pub_cache/"bin/fluoh"
+    bin.install_symlink pub_cache/"bin/fluohf"
   end
 
   test do
     assert_match "fluoh #{version}", shell_output("#{bin}/fluoh --version")
+    assert_match "Usage: fluohf <args>", shell_output("#{bin}/fluohf --help")
   end
 end

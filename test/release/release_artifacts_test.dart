@@ -93,6 +93,8 @@ void main() {
     );
     expect(pubspec, contains('executables:'));
     expect(pubspec, contains('  fluoh:'));
+    expect(pubspec, contains('  fluohf:'));
+    expect(File('bin/fluohf.dart').existsSync(), isTrue);
   });
 
   test('documents Dart and Homebrew installation paths in both languages', () {
@@ -108,6 +110,7 @@ void main() {
     expect(readme, contains('brew tap FlutterOH/tap'));
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
+    expect(readme, contains('fluohf pub get'));
     expect(readme, contains('fluoh clean'));
     expect(readme, contains('fluoh pub get'));
     expect(readme, contains('fluoh pub upgrade'));
@@ -135,6 +138,7 @@ void main() {
     expect(chineseReadme, contains('brew tap FlutterOH/tap'));
     expect(chineseReadme, contains('brew install fluoh'));
     expect(chineseReadme, contains('fluoh upgrade'));
+    expect(chineseReadme, contains('fluohf pub get'));
     expect(chineseReadme, contains('fluoh clean'));
     expect(chineseReadme, contains('fluoh pub get'));
     expect(chineseReadme, contains('fluoh pub upgrade'));
@@ -284,6 +288,9 @@ void main() {
     expect(formula, contains('depends_on "dart-sdk"'));
     expect(formula, contains('"dart", "pub", "global", "activate"'));
     expect(formula, contains('"--source", "path", "."'));
+    expect(formula, contains('pub_cache/"bin/fluoh"'));
+    expect(formula, contains('pub_cache/"bin/fluohf"'));
     expect(formula, contains('fluoh --version'));
+    expect(formula, contains('fluohf --help'));
   });
 }

@@ -13,16 +13,22 @@ class FlutterCommand extends Command<int> {
     required OutputWriter stderr,
     TerminalOutput? output,
     bool inheritStdio = false,
+    String invocation = 'fluoh flutter <args>',
+    String? globalHelpInvocation,
   }) : _stdout = stdout,
        _stderr = stderr,
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr),
-       _inheritStdio = inheritStdio;
+       _inheritStdio = inheritStdio,
+       _invocation = invocation,
+       _globalHelpInvocation = globalHelpInvocation;
 
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
   final TerminalOutput _output;
   final bool _inheritStdio;
+  final String _invocation;
+  final String? _globalHelpInvocation;
 
   @override
   final ArgParser argParser = ArgParser.allowAnything();
@@ -34,10 +40,27 @@ class FlutterCommand extends Command<int> {
   String get description => 'Run flutter from the selected Flutter OHOS SDK.';
 
   @override
-  String get invocation => 'fluoh flutter <args>';
+  String get invocation => _invocation;
+
+  @override
+  String get usage {
+    final helpInvocation =
+        _globalHelpInvocation ?? '${runner!.executableName} help';
+    return [
+      description,
+      '',
+      'Usage: $invocation',
+      '',
+      'Run "$helpInvocation" to see global options.',
+    ].join('\n');
+  }
 
   @override
   Future<int> run() async {
+    if (_isHelpRequest(argResults!.rest)) {
+      _output.write(usage);
+      return 0;
+    }
     return runSelectedFlutter(
       environment: environment,
       arguments: argResults!.rest,
@@ -49,4 +72,9 @@ class FlutterCommand extends Command<int> {
       usage: usage,
     );
   }
+}
+
+bool _isHelpRequest(List<String> arguments) {
+  return arguments.length == 1 &&
+      const {'help', '--help', '-h'}.contains(arguments.single);
 }

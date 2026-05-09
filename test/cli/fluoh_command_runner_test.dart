@@ -307,6 +307,10 @@ void main() {
     expect(help, isNot(contains('\nTool:')));
     expect(help, isNot(contains('  use')));
     expect(help, isNot(contains('  update')));
+    expect(
+      help,
+      contains('Shortcut: use "fluohf <args>" for "fluoh flutter <args>".'),
+    );
     expect(stderr, isEmpty);
   });
 

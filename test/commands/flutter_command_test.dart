@@ -49,6 +49,103 @@ void main() {
     expect(stderr, contains('flutter stderr'));
   });
 
+  test('runs flutter through the fluohf executable helper', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createFlutterCommandSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluohFlutter(
+        ['pub', 'get', '--offline'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      File(
+        '${environment.workingDirectory.path}/flutter_args.txt',
+      ).readAsStringSync(),
+      'pub\nget\n--offline\n',
+    );
+    expect(stdout, contains('flutter stdout'));
+    expect(stderr, contains('flutter stderr'));
+  });
+
+  test(
+    'prints fluohf usage from help requests without a selected SDK',
+    () async {
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluohFlutter(
+          ['--help'],
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stdout.join('\n'), contains('Usage: fluohf <args>'));
+      expect(stdout.join('\n'), contains('Run "fluoh help"'));
+      expect(stderr, isEmpty);
+
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluohFlutter(['help'], stdout: stdout.add, stderr: stderr.add),
+        0,
+      );
+
+      expect(stdout.join('\n'), contains('Usage: fluohf <args>'));
+      expect(stdout.join('\n'), contains('Run "fluoh help"'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'prints flutter command usage from help requests without a selected SDK',
+    () async {
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['flutter', 'help'],
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stdout.join('\n'), contains('Usage: fluoh flutter <args>'));
+      expect(stdout.join('\n'), contains('Run "fluoh help"'));
+      expect(stderr, isEmpty);
+    },
+  );
+
   test('installs the selected SDK before running flutter when needed', () async {
     final environment = await createTestEnvironment();
     final source = await _createFlutterCommandSdkSource(
