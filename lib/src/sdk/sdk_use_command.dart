@@ -5,6 +5,7 @@ import 'package:yaml/yaml.dart';
 
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
+import '../config/fluoh_yaml_schema.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 import 'sdk_project_environment.dart';
@@ -90,6 +91,9 @@ class SdkUseCommand extends Command<int> {
     }
 
     final yaml = loadYaml(await fluohYaml.readAsString());
+    if (yaml is YamlMap) {
+      ensureSupportedFluohYamlSchema(yaml);
+    }
     if (yaml is YamlMap &&
         yaml['package'] is YamlMap &&
         yaml['upstream'] is YamlMap) {

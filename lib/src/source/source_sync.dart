@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:yaml/yaml.dart';
 
 import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
+import '../config/fluoh_yaml_schema.dart';
 import 'source_index.dart';
 
 Future<void> ensureSourceSnapshots(
@@ -81,9 +83,12 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   }
 
   try {
+    await _validateSourceMetadataSchema(sourceConfig.directory);
     for (final entry in present) {
       await entry.validate();
     }
+  } on UsageException catch (error) {
+    throw UsageException('Source $name is not valid: ${error.message}', '');
   } on FormatException catch (error) {
     throw UsageException('Source $name is not valid: ${error.message}', '');
   } on FileSystemException catch (error) {
@@ -92,6 +97,19 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
       '',
     );
   }
+}
+
+Future<void> _validateSourceMetadataSchema(Directory directory) async {
+  final metadata = File('${directory.path}/fluoh.yaml');
+  if (!await metadata.exists()) {
+    return;
+  }
+
+  final yaml = loadYaml(await metadata.readAsString());
+  if (yaml is! YamlMap) {
+    throw const FormatException('fluoh.yaml must contain a YAML map.');
+  }
+  ensureSupportedFluohYamlSchema(yaml);
 }
 
 String fileSystemMessage(FileSystemException error) {

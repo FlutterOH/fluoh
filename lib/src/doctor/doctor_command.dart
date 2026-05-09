@@ -190,6 +190,10 @@ class DoctorCommand extends Command<int> {
     String? sdkTag;
     try {
       sdkTag = await readProjectSdkTag(environment.workingDirectory);
+    } on UsageException catch (error) {
+      sdkDetails.add(error.message);
+      sdkHealthy = false;
+      sdkReadable = false;
     } on FormatException {
       sdkDetails.add('fluoh.yaml is not valid YAML.');
       sdkHealthy = false;

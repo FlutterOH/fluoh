@@ -275,6 +275,33 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('reports unsupported project fluoh.yaml schema versions', () async {
+    final environment = await createTestEnvironment();
+    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
+      '''
+schema: 2
+sdk:
+  version: 3.35.8-ohos-0.0.3
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['sdk', 'current'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('fluoh.yaml schema 2 is not supported'));
+    expect(stderr.join('\n'), contains('Upgrade fluoh'));
+  });
+
   test('resolves SDK version series to the latest release', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);

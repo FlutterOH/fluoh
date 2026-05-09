@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
+import '../config/fluoh_yaml_schema.dart';
+
 enum PubDependencyReplacementMode {
   overrides('overrides'),
   rewrite('rewrite');
@@ -46,6 +48,7 @@ Future<PubDependencyPolicy> readPubDependencyPolicy(
   if (loaded is! YamlMap) {
     return const PubDependencyPolicy();
   }
+  ensureSupportedFluohYamlSchema(loaded);
 
   final policy = loaded['dependencyPolicy'];
   if (policy == null) {

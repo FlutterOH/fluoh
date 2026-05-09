@@ -94,23 +94,32 @@ void main() {
       final guide = File('${pubRepository.path}/FLUOH.md');
       expect(guide.existsSync(), isTrue);
       final guideContent = guide.readAsStringSync();
-      expect(guideContent, contains('# FlutterOH Adaptation Guide'));
-      expect(guideContent, contains('## Adaptation Workflow'));
+      expect(guideContent, contains('# FlutterOH Adaptation'));
+      expect(guideContent, contains('## Next Steps'));
+      expect(guideContent, contains('## Before Commit'));
       expect(guideContent, contains('fluoh.yaml'));
       expect(guideContent, contains('fluoh pub release'));
-      expect(guideContent, contains('The generated files are already staged.'));
+      expect(guideContent, contains('iOS team/profile signing values'));
       expect(
         guideContent,
-        contains('You can continue adapting and commit everything together.'),
+        contains('OHOS `signingConfigs` can be used locally'),
       );
       final releaseNotes = File('${pubRepository.path}/FLUOH_CHANGELOG.md');
       expect(releaseNotes.existsSync(), isTrue);
-      expect(releaseNotes.readAsStringSync(), contains('## 0.1.0'));
+      final releaseNotesContent = releaseNotes.readAsStringSync();
+      expect(releaseNotesContent, contains('## 0.1.0'));
+      expect(
+        releaseNotesContent,
+        contains(
+          'Initial adapter for `camera` 0.11.0 on Flutter OHOS SDK '
+          '`3.35.8-ohos-0.0.3`.',
+        ),
+      );
       final agents = File('${pubRepository.path}/AGENTS.md');
       expect(agents.existsSync(), isTrue);
       final agentsContent = agents.readAsStringSync();
       expect(agentsContent, contains('# AGENTS.md'));
-      expect(agentsContent, contains('## FlutterOH Agent Instructions'));
+      expect(agentsContent, contains('## FlutterOH Context'));
       expect(
         agentsContent,
         contains(
@@ -121,64 +130,38 @@ void main() {
       expect(agentsContent, contains('- Package path: `.`'));
       expect(agentsContent, contains('- FlutterOH branch: `ohos/3.35`'));
       expect(agentsContent, contains('fluoh.yaml'));
-      expect(agentsContent, contains('FLUOH.md'));
-      expect(agentsContent, contains('## Use fluoh'));
+      expect(agentsContent, contains('FLUOH_CHANGELOG.md'));
+      expect(agentsContent, contains('## Working Rules'));
+      expect(agentsContent, contains('## Before Commit'));
       expect(
         agentsContent,
         contains(
-          'Prefer `fluoh flutter <args>` for Flutter commands so the SDK '
-          'selected in `fluoh.yaml` is used.',
+          'Use `fluoh flutter <args>` so commands use the SDK selected in '
+          '`fluoh.yaml`',
         ),
       );
       expect(agentsContent, contains('fluoh flutter pub get'));
-      expect(agentsContent, contains('fluoh flutter analyze'));
-      expect(agentsContent, contains('fluoh sdk list'));
-      expect(agentsContent, contains('## Adaptation Workflow'));
-      expect(
-        agentsContent,
-        contains('Keep the generated `0.1.0` for the first release'),
-      );
-      expect(
-        agentsContent,
-        contains('increment it only when releasing after an existing tag'),
-      );
-      expect(
-        agentsContent,
-        contains(
-          'Record the adapter-facing release notes in `FLUOH_CHANGELOG.md`',
-        ),
-      );
-      expect(
-        agentsContent,
-        contains('Do not use the upstream package `CHANGELOG.md`'),
-      );
-      expect(agentsContent, contains('Keep `fluoh_test/example` usable'));
-      expect(
-        agentsContent,
-        contains('Run `fluoh pub release` only after the adapter is ready'),
-      );
-      expect(
-        agentsContent,
-        contains('Do not run `fluoh sdk use` in this pub adapter repository'),
-      );
-      expect(
-        agentsContent,
-        contains(
-          'When intentionally retargeting the adapter SDK, update `fluoh.yaml`',
-        ),
-      );
+      expect(agentsContent, contains('fluoh_test/example'));
+      expect(agentsContent, contains('Run `fluoh test run` before release.'));
       expect(
         agentsContent,
         isNot(contains('Use `fluoh sdk use <version-or-series>`')),
       );
       expect(
         agentsContent,
-        contains(
-          'Commit local changes before running `fluoh pub sync` '
-          'or `fluoh pub release`.',
-        ),
+        contains('Commit before `fluoh pub sync` or `fluoh pub release`'),
+      );
+      expect(agentsContent, contains('git status --short --ignored=matching'));
+      expect(agentsContent, contains('DEVELOPMENT_TEAM'));
+      expect(agentsContent, contains('PROVISIONING_PROFILE_SPECIFIER'));
+      expect(
+        agentsContent,
+        contains('OHOS `signingConfigs` may exist for local testing'),
       );
       expect(agentsContent, isNot(contains('## Adaptation Checklist')));
+      final claude = File('${pubRepository.path}/CLAUDE.md');
+      expect(claude.existsSync(), isTrue);
+      expect(claude.readAsStringSync(), '@AGENTS.md\n');
       expect(File('${pubRepository.path}/FLUOH_TODO.md').existsSync(), isFalse);
       expect(
         File('${pubRepository.path}/FLUOH_ADAPT.md').existsSync(),
@@ -197,6 +180,7 @@ void main() {
       );
       final status = await runGit(pubRepository, ['status', '--porcelain']);
       expect(status.stdout.toString(), contains('A  AGENTS.md'));
+      expect(status.stdout.toString(), contains('A  CLAUDE.md'));
       expect(status.stdout.toString(), contains('A  FLUOH.md'));
       expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
       expect(status.stdout.toString(), contains('A  fluoh.yaml'));
@@ -211,6 +195,7 @@ void main() {
         staged.stdout.toString().split('\n'),
         containsAll([
           'AGENTS.md',
+          'CLAUDE.md',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
           'fluoh.yaml',
@@ -298,6 +283,7 @@ void main() {
       );
       await File('${upstream.path}/.gitignore').writeAsString('''
 AGENTS.md
+CLAUDE.md
 FLUOH.md
 FLUOH_CHANGELOG.md
 fluoh.yaml
@@ -344,6 +330,7 @@ fluoh.yaml
         staged.stdout.toString().split('\n'),
         containsAll([
           'AGENTS.md',
+          'CLAUDE.md',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
           'fluoh.yaml',
@@ -365,7 +352,12 @@ fluoh.yaml
 
 Keep the public Dart API stable.
 ''');
-    await runGit(upstream, ['add', 'AGENTS.md']);
+    await File('${upstream.path}/CLAUDE.md').writeAsString('''
+# Upstream Claude Notes
+
+Prefer the upstream release workflow.
+''');
+    await runGit(upstream, ['add', 'AGENTS.md', 'CLAUDE.md']);
     await runGit(upstream, ['commit', '-m', 'Add upstream agent notes']);
     final pubRepository = Directory(
       '${environment.homeDirectory.path}/pub_existing_agents',
@@ -403,16 +395,27 @@ Keep the public Dart API stable.
     ).readAsStringSync();
     expect(agentsContent, contains('# Upstream Agent Notes'));
     expect(agentsContent, contains('Keep the public Dart API stable.'));
-    expect(agentsContent, contains('## FlutterOH Agent Instructions'));
-    expect(agentsContent, contains('## Use fluoh'));
-    expect(agentsContent, contains('## Adaptation Workflow'));
+    expect(agentsContent, contains('## FlutterOH Context'));
+    expect(agentsContent, contains('## Working Rules'));
+    expect(agentsContent, contains('## Before Commit'));
     expect(agentsContent, isNot(contains('# AGENTS.md')));
+    final claudeContent = File(
+      '${pubRepository.path}/CLAUDE.md',
+    ).readAsStringSync();
+    expect(claudeContent, startsWith('@AGENTS.md\n\n# Upstream Claude Notes'));
+    expect(claudeContent, contains('Prefer the upstream release workflow.'));
     final status = await runGit(pubRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('M  AGENTS.md'));
+    expect(status.stdout.toString(), contains('M  CLAUDE.md'));
     final mainAgents = await runGit(pubRepository, ['show', 'main:AGENTS.md']);
     expect(
       mainAgents.stdout.toString(),
       '# Upstream Agent Notes\n\nKeep the public Dart API stable.\n',
+    );
+    final mainClaude = await runGit(pubRepository, ['show', 'main:CLAUDE.md']);
+    expect(
+      mainClaude.stdout.toString(),
+      '# Upstream Claude Notes\n\nPrefer the upstream release workflow.\n',
     );
     expect(stderr, isEmpty);
   });

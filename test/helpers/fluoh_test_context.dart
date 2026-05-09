@@ -25,10 +25,8 @@ Future<Directory> createPubSourceFixture(Directory parent) async {
   await Directory('${source.path}/packages/manifests').create(recursive: true);
   await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
-kind: source
 name: Test FlutterOH source
 description: Test source fixture.
-minFluohVersion: 0.0.1
 repositoryUrl: file:${source.path}
 ''');
 

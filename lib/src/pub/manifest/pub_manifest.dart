@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
+import '../../config/fluoh_yaml_schema.dart';
 import 'pubspec_package.dart';
 
 class PubManifest {
@@ -142,6 +143,7 @@ Future<PubManifest> readPubManifest(Directory repository) async {
   if (yaml is! YamlMap) {
     throw UsageException('fluoh.yaml must contain a YAML map.', '');
   }
+  ensureSupportedFluohYamlSchema(yaml);
 
   _ensureAllowedKeys(yaml, 'fluoh.yaml', {
     'schema',

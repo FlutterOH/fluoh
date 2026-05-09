@@ -403,10 +403,8 @@ This template is package-only; SDK releases continue to come from other configur
 String _localSourceMetadata(Directory source) {
   return '''
 schema: 1
-kind: source
 name: Local FlutterOH source
 description: Local package source maintained by fluoh users.
-minFluohVersion: 0.1.0
 repositoryUrl: file:${source.path}
 ''';
 }

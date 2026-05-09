@@ -155,6 +155,7 @@ class PubCreateCommand extends Command<int> {
       sdkVersion: release.tag,
       branch: branch,
     );
+    await _writeClaudeInstructions(destination);
     final testInitResult = await initializeFluohTestWorkspace(
       environment: pubEnvironment,
       stdout: _stdout,
@@ -165,6 +166,7 @@ class PubCreateCommand extends Command<int> {
       'add',
       '-f',
       'AGENTS.md',
+      'CLAUDE.md',
       'FLUOH.md',
       'FLUOH_CHANGELOG.md',
       'fluoh.yaml',
@@ -235,6 +237,32 @@ Future<void> _writeAgentsInstructions({
   );
 }
 
+const _claudeAgentsImport = '@AGENTS.md';
+
+Future<void> _writeClaudeInstructions(Directory destination) async {
+  final file = File('${destination.path}/CLAUDE.md');
+  if (!await file.exists()) {
+    await file.writeAsString('$_claudeAgentsImport\n');
+    return;
+  }
+
+  final existing = await file.readAsString();
+  if (existing.trim().isEmpty) {
+    await file.writeAsString('$_claudeAgentsImport\n');
+    return;
+  }
+  if (_importsAgentsInstructions(existing)) {
+    return;
+  }
+
+  final separator = existing.startsWith('\n') ? '' : '\n';
+  await file.writeAsString('$_claudeAgentsImport\n$separator$existing');
+}
+
+bool _importsAgentsInstructions(String content) {
+  return content.split('\n').any((line) => line.trim() == _claudeAgentsImport);
+}
+
 String _markdownAppendSeparator(String content) {
   if (content.endsWith('\n\n')) {
     return '';
@@ -256,58 +284,31 @@ String _agentsInstructionsContent({
   return [
     if (includeTitle) '# AGENTS.md',
     if (includeTitle) '',
-    '## FlutterOH Agent Instructions',
+    '## FlutterOH Context',
     '',
     'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
-    'Use this file as the AI working contract. Use `FLUOH.md` for the full maintainer workflow and `fluoh.yaml` as the metadata source of truth.',
     '',
-    '## Fast Context',
-    '',
-    '- Package path: `$packagePath`',
+    '- Package path: `$packagePath`.',
     '- Upstream ref at creation: `$upstreamRef`',
     '- FlutterOH branch: `$branch`',
-    '- FlutterOH metadata: `fluoh.yaml`',
-    '- Full adaptation guide: `FLUOH.md`',
-    '- FlutterOH release notes: `FLUOH_CHANGELOG.md`',
-    '',
-    '## Use fluoh',
-    '',
-    '- Prefer `fluoh flutter <args>` for Flutter commands so the SDK selected in `fluoh.yaml` is used.',
-    '- Start with `fluoh flutter pub get` when dependencies may be stale.',
-    '- Use `fluoh flutter analyze`, `fluoh flutter test`, and package-specific build or smoke commands when they apply.',
-    '- Use `fluoh sdk list` to inspect available SDKs.',
-    '- Do not run `fluoh sdk use` in this pub adapter repository; it is for Flutter apps and refuses to replace pub repository metadata.',
-    '- When intentionally retargeting the adapter SDK, update `fluoh.yaml` and keep the branch and release metadata consistent.',
-    '- `fluoh pub sync` updates the clean upstream branch from `upstream`, merges it into the current FlutterOH branch, refreshes upstream metadata in `fluoh.yaml`, and requires a clean worktree.',
-    '- Use `fluoh test init` to create or refresh the low-intrusion verification workspace when needed.',
-    '- Use `fluoh test run` before publishing or releasing; it runs package Flutter tests when present, equivalent to `fluoh flutter test` in the package path, plus `fluoh_test`. `fluoh pub release` runs it for Flutter adapters.',
-    '- Keep `FLUOH_CHANGELOG.md` updated for the current `fluoh.yaml` package version before `fluoh pub release`.',
-    '- `fluoh pub release` is for final release validation and tagging after the adapter is ready.',
-    '',
-    '## Adaptation Workflow',
-    '',
-    '1. Read `FLUOH.md`, `fluoh.yaml`, `FLUOH_CHANGELOG.md`, and the package `pubspec.yaml` before editing code.',
-    '2. Inspect the package path first; if it is not `.`, keep code and tests scoped to `$packagePath` unless repository-level files are required.',
-    '3. Run `fluoh flutter pub get` when dependencies may be stale, then inspect existing platform implementations and tests.',
-    '4. Implement the OHOS adaptation with focused platform changes. Preserve upstream APIs and non-OHOS behavior unless the adaptation requires a targeted compatibility fix.',
-    '5. Add or update automated coverage in the package tests when practical, and keep `fluoh_test/test` focused on adapter behavior that must pass before release.',
-    '6. Keep `fluoh_test/example` usable as the small manual verification app for platform flows that cannot be fully automated.',
-    '7. Run `fluoh test run`; also run package-specific analyze, build, or smoke commands when the changed surface needs them.',
-    '8. Before release, confirm `fluoh.yaml` `package.version`. Keep the generated `0.1.0` for the first release, and increment it only when releasing after an existing tag for the same package, upstream version, and SDK.',
-    '9. Record the adapter-facing release notes in `FLUOH_CHANGELOG.md` under the same `package.version`. Do not use the upstream package `CHANGELOG.md` for FlutterOH-only release notes.',
-    '10. Commit the adaptation, tests, `fluoh.yaml`, and `FLUOH_CHANGELOG.md` together before running commands that require a clean worktree.',
-    '11. Run `fluoh pub release` only after the adapter is ready; it validates release metadata and runs `fluoh test run` before tagging.',
+    '- Metadata: `fluoh.yaml`.',
+    '- Release notes: `FLUOH_CHANGELOG.md`.',
     '',
     '## Working Rules',
     '',
-    '- Read `FLUOH.md`, `fluoh.yaml`, and the package `pubspec.yaml` before making code changes.',
-    '- If the package path is not `.`, inspect that directory first and adapt verification commands to the upstream layout.',
-    '- Keep upstream APIs and non-OHOS platform behavior compatible unless the adaptation requires a targeted change.',
-    '- Prefer focused OHOS platform changes near the package implementation; avoid broad rewrites outside the package path.',
-    '- Preserve local work, generated metadata, and upstream history. Do not delete `fluoh.yaml` or `FLUOH.md`.',
+    '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh flutter pub get` when dependencies may be stale.',
+    '- Keep OHOS adaptation changes focused near `$packagePath`; preserve upstream APIs and non-OHOS behavior.',
+    '- Keep `fluoh_test/test` for automated adapter checks and `fluoh_test/example` for manual platform verification.',
     '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
-    '- Update `FLUOH_CHANGELOG.md` when release notes change.',
-    '- Commit local changes before running `fluoh pub sync` or `fluoh pub release`.',
+    '- Update `FLUOH_CHANGELOG.md` for FlutterOH release notes.',
+    '- Run `fluoh test run` before release. Commit before `fluoh pub sync` or `fluoh pub release` because both require a clean worktree.',
+    '',
+    '## Before Commit',
+    '',
+    '- Review `git status --short --ignored=matching` and staged files before committing.',
+    '- Do not commit local paths, IDE metadata, generated build outputs, caches, certificates, private keys, passwords, or signing profiles.',
+    '- Do not commit team-specific iOS signing state such as `DEVELOPMENT_TEAM`, `PROVISIONING_PROFILE_SPECIFIER`, profile UUIDs, or non-generic `CODE_SIGN_IDENTITY` values.',
+    '- OHOS `signingConfigs` may exist for local testing, but tracked files must not contain real certificate paths, passwords, or private signing material. Commit empty or placeholder signing settings only.',
     '',
   ].join('\n');
 }
@@ -320,7 +321,7 @@ String _adaptationGuideContent({
   required String branch,
 }) {
   return [
-    '# FlutterOH Adaptation Guide',
+    '# FlutterOH Adaptation',
     '',
     'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
     '',
@@ -330,20 +331,22 @@ String _adaptationGuideContent({
     '- Package path: `$packagePath`',
     '- Upstream ref: `$upstreamRef`',
     '- FlutterOH branch: `$branch`',
+    '- Metadata: `fluoh.yaml`',
+    '- Release notes: `FLUOH_CHANGELOG.md`',
     '',
-    '## Adaptation Workflow',
+    '## Next Steps',
     '',
-    '1. Review the upstream package metadata and platform implementation.',
-    '2. Implement or update the OHOS platform code for `${package.name}`.',
-    '3. Keep `fluoh_test/test` focused on automated adapter checks and `fluoh_test/example` for manual platform verification.',
-    '4. Keep `fluoh.yaml` in sync when upstream, SDK, status, or release version values change.',
-    '5. The generated files are already staged.',
-    '6. You can continue adapting and commit everything together.',
-    '7. Commit before running `fluoh pub sync` or `fluoh pub release` because those commands require a clean worktree.',
-    '8. Run `fluoh test run`; it runs package Flutter tests when present, equivalent to `fluoh flutter test` in the package path, plus `fluoh_test`, and is also enforced by `fluoh pub release` for Flutter adapters.',
-    '9. Update `FLUOH_CHANGELOG.md` for the current `fluoh.yaml` package version.',
-    '10. Commit adapter changes with the maintainer Git identity.',
-    '11. Run `fluoh pub release` when the adapter is ready.',
+    '1. Implement the OHOS platform code for `${package.name}`.',
+    '2. Keep `fluoh_test/test` for automated checks and `fluoh_test/example` for manual verification.',
+    '3. Update `fluoh.yaml` and `FLUOH_CHANGELOG.md` when release metadata changes.',
+    '4. Run `fluoh test run` before release.',
+    '5. Commit before `fluoh pub sync` or `fluoh pub release`; both require a clean worktree.',
+    '',
+    '## Before Commit',
+    '',
+    '- Review `git status --short --ignored=matching`.',
+    '- Keep local paths, IDE files, generated outputs, certificates, private keys, passwords, Android keystore config, and iOS team/profile signing values out of committed files.',
+    '- OHOS `signingConfigs` can be used locally; commit only empty or placeholder signing settings.',
     '',
   ].join('\n');
 }
@@ -358,7 +361,7 @@ String _fluohChangelogContent({
     '',
     '## $releaseVersion',
     '',
-    '- Initial FlutterOH adapter release for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
+    '- Initial adapter for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
     '',
   ].join('\n');
 }

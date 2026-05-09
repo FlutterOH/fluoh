@@ -88,6 +88,8 @@ The Homebrew formula currently installs from the pub.dev archive. Update its arc
 
 ## Security and Local State
 
-Do not commit credentials, local caches, IDE metadata, generated build output, or machine-specific SDK paths. Runtime state belongs under `$FLUOH_HOME` or `$HOME/.fluoh`; tests must use temporary directories.
+Do not commit credentials, private tokens, local caches, IDE metadata, generated build output, or machine-specific SDK paths. Runtime state belongs under `$FLUOH_HOME` or `$HOME/.fluoh`; tests must use temporary directories.
 
-Before committing, run `git status --short`, `git diff --check`, and scan staged changes for local absolute paths.
+For this tool repository, commit-time cleanup mainly means removing machine-specific absolute paths produced by local runs, such as SDK paths, home directories, temporary directories, generated `local.properties` content, and tool cache paths.
+
+Before committing, run `git status --short --ignored=matching`, `git diff --check`, and scan staged changes for local absolute paths, credentials, and private tokens.

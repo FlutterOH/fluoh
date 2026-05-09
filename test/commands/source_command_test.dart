@@ -448,10 +448,8 @@ repositories: []
     );
     expect(File('${source.path}/fluoh.yaml').readAsStringSync(), '''
 schema: 1
-kind: source
 name: Local FlutterOH source
 description: Local package source maintained by fluoh users.
-minFluohVersion: 0.1.0
 repositoryUrl: file:${source.path}
 ''');
     expect(Directory('${source.path}/packages/manifests').existsSync(), isTrue);
@@ -485,9 +483,7 @@ repositories:
     final metadata = File('${source.path}/fluoh.yaml');
     await metadata.writeAsString('''
 schema: 1
-kind: source
 name: Existing source
-minFluohVersion: 0.1.0
 repositoryUrl: file:${source.path}
 ''');
     final stdout = <String>[];
@@ -967,6 +963,43 @@ repositories: []
 
     expect(stdout, contains('Updated source schema.'));
     expect(stderr, isEmpty);
+  });
+
+  test('rejects unsupported source fluoh.yaml schema versions', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/schema_source');
+    await Directory('${source.path}/sdk').create(recursive: true);
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 2
+name: Future source
+repositoryUrl: file:${source.path}
+''');
+    await File('${source.path}/sdk/releases.yaml').writeAsString('''
+schema: 1
+url: ${environment.homeDirectory.path}/flutter-ohos-sdk
+releases:
+  - version: 3.35.8-ohos-0.0.3
+    status: stable
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'add', 'schema', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(
+      stderr.join('\n'),
+      contains('Source schema is not valid: fluoh.yaml schema 2'),
+    );
+    expect(stderr.join('\n'), contains('Upgrade fluoh'));
   });
 
   test('reports missing package manifests when adding local sources', () async {
