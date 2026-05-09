@@ -84,9 +84,9 @@ void main() {
       ],
     );
 
-    expect(stdout.first, startsWith('  #  Name'));
-    expect(stdout[1], contains('1  camera'));
-    expect(stdout[2], contains('2  share '));
+    expect(stdout.first, startsWith('#  Name'));
+    expect(stdout[1], startsWith('1  camera'));
+    expect(stdout[2], startsWith('2  share '));
     expect(stdout[1].length, stdout[2].length);
   });
 

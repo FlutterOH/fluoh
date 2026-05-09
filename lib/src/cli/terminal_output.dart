@@ -295,11 +295,22 @@ class TerminalOutput {
     }
 
     _stdout(
-      '  ${[for (var i = 0; i < columns.length; i += 1) _tableHeader(columns[i].header, widths[i], columns[i].alignRight)].join('  ')}',
+      [
+        for (var i = 0; i < columns.length; i += 1)
+          _tableHeader(columns[i].header, widths[i], columns[i].alignRight),
+      ].join('  '),
     );
     for (final row in rows) {
       _stdout(
-        '  ${[for (var i = 0; i < columns.length; i += 1) _tableCell(i < row.length ? row[i] : '', widths[i], columns[i].style, columns[i].alignRight)].join('  ')}',
+        [
+          for (var i = 0; i < columns.length; i += 1)
+            _tableCell(
+              i < row.length ? row[i] : '',
+              widths[i],
+              columns[i].style,
+              columns[i].alignRight,
+            ),
+        ].join('  '),
       );
     }
   }

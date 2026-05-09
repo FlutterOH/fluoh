@@ -15,6 +15,7 @@ import '../source/source_sync.dart';
 import '../testing/test_commands.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
+import 'command_suggestions.dart';
 import 'command_usage.dart';
 import 'terminal_output.dart';
 
@@ -41,7 +42,11 @@ class FluohCommandRunner extends CommandRunner<int> {
            ),
          ),
        ),
-       super('fluoh', 'FlutterOH SDK and pub package CLI.') {
+       super(
+         'fluoh',
+         'FlutterOH SDK and pub package CLI.',
+         suggestionDistanceLimit: 0,
+       ) {
     final env = _environment;
     addCommand(
       FlutterCommand(
@@ -125,6 +130,7 @@ class FluohCommandRunner extends CommandRunner<int> {
         _printVersionInformation();
         return 0;
       }
+      _throwUnknownCommandUsage(results);
 
       if (_usesSourceConfiguration(results)) {
         final config = await FluohConfigStore(_environment).load();
@@ -164,6 +170,49 @@ class FluohCommandRunner extends CommandRunner<int> {
       '${style.label('Repository')} '
       '${style.url('https://github.com/FlutterOH/fluoh')}',
     );
+  }
+
+  void _throwUnknownCommandUsage(ArgResults results) {
+    var currentResults = results;
+    var availableCommands = commands;
+    Command<int>? command;
+    var commandString = executableName;
+
+    while (availableCommands.isNotEmpty) {
+      final parsedCommand = currentResults.command;
+      if (parsedCommand == null) {
+        if (currentResults.rest.isEmpty) {
+          return;
+        }
+
+        final requested = currentResults.rest.first;
+        final suggestions = commandSuggestionsText(
+          requested,
+          availableCommands.values,
+          commandPrefix: commandString,
+        );
+        if (command == null) {
+          usageException(
+            'Could not find a command named "$requested".$suggestions',
+          );
+        }
+        command.usageException(
+          'Could not find a subcommand named "$requested" for '
+          '"$commandString".$suggestions',
+        );
+      }
+
+      command = availableCommands[parsedCommand.name];
+      if (command == null) {
+        return;
+      }
+      commandString = '$commandString ${parsedCommand.name}';
+      currentResults = parsedCommand;
+      if (_hasHelpFlag(currentResults)) {
+        return;
+      }
+      availableCommands = command.subcommands;
+    }
   }
 
   String get _usageWithoutDescription {

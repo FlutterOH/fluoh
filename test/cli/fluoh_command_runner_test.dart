@@ -63,6 +63,183 @@ void main() {
     expect(stderr.join('\n'), contains('Could not find a command named'));
   });
 
+  test('suggests similar top-level command names', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['clena'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stdout, isEmpty);
+    final output = stderr.join('\n');
+    expect(output, contains('Could not find a command named "clena".'));
+    expect(output, contains('Did you mean one of these?'));
+    expect(output, contains('  fluoh clean'));
+    expect(output, contains('  fluoh clean\n\nUsage:'));
+  });
+
+  test('suggests similar subcommand names', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['pub', 'chek'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stdout, isEmpty);
+    final output = stderr.join('\n');
+    expect(
+      output,
+      contains('Could not find a subcommand named "chek" for "fluoh pub".'),
+    );
+    expect(output, contains('Did you mean one of these?'));
+    expect(output, contains('  fluoh pub check'));
+    expect(output, contains('  fluoh pub check\n\nUsage:'));
+  });
+
+  test(
+    'prints parent command help instead of suggestions when help is set',
+    () async {
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      final exitCode = await runFluoh(
+        ['pub', '--help', 'udpate'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(exitCode, 0);
+      final output = stdout.join('\n');
+      expect(
+        output,
+        contains('Manage FlutterOH pub dependencies and repositories.'),
+      );
+      expect(output, contains('Usage: fluoh pub <subcommand> [arguments]'));
+      expect(output, isNot(contains('Did you mean one of these?')));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('suggests upgrade for update-style command typos', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final topLevelExitCode = await runFluoh(
+      ['udpate'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final topLevelOutput = stderr.join('\n');
+
+    expect(topLevelExitCode, 64);
+    expect(stdout, isEmpty);
+    expect(
+      topLevelOutput,
+      contains('Could not find a command named "udpate".'),
+    );
+    expect(topLevelOutput, contains('Did you mean one of these?'));
+    expect(topLevelOutput, contains('  fluoh upgrade'));
+
+    stderr.clear();
+    final subcommandExitCode = await runFluoh(
+      ['pub', 'udpate'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final subcommandOutput = stderr.join('\n');
+
+    expect(subcommandExitCode, 64);
+    expect(stdout, isEmpty);
+    expect(
+      subcommandOutput,
+      contains('Could not find a subcommand named "udpate" for "fluoh pub".'),
+    );
+    expect(subcommandOutput, contains('Did you mean one of these?'));
+    expect(subcommandOutput, contains('  fluoh pub upgrade'));
+  });
+
+  test('suggests commands from short prefixes', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['upg'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stdout, isEmpty);
+    final output = stderr.join('\n');
+    expect(output, contains('Could not find a command named "upg".'));
+    expect(output, contains('Did you mean one of these?'));
+    expect(output, contains('  fluoh upgrade'));
+  });
+
+  test('suggests semantic command aliases without executing them', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final pubExitCode = await runFluoh(
+      ['pub', 'install'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final pubOutput = stderr.join('\n');
+
+    expect(pubExitCode, 64);
+    expect(stdout, isEmpty);
+    expect(
+      pubOutput,
+      contains('Could not find a subcommand named "install" for "fluoh pub".'),
+    );
+    expect(pubOutput, contains('Did you mean one of these?'));
+    expect(pubOutput, contains('  fluoh pub get'));
+
+    stderr.clear();
+    final sdkExitCode = await runFluoh(
+      ['sdk', 'rm'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final sdkOutput = stderr.join('\n');
+
+    expect(sdkExitCode, 64);
+    expect(stdout, isEmpty);
+    expect(
+      sdkOutput,
+      contains('Could not find a subcommand named "rm" for "fluoh sdk".'),
+    );
+    expect(sdkOutput, contains('Did you mean one of these?'));
+    expect(sdkOutput, contains('  fluoh sdk remove'));
+  });
+
+  test('does not execute update as an upgrade alias', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['update'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stdout, isEmpty);
+    final output = stderr.join('\n');
+    expect(output, contains('Could not find a command named "update".'));
+    expect(output, contains('Did you mean one of these?'));
+    expect(output, contains('  fluoh upgrade'));
+  });
+
   test('runs registered commands', () async {
     final runner = FluohCommandRunner(commands: [_FixtureCommand()]);
 

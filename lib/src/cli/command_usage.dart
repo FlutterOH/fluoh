@@ -70,7 +70,7 @@ String formatCommandUsage(
       );
       buffer
         ..writeln()
-        ..write('  ${style.command(name.padRight(nameLength))}   ')
+        ..write('  ${name.padRight(nameLength)}   ')
         ..write(lines.first);
       for (final line in lines.skip(1)) {
         buffer
