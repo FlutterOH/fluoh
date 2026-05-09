@@ -358,7 +358,65 @@ environment:
         isNot(contains('.flutter-plugins-dependencies')),
       );
       expect(stdout, contains('Created fluoh_test for camera.'));
+      expect(
+        stdout,
+        contains('Creating fluoh_test/example for android,ios,ohos.'),
+      );
+      expect(stdout.join('\n'), isNot(contains('fluoh flutter create')));
+      expect(stdout, isNot(contains('flutter create stdout')));
       expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'pub create replays flutter create output when example creation fails',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterSdkSource(
+        environment.homeDirectory,
+        logName: 'pub_create_flutter_create_failure.log',
+        failCreate: true,
+      );
+      final upstream = await _createUpstreamFlutterPluginRepository(
+        Directory('${environment.homeDirectory.path}/upstream_failed_camera'),
+      );
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_failed_camera',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          [
+            'pub',
+            'create',
+            upstream.path,
+            '--output',
+            pubRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stdout, contains('flutter create stdout'));
+      expect(stderr, contains('flutter create stderr'));
+      expect(
+        stderr.join('\n'),
+        contains('flutter create failed for fluoh_test/example.'),
+      );
     },
   );
 
@@ -444,6 +502,7 @@ environment:
 Future<Directory> _createFlutterSdkSource(
   Directory parent, {
   required String logName,
+  bool failCreate = false,
 }) async {
   final source = Directory('${parent.path}/flutter_sdk_source_$logName');
   final sdkRepository = Directory('${parent.path}/flutter_sdk_$logName');
@@ -458,7 +517,9 @@ Future<Directory> _createFlutterSdkSource(
   await _runProcess('git', ['config', 'user.name', 'Fixture'], sdkRepository);
   final flutter = File('${sdkRepository.path}/bin/flutter');
   await flutter.parent.create(recursive: true);
-  await flutter.writeAsString(_fakeFlutterScript('${parent.path}/$logName'));
+  await flutter.writeAsString(
+    _fakeFlutterScript('${parent.path}/$logName', failCreate: failCreate),
+  );
   await _runProcess('chmod', ['+x', flutter.path], sdkRepository);
   await File('${sdkRepository.path}/README.md').writeAsString('# SDK\n');
   await _runProcess('git', ['add', '.'], sdkRepository);
@@ -474,11 +535,17 @@ releases:
   return source;
 }
 
-String _fakeFlutterScript(String logPath) {
+String _fakeFlutterScript(String logPath, {bool failCreate = false}) {
+  final failCreateValue = failCreate ? 'true' : 'false';
   return '''
 #!/bin/sh
 printf "%s::%s\\n" "\$(pwd)" "\$*" >> "$logPath"
 if [ "\$1" = "create" ]; then
+  printf "flutter create stdout\\n"
+  printf "flutter create stderr\\n" >&2
+  if [ "$failCreateValue" = "true" ]; then
+    exit 42
+  fi
   target=""
   platforms=""
   while [ "\$#" -gt 0 ]; do

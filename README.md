@@ -78,7 +78,7 @@ fluoh pub fix
 fluoh pub get
 ```
 
-`fluoh pub check` groups dependencies by compatibility and prints the next step. `fluoh pub fix` updates `pubspec.yaml` with recommended OHOS adapter refs; use `fluoh pub fix --dry-run` to preview changes. By default it writes `dependency_overrides`; set `dependencyPolicy.replacementMode: rewrite` in `fluoh.yaml` when you want to rewrite direct `dependencies` declarations instead. Version-mismatch adapters are skipped unless `dependencyPolicy.versionMismatch` is set to `allow`. Use `fluoh pub upgrade` when a project already uses OHOS adapters and you only want to refresh existing adapter refs.
+`fluoh pub check` groups dependencies by compatibility and prints the next step. `fluoh pub fix` updates `pubspec.yaml` with recommended OHOS adapter refs; use `fluoh pub fix --dry-run` to preview changes. By default it writes `dependency_overrides`; set `dependencyPolicy.replacementMode: rewrite` in `fluoh.yaml` when you want to rewrite direct `dependencies` declarations instead. Exact matches and pub-semver compatible adapter upgrades are applied by default; incompatible version changes and downgrades are skipped unless `dependencyPolicy.versionMismatch` is set to `allow`. Use `fluoh pub upgrade` when a project already uses OHOS adapters and you only want to refresh existing adapter refs.
 
 ### Create third-party pub repositories
 

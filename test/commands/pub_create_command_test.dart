@@ -67,10 +67,11 @@ void main() {
         '${pubRepository.path}/fluoh.yaml',
       ).readAsStringSync();
       expect(manifest, contains('schema: 1'));
+      expect(manifest, contains('schema: 1\n\nsdk:'));
       expect(manifest, contains('name: camera'));
       expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
-      expect(manifest, contains('package:'));
-      expect(manifest, contains('upstream:'));
+      expect(manifest, contains('\n\npackage:'));
+      expect(manifest, contains('\n\nupstream:'));
       expect(manifest, isNot(contains('adapter:')));
       expect(manifest, isNot(contains('dependency:')));
       expect(manifest, isNot(contains('dependencyPolicy:')));

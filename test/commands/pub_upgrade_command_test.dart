@@ -245,4 +245,100 @@ dependencies:
     expect(stdout, contains('Updated 1 OHOS dependency ref.'));
     expect(stderr, isEmpty);
   });
+
+  test('updates existing refs to compatible adapter upgrades', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final manifest = File('${source.path}/packages/manifests/share_plus.yaml');
+    await manifest.writeAsString('''
+${manifest.readAsStringSync()}
+  - upstream:
+      version: 10.1.0
+      git:
+        ref: share_plus-v10.1.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
+    sdk:
+      versionSeries: 3.35
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    replacement:
+      git:
+        url: ${environment.homeDirectory.path}/share_plus
+        ref: share_plus-v10.1.0-ohos-3.35.8-1
+        path: packages/share_plus/share_plus
+''');
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
+    await pubspec.writeAsString('''
+name: fixture_app
+
+dependencies:
+  flutter:
+    sdk: flutter
+  share_plus: 10.0.0
+
+dependency_overrides:
+  share_plus:
+    git:
+      url: ${environment.homeDirectory.path}/share_plus
+      ref: share_plus-v10.0.0-ohos-3.35.8-1
+      path: packages/share_plus/share_plus
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['pub', 'upgrade', '--dry-run'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      stdout,
+      contains(
+        'Would update share_plus share_plus-v10.0.0-ohos-3.35.8-1 -> '
+        'share_plus-v10.1.0-ohos-3.35.8-1 '
+        '(upstream 10.0.0 -> 10.1.0)',
+      ),
+    );
+    expect(
+      pubspec.readAsStringSync(),
+      contains('share_plus-v10.0.0-ohos-3.35.8-1'),
+    );
+
+    expect(
+      await runFluoh(
+        ['pub', 'upgrade'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final updated = pubspec.readAsStringSync();
+    expect(updated, contains('share_plus-v10.1.0-ohos-3.35.8-1'));
+    expect(updated, isNot(contains('share_plus-v10.0.0-ohos-3.35.8-1')));
+    expect(stderr, isEmpty);
+  });
 }

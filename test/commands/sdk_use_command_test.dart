@@ -45,6 +45,22 @@ void main() {
     final fluohConfig = File(
       '${environment.workingDirectory.path}/fluoh.yaml',
     ).readAsStringSync();
+    expect(fluohConfig, '''
+schema: 1
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+dependencyPolicy:
+  # replacementMode controls where fluoh pub fix writes OHOS adapters:
+  # - overrides: add dependency_overrides without changing dependencies.
+  # - rewrite: replace matching entries in dependencies directly.
+  replacementMode: overrides
+  # versionMismatch controls version differences after exact matches and compatible upgrades:
+  # - skip: leave incompatible version changes and downgrades for manual review.
+  # - allow: apply the recommended adapter anyway.
+  versionMismatch: skip
+''');
     expect(fluohConfig, isNot(contains('line:')));
     expect(fluohConfig, contains('version: 3.35.8-ohos-0.0.3'));
     expect(fluohConfig, isNot(contains('sources:')));

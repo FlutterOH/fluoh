@@ -78,7 +78,7 @@ fluoh pub fix
 fluoh pub get
 ```
 
-`fluoh pub check` 会按兼容状态分组依赖并提示下一步。`fluoh pub fix` 会把推荐的 OHOS adapter ref 写入 `pubspec.yaml`；如果只想预览，使用 `fluoh pub fix --dry-run`。默认写入 `dependency_overrides`；如果希望直接改写 `dependencies` 中的声明，在 `fluoh.yaml` 中设置 `dependencyPolicy.replacementMode: rewrite`。上游版本不一致的 adapter 默认跳过，除非把 `dependencyPolicy.versionMismatch` 设为 `allow`。项目已经使用 OHOS adapter、只想刷新已有 ref 时，使用 `fluoh pub upgrade`。
+`fluoh pub check` 会按兼容状态分组依赖并提示下一步。`fluoh pub fix` 会把推荐的 OHOS adapter ref 写入 `pubspec.yaml`；如果只想预览，使用 `fluoh pub fix --dry-run`。默认写入 `dependency_overrides`；如果希望直接改写 `dependencies` 中的声明，在 `fluoh.yaml` 中设置 `dependencyPolicy.replacementMode: rewrite`。精确匹配和 pub-semver 兼容的 adapter 升级会默认应用；不兼容的版本变化和降级默认跳过，除非把 `dependencyPolicy.versionMismatch` 设为 `allow`。项目已经使用 OHOS adapter、只想刷新已有 ref 时，使用 `fluoh pub upgrade`。
 
 ### 创建第三方库 pub 仓库
 

@@ -430,8 +430,7 @@ Future<void> _createExampleProject({
 }) async {
   final example = Directory('${testDirectory.path}/example');
   output.step(
-    'Creating fluoh_test/example with fluoh flutter create '
-    'for ${package.platforms.join(',')}.',
+    'Creating fluoh_test/example for ${package.platforms.join(',')}.',
   );
   final exitCode = await _runProcess(
     flutter.path,
@@ -447,6 +446,7 @@ Future<void> _createExampleProject({
     environment: environment,
     stdout: stdout,
     stderr: stderr,
+    forwardOutput: false,
   );
   if (exitCode != 0) {
     throw UsageException('flutter create failed for fluoh_test/example.', '');
@@ -474,6 +474,7 @@ Future<int> _runProcess(
   required FluohEnvironment environment,
   required OutputWriter stdout,
   required OutputWriter stderr,
+  bool forwardOutput = true,
 }) async {
   final result = await Process.run(
     executable,
@@ -481,8 +482,10 @@ Future<int> _runProcess(
     workingDirectory: workingDirectory.path,
     environment: environment.processEnvironment,
   );
-  _writeProcessOutput(result.stdout, stdout);
-  _writeProcessOutput(result.stderr, stderr);
+  if (forwardOutput || result.exitCode != 0) {
+    _writeProcessOutput(result.stdout, stdout);
+    _writeProcessOutput(result.stderr, stderr);
+  }
   return result.exitCode;
 }
 

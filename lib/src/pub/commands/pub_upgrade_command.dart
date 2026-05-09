@@ -55,11 +55,14 @@ class PubUpgradeCommand extends Command<int> {
       return 0;
     }
 
-    for (final change in changes) {
-      _output.step(
-        '${dryRun ? 'Would ' : ''}update ${change.packageName} '
-        '${change.currentRef} -> ${change.nextRef}',
-      );
+    for (final entry in plan.actionableEntries) {
+      for (final change in entry.changes) {
+        _output.step(
+          '${dryRun ? 'Would ' : ''}update ${change.packageName} '
+          '${change.currentRef} -> ${change.nextRef}'
+          '${adapterUpstreamVersionChange(change, entry.dependency)}',
+        );
+      }
     }
     _printSkippedVersionMismatch(skippedVersionMismatch);
     if (dryRun) {
@@ -89,7 +92,7 @@ class PubUpgradeCommand extends Command<int> {
     if (entries.isNotEmpty) {
       _output.warning(
         'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
-        'version-mismatch adapters.',
+        'incompatible version changes and downgrades.',
       );
     }
   }

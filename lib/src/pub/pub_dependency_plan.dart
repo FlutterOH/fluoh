@@ -128,6 +128,11 @@ PubDependencyPlanEntry _entryFor(
 
   return switch (dependency.status) {
     DependencyStatus.adapted => _addAdapterEntry(dependency, state, policy),
+    DependencyStatus.versionUpgrade => _addAdapterEntry(
+      dependency,
+      state,
+      policy,
+    ),
     DependencyStatus.versionMismatch =>
       policy.allowVersionMismatch
           ? _addAdapterEntry(dependency, state, policy)
@@ -189,6 +194,7 @@ PubDependencyPlanEntry _updateExistingEntry(
     return _versionMismatchEntry(dependency);
   }
   if (dependency.status != DependencyStatus.adapted &&
+      dependency.status != DependencyStatus.versionUpgrade &&
       dependency.status != DependencyStatus.versionMismatch) {
     return PubDependencyPlanEntry(
       dependency: dependency,
@@ -283,6 +289,7 @@ PubDependencyPlanStatus _statusForDependency(DependencyStatus status) {
   return switch (status) {
     DependencyStatus.native => PubDependencyPlanStatus.native,
     DependencyStatus.adapted => PubDependencyPlanStatus.ready,
+    DependencyStatus.versionUpgrade => PubDependencyPlanStatus.ready,
     DependencyStatus.versionMismatch => PubDependencyPlanStatus.versionMismatch,
     DependencyStatus.sdkMismatch => PubDependencyPlanStatus.sdkMismatch,
     DependencyStatus.unknown => PubDependencyPlanStatus.unknown,
@@ -290,10 +297,23 @@ PubDependencyPlanStatus _statusForDependency(DependencyStatus status) {
   };
 }
 
+String adapterUpstreamVersionChange(
+  PubspecDependencyChange change,
+  DependencyCompatibility dependency,
+) {
+  final upstreamVersion = change.adapter.upstreamVersion;
+  if (upstreamVersion == dependency.version) {
+    return '';
+  }
+  return ' (upstream ${dependency.version} -> $upstreamVersion)';
+}
+
 String _reasonForDependencyStatus(DependencyStatus status) {
   return switch (status) {
     DependencyStatus.native => 'Native OHOS support is available.',
     DependencyStatus.adapted => 'A matching OHOS adapter is available.',
+    DependencyStatus.versionUpgrade =>
+      'A compatible OHOS adapter upgrade is available.',
     DependencyStatus.versionMismatch => 'Adapter upstream version differs.',
     DependencyStatus.sdkMismatch =>
       'Adapters exist, but not for the selected Flutter OHOS SDK.',

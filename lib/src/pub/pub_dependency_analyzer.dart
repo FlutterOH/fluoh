@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:pub_semver/pub_semver.dart';
 import 'package:yaml/yaml.dart';
 
 import '../context/fluoh_environment.dart';
@@ -46,6 +47,7 @@ class PubDependencyAnalyzer {
         compatibility: compatibility,
         adapters: adapters,
         adapterForVersion: adaptersForVersion,
+        selectedAdapter: bestAdapter,
       );
 
       dependencies.add(
@@ -186,6 +188,7 @@ class PubDependencyAnalyzer {
     required CompatibilityVersion? compatibility,
     required List<PackageAdapter>? adapters,
     required List<PackageAdapter>? adapterForVersion,
+    required PackageAdapter? selectedAdapter,
   }) {
     if (compatibility?.native.contains(locked.name) ?? false) {
       return DependencyStatus.native;
@@ -194,12 +197,17 @@ class PubDependencyAnalyzer {
       return DependencyStatus.blocked;
     }
     if (adapterForVersion != null && adapterForVersion.isNotEmpty) {
-      final exactVersion = adapterForVersion.any(
-        (adapter) => adapter.upstreamVersion == locked.version,
-      );
-      return exactVersion
-          ? DependencyStatus.adapted
-          : DependencyStatus.versionMismatch;
+      if (selectedAdapter?.upstreamVersion == locked.version) {
+        return DependencyStatus.adapted;
+      }
+      if (selectedAdapter != null &&
+          _isCompatibleUpgrade(
+            locked.version,
+            selectedAdapter.upstreamVersion,
+          )) {
+        return DependencyStatus.versionUpgrade;
+      }
+      return DependencyStatus.versionMismatch;
     }
     if (adapters != null && adapters.isNotEmpty) {
       return DependencyStatus.sdkMismatch;
@@ -224,9 +232,35 @@ PackageAdapter? _bestAdapterForVersion(
     return exact.first;
   }
 
+  final compatibleUpgrades = adapters
+      .where(
+        (adapter) =>
+            _isCompatibleUpgrade(lockedVersion, adapter.upstreamVersion),
+      )
+      .toList(growable: false);
+  if (compatibleUpgrades.isNotEmpty) {
+    compatibleUpgrades.sort(_compareAdaptersDescending);
+    return compatibleUpgrades.first;
+  }
+
   final sorted = adapters.toList(growable: false)
     ..sort(_compareAdaptersDescending);
   return sorted.first;
+}
+
+bool _isCompatibleUpgrade(String lockedVersion, String adapterVersion) {
+  final Version locked;
+  final Version adapter;
+  try {
+    locked = Version.parse(lockedVersion);
+    adapter = Version.parse(adapterVersion);
+  } on FormatException {
+    return false;
+  }
+  if (adapter <= locked) {
+    return false;
+  }
+  return VersionConstraint.compatibleWith(locked).allows(adapter);
 }
 
 int _compareAdaptersDescending(PackageAdapter a, PackageAdapter b) {
@@ -337,6 +371,7 @@ class LockedPackage {
 enum DependencyStatus {
   native('native'),
   adapted('adapted'),
+  versionUpgrade('version-upgrade'),
   sdkMismatch('sdk-mismatch'),
   versionMismatch('version-mismatch'),
   unknown('unknown'),

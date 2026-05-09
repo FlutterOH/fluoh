@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../pub_dependency_analyzer.dart';
 import '../pub_dependency_plan.dart';
 import '../pub_dependency_policy.dart';
 import '../pubspec_dependency_editor.dart';
@@ -184,8 +185,13 @@ void _printMutationPlan(
   if (changes.isEmpty) {
     output.skipped('No dependency changes are currently available.');
   } else {
-    for (final change in changes) {
-      output.step('${dryRun ? 'Would ' : ''}${_changeMessage(change)}');
+    for (final entry in plan.actionableEntries) {
+      for (final change in entry.changes) {
+        output.step(
+          '${dryRun ? 'Would ' : ''}'
+          '${_changeMessage(change, dependency: entry.dependency)}',
+        );
+      }
     }
   }
 
@@ -211,7 +217,7 @@ void _printMutationPlan(
       plan.policy.versionMismatch == PubDependencyVersionMismatchMode.skip) {
     output.warning(
       'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
-      'version-mismatch adapters.',
+      'incompatible version changes and downgrades.',
     );
   }
 
@@ -267,13 +273,18 @@ String _entryMessage(PubDependencyPlanEntry entry) {
 
 String _entryDetails(PubDependencyPlanEntry entry) {
   if (entry.changes.isNotEmpty) {
-    return entry.changes.map(_changeSummary).join('; ');
+    return entry.changes
+        .map((change) => _changeSummary(change, dependency: entry.dependency))
+        .join('; ');
   }
   return entry.reason;
 }
 
-String _changeMessage(PubspecDependencyChange change) {
-  return switch (change.kind) {
+String _changeMessage(
+  PubspecDependencyChange change, {
+  required DependencyCompatibility dependency,
+}) {
+  final message = switch (change.kind) {
     PubspecDependencyChangeKind.writeOverride =>
       'override ${change.packageName} -> ${change.nextRef}',
     PubspecDependencyChangeKind.rewriteDependency =>
@@ -281,10 +292,14 @@ String _changeMessage(PubspecDependencyChange change) {
     PubspecDependencyChangeKind.updateRef =>
       'update ${change.packageName} ${change.currentRef} -> ${change.nextRef}',
   };
+  return '$message${adapterUpstreamVersionChange(change, dependency)}';
 }
 
-String _changeSummary(PubspecDependencyChange change) {
-  return switch (change.kind) {
+String _changeSummary(
+  PubspecDependencyChange change, {
+  required DependencyCompatibility dependency,
+}) {
+  final summary = switch (change.kind) {
     PubspecDependencyChangeKind.writeOverride =>
       'override -> ${change.nextRef}',
     PubspecDependencyChangeKind.rewriteDependency =>
@@ -292,6 +307,7 @@ String _changeSummary(PubspecDependencyChange change) {
     PubspecDependencyChangeKind.updateRef =>
       'update ${change.currentRef} -> ${change.nextRef}',
   };
+  return '$summary${adapterUpstreamVersionChange(change, dependency)}';
 }
 
 void _printNextStep(TerminalOutput output) {

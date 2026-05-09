@@ -267,10 +267,224 @@ dependency_overrides:
     final pubspec = pubspecFile.readAsStringSync();
     expect(
       stdout,
-      contains('override share_plus -> share_plus-v9.0.0-ohos-3.35.8-1'),
+      contains(
+        'override share_plus -> share_plus-v9.0.0-ohos-3.35.8-1 '
+        '(upstream 10.0.0 -> 9.0.0)',
+      ),
     );
     expect(pubspec, contains('camera-v0.11.0-ohos-3.35.8-1'));
     expect(pubspec, contains('share_plus-v9.0.0-ohos-3.35.8-1'));
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'uses compatible adapter upgrades without version mismatch opt-in',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final manifest = File(
+        '${source.path}/packages/manifests/share_plus.yaml',
+      );
+      await manifest.writeAsString('''
+${manifest.readAsStringSync()}
+  - upstream:
+      version: 10.1.0
+      git:
+        ref: share_plus-v10.1.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
+    sdk:
+      versionSeries: 3.35
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    replacement:
+      git:
+        url: ${environment.homeDirectory.path}/share_plus
+        ref: share_plus-v10.1.0-ohos-3.35.8-1
+        path: packages/share_plus/share_plus
+''');
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['pub', 'check', '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      final jsonReport =
+          jsonDecode(stdout.removeLast()) as Map<String, Object?>;
+      final dependencies = jsonReport['dependencies'] as List<Object?>;
+      expect(
+        dependencies,
+        contains(
+          allOf(
+            containsPair('name', 'share_plus'),
+            containsPair('status', 'version-upgrade'),
+            containsPair('actionable', true),
+            containsPair('adapterUpstreamVersion', '10.1.0'),
+          ),
+        ),
+      );
+
+      expect(
+        await runFluoh(
+          ['pub', 'fix', '--dry-run'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        stdout,
+        contains(
+          'Would override share_plus -> share_plus-v10.1.0-ohos-3.35.8-1 '
+          '(upstream 10.0.0 -> 10.1.0)',
+        ),
+      );
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Skipped share_plus: Adapter targets upstream 10.1.0')),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('keeps incompatible 0.x minor adapter upgrades behind opt-in', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final repositories = File('${source.path}/packages/repositories.yaml');
+    await repositories.writeAsString('''
+${repositories.readAsStringSync()}  - name: zero_adapter
+    url: ${environment.homeDirectory.path}/zero_adapter
+    path: packages/zero_adapter
+''');
+    await File(
+      '${source.path}/packages/manifests/zero_adapter.yaml',
+    ).writeAsString('''
+schema: 1
+package:
+  name: zero_adapter
+  git:
+    url: ${environment.homeDirectory.path}/zero_adapter
+    path: packages/zero_adapter
+upstream:
+  git:
+    url: https://example.com/zero_adapter
+    path: packages/zero_adapter
+releases:
+  - upstream:
+      version: 0.12.0
+      git:
+        ref: zero_adapter-v0.12.0
+    package:
+      version: "1"
+      git:
+        ref: ohos/3.35
+    sdk:
+      versionSeries: 3.35
+      versions:
+        - 3.35.8-ohos-0.0.3
+    status: compatible
+    replacement:
+      git:
+        url: ${environment.homeDirectory.path}/zero_adapter
+        ref: zero_adapter-v0.12.0-ohos-3.35.8-1
+        path: packages/zero_adapter
+''');
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
+    await pubspec.writeAsString(
+      pubspec.readAsStringSync().replaceFirst('  mystery_package: ^1.0.0', '''
+  zero_adapter: 0.11.0
+  mystery_package: ^1.0.0'''),
+    );
+    final lock = File('${environment.workingDirectory.path}/pubspec.lock');
+    await lock.writeAsString(
+      lock.readAsStringSync().replaceFirst('sdks:', '''
+  zero_adapter:
+    dependency: "direct main"
+    description:
+      name: zero_adapter
+    source: hosted
+    version: "0.11.0"
+sdks:'''),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['pub', 'check', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    final jsonReport = jsonDecode(stdout.removeLast()) as Map<String, Object?>;
+    final dependencies = jsonReport['dependencies'] as List<Object?>;
+    expect(
+      dependencies,
+      contains(
+        allOf(
+          containsPair('name', 'zero_adapter'),
+          containsPair('status', 'version-mismatch'),
+          containsPair('actionable', false),
+          containsPair('adapterUpstreamVersion', '0.12.0'),
+        ),
+      ),
+    );
+
+    expect(
+      await runFluoh(
+        ['pub', 'fix', '--dry-run'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Skipped zero_adapter: Adapter targets upstream 0.12.0'),
+    );
+    expect(stdout.join('\n'), isNot(contains('Would override zero_adapter')));
     expect(stderr, isEmpty);
   });
 

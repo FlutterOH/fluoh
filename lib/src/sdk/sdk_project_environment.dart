@@ -48,10 +48,18 @@ class SdkProjectEnvironment {
 String _newProjectFluohConfig(SdkRelease release) {
   return [
     'schema: 1',
+    '',
     'sdk:',
     '  version: ${release.tag}',
+    '',
     'dependencyPolicy:',
+    '  # replacementMode controls where fluoh pub fix writes OHOS adapters:',
+    '  # - overrides: add dependency_overrides without changing dependencies.',
+    '  # - rewrite: replace matching entries in dependencies directly.',
     '  replacementMode: overrides',
+    '  # versionMismatch controls version differences after exact matches and compatible upgrades:',
+    '  # - skip: leave incompatible version changes and downgrades for manual review.',
+    '  # - allow: apply the recommended adapter anyway.',
     '  versionMismatch: skip',
     '',
   ].join('\n');
@@ -76,7 +84,12 @@ String _updatedProjectFluohConfig(String content, SdkRelease release) {
 
   final schemaIndex = _topLevelKeyIndex(lines, 'schema');
   final insertIndex = schemaIndex == -1 ? 0 : schemaIndex + 1;
-  lines.insertAll(insertIndex, ['sdk:', '  version: ${release.tag}']);
+  lines.insertAll(insertIndex, [
+    if (schemaIndex != -1) '',
+    'sdk:',
+    '  version: ${release.tag}',
+    '',
+  ]);
   return '${lines.join('\n')}\n';
 }
 
