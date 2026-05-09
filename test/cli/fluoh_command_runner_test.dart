@@ -115,10 +115,11 @@ void main() {
     final help = stdout.join('\n');
     _expectInOrder(help, [
       '  flutter',
+      '  source',
       '  sdk',
       '  pub',
       '  test',
-      '  source',
+      '  clean',
       '  doctor',
       '  upgrade',
     ]);
@@ -179,6 +180,7 @@ void main() {
       help,
       contains('Manage FlutterOH pub dependencies and repositories.'),
     );
+    expect(help, contains('get'));
     expect(help, contains('check'));
     expect(help, contains('fix'));
     expect(help, contains('upgrade'));
@@ -202,6 +204,7 @@ void main() {
     final help = stdout.join('\n');
     _expectInOrder(help, [
       'Project dependencies:',
+      '  get',
       '  check',
       '  fix',
       '  upgrade',

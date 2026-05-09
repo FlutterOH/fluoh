@@ -296,7 +296,7 @@ String _agentsInstructionsContent({
     '',
     '## Working Rules',
     '',
-    '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh flutter pub get` when dependencies may be stale.',
+    '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh pub get` when dependencies may be stale.',
     '- Keep OHOS adaptation changes focused near `$packagePath`; preserve upstream APIs and non-OHOS behavior.',
     '- Keep `fluoh_test/test` for automated adapter checks and `fluoh_test/example` for manual platform verification.',
     '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',

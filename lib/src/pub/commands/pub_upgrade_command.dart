@@ -78,7 +78,7 @@ class PubUpgradeCommand extends Command<int> {
     _output.success(
       'Updated $applied OHOS dependency ref${applied == 1 ? '' : 's'}.',
     );
-    _output.next('Next: run ${_output.style.code('fluoh flutter pub get')}.');
+    _output.next('Next: run ${_output.style.code('fluoh pub get')}.');
     return 0;
   }
 

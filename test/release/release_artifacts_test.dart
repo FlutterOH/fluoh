@@ -108,6 +108,8 @@ void main() {
     expect(readme, contains('brew tap FlutterOH/tap'));
     expect(readme, contains('brew install fluoh'));
     expect(readme, contains('fluoh upgrade'));
+    expect(readme, contains('fluoh clean'));
+    expect(readme, contains('fluoh pub get'));
     expect(readme, contains('fluoh pub upgrade'));
     expect(readme, contains('fluoh test init'));
     expect(readme, contains('fluoh test run'));
@@ -133,6 +135,8 @@ void main() {
     expect(chineseReadme, contains('brew tap FlutterOH/tap'));
     expect(chineseReadme, contains('brew install fluoh'));
     expect(chineseReadme, contains('fluoh upgrade'));
+    expect(chineseReadme, contains('fluoh clean'));
+    expect(chineseReadme, contains('fluoh pub get'));
     expect(chineseReadme, contains('fluoh pub upgrade'));
     expect(chineseReadme, contains('fluoh test init'));
     expect(chineseReadme, contains('fluoh test run'));

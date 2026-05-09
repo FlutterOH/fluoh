@@ -168,7 +168,7 @@ void _printCheckPlan(TerminalOutput output, PubDependencyPlan plan) {
   if (ready.isNotEmpty) {
     output.next(
       'Next: run ${output.style.code('fluoh pub fix')}, then '
-      '${output.style.code('fluoh flutter pub get')}.',
+      '${output.style.code('fluoh pub get')}.',
     );
   } else {
     output.skipped('No dependency changes are currently available.');
@@ -295,7 +295,7 @@ String _changeSummary(PubspecDependencyChange change) {
 }
 
 void _printNextStep(TerminalOutput output) {
-  output.next('Next: run ${output.style.code('fluoh flutter pub get')}.');
+  output.next('Next: run ${output.style.code('fluoh pub get')}.');
 }
 
 String _s(int count) => count == 1 ? '' : 's';

@@ -62,7 +62,7 @@ void main() {
       ),
     );
     expect(stdout, contains('Updated 1 OHOS dependency ref.'));
-    expect(stdout, contains('Next: run `fluoh flutter pub get`.'));
+    expect(stdout, contains('Next: run `fluoh pub get`.'));
     expect(pubspec, contains('camera-v0.11.0-ohos-3.35.8-1'));
     expect(pubspec, isNot(contains('camera-v0.11.0-ohos-3.35.8-0')));
     expect(stderr, isEmpty);

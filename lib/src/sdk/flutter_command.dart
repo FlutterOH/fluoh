@@ -1,14 +1,10 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
-import 'sdk_manager.dart';
+import 'flutter_runner.dart';
 
 class FlutterCommand extends Command<int> {
   FlutterCommand({
@@ -42,55 +38,15 @@ class FlutterCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final manager = SdkManager(environment);
-    final sdkTag = await manager.currentSdkTag();
-    if (sdkTag == null || sdkTag.isEmpty) {
-      usageException(
-        'No SDK selected. Run "fluoh sdk use <version-or-series>".',
-      );
-    }
-
-    var sdkDirectory = manager.sdkDirectory(sdkTag);
-    if (!await sdkDirectory.exists()) {
-      final release = await manager.resolveRelease(sdkTag);
-      sdkDirectory = await _output.withProgress(
-        'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
-        () => manager.install(release),
-        showWhenPlain: true,
-      );
-    }
-    final flutter = File('${sdkDirectory.path}/bin/flutter');
-    if (!await flutter.exists()) {
-      throw UsageException(
-        'Selected SDK $sdkTag does not contain bin/flutter.',
-        '',
-      );
-    }
-
-    final process = await Process.start(
-      flutter.path,
-      argResults!.rest,
-      workingDirectory: environment.workingDirectory.path,
-      environment: environment.processEnvironment,
-      mode: _inheritStdio
-          ? ProcessStartMode.inheritStdio
-          : ProcessStartMode.normal,
+    return runSelectedFlutter(
+      environment: environment,
+      arguments: argResults!.rest,
+      workingDirectory: environment.workingDirectory,
+      stdout: _stdout,
+      stderr: _stderr,
+      output: _output,
+      inheritStdio: _inheritStdio,
+      usage: usage,
     );
-    if (_inheritStdio) {
-      return process.exitCode;
-    }
-
-    final stdoutDone = _writeLines(process.stdout, _stdout);
-    final stderrDone = _writeLines(process.stderr, _stderr);
-    final exitCode = await process.exitCode;
-    await Future.wait([stdoutDone, stderrDone]);
-    return exitCode;
-  }
-}
-
-Future<void> _writeLines(Stream<List<int>> stream, OutputWriter write) async {
-  await for (final line
-      in stream.transform(utf8.decoder).transform(const LineSplitter())) {
-    write(line);
   }
 }

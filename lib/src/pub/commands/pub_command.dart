@@ -6,6 +6,7 @@ import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import 'pub_create_command.dart';
 import 'pub_dependency_commands.dart';
+import 'pub_get_command.dart';
 import 'pub_release_command.dart';
 import 'pub_sync_command.dart';
 import 'pub_upgrade_command.dart';
@@ -17,6 +18,14 @@ class PubCommand extends Command<int> {
     required OutputWriter stderr,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
+    addSubcommand(
+      PubGetCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+        output: _output,
+      ),
+    );
     addSubcommand(
       PubCheckCommand(
         environment: environment,
@@ -96,6 +105,11 @@ class PubCommand extends Command<int> {
 }
 
 const _pubCommandSections = [
-  CommandUsageSection('Project dependencies:', ['check', 'fix', 'upgrade']),
+  CommandUsageSection('Project dependencies:', [
+    'get',
+    'check',
+    'fix',
+    'upgrade',
+  ]),
   CommandUsageSection('Adapter repositories:', ['create', 'sync', 'release']),
 ];

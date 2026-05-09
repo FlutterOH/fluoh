@@ -45,14 +45,18 @@ Run these commands from a Flutter project root:
 fluoh source update
 fluoh sdk list
 fluoh sdk use 3.35
-fluoh flutter pub get
+fluoh pub get
 fluoh pub check
 fluoh pub fix
-fluoh flutter pub get
+fluoh pub get
 fluoh doctor
 ```
 
 `fluoh sdk use` accepts an exact SDK tag or a version series such as `3.35`; a series resolves to the latest stable SDK in that series and records the exact tag in `fluoh.yaml`. Run project Flutter commands through `fluoh flutter ...`, for example `fluoh flutter pub get`, `fluoh flutter run`, or `fluoh flutter build hap`. Add `--pub-get` to `fluoh sdk use` when you want to run the first `pub get` automatically.
+
+Use `fluoh pub get` for dependency resolution through the selected SDK. In adapter repositories it also runs `pub get` for `fluoh_test` and `fluoh_test/example` when those workspaces exist.
+
+Use `fluoh clean` to run `fluoh flutter clean` for the current project and remove generated `fluoh_test` build artifacts. It does not remove cached SDKs or data sources.
 
 ## Common Workflows
 
@@ -71,7 +75,7 @@ fluoh flutter --version
 ```sh
 fluoh pub check
 fluoh pub fix
-fluoh flutter pub get
+fluoh pub get
 ```
 
 `fluoh pub check` groups dependencies by compatibility and prints the next step. `fluoh pub fix` updates `pubspec.yaml` with recommended OHOS adapter refs; use `fluoh pub fix --dry-run` to preview changes. By default it writes `dependency_overrides`; set `dependencyPolicy.replacementMode: rewrite` in `fluoh.yaml` when you want to rewrite direct `dependencies` declarations instead. Version-mismatch adapters are skipped unless `dependencyPolicy.versionMismatch` is set to `allow`. Use `fluoh pub upgrade` when a project already uses OHOS adapters and you only want to refresh existing adapter refs.
@@ -111,8 +115,10 @@ fluoh pub create https://github.com/upstream/package.git \
 | Command | Purpose |
 | --- | --- |
 | `fluoh flutter ...` | Run `flutter` from the SDK selected in `fluoh.yaml`; use this for normal Flutter commands in a FlutterOH project. |
+| `fluoh clean` | Run `flutter clean` through the selected SDK and remove generated `fluoh_test` artifacts. |
 | `fluoh sdk ...` | List, install, remove, and select local Flutter OHOS SDKs. |
 | `fluoh sdk use <version-or-series>` | Switch the SDK for the current Flutter project. |
+| `fluoh pub get` | Run `flutter pub get` through the selected SDK for the project and `fluoh_test` workspaces. |
 | `fluoh pub check` | Check OHOS compatibility for project dependencies. |
 | `fluoh pub fix` | Add missing OHOS adapter refs and refresh existing ones in `pubspec.yaml`. |
 | `fluoh pub upgrade` | Upgrade existing OHOS adapter refs without adding new replacements. |

@@ -3,6 +3,7 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
+import '../clean/clean_command.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../doctor/doctor_command.dart';
@@ -44,6 +45,15 @@ class FluohCommandRunner extends CommandRunner<int> {
     final env = _environment;
     addCommand(
       FlutterCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+        inheritStdio: stdout == null && stderr == null,
+      ),
+    );
+    addCommand(
+      CleanCommand(
         environment: env,
         stdout: _stdout,
         stderr: _stderr,
@@ -180,10 +190,11 @@ class FluohCommandRunner extends CommandRunner<int> {
 const _topLevelCommandSections = [
   CommandUsageSection('', [
     'flutter',
+    'source',
     'sdk',
     'pub',
     'test',
-    'source',
+    'clean',
     'doctor',
     'upgrade',
   ]),
@@ -191,6 +202,10 @@ const _topLevelCommandSections = [
 
 bool _usesSourceConfiguration(ArgResults results) {
   if (_hasHelpFlag(results)) {
+    return false;
+  }
+  if (results.command?.name == 'pub' &&
+      results.command?.command?.name == 'get') {
     return false;
   }
   final commandName = results.command?.name;

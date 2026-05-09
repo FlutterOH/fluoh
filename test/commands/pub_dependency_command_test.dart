@@ -55,7 +55,7 @@ void main() {
     );
     expect(
       stdout,
-      contains('Next: run `fluoh pub fix`, then `fluoh flutter pub get`.'),
+      contains('Next: run `fluoh pub fix`, then `fluoh pub get`.'),
     );
 
     final jsonReport = jsonDecode(stdout.last) as Map<String, Object?>;
@@ -135,7 +135,7 @@ void main() {
         stdout,
         contains('Updated pubspec.yaml with 1 dependency change.'),
       );
-      expect(stdout, contains('Next: run `fluoh flutter pub get`.'));
+      expect(stdout, contains('Next: run `fluoh pub get`.'));
       expect(pubspec, contains('dependency_overrides:'));
       expect(pubspec, contains('camera-v0.11.0-ohos-3.35.8-1'));
       expect(pubspec, contains('path: packages/camera/camera'));

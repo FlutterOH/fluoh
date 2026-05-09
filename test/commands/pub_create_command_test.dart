@@ -140,7 +140,7 @@ void main() {
           '`fluoh.yaml`',
         ),
       );
-      expect(agentsContent, contains('fluoh flutter pub get'));
+      expect(agentsContent, contains('fluoh pub get'));
       expect(agentsContent, contains('fluoh_test/example'));
       expect(agentsContent, contains('Run `fluoh test run` before release.'));
       expect(
