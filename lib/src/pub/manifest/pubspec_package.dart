@@ -33,26 +33,3 @@ Future<PubspecPackage> readPubspecPackage(Directory repository) async {
   }
   return PubspecPackage(name: name, version: version);
 }
-
-Future<String> findPackagePath(Directory repository, String packageName) async {
-  await for (final entity in repository.list(recursive: true)) {
-    if (entity is! File || !entity.path.endsWith('/pubspec.yaml')) {
-      continue;
-    }
-    if (entity.path.contains('/.git/')) {
-      continue;
-    }
-    final package = await readPubspecPackage(entity.parent);
-    if (package.name == packageName) {
-      final relative = entity.parent.path.substring(repository.path.length);
-      final normalized = relative.startsWith('/')
-          ? relative.substring(1)
-          : relative;
-      return normalized.isEmpty ? '.' : normalized;
-    }
-  }
-  throw UsageException(
-    'Package $packageName was not found in upstream repository.',
-    '',
-  );
-}

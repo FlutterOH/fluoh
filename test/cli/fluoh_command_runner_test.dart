@@ -371,6 +371,44 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('prints pub create upstream help', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['pub', 'create', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    expect(help, contains('Usage: fluoh pub create <upstream>'));
+    expect(help, contains('Upstream: Git URL or local Git repo path.'));
+    expect(stderr, isEmpty);
+  });
+
+  test('prints pub create upstream argument guidance', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['pub', 'create'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stdout, isEmpty);
+    final error = stderr.join('\n');
+    expect(
+      error,
+      contains('Expected <upstream>: Git URL or local Git repo path.'),
+    );
+    expect(error, contains('Usage: fluoh pub create <upstream>'));
+    expect(error, contains('Upstream: Git URL or local Git repo path.'));
+  });
+
   test('prints pub subcommands in lifecycle order', () async {
     final stdout = <String>[];
     final stderr = <String>[];

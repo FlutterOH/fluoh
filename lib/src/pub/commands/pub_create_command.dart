@@ -26,7 +26,6 @@ class PubCreateCommand extends Command<int> {
        _stderr = stderr {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser
-      ..addOption('package', help: 'Package name to adapt in a monorepo.')
       ..addMultiOption(
         'path',
         help:
@@ -56,23 +55,32 @@ class PubCreateCommand extends Command<int> {
   String get description => 'Initialize a FlutterOH pub repository.';
 
   @override
-  String get invocation => 'fluoh pub create <upstream-url>';
+  String get invocation => 'fluoh pub create <upstream>';
+
+  @override
+  String get usage => '$description\n\n$_usageWithoutDescription';
+
+  @override
+  void printUsage() {
+    _output.write(usage);
+  }
+
+  @override
+  Never usageException(String message) {
+    throw UsageException(message, _usageWithoutDescription);
+  }
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
     if (rest.length != 1) {
-      usageException('Expected an upstream Git URL or path.');
+      usageException('Expected <upstream>: Git URL or local Git repo path.');
     }
 
     final upstream = rest.single;
     _output.step('Resolving Flutter OHOS SDK.');
     final release = await _resolveSdkRelease();
     final packagePaths = argResults!.multiOption('path');
-    final packageName = argResults!.option('package');
-    if (packageName != null && packagePaths.length > 1) {
-      usageException('Use --package with at most one --path.');
-    }
     final destination = Directory(
       argResults!.option('output') ??
           '${environment.workingDirectory.path}/${repositoryNameFromUpstream(upstream)}',
@@ -90,7 +98,6 @@ class PubCreateCommand extends Command<int> {
     final selectedPackages = await _selectPackages(
       repository: destination,
       packagePaths: packagePaths,
-      packageName: packageName,
     );
     for (final selected in selectedPackages) {
       if (selected.path != '.') {
@@ -265,6 +272,17 @@ class PubCreateCommand extends Command<int> {
     }
     return SdkManager.latestRelease(releases, preferStable: true);
   }
+
+  String get _usageWithoutDescription {
+    return [
+      'Usage: $invocation',
+      'Upstream: Git URL or local Git repo path.',
+      '',
+      argParser.usage,
+      '',
+      'Run "${runner!.executableName} help" to see global options.',
+    ].join('\n');
+  }
 }
 
 class _SelectedPackage {
@@ -277,18 +295,7 @@ class _SelectedPackage {
 Future<List<_SelectedPackage>> _selectPackages({
   required Directory repository,
   required List<String> packagePaths,
-  required String? packageName,
 }) async {
-  if (packagePaths.isEmpty && packageName != null) {
-    final path = await findPackagePath(repository, packageName);
-    final package = await _readSelectedPackage(
-      repository: repository,
-      packagePath: path,
-      selectedByPackageName: true,
-    );
-    return [_SelectedPackage(package: package, path: path)];
-  }
-
   final paths = packagePaths.isEmpty ? const ['.'] : packagePaths;
   final selected = <_SelectedPackage>[];
   final seenPackages = <String>{};
@@ -296,14 +303,7 @@ Future<List<_SelectedPackage>> _selectPackages({
     final package = await _readSelectedPackage(
       repository: repository,
       packagePath: path,
-      selectedByPackageName: false,
     );
-    if (packageName != null && package.name != packageName) {
-      throw UsageException(
-        'Package at $path is ${package.name}, expected $packageName.',
-        '',
-      );
-    }
     if (!seenPackages.add(package.name)) {
       throw UsageException(
         'Package ${package.name} was selected more than once.',
@@ -353,7 +353,6 @@ PubRepositoryDocPackage _docPackageForSelection({
 Future<PubspecPackage> _readSelectedPackage({
   required Directory repository,
   required String packagePath,
-  required bool selectedByPackageName,
 }) async {
   final directory = packageDirectory(repository, packagePath);
   final pubspec = File('${directory.path}/pubspec.yaml');
@@ -364,14 +363,8 @@ Future<PubspecPackage> _readSelectedPackage({
   if (packagePath == '.' || packagePath.isEmpty) {
     throw UsageException(
       'Missing pubspec.yaml at the upstream repository root. '
-          'For a monorepo, select one package with '
-          '"--path <package-path>" or "--package <package-name>".',
-      '',
-    );
-  }
-  if (selectedByPackageName) {
-    throw UsageException(
-      'Package path $packagePath does not contain pubspec.yaml.',
+          'For a monorepo, select package paths with '
+          '"--path <package-path>".',
       '',
     );
   }

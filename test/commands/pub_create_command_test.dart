@@ -949,56 +949,8 @@ Prefer the upstream release workflow.
       64,
     );
 
-    expect(stderr.join('\n'), contains('For a monorepo, select one package'));
+    expect(stderr.join('\n'), contains('For a monorepo, select package paths'));
     expect(stderr.join('\n'), contains('--path <package-path>'));
-    expect(stderr.join('\n'), contains('--package <package-name>'));
-  });
-
-  test('finds a monorepo package by --package', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
-      Directory('${environment.homeDirectory.path}/upstream_by_package'),
-    );
-    final pubRepository = Directory(
-      '${environment.homeDirectory.path}/pub_by_package',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-
-    expect(
-      await runFluoh(
-        [
-          'pub',
-          'create',
-          upstream.path,
-          '--package',
-          'camera',
-          '--output',
-          pubRepository.path,
-          '--sdk',
-          '3.35.8-ohos-0.0.3',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-
-    final manifest = File(
-      '${pubRepository.path}/fluoh.yaml',
-    ).readAsStringSync();
-    expect(manifest, contains('packages:\n  camera:'));
-    expect(manifest, contains('path: packages/camera/camera'));
-    expect(stderr, isEmpty);
   });
 
   test(
@@ -1253,14 +1205,14 @@ versions:
     expect(stderr.join('\n'), contains('Destination already exists'));
   });
 
-  test('fails when --package does not match the selected pubspec', () async {
+  test('does not accept --package for pub create', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_wrong_package'),
+      Directory('${environment.homeDirectory.path}/upstream_package_option'),
     );
     final pubRepository = Directory(
-      '${environment.homeDirectory.path}/pub_wrong_package',
+      '${environment.homeDirectory.path}/pub_package_option',
     );
     final stdout = <String>[];
     final stderr = <String>[];
@@ -1280,8 +1232,6 @@ versions:
           upstream.path,
           '--package',
           'share_plus',
-          '--path',
-          '.',
           '--output',
           pubRepository.path,
           '--sdk',
@@ -1294,8 +1244,8 @@ versions:
       64,
     );
 
-    expect(stderr.join('\n'), contains('Package at . is camera'));
-    expect(Directory('${pubRepository.path}/.git').existsSync(), isTrue);
+    expect(stderr.join('\n'), contains('Could not find an option named'));
+    expect(Directory('${pubRepository.path}/.git').existsSync(), isFalse);
   });
 
   test('does not accept removed GitHub automation flags', () async {
