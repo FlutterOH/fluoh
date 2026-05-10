@@ -74,6 +74,159 @@ dependencyPolicy:
       Directory('${environment.workingDirectory.path}/.fvm').existsSync(),
       isFalse,
     );
+    final link = Link(
+      '${environment.workingDirectory.path}/.fluoh/flutter_sdk',
+    );
+    expect(link.existsSync(), isTrue);
+    expect(
+      link.targetSync(),
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+    );
+    expect(
+      File(
+        '${environment.workingDirectory.path}/.gitignore',
+      ).readAsStringSync(),
+      contains('.fluoh/'),
+    );
+    expect(
+      stdout,
+      contains(
+        'IDE Flutter SDK link: '
+        '${environment.workingDirectory.path}/.fluoh/flutter_sdk.',
+      ),
+    );
+    expect(
+      stdout,
+      contains(
+        'Use this link as your IDE Flutter SDK path; reload the IDE if it keeps the old SDK.',
+      ),
+    );
+  });
+
+  test('updates an existing IDE SDK link automatically', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final legacySdk = Directory('${environment.homeDirectory.path}/legacy_sdk');
+    await legacySdk.create(recursive: true);
+    final linkRoot = Directory('${environment.workingDirectory.path}/.fluoh');
+    await linkRoot.create(recursive: true);
+    await Link('${linkRoot.path}/flutter_sdk').create(legacySdk.path);
+    await File(
+      '${environment.workingDirectory.path}/.gitignore',
+    ).writeAsString('build/\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final link = Link(
+      '${environment.workingDirectory.path}/.fluoh/flutter_sdk',
+    );
+    expect(link.existsSync(), isTrue);
+    expect(
+      link.targetSync(),
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+    );
+    expect(
+      File(
+        '${environment.workingDirectory.path}/.gitignore',
+      ).readAsStringSync(),
+      'build/\n.fluoh/\n',
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('refuses to replace a non-symlink IDE SDK path', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final existingSdkPath = Directory(
+      '${environment.workingDirectory.path}/.fluoh/flutter_sdk',
+    );
+    await existingSdkPath.create(recursive: true);
+    await File('${existingSdkPath.path}/README.md').writeAsString('keep me');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(
+      File('${existingSdkPath.path}/README.md').readAsStringSync(),
+      'keep me',
+    );
+    expect(
+      File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
+      isFalse,
+    );
+    expect(stderr.join('\n'), contains('already exists and is not a symlink'));
+  });
+
+  test('refuses to write config when the IDE link root is a file', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final linkRoot = File('${environment.workingDirectory.path}/.fluoh');
+    await linkRoot.writeAsString('not a directory');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(await linkRoot.readAsString(), 'not a directory');
+    expect(
+      File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
+      isFalse,
+    );
+    expect(
+      stderr.join('\n'),
+      contains('already exists and is not a directory'),
+    );
   });
 
   test('leaves pre-existing FVM files untouched', () async {

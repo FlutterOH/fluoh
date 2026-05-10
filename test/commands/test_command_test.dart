@@ -345,6 +345,7 @@ environment:
         staged.stdout.toString().split('\n'),
         containsAll([
           'AGENTS.md',
+          '.gitignore',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
           'fluoh.yaml',
@@ -357,6 +358,7 @@ environment:
         staged.stdout.toString(),
         isNot(contains('.flutter-plugins-dependencies')),
       );
+      expect(staged.stdout.toString(), isNot(contains('.fluoh')));
       expect(stdout, contains('Created fluoh_test for camera.'));
       expect(
         stdout,

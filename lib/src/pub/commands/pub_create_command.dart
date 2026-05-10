@@ -108,18 +108,20 @@ class PubCreateCommand extends Command<int> {
     if (sdkInstalled) {
       _output.info('Using installed Flutter OHOS SDK ${release.tag}.');
     }
+    final projectEnvironment = SdkProjectEnvironment(pubEnvironment);
     final configuredSdkDirectory = await _output.withProgress(
       sdkInstalled
           ? 'Configuring Flutter OHOS SDK ${release.tag}.'
           : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
-      () => SdkProjectEnvironment(
-        pubEnvironment,
-      ).configure(release, writeFluohConfig: false),
+      () => projectEnvironment.configure(release, writeFluohConfig: false),
       showWhenPlain: !sdkInstalled,
     );
     _output.info(
       'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}.',
     );
+    final ideLink = await projectEnvironment.linkIdeSdk(configuredSdkDirectory);
+    _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}.');
+    _output.next('Use this link as your IDE Flutter SDK path.');
     await writePubManifest(
       destination: destination,
       package: package,
@@ -169,6 +171,7 @@ class PubCreateCommand extends Command<int> {
       'CLAUDE.md',
       'FLUOH.md',
       'FLUOH_CHANGELOG.md',
+      '.gitignore',
       'fluoh.yaml',
     ], workingDirectory: destination);
     if (testInitResult.created) {

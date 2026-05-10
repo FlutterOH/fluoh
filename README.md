@@ -52,7 +52,7 @@ fluoh pub get
 fluoh doctor
 ```
 
-`fluoh sdk use` accepts an exact SDK tag or a version series such as `3.35`; a series resolves to the latest stable SDK in that series and records the exact tag in `fluoh.yaml`. Run project Flutter commands through `fluoh flutter ...` or the shortcut executable `fluohf ...`, for example `fluohf pub get`, `fluohf run`, or `fluohf build hap`. Add `--pub-get` to `fluoh sdk use` when you want to run the first `pub get` automatically.
+`fluoh sdk use` accepts an exact SDK tag or a version series such as `3.35`; a series resolves to the latest stable SDK in that series, records the exact tag in `fluoh.yaml`, and updates `.fluoh/flutter_sdk` as a stable IDE SDK path. Run project Flutter commands through `fluoh flutter ...` or the shortcut executable `fluohf ...`, for example `fluohf pub get`, `fluohf run`, or `fluohf build hap`. These commands use the nearest `fluoh.yaml` from the current directory upward, so generated test directories inherit the project SDK and monorepo packages can keep separate SDK selections. Add `--pub-get` to `fluoh sdk use` when you want to run the first `pub get` automatically.
 
 Use `fluoh pub get` for dependency resolution through the selected SDK. In adapter repositories it also runs `pub get` for `fluoh_test` and `fluoh_test/example` when those workspaces exist.
 
@@ -114,10 +114,10 @@ fluoh pub create https://github.com/upstream/package.git \
 
 | Command | Purpose |
 | --- | --- |
-| `fluoh flutter ...` / `fluohf ...` | Run `flutter` from the SDK selected in `fluoh.yaml`; use this for normal Flutter commands in a FlutterOH project. |
+| `fluoh flutter ...` / `fluohf ...` | Run `flutter` from the SDK selected in the nearest `fluoh.yaml`; use this for normal Flutter commands in a FlutterOH project. |
 | `fluoh clean` | Run `flutter clean` through the selected SDK and remove generated `fluoh_test` artifacts. |
 | `fluoh sdk ...` | List, install, remove, and select local Flutter OHOS SDKs. |
-| `fluoh sdk use <version-or-series>` | Switch the SDK for the current Flutter project. |
+| `fluoh sdk use <version-or-series>` | Switch the SDK for the current Flutter project and update `.fluoh/flutter_sdk` for IDEs. |
 | `fluoh pub get` | Run `flutter pub get` through the selected SDK for the project and `fluoh_test` workspaces. |
 | `fluoh pub check` | Check OHOS compatibility for project dependencies. |
 | `fluoh pub fix` | Add missing OHOS adapter refs and refresh existing ones in `pubspec.yaml`. |

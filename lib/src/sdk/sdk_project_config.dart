@@ -5,8 +5,8 @@ import 'package:yaml/yaml.dart';
 import '../config/fluoh_yaml_schema.dart';
 
 Future<String?> readProjectSdkTag(Directory workingDirectory) async {
-  final fluohYaml = File('${workingDirectory.path}/fluoh.yaml');
-  if (!await fluohYaml.exists()) {
+  final fluohYaml = await findProjectFluohConfig(workingDirectory);
+  if (fluohYaml == null) {
     return null;
   }
 
@@ -22,4 +22,20 @@ Future<String?> readProjectSdkTag(Directory workingDirectory) async {
   }
 
   return null;
+}
+
+Future<File?> findProjectFluohConfig(Directory workingDirectory) async {
+  var directory = workingDirectory.absolute;
+  while (true) {
+    final fluohYaml = File('${directory.path}/fluoh.yaml');
+    if (await fluohYaml.exists()) {
+      return fluohYaml;
+    }
+
+    final parent = directory.parent;
+    if (parent.path == directory.path) {
+      return null;
+    }
+    directory = parent;
+  }
 }

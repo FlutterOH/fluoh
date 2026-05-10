@@ -50,14 +50,21 @@ class SdkUseCommand extends Command<int> {
       'Will modify ${_output.style.path(environment.workingDirectory.path)}/fluoh.yaml.',
     );
     final installed = await manager.sdkDirectory(release.tag).exists();
+    final projectEnvironment = SdkProjectEnvironment(environment);
+    await projectEnvironment.ensureIdeSdkLinkCanBeUpdated();
     final sdkDirectory = await _output.withProgress(
       installed
           ? 'Configuring Flutter OHOS SDK ${release.tag}.'
           : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
-      () => SdkProjectEnvironment(environment).configure(release),
+      () => projectEnvironment.configure(release),
     );
     _output.info(
       'Flutter OHOS SDK path: ${_output.style.path(sdkDirectory.path)}.',
+    );
+    final ideLink = await projectEnvironment.linkIdeSdk(sdkDirectory);
+    _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}.');
+    _output.next(
+      'Use this link as your IDE Flutter SDK path; reload the IDE if it keeps the old SDK.',
     );
     if (argResults!.flag('pub-get')) {
       await _runPubGet(sdkDirectory);

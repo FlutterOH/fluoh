@@ -170,6 +170,16 @@ void main() {
       );
       expect(File('${pubRepository.path}/.fvmrc').existsSync(), isFalse);
       expect(Directory('${pubRepository.path}/.fvm').existsSync(), isFalse);
+      final ideLink = Link('${pubRepository.path}/.fluoh/flutter_sdk');
+      expect(ideLink.existsSync(), isTrue);
+      expect(
+        ideLink.targetSync(),
+        '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+      );
+      expect(
+        File('${pubRepository.path}/.gitignore').readAsStringSync(),
+        contains('.fluoh/'),
+      );
       final head = await runGit(pubRepository, ['rev-parse', 'HEAD']);
       final upstreamHead = await runGit(pubRepository, [
         'rev-parse',
@@ -184,9 +194,10 @@ void main() {
       expect(status.stdout.toString(), contains('A  CLAUDE.md'));
       expect(status.stdout.toString(), contains('A  FLUOH.md'));
       expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
+      expect(status.stdout.toString(), contains('A  .gitignore'));
       expect(status.stdout.toString(), contains('A  fluoh.yaml'));
       expect(status.stdout.toString(), isNot(contains('.fvm')));
-      expect(status.stdout.toString(), isNot(contains('.gitignore')));
+      expect(status.stdout.toString(), isNot(contains('.fluoh')));
       final staged = await runGit(pubRepository, [
         'diff',
         '--cached',
@@ -199,11 +210,12 @@ void main() {
           'CLAUDE.md',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
+          '.gitignore',
           'fluoh.yaml',
         ]),
       );
       expect(staged.stdout.toString(), isNot(contains('.fvm')));
-      expect(staged.stdout.toString(), isNot(contains('.gitignore')));
+      expect(staged.stdout.toString(), isNot(contains('.fluoh')));
 
       final releaseEnvironment = FluohEnvironment(
         homeDirectory: environment.homeDirectory,
@@ -252,6 +264,13 @@ void main() {
           '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3.',
         ),
       );
+      expect(
+        stdout,
+        contains(
+          'IDE Flutter SDK link: ${pubRepository.path}/.fluoh/flutter_sdk.',
+        ),
+      );
+      expect(stdout, contains('Use this link as your IDE Flutter SDK path.'));
       expect(stdout, isNot(contains('Generated FLUOH.md')));
       expect(stdout, isNot(contains('Generated files are staged')));
       expect(stdout, isNot(contains('Commit before running fluoh pub sync')));
@@ -334,10 +353,11 @@ fluoh.yaml
           'CLAUDE.md',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
+          '.gitignore',
           'fluoh.yaml',
         ]),
       );
-      expect(staged.stdout.toString(), isNot(contains('.gitignore')));
+      expect(staged.stdout.toString(), isNot(contains('.fluoh')));
       expect(stderr, isEmpty);
     },
   );
