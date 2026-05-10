@@ -12,6 +12,7 @@ import '../../testing/test_workspace.dart';
 import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
 import '../manifest/pubspec_package.dart';
+import '../pub_license_checker.dart';
 import '../repository_url.dart';
 
 class PubCreateCommand extends Command<int> {
@@ -176,6 +177,15 @@ class PubCreateCommand extends Command<int> {
     ], workingDirectory: destination);
     if (testInitResult.created) {
       await runGit(['add', 'fluoh_test'], workingDirectory: destination);
+    }
+
+    final licenseWarnings = await pubLicenseWarnings(
+      repository: destination,
+      packagePath: packagePath,
+      packageName: package.name,
+    );
+    for (final warning in licenseWarnings) {
+      _output.warningError(warning);
     }
 
     _output.success(

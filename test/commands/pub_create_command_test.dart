@@ -362,6 +362,106 @@ fluoh.yaml
     },
   );
 
+  test('warns when upstream license is missing', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_without_license'),
+      licenseContent: null,
+    );
+    final pubRepository = Directory(
+      '${environment.homeDirectory.path}/pub_without_license',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          pubRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr.join('\n'), contains('Missing LICENSE for camera'));
+    expect(
+      stdout,
+      contains('Created pub repository at ${pubRepository.path}.'),
+    );
+  });
+
+  test(
+    'warns when upstream license disallows modified redistribution',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_no_derivatives'),
+        licenseContent: '''
+Creative Commons Attribution-NoDerivatives 4.0 International
+
+No derivative works are permitted.
+''',
+      );
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_no_derivatives',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          [
+            'pub',
+            'create',
+            upstream.path,
+            '--output',
+            pubRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        stderr.join('\n'),
+        contains('LICENSE appears to disallow modified redistribution'),
+      );
+      expect(
+        stdout,
+        contains('Created pub repository at ${pubRepository.path}.'),
+      );
+    },
+  );
+
   test('preserves existing upstream AGENTS.md instructions', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);

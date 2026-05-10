@@ -593,6 +593,7 @@ void main() {
   await File(
     '${directory.path}/pubspec.yaml',
   ).writeAsString(_flutterPluginPubspec());
+  await File('${directory.path}/LICENSE').writeAsString(_testLicenseContent);
 }
 
 Future<void> _writePubRepositoryManifest(
@@ -641,6 +642,7 @@ void main() {
   await File(
     '${repo.path}/pubspec.yaml',
   ).writeAsString(_flutterPluginPubspec());
+  await File('${repo.path}/LICENSE').writeAsString(_testLicenseContent);
   await _runProcess('git', ['add', '.'], repo);
   await _runProcess('git', ['commit', '-m', 'Initial Flutter plugin'], repo);
   return repo;
@@ -678,6 +680,16 @@ flutter:
         pluginClass: CameraPlugin
 ''';
 }
+
+const _testLicenseContent = '''
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software.
+''';
 
 Future<void> _runProcess(
   String executable,

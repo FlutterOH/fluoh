@@ -213,6 +213,36 @@ void main() {
     );
   });
 
+  test('release warns when adapter license is missing', () async {
+    final environment = await createTestEnvironment();
+    final pubRepository = await createPubRepositoryFixture(environment);
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: pubRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await File('${pubRepository.path}/LICENSE').delete();
+    await runGit(pubRepository, ['add', 'LICENSE']);
+    await runGit(pubRepository, ['commit', '-m', 'Remove license']);
+
+    expect(
+      await runFluoh(
+        ['pub', 'release'],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(stderr.join('\n'), contains('Missing LICENSE for camera'));
+    expect(
+      stdout,
+      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+    );
+  });
+
   test('release accepts changelog entries under subsections', () async {
     final environment = await createTestEnvironment();
     final pubRepository = await createPubRepositoryFixture(environment);

@@ -227,6 +227,7 @@ Future<Directory> createUpstreamPackageRepository(
   String packageName = 'camera',
   String version = '0.11.0',
   String initialBranch = 'main',
+  String? licenseContent = _mitLicenseContent,
 }) async {
   await repo.create(recursive: true);
   await _git(repo, ['init', '--initial-branch=$initialBranch']);
@@ -240,7 +241,10 @@ environment:
   sdk: ^3.0.0
 ''');
   await File('${repo.path}/README.md').writeAsString('# $packageName\n');
-  await _git(repo, ['add', 'pubspec.yaml', 'README.md']);
+  if (licenseContent != null) {
+    await File('${repo.path}/LICENSE').writeAsString(licenseContent);
+  }
+  await _git(repo, ['add', '.']);
   await _git(repo, ['commit', '-m', 'Initial package fixture']);
 
   return repo;
@@ -251,6 +255,7 @@ Future<Directory> createUpstreamMonorepoRepository(
   String packagePath = 'packages/camera/camera',
   String packageName = 'camera',
   String version = '0.11.0',
+  String? licenseContent = _mitLicenseContent,
 }) async {
   await repo.create(recursive: true);
   await _git(repo, ['init', '--initial-branch=main']);
@@ -266,6 +271,9 @@ environment:
   sdk: ^3.0.0
 ''');
   await File('${repo.path}/README.md').writeAsString('# monorepo\n');
+  if (licenseContent != null) {
+    await File('${repo.path}/LICENSE').writeAsString(licenseContent);
+  }
   await _git(repo, ['add', '.']);
   await _git(repo, ['commit', '-m', 'Initial monorepo fixture']);
 
@@ -316,3 +324,15 @@ Future<ProcessResult> _git(Directory repo, List<String> arguments) async {
   }
   return result;
 }
+
+const _mitLicenseContent = '''
+MIT License
+
+Copyright (c) 2026 Fixture
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software.
+''';

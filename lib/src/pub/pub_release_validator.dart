@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import 'git/pub_git.dart';
 import 'manifest/pub_manifest.dart';
+import 'pub_license_checker.dart';
 
 Future<void> validatePubReleaseMetadata({
   required Directory repository,
@@ -18,8 +19,23 @@ Future<List<String>> pubReleaseMetadataWarnings({
   required PubManifest manifest,
   required String tag,
 }) async {
-  final warning = await _fluohChangelogWarning(repository, manifest, tag);
-  return warning == null ? const <String>[] : <String>[warning];
+  final warnings = <String>[];
+  final changelogWarning = await _fluohChangelogWarning(
+    repository,
+    manifest,
+    tag,
+  );
+  if (changelogWarning != null) {
+    warnings.add(changelogWarning);
+  }
+  warnings.addAll(
+    await pubLicenseWarnings(
+      repository: repository,
+      packagePath: manifest.dependencyPath,
+      packageName: manifest.packageName,
+    ),
+  );
+  return warnings;
 }
 
 Future<void> _ensureReleaseVersionAfterPreviousTags(
