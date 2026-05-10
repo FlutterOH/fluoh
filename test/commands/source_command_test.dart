@@ -600,7 +600,7 @@ repositories: []
       await File('${invalidSource.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: ${environment.homeDirectory.path}/flutter-ohos-sdk
-releases: {}
+versions: {}
 ''');
       final cachedSdkIndex = File(
         '${environment.homeDirectory.path}/sources/local/sdk/releases.yaml',
@@ -858,7 +858,7 @@ releases: {}
       await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: ${environment.homeDirectory.path}/flutter-ohos-sdk
-releases: {}
+versions: {}
 ''');
       await commitAll(source, message: 'Break source fixture');
 
@@ -930,7 +930,7 @@ repositories: []
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: ${environment.homeDirectory.path}/flutter-ohos-sdk
-releases:
+versions:
   - version: 3.35.8-ohos-0.0.3
     status: stable
 ''');
@@ -977,7 +977,7 @@ repositoryUrl: file:${source.path}
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: ${environment.homeDirectory.path}/flutter-ohos-sdk
-releases:
+versions:
   - version: 3.35.8-ohos-0.0.3
     status: stable
 ''');
@@ -1029,7 +1029,7 @@ releases:
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: ${environment.homeDirectory.path}/flutter-ohos-sdk
-releases: {}
+versions: {}
 ''');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -1045,6 +1045,6 @@ releases: {}
     );
 
     expect(stderr.join('\n'), contains('Source broken is not valid'));
-    expect(stderr.join('\n'), contains('SDK source releases must be a list.'));
+    expect(stderr.join('\n'), contains('SDK source versions must be a list.'));
   });
 }

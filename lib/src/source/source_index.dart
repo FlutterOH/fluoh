@@ -34,20 +34,20 @@ class SourceIndex {
     _ensureAllowedKeys(yaml, 'sdk/releases.yaml', {
       'schema',
       'url',
-      'releases',
+      'versions',
     });
     final repository = _requiredString(yaml, 'url');
-    final releases = yaml['releases'];
-    if (releases is! List) {
-      throw const FormatException('SDK source releases must be a list.');
+    final versions = yaml['versions'];
+    if (versions is! List) {
+      throw const FormatException('SDK source versions must be a list.');
     }
 
     return SdkIndex(
       schemaVersion: yaml['schema'] as int? ?? 1,
-      releases: releases
+      releases: versions
           .map((value) {
-            final release = _objectMap(value, 'SDK source release');
-            _ensureAllowedKeys(release, 'SDK source release', {
+            final release = _objectMap(value, 'SDK source version');
+            _ensureAllowedKeys(release, 'SDK source version', {
               'version',
               'status',
             });

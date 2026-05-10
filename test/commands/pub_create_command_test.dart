@@ -1166,7 +1166,7 @@ Prefer the upstream release workflow.
     await File('${source.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: ${sdkRepository.path}
-releases:
+versions:
   - version: 3.35.8-ohos-0.0.3
     status: stable
   - version: 3.35.8-ohos-0.0.4

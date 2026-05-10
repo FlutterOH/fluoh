@@ -146,7 +146,7 @@ Future<void> _writeSdkIndex(Directory root) async {
   await File('${root.path}/sdk/releases.yaml').writeAsString('''
 schema: 1
 url: /tmp/flutter-ohos-sdk
-releases:
+versions:
   - version: 3.35.8-ohos-0.0.3
     status: stable
 ''');
