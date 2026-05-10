@@ -77,13 +77,15 @@ void main() {
     );
 
     final content = File('${root.path}/fluoh.yaml').readAsStringSync();
+    expect(content, contains('schema: 1'));
     expect(content, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
-    expect(content, contains('package:'));
-    expect(content, contains('  name: image_gallery_saver'));
-    expect(content, contains('  version: 0.1.0'));
-    expect(content, contains('  status: experimental'));
+    expect(content, contains('repository:'));
+    expect(content, contains('packages:'));
+    expect(content, contains('  image_gallery_saver:'));
+    expect(content, contains('      version: 0.1.0'));
+    expect(content, contains('      status: experimental'));
     expect(content, contains('upstream:'));
-    expect(content, contains('  version: 2.0.3'));
+    expect(content, contains('      version: 2.0.3'));
     expect(content, isNot(contains('type: git')));
     expect(content, isNot(contains('branch: ohos/3.35')));
     expect(content, isNot(contains('adapter:')));
@@ -111,7 +113,7 @@ void main() {
     expect(manifest.releaseTag, 'image_gallery_saver-v2.0.3-ohos-3.35.8-0.1.0');
   });
 
-  test('rejects unsupported fluoh.yaml schema versions', () async {
+  test('rejects legacy pub manifest layout', () async {
     final root = await Directory.systemTemp.createTemp('fluoh_manifest_');
     addTearDown(() async {
       if (await root.exists()) {
@@ -120,7 +122,7 @@ void main() {
     });
 
     await File('${root.path}/fluoh.yaml').writeAsString('''
-schema: 2
+schema: 1
 sdk:
   version: 3.35.8-ohos-0.0.3
 package:
@@ -140,17 +142,11 @@ upstream:
     expect(
       () => readPubManifest(root),
       throwsA(
-        isA<UsageException>()
-            .having(
-              (error) => error.message,
-              'message',
-              contains('fluoh.yaml schema 2 is not supported'),
-            )
-            .having(
-              (error) => error.message,
-              'message',
-              contains('Upgrade fluoh'),
-            ),
+        isA<UsageException>().having(
+          (error) => error.message,
+          'message',
+          contains('fluoh.yaml must not contain "package"'),
+        ),
       ),
     );
   });

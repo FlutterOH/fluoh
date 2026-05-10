@@ -175,14 +175,25 @@ class PubSyncCommand extends Command<int> {
       'rev-parse',
       defaultBranch,
     ], workingDirectory: repository)).stdout.toString().trim();
-    final upstreamPath = manifest.upstreamPath ?? '.';
-    final package = await readPubspecPackage(
-      packageDirectory(repository, upstreamPath),
-    );
+    final packageVersions = <String, String>{};
+    for (final packageManifest in manifest.packages) {
+      final upstreamPath = packageManifest.upstreamPath ?? '.';
+      final package = await readPubspecPackage(
+        packageDirectory(repository, upstreamPath),
+      );
+      if (package.name != packageManifest.name) {
+        throw UsageException(
+          'Package path $upstreamPath contains ${package.name}, expected '
+              '${packageManifest.name}. Update fluoh.yaml before syncing.',
+          '',
+        );
+      }
+      packageVersions[package.name] = package.version;
+    }
     await updatePubManifestUpstream(
       destination: repository,
-      upstreamVersion: package.version,
       upstreamRef: upstreamRef,
+      packageVersions: packageVersions,
     );
     await runGit(['add', 'fluoh.yaml'], workingDirectory: repository);
     final mergeInProgress = await _isMergeInProgress(repository);
@@ -193,8 +204,7 @@ class PubSyncCommand extends Command<int> {
     );
     if (!mergeInProgress && changed.exitCode == 0) {
       _output.skipped(
-        'Pub branch $pubBranch already matches ${package.name} '
-        '${package.version}.',
+        'Pub branch $pubBranch already matches upstream metadata.',
       );
       return 0;
     }
@@ -202,11 +212,9 @@ class PubSyncCommand extends Command<int> {
     await runGit([
       'commit',
       '-m',
-      'Sync upstream ${package.name} ${package.version}',
+      'Sync upstream packages',
     ], workingDirectory: repository);
-    _output.success(
-      'Updated upstream metadata for ${package.name} ${package.version}.',
-    );
+    _output.success('Updated upstream metadata for registered packages.');
     _output.next(
       'Complete OHOS adaptation, then update package.version and '
       'FLUOH_CHANGELOG.md before release.',

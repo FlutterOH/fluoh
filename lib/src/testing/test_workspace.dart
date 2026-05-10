@@ -45,25 +45,35 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
   required OutputWriter stderr,
   TerminalOutput? output,
   bool force = false,
+  String? packageName,
 }) async {
   final terminal = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
-  final package = await findFlutterAdapterPackage(environment.workingDirectory);
+  final package = await findFlutterAdapterPackage(
+    environment.workingDirectory,
+    packageName: packageName,
+  );
   if (package == null) {
-    final packageName = await _packageNameOrDirectory(
+    final displayName = await _packageNameOrDirectory(
       environment.workingDirectory,
+      packageName: packageName,
     );
-    final reason = '$packageName is not a Flutter package.';
+    final reason = '$displayName is not a Flutter package.';
     terminal.skipped('Skipping fluoh test init: $reason');
     return FluohTestInitResult.skipped(reason);
   }
 
-  final testDirectory = Directory(
-    '${environment.workingDirectory.path}/fluoh_test',
+  final testDirectory = await _testWorkspaceDirectory(
+    environment.workingDirectory,
+    package,
+  );
+  final testPath = _testWorkspaceDisplayPath(
+    environment.workingDirectory,
+    testDirectory,
   );
   if (await testDirectory.exists()) {
     if (!force) {
       throw UsageException(
-        'fluoh_test already exists. Remove it or pass --force.',
+        '$testPath already exists. Remove it or pass --force.',
         '',
       );
     }
@@ -75,20 +85,28 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
     output: terminal,
   );
   await testDirectory.create(recursive: true);
-  await _writeTestWorkspace(testDirectory, package);
+  await _writeTestWorkspace(
+    testDirectory,
+    package,
+    testWorkspacePath: testPath,
+  );
   await _createExampleProject(
     environment: environment,
     flutter: flutter,
     testDirectory: testDirectory,
+    testWorkspacePath: testPath,
     package: package,
     stdout: stdout,
     stderr: stderr,
     output: terminal,
   );
 
-  terminal.success('Created fluoh_test for ${package.name}.');
-  terminal.next('Run "fluoh test run" before publishing the adapter.');
-  terminal.next('Use fluoh_test/example for manual platform verification.');
+  terminal.success('Created $testPath for ${package.name}.');
+  final runCommand = testPath == 'fluoh_test'
+      ? 'fluoh test run'
+      : 'fluoh test run --package ${package.name}';
+  terminal.next('Run "$runCommand" before publishing the adapter.');
+  terminal.next('Use $testPath/example for manual platform verification.');
   return FluohTestInitResult.created(package);
 }
 
@@ -97,29 +115,43 @@ Future<int> runFluohTestWorkspace({
   required OutputWriter stdout,
   required OutputWriter stderr,
   TerminalOutput? output,
+  String? packageName,
 }) async {
   final terminal = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
-  final package = await findFlutterAdapterPackage(environment.workingDirectory);
+  final package = await findFlutterAdapterPackage(
+    environment.workingDirectory,
+    packageName: packageName,
+  );
   if (package == null) {
-    final packageName = await _packageNameOrDirectory(
+    final displayName = await _packageNameOrDirectory(
       environment.workingDirectory,
+      packageName: packageName,
     );
     terminal.skipped(
-      'Skipping fluoh test run: $packageName is not a Flutter package.',
+      'Skipping fluoh test run: $displayName is not a Flutter package.',
     );
     return 0;
   }
 
-  final testDirectory = Directory(
-    '${environment.workingDirectory.path}/fluoh_test',
+  final testDirectory = await _existingTestWorkspaceDirectory(
+    environment.workingDirectory,
+    package,
+  );
+  final testPath = _testWorkspaceDisplayPath(
+    environment.workingDirectory,
+    testDirectory,
   );
   if (!await testDirectory.exists()) {
-    throw UsageException('Missing fluoh_test. Run "fluoh test init".', '');
+    throw UsageException(
+      'Missing $testPath. Run "fluoh test init --package ${package.name}".',
+      '',
+    );
   }
   final pubspec = File('${testDirectory.path}/pubspec.yaml');
   if (!await pubspec.exists()) {
     throw UsageException(
-      'Missing fluoh_test/pubspec.yaml. Run "fluoh test init".',
+      'Missing $testPath/pubspec.yaml. Run '
+          '"fluoh test init --package ${package.name}".',
       '',
     );
   }
@@ -140,7 +172,7 @@ Future<int> runFluohTestWorkspace({
     return packageTest;
   }
 
-  terminal.step('Running fluoh_test pub get.');
+  terminal.step('Running $testPath pub get.');
   final pubGet = await _runProcess(
     flutter.path,
     ['pub', 'get'],
@@ -150,11 +182,11 @@ Future<int> runFluohTestWorkspace({
     stderr: stderr,
   );
   if (pubGet != 0) {
-    terminal.failure('fluoh_test pub get failed.');
+    terminal.failure('$testPath pub get failed.');
     return pubGet;
   }
 
-  terminal.step('Running fluoh_test tests.');
+  terminal.step('Running $testPath tests.');
   final test = await _runProcess(
     flutter.path,
     ['test'],
@@ -164,12 +196,55 @@ Future<int> runFluohTestWorkspace({
     stderr: stderr,
   );
   if (test != 0) {
-    terminal.failure('fluoh_test failed.');
+    terminal.failure('$testPath failed.');
     return test;
   }
 
-  terminal.success('fluoh_test passed.');
+  terminal.success('$testPath passed.');
   return 0;
+}
+
+Future<List<Directory>> fluohTestWorkspaceDirectories(
+  Directory repository,
+) async {
+  final directories = <Directory>[];
+  final manifest = File('${repository.path}/fluoh.yaml');
+  if (!await manifest.exists()) {
+    return _testWorkspacePair(Directory('${repository.path}/fluoh_test'));
+  }
+
+  final yaml = loadYaml(await manifest.readAsString());
+  final packages = yaml is YamlMap ? yaml['packages'] : null;
+  if (packages is! YamlMap || packages.isEmpty) {
+    return _testWorkspacePair(Directory('${repository.path}/fluoh_test'));
+  }
+
+  final useScoped = packages.length > 1;
+  for (final entry in packages.entries) {
+    final name = entry.key;
+    final value = entry.value;
+    if (name is! String || value is! YamlMap) {
+      continue;
+    }
+    final path = value['path'];
+    final workspace = useScoped || (path is String && path.isNotEmpty)
+        ? Directory('${repository.path}/fluoh_test/$name')
+        : Directory('${repository.path}/fluoh_test');
+    directories.addAll(_testWorkspacePair(workspace));
+  }
+  return _dedupeDirectories(directories);
+}
+
+List<Directory> _testWorkspacePair(Directory workspace) {
+  return [workspace, Directory('${workspace.path}/example')];
+}
+
+List<Directory> _dedupeDirectories(List<Directory> directories) {
+  final seen = <String>{};
+  return [
+    for (final directory in directories)
+      if (seen.add(directory.absolute.path)) directory,
+  ];
 }
 
 Future<int> _runAdapterPackageTests({
@@ -233,9 +308,10 @@ Future<bool> _hasFlutterTests(Directory packageDirectory) async {
 }
 
 Future<FlutterAdapterPackage?> findFlutterAdapterPackage(
-  Directory repository,
-) async {
-  final packagePath = await _adapterPackagePath(repository);
+  Directory repository, {
+  String? packageName,
+}) async {
+  final packagePath = await _adapterPackagePath(repository, packageName);
   final directory = packageDirectory(repository, packagePath);
   final pubspec = File('${directory.path}/pubspec.yaml');
   if (!await pubspec.exists()) {
@@ -268,7 +344,10 @@ Future<FlutterAdapterPackage?> findFlutterAdapterPackage(
   );
 }
 
-Future<String> _adapterPackagePath(Directory repository) async {
+Future<String> _adapterPackagePath(
+  Directory repository,
+  String? packageName,
+) async {
   final manifest = File('${repository.path}/fluoh.yaml');
   if (!await manifest.exists()) {
     return '.';
@@ -277,16 +356,101 @@ Future<String> _adapterPackagePath(Directory repository) async {
   if (yaml is! YamlMap) {
     return '.';
   }
-  final package = yaml['package'];
+  final packages = yaml['packages'];
+  if (packages is! YamlMap) {
+    return '.';
+  }
+  if (packageName != null && packageName.trim().isNotEmpty) {
+    final package = packages[packageName.trim()];
+    if (package is! YamlMap) {
+      throw UsageException(
+        'Package ${packageName.trim()} is not registered in fluoh.yaml.',
+        '',
+      );
+    }
+    final path = package['path'];
+    return path is String && path.isNotEmpty ? path : '.';
+  }
+  if (packages.length != 1) {
+    throw UsageException(
+      'Multiple packages are registered in fluoh.yaml. Pass '
+          '"--package <name>".',
+      '',
+    );
+  }
+  final package = packages.values.single;
   if (package is! YamlMap) {
     return '.';
   }
-  final git = package['git'];
-  if (git is! YamlMap) {
-    return '.';
-  }
-  final path = git['path'];
+  final path = package['path'];
   return path is String && path.isNotEmpty ? path : '.';
+}
+
+Future<Directory> _testWorkspaceDirectory(
+  Directory repository,
+  FlutterAdapterPackage package,
+) async {
+  if (await _usesScopedTestWorkspace(repository, package)) {
+    return Directory('${repository.path}/fluoh_test/${package.name}');
+  }
+  return Directory('${repository.path}/fluoh_test');
+}
+
+Future<Directory> _existingTestWorkspaceDirectory(
+  Directory repository,
+  FlutterAdapterPackage package,
+) async {
+  final scoped = Directory('${repository.path}/fluoh_test/${package.name}');
+  if (await File('${scoped.path}/pubspec.yaml').exists()) {
+    return scoped;
+  }
+  if (await _usesScopedTestWorkspace(repository, package)) {
+    return scoped;
+  }
+
+  final root = Directory('${repository.path}/fluoh_test');
+  if (await _testWorkspaceTargetsPackage(root, package.name)) {
+    return root;
+  }
+  return root;
+}
+
+Future<bool> _usesScopedTestWorkspace(
+  Directory repository,
+  FlutterAdapterPackage package,
+) async {
+  if (package.packagePath != '.') {
+    return true;
+  }
+
+  final manifest = File('${repository.path}/fluoh.yaml');
+  if (await manifest.exists()) {
+    final yaml = loadYaml(await manifest.readAsString());
+    final packages = yaml is YamlMap ? yaml['packages'] : null;
+    if (packages is YamlMap && packages.length > 1) {
+      return true;
+    }
+  }
+
+  final root = Directory('${repository.path}/fluoh_test');
+  return await File('${root.path}/pubspec.yaml').exists() &&
+      !await _testWorkspaceTargetsPackage(root, package.name);
+}
+
+Future<bool> _testWorkspaceTargetsPackage(
+  Directory testDirectory,
+  String packageName,
+) async {
+  final pubspec = File('${testDirectory.path}/pubspec.yaml');
+  if (!await pubspec.exists()) {
+    return false;
+  }
+  final yaml = loadYaml(await pubspec.readAsString());
+  if (yaml is! YamlMap) {
+    return false;
+  }
+  final dependencies = yaml['dependencies'];
+  return dependencies is YamlMap && dependencies[packageName] != null;
 }
 
 bool _isFlutterPackage(YamlMap pubspec) {
@@ -376,8 +540,9 @@ Future<File> _flutterExecutableForEnvironment(
 
 Future<void> _writeTestWorkspace(
   Directory testDirectory,
-  FlutterAdapterPackage package,
-) async {
+  FlutterAdapterPackage package, {
+  required String testWorkspacePath,
+}) async {
   await File('${testDirectory.path}/.gitignore').writeAsString('''
 .dart_tool/
 .flutter-plugins
@@ -400,9 +565,9 @@ example/coverage/
 example/local.properties
 example/pubspec.lock
 ''');
-  await File(
-    '${testDirectory.path}/README.md',
-  ).writeAsString(_testReadmeContent(package));
+  await File('${testDirectory.path}/README.md').writeAsString(
+    _testReadmeContent(package, testWorkspacePath: testWorkspacePath),
+  );
   await File('${testDirectory.path}/pubspec.yaml').writeAsString(
     _testPubspecContent(
       package: package,
@@ -423,6 +588,7 @@ Future<void> _createExampleProject({
   required FluohEnvironment environment,
   required File flutter,
   required Directory testDirectory,
+  required String testWorkspacePath,
   required FlutterAdapterPackage package,
   required OutputWriter stdout,
   required OutputWriter stderr,
@@ -430,7 +596,7 @@ Future<void> _createExampleProject({
 }) async {
   final example = Directory('${testDirectory.path}/example');
   output.step(
-    'Creating fluoh_test/example for ${package.platforms.join(',')}.',
+    'Creating $testWorkspacePath/example for ${package.platforms.join(',')}.',
   );
   final exitCode = await _runProcess(
     flutter.path,
@@ -449,7 +615,10 @@ Future<void> _createExampleProject({
     forwardOutput: false,
   );
   if (exitCode != 0) {
-    throw UsageException('flutter create failed for fluoh_test/example.', '');
+    throw UsageException(
+      'flutter create failed for $testWorkspacePath/example.',
+      '',
+    );
   }
 
   await Directory('${example.path}/lib').create(recursive: true);
@@ -616,7 +785,13 @@ class _VerifyPage extends StatelessWidget {
 ''';
 }
 
-String _testReadmeContent(FlutterAdapterPackage package) {
+String _testReadmeContent(
+  FlutterAdapterPackage package, {
+  required String testWorkspacePath,
+}) {
+  final runCommand = testWorkspacePath == 'fluoh_test'
+      ? 'fluoh test run'
+      : 'fluoh test run --package ${package.name}';
   return '''
 # FlutterOH Adaptation Test
 
@@ -627,14 +802,14 @@ Package: `${package.name}`
 Run from the adapter repository root:
 
 ```sh
-fluoh test run
+$runCommand
 ```
 
-The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the tests in this `fluoh_test` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
+The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the tests in this `$testWorkspacePath` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
 
 ## Manual Verification
 
-Use `fluoh_test/example` as the small app for checking platform behavior manually. Add package-specific UI actions when the adapter needs real device validation.
+Use `$testWorkspacePath/example` as the small app for checking platform behavior manually. Add package-specific UI actions when the adapter needs real device validation.
 ''';
 }
 
@@ -665,8 +840,11 @@ List<String> _pathParts(String path) {
   return trimmed.split(separator).where((part) => part.isNotEmpty).toList();
 }
 
-Future<String> _packageNameOrDirectory(Directory repository) async {
-  final packagePath = await _adapterPackagePath(repository);
+Future<String> _packageNameOrDirectory(
+  Directory repository, {
+  String? packageName,
+}) async {
+  final packagePath = await _adapterPackagePath(repository, packageName);
   final pubspec = File(
     '${packageDirectory(repository, packagePath).path}/pubspec.yaml',
   );
@@ -678,4 +856,16 @@ Future<String> _packageNameOrDirectory(Directory repository) async {
     return yaml['name'] as String;
   }
   return repository.path;
+}
+
+String _testWorkspaceDisplayPath(Directory repository, Directory directory) {
+  final root = repository.absolute.path;
+  final path = directory.absolute.path;
+  if (path == root) {
+    return '.';
+  }
+  if (path.startsWith('$root${Platform.pathSeparator}')) {
+    return path.substring(root.length + 1);
+  }
+  return path;
 }

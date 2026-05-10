@@ -105,23 +105,29 @@ schema: 1
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-package:
-  name: camera
-  version: 0.1.0
-  git:
-    url: git@github.com:FlutterOH/camera.git
-    ref: ohos/3.35
-    path: packages/camera/camera
+repository:
+  url: git@github.com:FlutterOH/camera.git
+  ref: ohos/3.35
 
 upstream:
-  version: 0.11.0
-  git:
-    url: https://github.com/flutter/packages.git
-    ref: camera-v0.11.0
+  url: https://github.com/flutter/packages.git
+  ref: camera-v0.11.0
+
+packages:
+  camera:
     path: packages/camera/camera
+    upstream:
+      version: 0.11.0
+      path: packages/camera/camera
+    release:
+      version: 0.1.0
+      status: experimental
 ''',
     );
-    await _writeFluohTestArtifactFixture(environment.workingDirectory);
+    await _writeFluohTestArtifactFixture(
+      environment.workingDirectory,
+      workspacePath: 'fluoh_test/camera',
+    );
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -157,7 +163,7 @@ upstream:
     );
     expect(
       Directory(
-        '${environment.workingDirectory.path}/fluoh_test/build',
+        '${environment.workingDirectory.path}/fluoh_test/camera/build',
       ).existsSync(),
       isFalse,
     );
@@ -283,31 +289,23 @@ upstream:
   });
 }
 
-Future<void> _writeFluohTestArtifactFixture(Directory repository) async {
-  await Directory('${repository.path}/fluoh_test').create(recursive: true);
+Future<void> _writeFluohTestArtifactFixture(
+  Directory repository, {
+  String workspacePath = 'fluoh_test',
+}) async {
+  final workspace = '${repository.path}/$workspacePath';
+  await Directory(workspace).create(recursive: true);
   await File(
-    '${repository.path}/fluoh_test/pubspec.yaml',
+    '$workspace/pubspec.yaml',
   ).writeAsString('name: camera_fluoh_test\n');
-  await Directory(
-    '${repository.path}/fluoh_test/.dart_tool',
-  ).create(recursive: true);
+  await Directory('$workspace/.dart_tool').create(recursive: true);
+  await File('$workspace/.dart_tool/package_config.json').writeAsString('{}');
+  await Directory('$workspace/build').create(recursive: true);
+  await File('$workspace/build/app.dill').writeAsString('build');
+  await File('$workspace/.flutter-plugins').writeAsString('plugins');
+  await Directory('$workspace/example/build').create(recursive: true);
   await File(
-    '${repository.path}/fluoh_test/.dart_tool/package_config.json',
-  ).writeAsString('{}');
-  await Directory(
-    '${repository.path}/fluoh_test/build',
-  ).create(recursive: true);
-  await File(
-    '${repository.path}/fluoh_test/build/app.dill',
-  ).writeAsString('build');
-  await File(
-    '${repository.path}/fluoh_test/.flutter-plugins',
-  ).writeAsString('plugins');
-  await Directory(
-    '${repository.path}/fluoh_test/example/build',
-  ).create(recursive: true);
-  await File(
-    '${repository.path}/fluoh_test/example/build/app.dill',
+    '$workspace/example/build/app.dill',
   ).writeAsString('example build');
 }
 

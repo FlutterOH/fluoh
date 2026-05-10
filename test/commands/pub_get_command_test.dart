@@ -84,6 +84,16 @@ void main() {
       '${environment.workingDirectory.path}/packages/camera/camera',
     );
     await _writePubWorkspace(packageDirectory, 'camera');
+    await _writePubWorkspace(
+      Directory('${environment.workingDirectory.path}/fluoh_test/camera'),
+      'camera_fluoh_test',
+    );
+    await _writePubWorkspace(
+      Directory(
+        '${environment.workingDirectory.path}/fluoh_test/camera/example',
+      ),
+      'camera_fluoh_test_example',
+    );
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
@@ -91,20 +101,23 @@ schema: 1
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-package:
-  name: camera
-  version: 0.1.0
-  git:
-    url: git@github.com:FlutterOH/camera.git
-    ref: ohos/3.35
-    path: packages/camera/camera
+repository:
+  url: git@github.com:FlutterOH/camera.git
+  ref: ohos/3.35
 
 upstream:
-  version: 0.11.0
-  git:
-    url: https://github.com/flutter/packages.git
-    ref: camera-v0.11.0
+  url: https://github.com/flutter/packages.git
+  ref: camera-v0.11.0
+
+packages:
+  camera:
     path: packages/camera/camera
+    upstream:
+      version: 0.11.0
+      path: packages/camera/camera
+    release:
+      version: 0.1.0
+      status: experimental
 ''',
     );
     final stdout = <String>[];
@@ -128,16 +141,30 @@ upstream:
       0,
     );
 
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
     final packagePath = await packageDirectory.resolveSymbolicLinks();
     expect(
       File(
         '${environment.workingDirectory.path}/pub_get_invocations.txt',
       ).readAsStringSync(),
-      '$packagePath::pub get\n',
+      [
+        '$packagePath::pub get',
+        '$root/fluoh_test/camera::pub get',
+        '$root/fluoh_test/camera/example::pub get',
+        '',
+      ].join('\n'),
     );
     expect(
       stdout.join('\n'),
       contains('Running flutter pub get in packages/camera/camera'),
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in fluoh_test/camera'),
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in fluoh_test/camera/example'),
     );
   });
 

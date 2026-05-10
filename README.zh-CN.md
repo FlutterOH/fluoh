@@ -54,7 +54,7 @@ fluoh doctor
 
 `fluoh sdk use` 支持精确 SDK tag，也支持 `3.35` 这样的版本系列；版本系列会解析到该系列最新 stable SDK，把精确 tag 写入 `fluoh.yaml`，并更新 `.fluoh/flutter_sdk` 作为稳定的 IDE SDK 路径。之后用 `fluoh flutter ...` 或快捷可执行入口 `fluohf ...` 执行项目 Flutter 命令，例如 `fluohf pub get`、`fluohf run` 或 `fluohf build hap`。这些命令会从当前目录向上使用最近的 `fluoh.yaml`，因此生成的测试目录会继承项目 SDK，monorepo 的子项目也可以分别选择 SDK。如果希望切换 SDK 后立即执行首次 `pub get`，可以给 `fluoh sdk use` 加上 `--pub-get`。
 
-使用 `fluoh pub get` 可以通过已选择的 SDK 解析依赖。在适配仓库中，如果存在 `fluoh_test` 和 `fluoh_test/example`，它也会为这些工作区执行 `pub get`。
+使用 `fluoh pub get` 可以通过已选择的 SDK 解析依赖。在适配仓库中，它也会为生成的 `fluoh_test` 工作区执行 `pub get`，包括 `fluoh_test/some_package` 这样的 monorepo 包级工作区及其 `example` app。
 
 使用 `fluoh clean` 可以在当前项目中执行 `fluoh flutter clean`，并清理生成的 `fluoh_test` 构建产物。它不会删除已缓存的 SDK 或数据源。
 
@@ -93,14 +93,22 @@ monorepo package 可以指定包路径：
 
 ```sh
 fluoh pub create https://github.com/upstream/monorepo.git \
-  --package some_package \
   --path packages/some_package \
   --sdk 3.35.8-ohos-0.0.3
 ```
 
-默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据、适配指南、FlutterOH release notes、AI agent 指令，以及 Flutter package/plugin 的 `fluoh_test/`。`fluoh pub create` 会暂存生成文件，但不会创建提交。运行 `pub sync` 或 `pub release` 前需要先提交。`fluoh pub sync` 会快进同步上游分支，把它合入当前 pub 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据；新的 FlutterOH package version 应在适配完成后再更新。
+同一个 monorepo 中需要适配多个包时，可以重复传 `--path`，也可以之后在 adapter 仓库中继续添加：
 
-`fluoh test init` 会创建 `fluoh_test/test` 自动化检查和用于人工平台验证的 `fluoh_test/example` app。`fluoh test run` 会先在存在 `test/**/*_test.dart` 时运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再运行 `fluoh_test`；`fluoh pub release` 会在创建或推送 Flutter 适配库 release tag 前校验 release 版本、在 `FLUOH_CHANGELOG.md` 未记录当前 release 时提示 warning，并执行测试。FlutterOH/pub 数据源元数据更新应通过 PR，或等待定时数据源拉取流程处理。
+```sh
+fluoh pub create https://github.com/upstream/monorepo.git \
+  --path packages/package_a \
+  --path packages/package_b
+fluoh pub add --path packages/package_c
+```
+
+默认生成的 pub 仓库会保持上游默认分支干净，把源仓库保留为 `upstream`，创建 `ohos/<sdk-series>` 分支，例如 `ohos/3.35`，设置 `origin`，并写入 FlutterOH 元数据、适配指南、`FLUOH_CHANGELOG.md` release notes、AI agent 指令，以及 Flutter package/plugin 的 `fluoh_test/` 工作区。monorepo 子库会使用 `fluoh_test/<package>/`，让每个 package 都有独立的自动化测试和人工验证 example。`fluoh pub create` 和 `fluoh pub add` 会暂存生成文件，但不会创建提交。运行 `pub sync` 或 `pub release` 前需要先提交。`fluoh pub sync` 会快进同步上游分支，把它合入当前 pub 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据；新的 FlutterOH package version 应在适配完成后再更新。
+
+`fluoh test init` 会为单包 adapter 创建 `fluoh_test/test` 自动化检查和 `fluoh_test/example` app；monorepo 子库使用 `fluoh test init --package <name>` 和 `fluoh_test/<name>/`。`fluoh test run` 会先在存在 `test/**/*_test.dart` 时运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再运行匹配的 `fluoh_test` 工作区。`fluoh pub release --package <name>` 发布单个 package；`fluoh pub release --all` 会先校验并测试所有已注册 package，全部通过后再分别创建 release tag。FlutterOH/pub 数据源元数据更新应通过 PR，或等待定时数据源拉取流程处理。
 
 如果需要指定最终推送位置：
 
@@ -122,7 +130,7 @@ fluoh pub create https://github.com/upstream/package.git \
 | `fluoh pub check` | 检查项目依赖的 OHOS 兼容状态。 |
 | `fluoh pub fix` | 在 `pubspec.yaml` 中新增缺失的 OHOS adapter ref，并刷新已有 ref。 |
 | `fluoh pub upgrade` | 只升级已有 OHOS adapter ref，不新增依赖替换。 |
-| `fluoh pub create/sync/release` | 创建、同步并发布第三方库 FlutterOH pub 仓库。 |
+| `fluoh pub create/add/sync/release` | 创建、扩展、同步并发布第三方库 FlutterOH pub 仓库。 |
 | `fluoh test ...` | 为已适配 Flutter package 创建 `fluoh_test`，并运行库自身和 `fluoh_test` 验证。 |
 | `fluoh source ...` | 管理 FlutterOH 数据源。 |
 | `fluoh doctor` | 诊断 CLI 版本、项目 SDK 和 OHOS 目录状态。 |

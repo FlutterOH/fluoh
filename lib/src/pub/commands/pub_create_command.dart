@@ -13,6 +13,7 @@ import '../git/pub_git.dart';
 import '../manifest/pub_manifest.dart';
 import '../manifest/pubspec_package.dart';
 import '../pub_license_checker.dart';
+import '../pub_repository_docs.dart';
 import '../repository_url.dart';
 
 class PubCreateCommand extends Command<int> {
@@ -26,7 +27,11 @@ class PubCreateCommand extends Command<int> {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser
       ..addOption('package', help: 'Package name to adapt in a monorepo.')
-      ..addOption('path', help: 'Package path inside the upstream repository.')
+      ..addMultiOption(
+        'path',
+        help:
+            'Package path inside a monorepo upstream repository. Can be repeated.',
+      )
       ..addOption(
         'output',
         help: 'Destination path for the FlutterOH pub repository.',
@@ -63,37 +68,50 @@ class PubCreateCommand extends Command<int> {
     final upstream = rest.single;
     _output.step('Resolving Flutter OHOS SDK.');
     final release = await _resolveSdkRelease();
+    final packagePaths = argResults!.multiOption('path');
+    final packageName = argResults!.option('package');
+    if (packageName != null && packagePaths.length > 1) {
+      usageException('Use --package with at most one --path.');
+    }
     final destination = Directory(
       argResults!.option('output') ??
           '${environment.workingDirectory.path}/${repositoryNameFromUpstream(upstream)}',
     );
-    var packagePath = argResults!.option('path') ?? '.';
-    final packageName = argResults!.option('package');
 
     if (await destination.exists()) {
       usageException('Destination already exists: ${destination.path}');
     }
 
-    await _output.withProgress(
-      'Cloning upstream repository into ${_output.style.path(destination.path)}.',
-      () => runGit(['clone', '--quiet', upstream, destination.path]),
-      showWhenPlain: true,
+    _output.step(
+      'Cloning upstream repository into ${_output.style.path(destination.path)}...',
     );
+    await runGit(['clone', '--quiet', upstream, destination.path]);
 
-    if (argResults!.option('path') == null && packageName != null) {
-      packagePath = await findPackagePath(destination, packageName);
-    }
-    final package = await readPubspecPackage(
-      packageDirectory(destination, packagePath),
+    final selectedPackages = await _selectPackages(
+      repository: destination,
+      packagePaths: packagePaths,
+      packageName: packageName,
     );
-    if (packageName != null && package.name != packageName) {
-      usageException(
-        'Package at $packagePath is ${package.name}, expected $packageName.',
-      );
+    for (final selected in selectedPackages) {
+      if (selected.path != '.') {
+        _output.info(
+          'Selected package ${selected.package.name} at ${selected.path}.',
+        );
+      }
     }
+    final docPackages = [
+      for (final selected in selectedPackages)
+        _docPackageForSelection(
+          selectedPackages: selectedPackages,
+          selectedPackage: selected,
+        ),
+    ];
 
     final adapterUrl =
-        argResults!.option('repo') ?? defaultPubRepositoryUrl(package.name);
+        argResults!.option('repo') ??
+        defaultPubRepositoryUrl(
+          _defaultAdapterRepositoryName(upstream, selectedPackages),
+        );
     await configurePubRemotes(destination, adapterUrl);
 
     final upstreamRef = await currentHead(destination);
@@ -104,6 +122,7 @@ class PubCreateCommand extends Command<int> {
       workingDirectory: destination,
       processEnvironment: environment.processEnvironment,
     );
+    _output.blank();
     final sdkDirectory = SdkManager(pubEnvironment).sdkDirectory(release.tag);
     final sdkInstalled = await sdkDirectory.exists();
     if (sdkInstalled) {
@@ -123,47 +142,67 @@ class PubCreateCommand extends Command<int> {
     final ideLink = await projectEnvironment.linkIdeSdk(configuredSdkDirectory);
     _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}.');
     _output.next('Use this link as your IDE Flutter SDK path.');
-    await writePubManifest(
-      destination: destination,
-      package: package,
-      upstream: upstream,
-      upstreamRef: upstreamRef,
-      packagePath: packagePath,
-      sdkVersion: release.tag,
-      branch: branch,
-      adapterUrl: adapterUrl,
-      releaseVersion: _initialReleaseVersion,
+    _output.blank();
+    await writePubManifestFile(
+      destination,
+      PubManifest(
+        sdkVersion: release.tag,
+        branch: branch,
+        upstreamUrl: upstream,
+        upstreamRef: upstreamRef,
+        upstreamDefaultBranch: await upstreamDefaultBranch(destination),
+        adapterUrl: adapterUrl,
+        packages: [
+          for (final selected in selectedPackages)
+            PubManifestPackage(
+              name: selected.package.name,
+              upstreamVersion: selected.package.version,
+              releaseVersion: initialPubReleaseVersion,
+              dependencyPath: selected.path == '.' ? null : selected.path,
+              upstreamPath: selected.path == '.' ? null : selected.path,
+              status: 'experimental',
+            ),
+        ],
+      ),
     );
     await File('${destination.path}/FLUOH.md').writeAsString(
-      _adaptationGuideContent(
-        package: package,
-        packagePath: packagePath,
+      pubAdaptationGuideContent(
+        packages: docPackages,
         upstreamRef: upstreamRef,
         sdkVersion: release.tag,
         branch: branch,
+        includeTitle: true,
       ),
     );
     await File('${destination.path}/FLUOH_CHANGELOG.md').writeAsString(
-      _fluohChangelogContent(
-        package: package,
+      pubFluohChangelogContent(
+        packages: docPackages,
         sdkVersion: release.tag,
-        releaseVersion: _initialReleaseVersion,
+        releaseVersion: initialPubReleaseVersion,
       ),
     );
-    await _writeAgentsInstructions(
+    await writeOrAppendPubAgentsInstructions(
       destination: destination,
-      package: package,
-      packagePath: packagePath,
+      packages: docPackages,
       upstreamRef: upstreamRef,
       sdkVersion: release.tag,
       branch: branch,
     );
     await _writeClaudeInstructions(destination);
-    final testInitResult = await initializeFluohTestWorkspace(
-      environment: pubEnvironment,
-      stdout: _stdout,
-      stderr: _stderr,
-      output: _output,
+    final testInitResults = <FluohTestInitResult>[];
+    for (final selected in selectedPackages) {
+      testInitResults.add(
+        await initializeFluohTestWorkspace(
+          environment: pubEnvironment,
+          stdout: _stdout,
+          stderr: _stderr,
+          output: _output,
+          packageName: selected.package.name,
+        ),
+      );
+    }
+    final createdTestWorkspaces = testInitResults.any(
+      (result) => result.created,
     );
     await runGit([
       'add',
@@ -175,17 +214,26 @@ class PubCreateCommand extends Command<int> {
       '.gitignore',
       'fluoh.yaml',
     ], workingDirectory: destination);
-    if (testInitResult.created) {
+    if (createdTestWorkspaces) {
       await runGit(['add', 'fluoh_test'], workingDirectory: destination);
     }
 
-    final licenseWarnings = await pubLicenseWarnings(
-      repository: destination,
-      packagePath: packagePath,
-      packageName: package.name,
-    );
+    final licenseWarnings = <String>[];
+    for (final selected in selectedPackages) {
+      licenseWarnings.addAll(
+        await pubLicenseWarnings(
+          repository: destination,
+          packagePath: selected.path,
+          packageName: selected.package.name,
+        ),
+      );
+    }
+    _output.blank();
     for (final warning in licenseWarnings) {
       _output.warningError(warning);
+    }
+    if (licenseWarnings.isNotEmpty) {
+      _output.blank();
     }
 
     _output.success(
@@ -194,7 +242,7 @@ class PubCreateCommand extends Command<int> {
     _output.info('Pub branch: $branch.');
     _output.info('Origin: ${_output.style.url(adapterUrl)}.');
     _output.success('Configured Flutter OHOS SDK ${release.tag}.');
-    if (testInitResult.created) {
+    if (createdTestWorkspaces) {
       _output.next(
         'See FLUOH.md, AGENTS.md, and fluoh_test/ for adaptation steps.',
       );
@@ -219,34 +267,117 @@ class PubCreateCommand extends Command<int> {
   }
 }
 
-const _initialReleaseVersion = '0.1.0';
+class _SelectedPackage {
+  const _SelectedPackage({required this.package, required this.path});
 
-Future<void> _writeAgentsInstructions({
-  required Directory destination,
-  required PubspecPackage package,
-  required String packagePath,
-  required String upstreamRef,
-  required String sdkVersion,
-  required String branch,
+  final PubspecPackage package;
+  final String path;
+}
+
+Future<List<_SelectedPackage>> _selectPackages({
+  required Directory repository,
+  required List<String> packagePaths,
+  required String? packageName,
 }) async {
-  final file = File('${destination.path}/AGENTS.md');
-  final existing = await file.exists() ? await file.readAsString() : null;
-  final generated = _agentsInstructionsContent(
-    package: package,
-    packagePath: packagePath,
-    upstreamRef: upstreamRef,
-    sdkVersion: sdkVersion,
-    branch: branch,
-    includeTitle: existing == null || existing.trim().isEmpty,
-  );
-
-  if (existing == null || existing.trim().isEmpty) {
-    await file.writeAsString(generated);
-    return;
+  if (packagePaths.isEmpty && packageName != null) {
+    final path = await findPackagePath(repository, packageName);
+    final package = await _readSelectedPackage(
+      repository: repository,
+      packagePath: path,
+      selectedByPackageName: true,
+    );
+    return [_SelectedPackage(package: package, path: path)];
   }
 
-  await file.writeAsString(
-    '$existing${_markdownAppendSeparator(existing)}$generated',
+  final paths = packagePaths.isEmpty ? const ['.'] : packagePaths;
+  final selected = <_SelectedPackage>[];
+  final seenPackages = <String>{};
+  for (final path in paths) {
+    final package = await _readSelectedPackage(
+      repository: repository,
+      packagePath: path,
+      selectedByPackageName: false,
+    );
+    if (packageName != null && package.name != packageName) {
+      throw UsageException(
+        'Package at $path is ${package.name}, expected $packageName.',
+        '',
+      );
+    }
+    if (!seenPackages.add(package.name)) {
+      throw UsageException(
+        'Package ${package.name} was selected more than once.',
+        '',
+      );
+    }
+    selected.add(_SelectedPackage(package: package, path: path));
+  }
+  return selected;
+}
+
+String _defaultAdapterRepositoryName(
+  String upstream,
+  List<_SelectedPackage> selectedPackages,
+) {
+  if (selectedPackages.length == 1 && selectedPackages.single.path == '.') {
+    return selectedPackages.single.package.name;
+  }
+  return repositoryNameFromUpstream(upstream);
+}
+
+String _testWorkspacePathForSelection({
+  required List<_SelectedPackage> selectedPackages,
+  required _SelectedPackage selectedPackage,
+}) {
+  if (selectedPackages.length > 1 || selectedPackage.path != '.') {
+    return 'fluoh_test/${selectedPackage.package.name}';
+  }
+  return 'fluoh_test';
+}
+
+PubRepositoryDocPackage _docPackageForSelection({
+  required List<_SelectedPackage> selectedPackages,
+  required _SelectedPackage selectedPackage,
+}) {
+  return PubRepositoryDocPackage(
+    name: selectedPackage.package.name,
+    version: selectedPackage.package.version,
+    packagePath: selectedPackage.path,
+    testWorkspacePath: _testWorkspacePathForSelection(
+      selectedPackages: selectedPackages,
+      selectedPackage: selectedPackage,
+    ),
+  );
+}
+
+Future<PubspecPackage> _readSelectedPackage({
+  required Directory repository,
+  required String packagePath,
+  required bool selectedByPackageName,
+}) async {
+  final directory = packageDirectory(repository, packagePath);
+  final pubspec = File('${directory.path}/pubspec.yaml');
+  if (await pubspec.exists()) {
+    return readPubspecPackage(directory);
+  }
+
+  if (packagePath == '.' || packagePath.isEmpty) {
+    throw UsageException(
+      'Missing pubspec.yaml at the upstream repository root. '
+          'For a monorepo, select one package with '
+          '"--path <package-path>" or "--package <package-name>".',
+      '',
+    );
+  }
+  if (selectedByPackageName) {
+    throw UsageException(
+      'Package path $packagePath does not contain pubspec.yaml.',
+      '',
+    );
+  }
+  throw UsageException(
+    'Missing pubspec.yaml at package path $packagePath.',
+    '',
   );
 }
 
@@ -274,107 +405,4 @@ Future<void> _writeClaudeInstructions(Directory destination) async {
 
 bool _importsAgentsInstructions(String content) {
   return content.split('\n').any((line) => line.trim() == _claudeAgentsImport);
-}
-
-String _markdownAppendSeparator(String content) {
-  if (content.endsWith('\n\n')) {
-    return '';
-  }
-  if (content.endsWith('\n')) {
-    return '\n';
-  }
-  return '\n\n';
-}
-
-String _agentsInstructionsContent({
-  required PubspecPackage package,
-  required String packagePath,
-  required String upstreamRef,
-  required String sdkVersion,
-  required String branch,
-  required bool includeTitle,
-}) {
-  return [
-    if (includeTitle) '# AGENTS.md',
-    if (includeTitle) '',
-    '## FlutterOH Context',
-    '',
-    'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
-    '',
-    '- Package path: `$packagePath`.',
-    '- Upstream ref at creation: `$upstreamRef`',
-    '- FlutterOH branch: `$branch`',
-    '- Metadata: `fluoh.yaml`.',
-    '- Release notes: `FLUOH_CHANGELOG.md`.',
-    '',
-    '## Working Rules',
-    '',
-    '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh pub get` when dependencies may be stale.',
-    '- Keep OHOS adaptation changes focused near `$packagePath`; preserve upstream APIs and non-OHOS behavior.',
-    '- Keep `fluoh_test/test` for automated adapter checks and `fluoh_test/example` for manual platform verification.',
-    '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
-    '- Update `FLUOH_CHANGELOG.md` for FlutterOH release notes.',
-    '- Run `fluoh test run` before release. Commit before `fluoh pub sync` or `fluoh pub release` because both require a clean worktree.',
-    '',
-    '## Before Commit',
-    '',
-    '- Review `git status --short --ignored=matching` and staged files before committing.',
-    '- Do not commit local paths, IDE metadata, generated build outputs, caches, certificates, private keys, passwords, or signing profiles.',
-    '- Do not commit team-specific iOS signing state such as `DEVELOPMENT_TEAM`, `PROVISIONING_PROFILE_SPECIFIER`, profile UUIDs, or non-generic `CODE_SIGN_IDENTITY` values.',
-    '- OHOS `signingConfigs` may exist for local testing, but tracked files must not contain real certificate paths, passwords, or private signing material. Commit empty or placeholder signing settings only.',
-    '',
-  ].join('\n');
-}
-
-String _adaptationGuideContent({
-  required PubspecPackage package,
-  required String packagePath,
-  required String upstreamRef,
-  required String sdkVersion,
-  required String branch,
-}) {
-  return [
-    '# FlutterOH Adaptation',
-    '',
-    'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
-    '',
-    '## Metadata',
-    '',
-    '- `fluoh.yaml` records the upstream package, FlutterOH repository, SDK target, and release metadata.',
-    '- Package path: `$packagePath`',
-    '- Upstream ref: `$upstreamRef`',
-    '- FlutterOH branch: `$branch`',
-    '- Metadata: `fluoh.yaml`',
-    '- Release notes: `FLUOH_CHANGELOG.md`',
-    '',
-    '## Next Steps',
-    '',
-    '1. Implement the OHOS platform code for `${package.name}`.',
-    '2. Keep `fluoh_test/test` for automated checks and `fluoh_test/example` for manual verification.',
-    '3. Update `fluoh.yaml` and `FLUOH_CHANGELOG.md` when release metadata changes.',
-    '4. Run `fluoh test run` before release.',
-    '5. Commit before `fluoh pub sync` or `fluoh pub release`; both require a clean worktree.',
-    '',
-    '## Before Commit',
-    '',
-    '- Review `git status --short --ignored=matching`.',
-    '- Keep local paths, IDE files, generated outputs, certificates, private keys, passwords, Android keystore config, and iOS team/profile signing values out of committed files.',
-    '- OHOS `signingConfigs` can be used locally; commit only empty or placeholder signing settings.',
-    '',
-  ].join('\n');
-}
-
-String _fluohChangelogContent({
-  required PubspecPackage package,
-  required String sdkVersion,
-  required String releaseVersion,
-}) {
-  return [
-    '# FlutterOH Changelog',
-    '',
-    '## $releaseVersion',
-    '',
-    '- Initial adapter for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
-    '',
-  ].join('\n');
 }

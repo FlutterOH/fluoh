@@ -102,7 +102,7 @@ class SdkUseCommand extends Command<int> {
       ensureSupportedFluohYamlSchema(yaml);
     }
     if (yaml is YamlMap &&
-        yaml['package'] is YamlMap &&
+        (yaml['package'] is YamlMap || yaml['packages'] is YamlMap) &&
         yaml['upstream'] is YamlMap) {
       throw UsageException(
         'Current directory is a FlutterOH pub repository. '

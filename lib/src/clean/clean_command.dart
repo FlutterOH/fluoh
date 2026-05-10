@@ -8,6 +8,7 @@ import '../context/fluoh_environment.dart';
 import '../pub/manifest/pub_manifest.dart';
 import '../pub/manifest/pubspec_package.dart';
 import '../sdk/flutter_runner.dart';
+import '../testing/test_workspace.dart';
 
 class CleanCommand extends Command<int> {
   CleanCommand({
@@ -36,21 +37,24 @@ class CleanCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final packageDirectory = await _primaryPackageDirectory();
-    _output.step('Running flutter clean in ${_relativePath(packageDirectory)}');
-    final cleanResult = await runSelectedFlutter(
-      environment: environment,
-      arguments: const ['clean'],
-      workingDirectory: packageDirectory,
-      stdout: _stdout,
-      stderr: _stderr,
-      output: _output,
-      inheritStdio: _inheritStdio,
-      usage: usage,
-    );
-    if (cleanResult != 0) {
-      _output.failure('flutter clean failed.');
-      return cleanResult;
+    for (final packageDirectory in await _primaryPackageDirectories()) {
+      _output.step(
+        'Running flutter clean in ${_relativePath(packageDirectory)}',
+      );
+      final cleanResult = await runSelectedFlutter(
+        environment: environment,
+        arguments: const ['clean'],
+        workingDirectory: packageDirectory,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+        inheritStdio: _inheritStdio,
+        usage: usage,
+      );
+      if (cleanResult != 0) {
+        _output.failure('flutter clean failed.');
+        return cleanResult;
+      }
     }
 
     final summary = await _cleanFluohTestArtifacts(
@@ -78,25 +82,29 @@ class CleanCommand extends Command<int> {
     return 0;
   }
 
-  Future<Directory> _primaryPackageDirectory() async {
+  Future<List<Directory>> _primaryPackageDirectories() async {
     try {
       final manifest = await readPubManifest(environment.workingDirectory);
-      final path = manifest.dependencyPath;
-      if (path != null && path.isNotEmpty) {
-        return packageDirectory(environment.workingDirectory, path);
-      }
+      return [
+        for (final package in manifest.packages)
+          packageDirectory(
+            environment.workingDirectory,
+            package.dependencyPath ?? '.',
+          ),
+      ];
     } on UsageException catch (error) {
       if (!_isProjectFluohConfig(error)) {
         rethrow;
       }
     }
-    return environment.workingDirectory;
+    return [environment.workingDirectory];
   }
 
   bool _isProjectFluohConfig(UsageException error) {
     return const {
       'Missing fluoh.yaml.',
-      'fluoh.yaml missing "package".',
+      'fluoh.yaml missing "repository".',
+      'fluoh.yaml missing "packages".',
       'fluoh.yaml missing "upstream".',
     }.contains(error.message);
   }
@@ -136,8 +144,8 @@ class _CleanSummary {
 }
 
 Future<_CleanSummary> _cleanFluohTestArtifacts(Directory repository) async {
-  final testDirectory = Directory(_join(repository.path, 'fluoh_test'));
-  if (!await testDirectory.exists()) {
+  final artifactRoots = await _fluohTestArtifactRoots(repository);
+  if (!await Directory(_join(repository.path, 'fluoh_test')).exists()) {
     return const _CleanSummary(
       missingFluohTest: true,
       removed: [],
@@ -148,18 +156,20 @@ Future<_CleanSummary> _cleanFluohTestArtifacts(Directory repository) async {
   final tracked = await _trackedFiles(repository);
   final removed = <String>[];
   final skippedTracked = <String>[];
-  for (final artifact in _fluohTestArtifactPaths) {
-    final relativePath = 'fluoh_test/$artifact';
-    final path = _join(repository.path, relativePath);
-    if (!await _exists(path)) {
-      continue;
+  for (final artifactRoot in artifactRoots) {
+    for (final artifact in _fluohTestArtifactPaths) {
+      final relativePath = '$artifactRoot/$artifact';
+      final path = _join(repository.path, relativePath);
+      if (!await _exists(path)) {
+        continue;
+      }
+      if (_containsTrackedFile(tracked, relativePath)) {
+        skippedTracked.add(relativePath);
+        continue;
+      }
+      await _delete(path);
+      removed.add(relativePath);
     }
-    if (_containsTrackedFile(tracked, relativePath)) {
-      skippedTracked.add(relativePath);
-      continue;
-    }
-    await _delete(path);
-    removed.add(relativePath);
   }
 
   return _CleanSummary(
@@ -167,6 +177,25 @@ Future<_CleanSummary> _cleanFluohTestArtifacts(Directory repository) async {
     removed: removed,
     skippedTracked: skippedTracked,
   );
+}
+
+Future<List<String>> _fluohTestArtifactRoots(Directory repository) async {
+  final directories = await fluohTestWorkspaceDirectories(repository);
+  final roots = <String>[];
+  final seen = <String>{};
+  for (final directory in directories) {
+    if (directory.path.endsWith('${Platform.pathSeparator}example')) {
+      continue;
+    }
+    final relativePath = _relativePath(repository, directory);
+    if (relativePath.startsWith('fluoh_test') && seen.add(relativePath)) {
+      roots.add(relativePath);
+    }
+  }
+  if (roots.isEmpty) {
+    roots.add('fluoh_test');
+  }
+  return roots;
 }
 
 const _fluohTestArtifactPaths = [
@@ -242,6 +271,18 @@ Future<void> _delete(String path) async {
 
 String _join(String root, String relativePath) {
   return [root, ...relativePath.split('/')].join(Platform.pathSeparator);
+}
+
+String _relativePath(Directory rootDirectory, Directory directory) {
+  final root = rootDirectory.absolute.path;
+  final path = directory.absolute.path;
+  if (path == root) {
+    return '.';
+  }
+  if (path.startsWith('$root${Platform.pathSeparator}')) {
+    return path.substring(root.length + 1);
+  }
+  return path;
 }
 
 String _s(int count) => count == 1 ? '' : 's';

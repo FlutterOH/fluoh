@@ -18,11 +18,21 @@ class PubReleaseCommand extends Command<int> {
   }) : _stdout = stdout,
        _stderr = stderr {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
-    argParser.addFlag(
-      'push',
-      negatable: false,
-      help: 'Push the release tag to origin after creating or validating it.',
-    );
+    argParser
+      ..addOption(
+        'package',
+        help: 'Package to release when fluoh.yaml registers multiple packages.',
+      )
+      ..addFlag(
+        'all',
+        negatable: false,
+        help: 'Release every package registered in fluoh.yaml.',
+      )
+      ..addFlag(
+        'push',
+        negatable: false,
+        help: 'Push the release tag to origin after creating or validating it.',
+      );
   }
 
   final FluohEnvironment environment;
@@ -38,6 +48,11 @@ class PubReleaseCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    if (argResults!.flag('all') &&
+        (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
+      usageException('Use only one of --all or --package.');
+    }
+
     final branch = await currentBranch(environment.workingDirectory);
     if (!branch.startsWith('ohos/')) {
       usageException('Release must run from an ohos/* pub branch.');
@@ -52,83 +67,138 @@ class PubReleaseCommand extends Command<int> {
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
     await _ensureSdkTagExists(manifest.sdkVersion);
-    final expectedTag = pubReleaseTagForPackage(
-      packageName: manifest.packageName,
-      upstreamVersion: manifest.upstreamVersion,
-      sdkVersion: manifest.sdkVersion,
-      releaseVersion: manifest.releaseVersion,
-    );
-    final tag = manifest.releaseTag;
-    if (tag != expectedTag) {
-      usageException(
-        'Release tag $tag does not match manifest values. Expected $expectedTag.',
+    final packages = argResults!.flag('all')
+        ? manifest.packages
+        : [manifest.packageForName(argResults!.option('package'))];
+    for (final package in packages) {
+      final result = await _validateAndTestPackage(
+        manifest: manifest,
+        package: package,
+      );
+      if (result != 0) {
+        return result;
+      }
+    }
+    final tags = <String>[];
+    for (final package in packages) {
+      tags.add(await _createReleaseTag(manifest: manifest, package: package));
+    }
+    if (argResults!.flag('push')) {
+      await _pushReleaseTags(tags);
+    }
+    if (argResults!.flag('all')) {
+      _output.success(
+        'Released ${packages.length} package${_s(packages.length)}.',
       );
     }
+    return 0;
+  }
+
+  Future<int> _validateAndTestPackage({
+    required PubManifest manifest,
+    required PubManifestPackage package,
+  }) async {
+    final tag = package.releaseTag(manifest.sdkVersion);
     await validatePubReleaseMetadata(
       repository: environment.workingDirectory,
       manifest: manifest,
+      package: package,
       tag: tag,
     );
     final warnings = await pubReleaseMetadataWarnings(
       repository: environment.workingDirectory,
       manifest: manifest,
+      package: package,
       tag: tag,
     );
     for (final warning in warnings) {
       _output.warningError(warning);
     }
+    await _ensureReleaseTagIsUsable(tag: tag, package: package);
 
-    _output.step('Running fluoh test run before release.');
+    final testCommand = manifest.packages.length == 1
+        ? 'fluoh test run'
+        : 'fluoh test run --package ${package.name}';
+    _output.step('Running $testCommand before release.');
     final testResult = await runFluohTestWorkspace(
       environment: environment,
       stdout: _stdout,
       stderr: _stderr,
       output: _output,
+      packageName: package.name,
     );
     if (testResult != 0) {
       return testResult;
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
+    return 0;
+  }
 
-    final existing = (await runGit(
-      ['tag', '--list', tag],
-      workingDirectory: environment.workingDirectory,
-    )).stdout.toString().trim();
-    if (existing == tag) {
-      final tagCommit = (await runGit(
-        ['rev-parse', '$tag^{}'],
-        workingDirectory: environment.workingDirectory,
-      )).stdout.toString().trim();
-      final headCommit = await currentHead(environment.workingDirectory);
-      if (tagCommit != headCommit) {
-        usageException(
-          'Release tag $tag already exists on a different commit. '
-          'Update fluoh.yaml package.version before releasing new changes.',
-        );
-      }
+  Future<String> _createReleaseTag({
+    required PubManifest manifest,
+    required PubManifestPackage package,
+  }) async {
+    final tag = package.releaseTag(manifest.sdkVersion);
+    final existsAtHead = await _ensureReleaseTagIsUsable(
+      tag: tag,
+      package: package,
+    );
+    if (existsAtHead) {
       _output.skipped('Release tag already exists: $tag.');
-      if (argResults!.flag('push')) {
-        await runGit([
-          'push',
-          'origin',
-          tag,
-        ], workingDirectory: environment.workingDirectory);
-        _output.success('Pushed release tag $tag.');
-      }
-      return 0;
+      return tag;
     }
 
     await runGit(['tag', tag], workingDirectory: environment.workingDirectory);
-    if (argResults!.flag('push')) {
+    _output.success('Created release tag $tag.');
+    return tag;
+  }
+
+  Future<void> _pushReleaseTags(List<String> tags) async {
+    if (tags.length == 1) {
+      final tag = tags.single;
       await runGit([
         'push',
         'origin',
         tag,
       ], workingDirectory: environment.workingDirectory);
       _output.success('Pushed release tag $tag.');
+      return;
     }
-    _output.success('Created release tag $tag.');
-    return 0;
+
+    await runGit([
+      'push',
+      '--atomic',
+      'origin',
+      ...tags,
+    ], workingDirectory: environment.workingDirectory);
+    _output.success('Pushed ${tags.length} release tags.');
+  }
+
+  Future<bool> _ensureReleaseTagIsUsable({
+    required String tag,
+    required PubManifestPackage package,
+  }) async {
+    final existing = (await runGit(
+      ['tag', '--list', tag],
+      workingDirectory: environment.workingDirectory,
+    )).stdout.toString().trim();
+    if (existing != tag) {
+      return false;
+    }
+
+    final tagCommit = (await runGit(
+      ['rev-parse', '$tag^{}'],
+      workingDirectory: environment.workingDirectory,
+    )).stdout.toString().trim();
+    final headCommit = await currentHead(environment.workingDirectory);
+    if (tagCommit != headCommit) {
+      usageException(
+        'Release tag $tag already exists on a different commit. '
+        'Update fluoh.yaml release.version for ${package.name} before '
+        'releasing new changes.',
+      );
+    }
+    return true;
   }
 
   Future<void> _ensureSdkTagExists(String sdkTag) async {
@@ -138,3 +208,5 @@ class PubReleaseCommand extends Command<int> {
     }
   }
 }
+
+String _s(int count) => count == 1 ? '' : 's';

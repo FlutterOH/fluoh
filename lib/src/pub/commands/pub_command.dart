@@ -4,6 +4,7 @@ import '../../cli/command_usage.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import 'pub_add_command.dart';
 import 'pub_create_command.dart';
 import 'pub_dependency_commands.dart';
 import 'pub_get_command.dart';
@@ -45,6 +46,14 @@ class PubCommand extends Command<int> {
     );
     addSubcommand(
       PubCreateCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      PubAddCommand(
         environment: environment,
         stdout: stdout,
         stderr: stderr,
@@ -111,5 +120,10 @@ const _pubCommandSections = [
     'fix',
     'upgrade',
   ]),
-  CommandUsageSection('Adapter repositories:', ['create', 'sync', 'release']),
+  CommandUsageSection('Adapter repositories:', [
+    'create',
+    'add',
+    'sync',
+    'release',
+  ]),
 ];

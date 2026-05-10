@@ -7,6 +7,7 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/flutter_runner.dart';
+import '../../testing/test_workspace.dart';
 import '../manifest/pub_manifest.dart';
 import '../manifest/pubspec_package.dart';
 
@@ -63,9 +64,8 @@ class PubGetCommand extends Command<int> {
 
   Future<List<Directory>> _pubGetDirectories() async {
     final directories = <Directory>[
-      await _primaryPackageDirectory(),
-      Directory('${environment.workingDirectory.path}/fluoh_test'),
-      Directory('${environment.workingDirectory.path}/fluoh_test/example'),
+      ...await _primaryPackageDirectories(),
+      ...await fluohTestWorkspaceDirectories(environment.workingDirectory),
     ];
     final existing = <Directory>[];
     final seen = <String>{};
@@ -85,25 +85,29 @@ class PubGetCommand extends Command<int> {
     return existing;
   }
 
-  Future<Directory> _primaryPackageDirectory() async {
+  Future<List<Directory>> _primaryPackageDirectories() async {
     try {
       final manifest = await readPubManifest(environment.workingDirectory);
-      final path = manifest.dependencyPath;
-      if (path != null && path.isNotEmpty) {
-        return packageDirectory(environment.workingDirectory, path);
-      }
+      return [
+        for (final package in manifest.packages)
+          packageDirectory(
+            environment.workingDirectory,
+            package.dependencyPath ?? '.',
+          ),
+      ];
     } on UsageException catch (error) {
       if (!_isProjectFluohConfig(error)) {
         rethrow;
       }
     }
-    return environment.workingDirectory;
+    return [environment.workingDirectory];
   }
 
   bool _isProjectFluohConfig(UsageException error) {
     return const {
       'Missing fluoh.yaml.',
-      'fluoh.yaml missing "package".',
+      'fluoh.yaml missing "repository".',
+      'fluoh.yaml missing "packages".',
       'fluoh.yaml missing "upstream".',
     }.contains(error.message);
   }

@@ -9,20 +9,28 @@ import 'pub_license_checker.dart';
 Future<void> validatePubReleaseMetadata({
   required Directory repository,
   required PubManifest manifest,
+  required PubManifestPackage package,
   required String tag,
 }) async {
-  await _ensureReleaseVersionAfterPreviousTags(repository, manifest, tag);
+  await _ensureReleaseVersionAfterPreviousTags(
+    repository,
+    manifest,
+    package,
+    tag,
+  );
 }
 
 Future<List<String>> pubReleaseMetadataWarnings({
   required Directory repository,
   required PubManifest manifest,
+  required PubManifestPackage package,
   required String tag,
 }) async {
   final warnings = <String>[];
   final changelogWarning = await _fluohChangelogWarning(
     repository,
     manifest,
+    package,
     tag,
   );
   if (changelogWarning != null) {
@@ -31,8 +39,8 @@ Future<List<String>> pubReleaseMetadataWarnings({
   warnings.addAll(
     await pubLicenseWarnings(
       repository: repository,
-      packagePath: manifest.dependencyPath,
-      packageName: manifest.packageName,
+      packagePath: package.dependencyPath,
+      packageName: package.name,
     ),
   );
   return warnings;
@@ -41,9 +49,10 @@ Future<List<String>> pubReleaseMetadataWarnings({
 Future<void> _ensureReleaseVersionAfterPreviousTags(
   Directory repository,
   PubManifest manifest,
+  PubManifestPackage package,
   String tag,
 ) async {
-  final prefix = tag.substring(0, tag.length - manifest.releaseVersion.length);
+  final prefix = tag.substring(0, tag.length - package.releaseVersion.length);
   final result = await runGit([
     'tag',
     '--list',
@@ -65,9 +74,9 @@ Future<void> _ensureReleaseVersionAfterPreviousTags(
   final latest = previousVersions.reduce((a, b) {
     return _compareReleaseVersions(a, b) >= 0 ? a : b;
   });
-  if (_compareReleaseVersions(manifest.releaseVersion, latest) <= 0) {
+  if (_compareReleaseVersions(package.releaseVersion, latest) <= 0) {
     throw UsageException(
-      'Release version ${manifest.releaseVersion} must be greater than '
+      'Release version ${package.releaseVersion} must be greater than '
           'latest release version $latest for this package, upstream version, '
           'and SDK.',
       '',
@@ -78,28 +87,39 @@ Future<void> _ensureReleaseVersionAfterPreviousTags(
 Future<String?> _fluohChangelogWarning(
   Directory repository,
   PubManifest manifest,
+  PubManifestPackage package,
   String tag,
 ) async {
   final changelog = File('${repository.path}/FLUOH_CHANGELOG.md');
   if (!await changelog.exists()) {
     return 'Warning: Missing FLUOH_CHANGELOG.md for '
-        '${manifest.packageName} release ${manifest.releaseVersion}.';
+        '${package.name} release ${package.releaseVersion}.';
   }
 
   final content = await changelog.readAsString();
-  if (!_hasChangelogEntry(content, manifest.releaseVersion, tag)) {
+  if (!_hasChangelogEntry(content, manifest, package, tag)) {
     return 'Warning: FLUOH_CHANGELOG.md does not contain a non-empty '
-        'entry for release ${manifest.releaseVersion}.';
+        'entry for ${package.name} release ${package.releaseVersion}.';
   }
   return null;
 }
 
-bool _hasChangelogEntry(String content, String version, String tag) {
+bool _hasChangelogEntry(
+  String content,
+  PubManifest manifest,
+  PubManifestPackage package,
+  String tag,
+) {
   final lines = content.split('\n');
   for (var i = 0; i < lines.length; i += 1) {
     final releaseHeading = _markdownHeading(lines[i]);
     if (releaseHeading == null ||
-        !_isReleaseHeading(releaseHeading, version, tag)) {
+        !_isReleaseHeading(
+          releaseHeading,
+          package,
+          tag,
+          requirePackage: manifest.packages.length > 1,
+        )) {
       continue;
     }
 
@@ -130,9 +150,19 @@ _MarkdownHeading? _markdownHeading(String line) {
   return _MarkdownHeading(match.group(1)!.length, match.group(2)!);
 }
 
-bool _isReleaseHeading(_MarkdownHeading heading, String version, String tag) {
-  return _headingContainsRelease(heading.text, version) ||
-      _headingContainsRelease(heading.text, tag);
+bool _isReleaseHeading(
+  _MarkdownHeading heading,
+  PubManifestPackage package,
+  String tag, {
+  required bool requirePackage,
+}) {
+  if (_headingContainsRelease(heading.text, tag)) {
+    return true;
+  }
+  if (!_headingContainsRelease(heading.text, package.releaseVersion)) {
+    return false;
+  }
+  return !requirePackage || heading.text.contains(package.name);
 }
 
 bool _headingContainsRelease(String heading, String value) {

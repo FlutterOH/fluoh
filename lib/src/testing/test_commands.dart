@@ -79,11 +79,16 @@ class TestInitCommand extends Command<int> {
   }) : _stdout = stdout,
        _stderr = stderr {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
-    argParser.addFlag(
-      'force',
-      negatable: false,
-      help: 'Replace an existing fluoh_test directory.',
-    );
+    argParser
+      ..addOption(
+        'package',
+        help: 'Package to initialize tests for in a multi-package adapter.',
+      )
+      ..addFlag(
+        'force',
+        negatable: false,
+        help: 'Replace an existing fluoh_test directory.',
+      );
   }
 
   final FluohEnvironment environment;
@@ -105,6 +110,7 @@ class TestInitCommand extends Command<int> {
       stderr: _stderr,
       output: _output,
       force: argResults!.flag('force'),
+      packageName: argResults!.option('package'),
     );
     return 0;
   }
@@ -117,13 +123,18 @@ class TestRunCommand extends Command<int> {
     required OutputWriter stderr,
     TerminalOutput? output,
   }) : _stdout = stdout,
-       _stderr = stderr,
-       _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
+       _stderr = stderr {
+    _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
+    argParser.addOption(
+      'package',
+      help: 'Package to test in a multi-package adapter.',
+    );
+  }
 
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
-  final TerminalOutput _output;
+  late final TerminalOutput _output;
 
   @override
   String get name => 'run';
@@ -139,6 +150,7 @@ class TestRunCommand extends Command<int> {
       stdout: _stdout,
       stderr: _stderr,
       output: _output,
+      packageName: argResults!.option('package'),
     );
   }
 }
