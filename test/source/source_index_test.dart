@@ -17,73 +17,91 @@ void main() {
 
     expect(packageIndex.packages, contains('camera'));
     expect(
-      packageIndex.packages['camera']!.adapters.single.tag,
-      'camera-v0.11.0-ohos-3.35.8-1',
+      packageIndex.packages['camera']!.implementations.single.tag,
+      'camera-0.11.0-ohos-3.35-1',
+    );
+    expect(
+      packageIndex.packages['camera']!.compatibility.single.upstreamVersion,
+      '0.11.0',
+    );
+    expect(
+      packageIndex.packages['camera']!.compatibility.single.status,
+      'implemented',
     );
 
-    expect(compatibilityMatrix.sdkVersions, contains('3.35.8-ohos-0.0.3'));
+    expect(compatibilityMatrix.sdkVersions, contains('3.35'));
     expect(
-      compatibilityMatrix.sdkVersions['3.35.8-ohos-0.0.3']!.adapted,
+      compatibilityMatrix.sdkVersions['3.35']!.implemented,
       contains('camera'),
     );
   });
 
-  test('accepts broken package releases without replacements', () async {
+  test('accepts multiple compatible release versions', () async {
     final root = await _createSourceRoot();
-    await _writeSdkIndex(root);
-    await _writePackageRegistry(root, packageName: 'camera');
-    await _writePackageManifest(
+    await _writeSourceRoot(root, manifests: const ['camera']);
+    await _writeManifest(
       root,
       packageName: 'camera',
-      status: 'broken',
-      includeReplacement: false,
+      releaseVersions: const ['0.1.0', '0.2.0'],
     );
     final source = SourceIndex.directory(root);
 
     final packageIndex = await source.loadPackageIndex();
-    final compatibilityMatrix = await source.loadCompatibilityMatrix();
+    final implementations = packageIndex.packages['camera']!.implementations;
 
-    expect(packageIndex.packages['camera']!.adapters, isEmpty);
-    expect(compatibilityMatrix.sdkVersions['3.35.8-ohos-0.0.3']!.blocked, [
-      'camera',
+    expect(implementations.map((implementation) => implementation.tag), [
+      'camera-1.0.0-ohos-3.35-0.1.0',
+      'camera-1.0.0-ohos-3.35-0.2.0',
     ]);
   });
 
-  test('expands package release SDK versions into adapters', () async {
-    final root = await _createSourceRoot();
-    await _writeSdkIndex(root);
-    await _writePackageRegistry(root, packageName: 'camera');
-    await _writePackageManifest(
-      root,
-      packageName: 'camera',
-      status: 'compatible',
-      sdkVersions: const ['3.35.8-ohos-0.0.3', '3.35.8-ohos-0.0.4'],
-    );
-    final source = SourceIndex.directory(root);
+  test(
+    'does not expose experimental releases as compatible replacements',
+    () async {
+      final root = await _createSourceRoot();
+      await _writeSourceRoot(root, manifests: const ['camera']);
+      await _writeManifest(
+        root,
+        packageName: 'camera',
+        releaseVersions: const ['0.1.0'],
+        releaseStatus: 'experimental',
+      );
+      final source = SourceIndex.directory(root);
 
-    final packageIndex = await source.loadPackageIndex();
-    final compatibilityMatrix = await source.loadCompatibilityMatrix();
+      final packageIndex = await source.loadPackageIndex();
+      final compatibilityMatrix = await source.loadCompatibilityMatrix();
+
+      expect(packageIndex.packages['camera']!.implementations, isEmpty);
+      expect(compatibilityMatrix.sdkVersions, isEmpty);
+    },
+  );
+
+  test('rejects release records without releases', () async {
+    final root = await _createSourceRoot();
+    await _writeSourceRoot(root, manifests: const ['camera']);
+    await _writeManifest(root, packageName: 'camera', includeReleases: false);
+    final source = SourceIndex.directory(root);
 
     expect(
-      packageIndex.packages['camera']!.adapters.map(
-        (adapter) => adapter.sdkVersion,
+      source.loadPackageIndex,
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('releases must not be empty'),
+        ),
       ),
-      containsAll(['3.35.8-ohos-0.0.3', '3.35.8-ohos-0.0.4']),
     );
-    expect(compatibilityMatrix.sdkVersions['3.35.8-ohos-0.0.4']!.adapted, [
-      'camera',
-    ]);
   });
 
-  test('rejects compatible package releases without replacements', () async {
+  test('rejects duplicate package names across manifests', () async {
     final root = await _createSourceRoot();
-    await _writeSdkIndex(root);
-    await _writePackageRegistry(root, packageName: 'camera');
-    await _writePackageManifest(
+    await _writeSourceRoot(root, manifests: const ['camera', 'duplicate']);
+    await _writeManifest(root, manifestName: 'camera', packageName: 'camera');
+    await _writeManifest(
       root,
+      manifestName: 'duplicate',
       packageName: 'camera',
-      status: 'compatible',
-      includeReplacement: false,
     );
     final source = SourceIndex.directory(root);
 
@@ -93,39 +111,31 @@ void main() {
         isA<FormatException>().having(
           (error) => error.message,
           'message',
-          contains('Expected package manifest replacement to be a YAML object'),
+          contains('appears in both'),
         ),
       ),
     );
   });
 
   test(
-    'rejects manifests that disagree with the repository package name',
+    'validates only requested packages during filtered source loads',
     () async {
       final root = await _createSourceRoot();
-      await _writeSdkIndex(root);
-      await _writePackageRegistry(root, packageName: 'camera');
-      await _writePackageManifest(
+      await _writeSourceRoot(root, manifests: const ['camera', 'share_plus']);
+      await _writeManifest(root, manifestName: 'camera', packageName: 'camera');
+      await _writeManifest(
         root,
-        packageName: 'path_provider',
-        fileName: 'camera',
-        status: 'compatible',
+        manifestName: 'share_plus',
+        packageName: 'share_plus',
       );
       final source = SourceIndex.directory(root);
 
-      expect(
-        source.loadPackageIndex,
-        throwsA(
-          isA<FormatException>().having(
-            (error) => error.message,
-            'message',
-            contains(
-              'Package manifest "path_provider" does not match repository package '
-              '"camera"',
-            ),
-          ),
-        ),
+      final packageIndex = await source.loadPackageIndex(
+        packageNames: {'camera'},
       );
+
+      expect(packageIndex.packages, contains('camera'));
+      expect(packageIndex.packages, isNot(contains('share_plus')));
     },
   );
 }
@@ -137,75 +147,76 @@ Future<Directory> _createSourceRoot() async {
       await root.delete(recursive: true);
     }
   });
-  await Directory('${root.path}/sdk').create(recursive: true);
-  await Directory('${root.path}/packages/manifests').create(recursive: true);
   return root;
 }
 
-Future<void> _writeSdkIndex(Directory root) async {
-  await File('${root.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: /tmp/flutter-ohos-sdk
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
-}
-
-Future<void> _writePackageRegistry(
+Future<void> _writeSourceRoot(
   Directory root, {
-  required String packageName,
+  required List<String> manifests,
 }) async {
-  await File('${root.path}/packages/repositories.yaml').writeAsString('''
+  await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-repositories:
-  - name: $packageName
-    url: /tmp/$packageName
-    path: packages/$packageName
-''');
-}
+kind: source
+name: Test source
+description: Test source.
 
-Future<void> _writePackageManifest(
-  Directory root, {
-  required String packageName,
-  String? fileName,
-  required String status,
-  List<String> sdkVersions = const ['3.35.8-ohos-0.0.3'],
-  bool includeReplacement = true,
-}) async {
-  await File(
-    '${root.path}/packages/manifests/${fileName ?? packageName}.yaml',
-  ).writeAsString('''
-schema: 1
-package:
-  name: $packageName
+repository:
   git:
-    url: /tmp/$packageName
-    path: packages/$packageName
+    url: file:${root.path}
+
+sdk:
+  git:
+    url: /tmp/flutter-ohos-sdk
+  versions:
+    - 3.35.8-ohos-0.0.3
+
+manifests:
+${manifests.map((entry) => '  - name: $entry').join('\n')}
+''');
+}
+
+Future<void> _writeManifest(
+  Directory root, {
+  String manifestName = 'camera',
+  required String packageName,
+  List<String> releaseVersions = const ['0.1.0'],
+  String releaseStatus = 'compatible',
+  bool includeReleases = true,
+}) async {
+  final manifest = Directory('${root.path}/manifests/$manifestName');
+  await manifest.create(recursive: true);
+  final releases = includeReleases
+      ? releaseVersions
+            .map(
+              (version) =>
+                  '          - version: "$version"\n'
+                  '            upstreamVersion: "1.0.0"'
+                  '${releaseStatus == 'compatible' ? '' : '\n            status: $releaseStatus'}',
+            )
+            .join('\n')
+      : '';
+  await File('${manifest.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: manifest
+name: $manifestName
+
+repository:
+  git:
+    url: /tmp/$manifestName
+
 upstream:
   git:
-    url: https://github.com/example/$packageName
-    path: packages/$packageName
-releases:
-  - upstream:
-      version: 1.0.0
-      git:
-        ref: v1.0.0
-    package:
-      version: "1"
-      git:
-        ref: ohos/3.35
-    sdk:
-      versionSeries: 3.35
-      versions:
-${sdkVersions.map((version) => '        - $version').join('\n')}
-    status: $status
-${includeReplacement ? '''
-    replacement:
-      git:
-        url: /tmp/$packageName
-        ref: $packageName-v1.0.0-ohos-3.35.8-1
-        path: packages/$packageName
-''' : ''}
+    url: https://github.com/example/$manifestName
+    branch: main
+
+packages:
+  $packageName:
+    repository:
+      path: packages/$packageName
+    upstream:
+      path: packages/$packageName
+    sdks:
+      "3.35":
+        releases:${includeReleases ? '\n$releases' : ' []'}
 ''');
 }

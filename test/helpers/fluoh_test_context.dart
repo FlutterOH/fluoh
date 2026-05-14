@@ -21,14 +21,10 @@ Future<FluohEnvironment> createTestEnvironment() async {
 
 Future<Directory> createPubSourceFixture(Directory parent) async {
   final source = Directory('${parent.path}/pub_source');
-  await Directory('${source.path}/sdk').create(recursive: true);
-  await Directory('${source.path}/packages/manifests').create(recursive: true);
-  await File('${source.path}/fluoh.yaml').writeAsString('''
-schema: 1
-name: Test FlutterOH source
-description: Test source fixture.
-repositoryUrl: file:${source.path}
-''');
+  await Directory('${source.path}/manifests/camera').create(recursive: true);
+  await Directory(
+    '${source.path}/manifests/share_plus',
+  ).create(recursive: true);
 
   final sdkRepository = await createTaggedGitRepository(
     Directory('${parent.path}/flutter-ohos-sdk'),
@@ -36,113 +32,117 @@ repositoryUrl: file:${source.path}
     readme: '# Mock Flutter OHOS SDK\n',
   );
 
-  await File('${source.path}/sdk/releases.yaml').writeAsString('''
+  await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
+kind: source
+name: Test FlutterOH source
+description: Test source fixture.
+repository:
+  git:
+    url: file:${source.path}
 
-  await File('${source.path}/packages/repositories.yaml').writeAsString('''
-schema: 1
-repositories:
+environment:
+  fluoh: ">=0.1.0"
+
+sdk:
+  git:
+    url: ${sdkRepository.path}
+  versions:
+    - 3.35.8-ohos-0.0.3
+
+manifests:
   - name: camera
-    url: ${parent.path}/camera
-    path: packages/camera/camera
   - name: share_plus
-    url: ${parent.path}/share_plus
-    path: packages/share_plus/share_plus
 ''');
 
-  await File('${source.path}/packages/manifests/camera.yaml').writeAsString('''
+  await File('${source.path}/manifests/camera/fluoh.yaml').writeAsString('''
 schema: 1
-package:
-  name: camera
+kind: manifest
+name: camera
+
+repository:
   git:
     url: ${parent.path}/camera
-    path: packages/camera/camera
+
 upstream:
   git:
-    url: https://github.com/flutter/packages/tree/main/packages/camera/camera
-    path: packages/camera/camera
-releases:
-  - upstream:
-      version: 0.11.0
-      git:
-        ref: camera-v0.11.0
-    package:
-      version: "0"
-      git:
-        ref: ohos/3.35
-    sdk:
-      versionSeries: 3.35
-      versions:
-        - 3.35.8-ohos-0.0.3
-    status: compatible
-    replacement:
-      git:
-        url: ${parent.path}/camera
-        ref: camera-v0.11.0-ohos-3.35.8-0
-        path: packages/camera/camera
-  - upstream:
-      version: 0.11.0
-      git:
-        ref: camera-v0.11.0
-    package:
-      version: "1"
-      git:
-        ref: ohos/3.35
-    sdk:
-      versionSeries: 3.35
-      versions:
-        - 3.35.8-ohos-0.0.3
-    status: compatible
-    replacement:
-      git:
-        url: ${parent.path}/camera
-        ref: camera-v0.11.0-ohos-3.35.8-1
-        path: packages/camera/camera
+    url: https://github.com/flutter/packages
+    branch: main
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+    sdks:
+      "3.35":
+        releases:
+          - version: "0"
+            upstreamVersion: "0.11.0"
+          - version: "1"
+            upstreamVersion: "0.11.0"
 ''');
 
-  await File('${source.path}/packages/manifests/share_plus.yaml').writeAsString(
-    '''
+  await File('${source.path}/manifests/share_plus/fluoh.yaml').writeAsString('''
 schema: 1
-package:
-  name: share_plus
+kind: manifest
+name: share_plus
+
+repository:
   git:
     url: ${parent.path}/share_plus
-    path: packages/share_plus/share_plus
+
 upstream:
   git:
-    url: https://github.com/fluttercommunity/plus_plugins/tree/main/packages/share_plus/share_plus
-    path: packages/share_plus/share_plus
-releases:
-  - upstream:
-      version: 9.0.0
-      git:
-        ref: share_plus-v9.0.0
-    package:
-      version: "1"
-      git:
-        ref: ohos/3.35
-    sdk:
-      versionSeries: 3.35
-      versions:
-        - 3.35.8-ohos-0.0.3
-    status: compatible
-    replacement:
-      git:
-        url: ${parent.path}/share_plus
-        ref: share_plus-v9.0.0-ohos-3.35.8-1
-        path: packages/share_plus/share_plus
-''',
-  );
+    url: https://github.com/fluttercommunity/plus_plugins
+    branch: main
+
+packages:
+  share_plus:
+    repository:
+      path: packages/share_plus/share_plus
+    upstream:
+      path: packages/share_plus/share_plus
+    sdks:
+      "3.35":
+        releases:
+          - version: "1"
+            upstreamVersion: "9.0.0"
+''');
 
   return source;
 }
 
-Future<void> writeFlutterProjectWithAdapterOverrideFixture(
+Future<void> writeSdkSourceFixture(
+  Directory source, {
+  required String sdkRepository,
+  required Map<String, String> releases,
+}) async {
+  await source.create(recursive: true);
+  final buffer = StringBuffer()
+    ..writeln('schema: 1')
+    ..writeln('kind: source')
+    ..writeln('name: Test FlutterOH source')
+    ..writeln('description: Test source fixture.')
+    ..writeln()
+    ..writeln('repository:')
+    ..writeln('  git:')
+    ..writeln('    url: file:${source.path}')
+    ..writeln()
+    ..writeln('sdk:')
+    ..writeln('  git:')
+    ..writeln('    url: $sdkRepository')
+    ..writeln('  versions:');
+
+  for (final entry in releases.entries) {
+    buffer.writeln('    - ${entry.key}');
+  }
+
+  await File('${source.path}/fluoh.yaml').writeAsString(buffer.toString());
+}
+
+Future<void> writeFlutterProjectWithImplementationOverrideFixture(
   Directory project,
 ) async {
   await writeFlutterProjectFixture(project);
@@ -153,7 +153,7 @@ dependency_overrides:
   camera:
     git:
       url: ${project.parent.path}/camera
-      ref: camera-v0.11.0-ohos-3.35.8-0
+      ref: camera-0.11.0-ohos-3.35-0
 ''');
 }
 

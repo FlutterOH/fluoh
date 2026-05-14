@@ -2,7 +2,7 @@
 
 ## Project Scope
 
-`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency adapter status, rewrites project dependency declarations, and helps maintain third-party FlutterOH pub repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
+`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency implementation status, rewrites project dependency declarations, and helps maintain third-party FlutterOH pub repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
 
 ## Repository Layout
 
@@ -10,11 +10,13 @@
 - `lib/fluoh.dart`: public package API and command runner export.
 - `lib/src/cli/`: command runner wiring.
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
+- `lib/src/schema/`: internal YAML/JSON/text schema models, validation, canonical generation, and pure rewrite rules.
 - `lib/src/source/`: FlutterOH data source registry and YAML source loading.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
 - `lib/src/pub/`: pub dependency analysis and commands, plus repository create, sync, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
 - `test/`: unit, command, integration, fixture, and release artifact tests.
+- `docs/schema.md`: current schema design and ownership boundaries.
 - `Formula/`: Homebrew packaging.
 - `.github/workflows/publish.yml`: pub.dev publishing automation.
 

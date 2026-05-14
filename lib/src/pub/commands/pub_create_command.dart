@@ -35,7 +35,7 @@ class PubCreateCommand extends Command<int> {
         'output',
         help: 'Destination path for the FlutterOH pub repository.',
       )
-      ..addOption('sdk', help: 'Flutter OHOS SDK tag or version series.')
+      ..addOption('sdk', help: 'Flutter OHOS SDK version or version series.')
       ..addOption(
         'repo',
         abbr: 'r',
@@ -114,15 +114,15 @@ class PubCreateCommand extends Command<int> {
         ),
     ];
 
-    final adapterUrl =
+    final repositoryUrl =
         argResults!.option('repo') ??
         defaultPubRepositoryUrl(
-          _defaultAdapterRepositoryName(upstream, selectedPackages),
+          _defaultImplementationRepositoryName(upstream, selectedPackages),
         );
-    await configurePubRemotes(destination, adapterUrl);
+    await configurePubRemotes(destination, repositoryUrl);
 
-    final upstreamRef = await currentHead(destination);
-    final branch = ohosBranchForSdk(release.tag);
+    final upstreamBranch = await upstreamDefaultBranch(destination);
+    final branch = flutterOhosBranchForSdk(release.tag);
     await runGit(['checkout', '-b', branch], workingDirectory: destination);
     final pubEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
@@ -153,29 +153,29 @@ class PubCreateCommand extends Command<int> {
     await writePubManifestFile(
       destination,
       PubManifest(
+        name: _defaultImplementationRepositoryName(upstream, selectedPackages),
         sdkVersion: release.tag,
-        branch: branch,
+        repositoryBranch: branch,
         upstreamUrl: upstream,
-        upstreamRef: upstreamRef,
-        upstreamDefaultBranch: await upstreamDefaultBranch(destination),
-        adapterUrl: adapterUrl,
+        upstreamBranch: upstreamBranch,
+        repositoryUrl: repositoryUrl,
         packages: [
           for (final selected in selectedPackages)
             PubManifestPackage(
               name: selected.package.name,
               upstreamVersion: selected.package.version,
-              releaseVersion: initialPubReleaseVersion,
-              dependencyPath: selected.path == '.' ? null : selected.path,
-              upstreamPath: selected.path == '.' ? null : selected.path,
+              version: initialPubReleaseVersion,
+              repositoryPath: selected.path,
+              upstreamPath: selected.path,
               status: 'experimental',
             ),
         ],
       ),
     );
     await File('${destination.path}/FLUOH.md').writeAsString(
-      pubAdaptationGuideContent(
+      pubImplementationGuideContent(
         packages: docPackages,
-        upstreamRef: upstreamRef,
+        upstreamBranch: upstreamBranch,
         sdkVersion: release.tag,
         branch: branch,
         includeTitle: true,
@@ -191,7 +191,7 @@ class PubCreateCommand extends Command<int> {
     await writeOrAppendPubAgentsInstructions(
       destination: destination,
       packages: docPackages,
-      upstreamRef: upstreamRef,
+      upstreamBranch: upstreamBranch,
       sdkVersion: release.tag,
       branch: branch,
     );
@@ -247,14 +247,14 @@ class PubCreateCommand extends Command<int> {
       'Created pub repository at ${_output.style.path(destination.path)}.',
     );
     _output.info('Pub branch: $branch.');
-    _output.info('Origin: ${_output.style.url(adapterUrl)}.');
+    _output.info('Origin: ${_output.style.url(repositoryUrl)}.');
     _output.success('Configured Flutter OHOS SDK ${release.tag}.');
     if (createdTestWorkspaces) {
       _output.next(
-        'See FLUOH.md, AGENTS.md, and fluoh_test/ for adaptation steps.',
+        'See FLUOH.md, AGENTS.md, and fluoh_test/ for implementation steps.',
       );
     } else {
-      _output.next('See FLUOH.md and AGENTS.md for adaptation steps.');
+      _output.next('See FLUOH.md and AGENTS.md for implementation steps.');
     }
     return 0;
   }
@@ -268,7 +268,7 @@ class PubCreateCommand extends Command<int> {
 
     final releases = await manager.listReleases();
     if (releases.isEmpty) {
-      usageException('No SDK releases found in configured sources.');
+      usageException('No SDK versions found in configured sources.');
     }
     return SdkManager.latestRelease(releases, preferStable: true);
   }
@@ -315,7 +315,7 @@ Future<List<_SelectedPackage>> _selectPackages({
   return selected;
 }
 
-String _defaultAdapterRepositoryName(
+String _defaultImplementationRepositoryName(
   String upstream,
   List<_SelectedPackage> selectedPackages,
 ) {

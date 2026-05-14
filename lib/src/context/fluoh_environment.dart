@@ -31,4 +31,6 @@ class FluohEnvironment {
   Directory get sdksDirectory => Directory('${homeDirectory.path}/sdks');
 
   File get configFile => File('${homeDirectory.path}/config.json');
+
+  File get sourcesLockFile => File('${homeDirectory.path}/sources.lock.json');
 }

@@ -1,17 +1,21 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:yaml/yaml.dart';
+import 'package:pub_semver/pub_semver.dart';
 
 import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
-import '../config/fluoh_yaml_schema.dart';
+import '../version.dart';
 import 'source_index.dart';
 
 Future<void> ensureSourceSnapshots(
   FluohConfig config, {
   TerminalOutput? output,
 }) async {
+  if (config.sources.isEmpty) {
+    return;
+  }
+
   for (final entry in config.sources.entries) {
     final source = entry.value;
     final state = await _snapshotState(entry.key, source);
@@ -30,8 +34,30 @@ Future<void> ensureSourceSnapshots(
       await validateSource(entry.key, source);
     }
 
-    await syncGitSource(entry.key, source, output: output);
+    try {
+      await syncGitSource(entry.key, source, output: output);
+    } on UsageException {
+      // Source consumers can proceed when another configured snapshot is
+      // readable. Explicit `source update` still reports sync failures.
+    }
   }
+
+  if (!await _hasReadableSource(config)) {
+    throw UsageException(
+      'No readable data source index found. Run "fluoh source update" or '
+          '"fluoh source add <name> <path>".',
+      '',
+    );
+  }
+}
+
+Future<bool> _hasReadableSource(FluohConfig config) async {
+  for (final entry in config.sources.entries) {
+    if (await _snapshotState(entry.key, entry.value) == _SnapshotState.valid) {
+      return true;
+    }
+  }
+  return false;
 }
 
 Future<_SnapshotState> _snapshotState(
@@ -58,12 +84,12 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   final validators =
       <({String label, bool present, Future<void> Function() validate})>[
         (
-          label: 'sdk/releases.yaml',
+          label: 'fluoh.yaml sdk',
           present: source.hasSdkIndex,
           validate: () async => source.loadSdkIndex(),
         ),
         (
-          label: 'packages/repositories.yaml',
+          label: 'fluoh.yaml manifests',
           present: source.hasPackageIndex,
           validate: () async {
             await source.loadPackageIndex();
@@ -75,15 +101,11 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
       .where((entry) => entry.present)
       .toList(growable: false);
   if (present.isEmpty) {
-    throw UsageException(
-      'Source $name does not contain sdk/releases.yaml or '
-          'packages/repositories.yaml.',
-      '',
-    );
+    throw UsageException('Source $name does not contain fluoh.yaml.', '');
   }
 
   try {
-    await _validateSourceMetadataSchema(sourceConfig.directory);
+    await _validateSourceEnvironment(source);
     for (final entry in present) {
       await entry.validate();
     }
@@ -99,17 +121,22 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   }
 }
 
-Future<void> _validateSourceMetadataSchema(Directory directory) async {
-  final metadata = File('${directory.path}/fluoh.yaml');
-  if (!await metadata.exists()) {
+Future<void> _validateSourceEnvironment(SourceIndex source) async {
+  final manifest = await source.loadRootManifest();
+  final constraintText = manifest.fluohConstraint;
+  if (constraintText == null || constraintText.trim().isEmpty) {
     return;
   }
 
-  final yaml = loadYaml(await metadata.readAsString());
-  if (yaml is! YamlMap) {
-    throw const FormatException('fluoh.yaml must contain a YAML map.');
+  final constraint = VersionConstraint.parse(constraintText);
+  final current = Version.parse(packageVersion);
+  if (!constraint.allows(current)) {
+    throw UsageException(
+      'Requires fluoh $constraintText, current version is $packageVersion. '
+          'Upgrade fluoh and try again.',
+      '',
+    );
   }
-  ensureSupportedFluohYamlSchema(yaml);
 }
 
 String fileSystemMessage(FileSystemException error) {
@@ -125,17 +152,67 @@ Future<void> syncLocalSource(
   Directory source,
   Directory destination,
 ) async {
-  final temp = await Directory.systemTemp.createTemp('fluoh_source_');
+  final temp = await prepareLocalSourceSnapshot(name, source);
   try {
-    await _copySourceSnapshot(source, temp);
-    await validateSource(name, SourceConfig(path: temp.path));
     await replaceSourceSnapshot(source: temp, destination: destination);
   } finally {
     await deleteIfExists(temp);
   }
 }
 
+Future<Directory> prepareLocalSourceSnapshot(
+  String name,
+  Directory source,
+) async {
+  final temp = await Directory.systemTemp.createTemp('fluoh_source_');
+  try {
+    await copySourceSnapshot(source, temp);
+    await validateSource(name, SourceConfig(path: temp.path));
+    return temp;
+  } catch (_) {
+    await deleteIfExists(temp);
+    rethrow;
+  }
+}
+
 Future<void> syncGitSource(
+  String name,
+  SourceConfig source, {
+  TerminalOutput? output,
+}) async {
+  final localSource = localSourceDirectoryFromUrl(source.url);
+  final temp = localSource == null
+      ? await prepareGitSourceSnapshot(name, source, output: output)
+      : await prepareLocalSourceSnapshot(name, localSource);
+  try {
+    await replaceSourceSnapshot(source: temp, destination: source.directory);
+  } finally {
+    await deleteIfExists(temp);
+  }
+}
+
+Directory? localSourceDirectoryFromUrl(String? value) {
+  if (value == null || !value.startsWith('file:')) {
+    return null;
+  }
+
+  try {
+    final uri = Uri.parse(value);
+    if (uri.scheme != 'file') {
+      return null;
+    }
+    if (uri.path.startsWith('/') || uri.hasAuthority) {
+      return Directory(uri.toFilePath());
+    }
+    return Directory(Uri.decodeComponent(uri.path));
+  } on FormatException {
+    return Directory(value.substring('file:'.length));
+  } on UnsupportedError {
+    return Directory(value.substring('file:'.length));
+  }
+}
+
+Future<Directory> prepareGitSourceSnapshot(
   String name,
   SourceConfig source, {
   TerminalOutput? output,
@@ -156,9 +233,10 @@ Future<void> syncGitSource(
     );
     await deleteIfExists(Directory('${temp.path}/.git'));
     await validateSource(name, SourceConfig(path: temp.path));
-    await replaceSourceSnapshot(source: temp, destination: source.directory);
-  } finally {
+    return temp;
+  } catch (_) {
     await deleteIfExists(temp);
+    rethrow;
   }
 }
 
@@ -179,7 +257,7 @@ Future<void> replaceSourceSnapshot({
   var staging = await parent.createTemp('.${basename(destination.path)}-next-');
   Directory? backup;
   try {
-    await _copySourceSnapshot(source, staging);
+    await copySourceSnapshot(source, staging);
     if (await destination.exists()) {
       backup = await destination.rename(
         '${parent.path}/.${basename(destination.path)}-previous-'
@@ -206,26 +284,15 @@ Future<void> replaceSourceSnapshot({
   }
 }
 
-Future<void> _copySourceSnapshot(
-  Directory source,
-  Directory destination,
-) async {
+Future<void> copySourceSnapshot(Directory source, Directory destination) async {
   await destination.create(recursive: true);
   await _copyFileIfExists(
     File('${source.path}/fluoh.yaml'),
     File('${destination.path}/fluoh.yaml'),
   );
-  await _copyFileIfExists(
-    File('${source.path}/sdk/releases.yaml'),
-    File('${destination.path}/sdk/releases.yaml'),
-  );
-  await _copyFileIfExists(
-    File('${source.path}/packages/repositories.yaml'),
-    File('${destination.path}/packages/repositories.yaml'),
-  );
-  await _copyYamlFilesIfExists(
-    Directory('${source.path}/packages/manifests'),
-    Directory('${destination.path}/packages/manifests'),
+  await _copyDirectoryIfExists(
+    Directory('${source.path}/manifests'),
+    Directory('${destination.path}/manifests'),
   );
 }
 
@@ -237,22 +304,30 @@ Future<void> _copyFileIfExists(File source, File destination) async {
   await source.copy(destination.path);
 }
 
-Future<void> _copyYamlFilesIfExists(
+Future<void> _copyDirectoryIfExists(
   Directory source,
   Directory destination,
 ) async {
   if (!await source.exists()) {
     return;
   }
-  await for (final entity in source.list(recursive: false)) {
-    if (entity is! File || !entity.path.endsWith('.yaml')) {
-      continue;
+  await for (final entity in source.list(recursive: true)) {
+    final relative = _relativeEntityPath(source, entity);
+    if (entity is Directory) {
+      await Directory('${destination.path}/$relative').create(recursive: true);
+    } else if (entity is File) {
+      await _copyFileIfExists(entity, File('${destination.path}/$relative'));
     }
-    await _copyFileIfExists(
-      entity,
-      File('${destination.path}/${basename(entity.path)}'),
-    );
   }
+}
+
+String _relativeEntityPath(Directory root, FileSystemEntity entity) {
+  final rootPath = root.absolute.path;
+  final entityPath = entity.absolute.path;
+  if (entityPath == rootPath) {
+    return '';
+  }
+  return entityPath.substring(rootPath.length + 1);
 }
 
 Future<void> deleteIfExists(FileSystemEntity entity) async {

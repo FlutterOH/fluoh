@@ -1,12 +1,13 @@
 name: fluoh
-description: Command-line tools for FlutterOH SDK management, dependency adapters, and OpenHarmony package workflows.
-version: 0.0.1
-repository: https://github.com/FlutterOH/fluoh
+description: Command-line tools for FlutterOH SDK management, OHOS implementation refs, and package workflows.
+version: 0.1.0
+repository: https://github.com/FlutterOH/fluoh.git
 issue_tracker: https://github.com/FlutterOH/fluoh/issues
 topics:
   - flutteroh
   - openharmony
   - harmonyos
+  - ohos
   - cli
 
 environment:

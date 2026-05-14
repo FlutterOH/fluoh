@@ -30,11 +30,11 @@ void main() {
     final tags = await runGit(pubRepository, ['tag', '--list']);
     expect(
       tags.stdout.toString().split('\n'),
-      contains('camera-v0.11.0-ohos-3.35.8-0.1.0'),
+      contains('camera-0.11.0-ohos-3.35-0.1.0'),
     );
     expect(
       stdout,
-      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
     );
     expect(stderr, isEmpty);
   });
@@ -67,7 +67,7 @@ void main() {
       );
 
       await runGit(pubRepository, ['checkout', '--', 'README.md']);
-      await runGit(pubRepository, ['checkout', '-b', 'ohos/3.34']);
+      await runGit(pubRepository, ['checkout', '-b', '3.34.0-ohos']);
       stderr.clear();
       expect(
         await runFluoh(
@@ -85,64 +85,79 @@ void main() {
     },
   );
 
-  test('release validates SDK tag and existing release tag commit', () async {
-    final environment = await createTestEnvironment();
-    final pubRepository = await createPubRepositoryFixture(environment);
-    final releaseEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: pubRepository,
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'release validates SDK version and existing release tag commit',
+    () async {
+      final environment = await createTestEnvironment();
+      final pubRepository = await createPubRepositoryFixture(environment);
+      final releaseEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: pubRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    var manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
-    await File('${pubRepository.path}/fluoh.yaml').writeAsString(
-      manifest.replaceFirst(
-        'sdk:\n  version: 3.35.8-ohos-0.0.3',
-        'sdk:\n  version: 3.35.8-ohos-9.9.9',
-      ),
-    );
-    await runGit(pubRepository, ['add', 'fluoh.yaml']);
-    await runGit(pubRepository, ['commit', '-m', 'Use invalid SDK tag']);
+      var manifest = File(
+        '${pubRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      await File('${pubRepository.path}/fluoh.yaml').writeAsString(
+        manifest.replaceFirst(
+          'sdk:\n  version: 3.35.8-ohos-0.0.3',
+          'sdk:\n  version: 3.35.8-ohos-9.9.9',
+        ),
+      );
+      await runGit(pubRepository, ['add', 'fluoh.yaml']);
+      await runGit(pubRepository, ['commit', '-m', 'Use invalid SDK version']);
 
-    expect(
-      await runFluoh(
-        ['pub', 'release'],
-        environment: releaseEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-    expect(stderr.join('\n'), contains('was not found in configured sources'));
+      expect(
+        await runFluoh(
+          ['pub', 'release'],
+          environment: releaseEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(
+        stderr.join('\n'),
+        contains('was not found in configured sources'),
+      );
 
-    manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
-    await File('${pubRepository.path}/fluoh.yaml').writeAsString(
-      manifest.replaceFirst(
-        'sdk:\n  version: 3.35.8-ohos-9.9.9',
-        'sdk:\n  version: 3.35.8-ohos-0.0.3',
-      ),
-    );
-    await runGit(pubRepository, ['add', 'fluoh.yaml']);
-    await runGit(pubRepository, ['commit', '-m', 'Restore valid SDK tag']);
-    await runGit(pubRepository, [
-      'tag',
-      'camera-v0.11.0-ohos-3.35.8-0.1.0',
-      'HEAD~1',
-    ]);
+      manifest = File('${pubRepository.path}/fluoh.yaml').readAsStringSync();
+      await File('${pubRepository.path}/fluoh.yaml').writeAsString(
+        manifest.replaceFirst(
+          'sdk:\n  version: 3.35.8-ohos-9.9.9',
+          'sdk:\n  version: 3.35.8-ohos-0.0.3',
+        ),
+      );
+      await runGit(pubRepository, ['add', 'fluoh.yaml']);
+      await runGit(pubRepository, [
+        'commit',
+        '-m',
+        'Restore valid SDK version',
+      ]);
+      await runGit(pubRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.1.0',
+        'HEAD~1',
+      ]);
 
-    stderr.clear();
-    expect(
-      await runFluoh(
-        ['pub', 'release'],
-        environment: releaseEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-    expect(stderr.join('\n'), contains('already exists on a different commit'));
-  });
+      stderr.clear();
+      expect(
+        await runFluoh(
+          ['pub', 'release'],
+          environment: releaseEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(
+        stderr.join('\n'),
+        contains('already exists on a different commit'),
+      );
+    },
+  );
 
   test('release warns when FlutterOH release notes are missing', () async {
     final environment = await createTestEnvironment();
@@ -170,7 +185,7 @@ void main() {
     expect(stderr.join('\n'), contains('Missing FLUOH_CHANGELOG.md'));
     expect(
       stdout,
-      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
     );
   });
 
@@ -209,11 +224,11 @@ void main() {
     );
     expect(
       stdout,
-      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
     );
   });
 
-  test('release warns when adapter license is missing', () async {
+  test('release warns when FlutterOH package license is missing', () async {
     final environment = await createTestEnvironment();
     final pubRepository = await createPubRepositoryFixture(environment);
     final releaseEnvironment = FluohEnvironment(
@@ -239,7 +254,7 @@ void main() {
     expect(stderr.join('\n'), contains('Missing LICENSE for camera'));
     expect(
       stdout,
-      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
     );
   });
 
@@ -276,7 +291,7 @@ void main() {
     );
     expect(
       stdout,
-      contains('Created release tag camera-v0.11.0-ohos-3.35.8-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
     );
     expect(stderr, isEmpty);
   });
@@ -291,7 +306,7 @@ void main() {
     final stdout = <String>[];
     final stderr = <String>[];
 
-    await runGit(pubRepository, ['tag', 'camera-v0.11.0-ohos-3.35.8-0.2.0']);
+    await runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
 
     expect(
       await runFluoh(
@@ -372,8 +387,8 @@ void main() {
       'tag',
       '--list',
     ])).stdout.toString();
-    expect(tags, contains('camera-v0.11.0-ohos-3.35.8-0.1.0'));
-    expect(tags, contains('share_plus-v9.0.0-ohos-3.35.8-0.1.0'));
+    expect(tags, contains('camera-0.11.0-ohos-3.35-0.1.0'));
+    expect(tags, contains('share_plus-9.0.0-ohos-3.35-0.1.0'));
     expect(stdout, contains('Released 2 packages.'));
     expect(stderr, isEmpty);
   });
@@ -458,8 +473,8 @@ exit 0
       'tag',
       '--list',
     ])).stdout.toString();
-    expect(remoteTags, isNot(contains('camera-v0.11.0-ohos-3.35.8-0.1.0')));
-    expect(remoteTags, isNot(contains('share_plus-v9.0.0-ohos-3.35.8-0.1.0')));
+    expect(remoteTags, isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')));
+    expect(remoteTags, isNot(contains('share_plus-9.0.0-ohos-3.35-0.1.0')));
   });
 
   test(
@@ -513,7 +528,7 @@ exit 0
       await commitGeneratedPubRepository(pubRepository);
       await runGit(pubRepository, [
         'tag',
-        'share_plus-v9.0.0-ohos-3.35.8-0.1.0',
+        'share_plus-9.0.0-ohos-3.35-0.1.0',
         'HEAD~1',
       ]);
 
@@ -535,8 +550,8 @@ exit 0
         'tag',
         '--list',
       ])).stdout.toString();
-      expect(tags, isNot(contains('camera-v0.11.0-ohos-3.35.8-0.1.0')));
-      expect(tags, contains('share_plus-v9.0.0-ohos-3.35.8-0.1.0'));
+      expect(tags, isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')));
+      expect(tags, contains('share_plus-9.0.0-ohos-3.35-0.1.0'));
       expect(
         stderr.join('\n'),
         contains('already exists on a different commit'),
@@ -614,7 +629,7 @@ exit 0
     expect(stderr.join('\n'), contains('entry for share_plus release 0.1.0'));
     expect(
       stdout,
-      contains('Created release tag share_plus-v9.0.0-ohos-3.35.8-0.1.0.'),
+      contains('Created release tag share_plus-9.0.0-ohos-3.35-0.1.0.'),
     );
   });
 }

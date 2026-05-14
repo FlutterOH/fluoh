@@ -1,5 +1,0 @@
-schema: 1
-url: ../mock_repositories/flutter-ohos-sdk.git
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable

@@ -53,12 +53,8 @@ class PubReleaseCommand extends Command<int> {
       usageException('Use only one of --all or --package.');
     }
 
-    final branch = await currentBranch(environment.workingDirectory);
-    if (!branch.startsWith('ohos/')) {
-      usageException('Release must run from an ohos/* pub branch.');
-    }
-
     final manifest = await readPubManifest(environment.workingDirectory);
+    final branch = await currentBranch(environment.workingDirectory);
     if (branch != manifest.branch) {
       usageException(
         'Current branch $branch does not match pub branch '
@@ -66,7 +62,7 @@ class PubReleaseCommand extends Command<int> {
       );
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
-    await _ensureSdkTagExists(manifest.sdkVersion);
+    await _ensureSdkVersionExists(manifest.sdkVersion);
     final packages = argResults!.flag('all')
         ? manifest.packages
         : [manifest.packageForName(argResults!.option('package'))];
@@ -201,10 +197,12 @@ class PubReleaseCommand extends Command<int> {
     return true;
   }
 
-  Future<void> _ensureSdkTagExists(String sdkTag) async {
+  Future<void> _ensureSdkVersionExists(String sdkVersion) async {
     final releases = await SdkManager(environment).listReleases();
-    if (!releases.any((release) => release.tag == sdkTag)) {
-      usageException('SDK tag $sdkTag was not found in configured sources.');
+    if (!releases.any((release) => release.tag == sdkVersion)) {
+      usageException(
+        'SDK version $sdkVersion was not found in configured sources.',
+      );
     }
   }
 }

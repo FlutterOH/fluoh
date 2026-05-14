@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
-  test('fixture SDK repository exposes an ohos SDK tag', () async {
+  test('fixture SDK repository exposes an ohos SDK Git tag', () async {
     final temp = await Directory.systemTemp.createTemp('fluoh_sdk_repo_test_');
     addTearDown(() async {
       if (await temp.exists()) {

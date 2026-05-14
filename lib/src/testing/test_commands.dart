@@ -37,7 +37,7 @@ class TestCommand extends Command<int> {
   String get name => 'test';
 
   @override
-  String get description => 'Manage FlutterOH adapter verification tests.';
+  String get description => 'Manage FlutterOH package verification tests.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -82,7 +82,7 @@ class TestInitCommand extends Command<int> {
     argParser
       ..addOption(
         'package',
-        help: 'Package to initialize tests for in a multi-package adapter.',
+        help: 'Package to initialize tests for in a multi-package repository.',
       )
       ..addFlag(
         'force',
@@ -127,7 +127,7 @@ class TestRunCommand extends Command<int> {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser.addOption(
       'package',
-      help: 'Package to test in a multi-package adapter.',
+      help: 'Package to test in a multi-package repository.',
     );
   }
 
@@ -140,8 +140,7 @@ class TestRunCommand extends Command<int> {
   String get name => 'run';
 
   @override
-  String get description =>
-      'Run adapter package tests and fluoh_test automated tests.';
+  String get description => 'Run package tests and fluoh_test automated tests.';
 
   @override
   Future<int> run() {

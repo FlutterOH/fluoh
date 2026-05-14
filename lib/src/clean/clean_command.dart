@@ -89,7 +89,7 @@ class CleanCommand extends Command<int> {
         for (final package in manifest.packages)
           packageDirectory(
             environment.workingDirectory,
-            package.dependencyPath ?? '.',
+            package.dependencyPath,
           ),
       ];
     } on UsageException catch (error) {
@@ -101,12 +101,16 @@ class CleanCommand extends Command<int> {
   }
 
   bool _isProjectFluohConfig(UsageException error) {
+    final message = error.message;
     return const {
-      'Missing fluoh.yaml.',
-      'fluoh.yaml missing "repository".',
-      'fluoh.yaml missing "packages".',
-      'fluoh.yaml missing "upstream".',
-    }.contains(error.message);
+          'Missing fluoh.yaml.',
+          'fluoh.yaml missing "repository".',
+          'fluoh.yaml missing "packages".',
+          'fluoh.yaml missing "upstream".',
+          'Expected "name" to be a non-empty string.',
+          'Expected fluoh.yaml repository.git to be a YAML object.',
+        }.contains(message) ||
+        message.contains('must not contain "dependencyPolicy"');
   }
 
   String _relativePath(Directory directory) {

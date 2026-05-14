@@ -1,5 +1,0 @@
-schema: 1
-repositories:
-  - name: camera
-    url: ../mock_repositories/camera.git
-    path: packages/camera/camera

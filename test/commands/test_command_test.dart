@@ -298,7 +298,7 @@ environment:
   });
 
   test(
-    'pub create initializes and stages fluoh_test for Flutter adapters',
+    'pub create initializes and stages fluoh_test for Flutter implementations',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
@@ -474,9 +474,8 @@ environment:
         [
           'pub',
           'add',
-          '--path',
           'packages/share_plus/share_plus',
-          '--package',
+          '--expected-package',
           'share_plus',
         ],
         environment: environment,
@@ -569,9 +568,8 @@ environment:
           [
             'pub',
             'add',
-            '--path',
             'packages/share_plus/share_plus',
-            '--package',
+            '--expected-package',
             'share_plus',
           ],
           environment: environment,
@@ -669,7 +667,7 @@ environment:
       final tags = await runGit(pubRepository, ['tag', '--list']);
       expect(
         tags.stdout.toString().split('\n'),
-        contains('camera-v0.11.0-ohos-3.35.8-0.1.0'),
+        contains('camera-0.11.0-ohos-3.35-0.1.0'),
       );
       expect(stdout, contains('Running fluoh test run before release.'));
       expect(stdout, contains('Running camera package Flutter tests.'));
@@ -687,7 +685,6 @@ Future<Directory> _createFlutterSdkSource(
 }) async {
   final source = Directory('${parent.path}/flutter_sdk_source_$logName');
   final sdkRepository = Directory('${parent.path}/flutter_sdk_$logName');
-  await Directory('${source.path}/sdk').create(recursive: true);
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
   await _runProcess('git', [
@@ -706,13 +703,11 @@ Future<Directory> _createFlutterSdkSource(
   await _runProcess('git', ['add', '.'], sdkRepository);
   await _runProcess('git', ['commit', '-m', 'Initial SDK'], sdkRepository);
   await _runProcess('git', ['tag', '3.35.8-ohos-0.0.3'], sdkRepository);
-  await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
+  await writeSdkSourceFixture(
+    source,
+    sdkRepository: sdkRepository.path,
+    releases: {'3.35.8-ohos-0.0.3': 'stable'},
+  );
   return source;
 }
 
@@ -786,21 +781,26 @@ Future<void> _writePubRepositoryManifest(
 }) async {
   await File('${directory.path}/fluoh.yaml').writeAsString('''
 schema: 1
+name: camera
+
 sdk:
   version: 3.35.8-ohos-0.0.3
+
 repository:
-  url: git@github.com:FlutterOH/camera.git
-  ref: ohos/3.35
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
+
 upstream:
-  url: https://github.com/flutter/packages.git
-  ref: camera-v0.11.0
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
 packages:
   camera:
-${packagePath == '.' ? '' : '    path: $packagePath\n'}    upstream:
-      version: 0.11.0
-${packagePath == '.' ? '' : '      path: $packagePath\n'}    release:
-      version: 0.1.0
-      status: experimental
+${packagePath == '.' ? '' : '    repository:\n      path: $packagePath\n'}${packagePath == '.' ? '' : '    upstream:\n      path: $packagePath\n'}    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
 ''');
 }
 

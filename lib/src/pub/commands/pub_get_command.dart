@@ -37,7 +37,17 @@ class PubGetCommand extends Command<int> {
       'Run flutter pub get for the project and fluoh_test workspaces.';
 
   @override
+  void printUsage() {
+    _output.write(usage);
+  }
+
+  @override
   Future<int> run() async {
+    if (_isHelpRequest(argResults!.rest)) {
+      printUsage();
+      return 0;
+    }
+
     final arguments = ['pub', 'get', ...argResults!.rest];
     for (final directory in await _pubGetDirectories()) {
       _output.step('Running flutter pub get in ${_relativePath(directory)}');
@@ -92,7 +102,7 @@ class PubGetCommand extends Command<int> {
         for (final package in manifest.packages)
           packageDirectory(
             environment.workingDirectory,
-            package.dependencyPath ?? '.',
+            package.dependencyPath,
           ),
       ];
     } on UsageException catch (error) {
@@ -104,12 +114,16 @@ class PubGetCommand extends Command<int> {
   }
 
   bool _isProjectFluohConfig(UsageException error) {
+    final message = error.message;
     return const {
-      'Missing fluoh.yaml.',
-      'fluoh.yaml missing "repository".',
-      'fluoh.yaml missing "packages".',
-      'fluoh.yaml missing "upstream".',
-    }.contains(error.message);
+          'Missing fluoh.yaml.',
+          'fluoh.yaml missing "repository".',
+          'fluoh.yaml missing "packages".',
+          'fluoh.yaml missing "upstream".',
+          'Expected "name" to be a non-empty string.',
+          'Expected fluoh.yaml repository.git to be a YAML object.',
+        }.contains(message) ||
+        message.contains('must not contain "dependencyPolicy"');
   }
 
   String _relativePath(Directory directory) {
@@ -131,5 +145,10 @@ class PubGetCommand extends Command<int> {
       return path.substring(root.length + 1);
     }
     return path;
+  }
+
+  bool _isHelpRequest(List<String> arguments) {
+    return arguments.length == 1 &&
+        const {'-h', '--help'}.contains(arguments.single);
   }
 }

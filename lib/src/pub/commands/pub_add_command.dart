@@ -21,13 +21,10 @@ class PubAddCommand extends Command<int> {
   }) : _stdout = stdout,
        _stderr = stderr,
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
-    argParser
-      ..addOption(
-        'path',
-        mandatory: true,
-        help: 'Package path inside the existing adapter monorepo.',
-      )
-      ..addOption('package', help: 'Expected package name at --path.');
+    argParser.addOption(
+      'expected-package',
+      help: 'Expected package name at <package-path>.',
+    );
   }
 
   final FluohEnvironment environment;
@@ -43,7 +40,15 @@ class PubAddCommand extends Command<int> {
       'Register another package in an existing FlutterOH pub monorepo.';
 
   @override
+  String get invocation => 'fluoh pub add <package-path>';
+
+  @override
   Future<int> run() async {
+    final rest = argResults!.rest;
+    if (rest.length != 1) {
+      usageException('Expected <package-path>.');
+    }
+
     final repository = environment.workingDirectory;
     await ensureCleanWorkingTree(repository, 'Add package');
     final manifest = await readPubManifest(repository);
@@ -54,11 +59,11 @@ class PubAddCommand extends Command<int> {
       );
     }
 
-    final packagePath = argResults!.option('path')!;
+    final packagePath = rest.single;
     final package = await readPubspecPackage(
       packageDirectory(repository, packagePath),
     );
-    final expectedPackage = argResults!.option('package');
+    final expectedPackage = argResults!.option('expected-package');
     if (expectedPackage != null && package.name != expectedPackage) {
       usageException(
         'Package at $packagePath is ${package.name}, expected $expectedPackage.',
@@ -135,7 +140,7 @@ class PubAddCommand extends Command<int> {
     }
     _output.success('Registered package ${package.name} at $packagePath.');
     _output.next(
-      'Adapt ${package.name}, then release it with '
+      'Implement OHOS support for ${package.name}, then release it with '
       '"fluoh pub release --package ${package.name}".',
     );
     return 0;
@@ -149,9 +154,9 @@ class PubAddCommand extends Command<int> {
     final guide = File('${repository.path}/FLUOH.md');
     await _writeOrAppendMarkdown(
       guide,
-      (includeTitle) => pubAdaptationGuideContent(
+      (includeTitle) => pubImplementationGuideContent(
         packages: [package],
-        upstreamRef: manifest.upstreamRef,
+        upstreamBranch: manifest.upstreamBranch,
         sdkVersion: manifest.sdkVersion,
         branch: manifest.branch,
         includeTitle: includeTitle,
@@ -184,7 +189,7 @@ class PubAddCommand extends Command<int> {
     await writeOrAppendPubAgentsInstructions(
       destination: repository,
       packages: [package],
-      upstreamRef: manifest.upstreamRef,
+      upstreamBranch: manifest.upstreamBranch,
       sdkVersion: manifest.sdkVersion,
       branch: manifest.branch,
     );

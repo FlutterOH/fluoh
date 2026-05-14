@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../context/fluoh_environment.dart';
-import '../source/source_registry.dart';
+import '../source/source_runtime.dart';
 import 'sdk_project_config.dart';
 import 'sdk_release.dart';
 
@@ -13,7 +13,7 @@ class SdkManager {
   final FluohEnvironment environment;
 
   Future<List<SdkRelease>> listReleases() async {
-    return (await SourceRegistry(environment).loadSdkIndex()).releases;
+    return (await SourceRuntime(environment).loadSdkIndex()).releases;
   }
 
   Future<List<SdkListEntry>> listEntries() async {
@@ -62,7 +62,7 @@ class SdkManager {
     }
 
     throw UsageException(
-      'No SDK release matches "$version". Run "fluoh sdk list".',
+      'No SDK version matches "$version". Run "fluoh sdk list".',
       '',
     );
   }
@@ -124,8 +124,8 @@ class SdkManager {
     return tag;
   }
 
-  Future<String?> currentSdkTag() async {
-    return _projectSdkTag();
+  Future<String?> currentSdkVersion() async {
+    return _projectSdkVersion();
   }
 
   Directory sdkDirectory(String tag) {
@@ -186,14 +186,14 @@ class SdkManager {
     );
   }
 
-  Future<String?> _projectSdkTag() async {
-    return readProjectSdkTag(environment.workingDirectory);
+  Future<String?> _projectSdkVersion() async {
+    return readProjectSdkVersion(environment.workingDirectory);
   }
 
   bool _canRemoveExactLocalSdk(UsageException error, String query) {
     return query.isNotEmpty &&
         (_isMissingSdkIndex(error) ||
-            error.message.startsWith('No SDK release matches '));
+            error.message.startsWith('No SDK version matches '));
   }
 
   Future<bool> _isInstalledSdkTag(String tag) async {

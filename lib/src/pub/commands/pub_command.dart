@@ -120,7 +120,7 @@ const _pubCommandSections = [
     'fix',
     'upgrade',
   ]),
-  CommandUsageSection('Adapter repositories:', [
+  CommandUsageSection('FlutterOH pub repositories:', [
     'create',
     'add',
     'sync',

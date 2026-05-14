@@ -24,13 +24,7 @@ class UpgradeCommand extends Command<int> {
        _processRunner =
            processRunner ??
            ((executable, arguments) => Process.run(executable, arguments)),
-       _scriptUriProvider = scriptUriProvider ?? (() => Platform.script) {
-    argParser.addFlag(
-      'yes',
-      negatable: false,
-      help: 'Execute the fluoh self-upgrade command.',
-    );
-  }
+       _scriptUriProvider = scriptUriProvider ?? (() => Platform.script);
 
   final OutputWriter _stdout;
   final OutputWriter _stderr;
@@ -47,18 +41,6 @@ class UpgradeCommand extends Command<int> {
   @override
   Future<int> run() async {
     final plan = _resolveUpgradePlan(_scriptUriProvider());
-
-    if (!argResults!.flag('yes')) {
-      if (plan.refusalMessage != null) {
-        _output.warning(plan.refusalMessage!);
-        return 0;
-      }
-      _output.info(
-        'Upgrade command: ${_output.style.command(plan.displayCommand)}',
-      );
-      _output.next('Run with --yes to execute.');
-      return 0;
-    }
 
     if (plan.refusalMessage != null) {
       _output.error(plan.refusalMessage!);
@@ -81,13 +63,11 @@ class _UpgradePlan {
   const _UpgradePlan({
     required this.executable,
     required this.arguments,
-    required this.displayCommand,
     this.refusalMessage,
   });
 
   final String executable;
   final List<String> arguments;
-  final String displayCommand;
   final String? refusalMessage;
 }
 
@@ -98,13 +78,11 @@ _UpgradePlan _resolveUpgradePlan(Uri scriptUri) {
       return const _UpgradePlan(
         executable: 'brew',
         arguments: ['upgrade', 'fluoh'],
-        displayCommand: 'brew upgrade fluoh',
       );
     case FluohInstallMethod.localSourceCheckout:
       return const _UpgradePlan(
         executable: 'dart',
         arguments: ['pub', 'global', 'activate', 'fluoh'],
-        displayCommand: 'dart pub global activate fluoh',
         refusalMessage:
             'Local source checkouts cannot be upgraded automatically. '
             'Run `dart pub global activate fluoh --overwrite` if you want to '
@@ -114,7 +92,6 @@ _UpgradePlan _resolveUpgradePlan(Uri scriptUri) {
       return const _UpgradePlan(
         executable: 'dart',
         arguments: ['pub', 'global', 'activate', 'fluoh'],
-        displayCommand: 'dart pub global activate fluoh',
       );
   }
 }

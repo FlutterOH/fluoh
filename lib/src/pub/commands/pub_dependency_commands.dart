@@ -20,7 +20,7 @@ class PubCheckCommand extends Command<int> {
     argParser.addFlag(
       'json',
       negatable: false,
-      help: 'Print the compatibility report as JSON.',
+      help: 'Print the OHOS support report as JSON.',
     );
   }
 
@@ -32,7 +32,7 @@ class PubCheckCommand extends Command<int> {
   String get name => 'check';
 
   @override
-  String get description => 'Check dependency compatibility.';
+  String get description => 'Check dependency OHOS support.';
 
   @override
   Future<int> run() async {
@@ -75,7 +75,7 @@ class PubFixCommand extends Command<int> {
 
   @override
   String get description =>
-      'Apply recommended OHOS dependency adapter changes.';
+      'Apply recommended OHOS dependency implementation changes.';
 
   @override
   Future<int> run() async {
@@ -107,18 +107,20 @@ class PubFixCommand extends Command<int> {
 
 void _printCheckPlan(TerminalOutput output, PubDependencyPlan plan) {
   output.heading(
-    'Dependency compatibility for Flutter OHOS SDK ${plan.sdkVersion}.',
+    'Dependency OHOS support for Flutter OHOS SDK ${plan.sdkVersion}.',
   );
   output.info(
-    'Policy: replacementMode=${plan.policy.replacementMode.yamlValue}, '
-    'versionMismatch=${plan.policy.versionMismatch.yamlValue}.',
+    'Policy: pubspecSection=${plan.policy.pubspecSection.yamlValue}, '
+    'versionChanges=${plan.policy.versionChanges.yamlValue}.',
   );
 
   final ready = plan.entries
       .where((entry) => entry.changes.isNotEmpty)
       .toList(growable: false);
   final needsDecision = plan.entries
-      .where((entry) => entry.status == PubDependencyPlanStatus.versionMismatch)
+      .where(
+        (entry) => entry.status == PubDependencyPlanStatus.incompatibleVersion,
+      )
       .toList(growable: false);
   final manual = plan.entries
       .where(
@@ -153,6 +155,11 @@ void _printCheckPlan(TerminalOutput output, PubDependencyPlan plan) {
   final transitive = plan.entries
       .where((entry) => entry.status == PubDependencyPlanStatus.transitive)
       .toList(growable: false);
+  final advisories = plan.entries
+      .where(
+        (entry) => entry.dependency.direct && entry.dependency.advisory != null,
+      )
+      .toList(growable: false);
 
   _printEntries(output, 'Ready to fix:', ready);
   _printEntries(output, 'Needs decision:', needsDecision);
@@ -160,6 +167,7 @@ void _printCheckPlan(TerminalOutput output, PubDependencyPlan plan) {
   _printEntries(output, 'Unavailable:', unavailable);
   _printEntries(output, 'Already OK:', ok);
   _printEntries(output, 'Transitive dependencies:', transitive);
+  _printAdvisories(output, advisories);
 
   output.info(
     'Summary: ${ready.length} ready, ${needsDecision.length} needs decision, '
@@ -173,6 +181,23 @@ void _printCheckPlan(TerminalOutput output, PubDependencyPlan plan) {
     );
   } else {
     output.skipped('No dependency changes are currently available.');
+  }
+}
+
+void _printAdvisories(
+  TerminalOutput output,
+  List<PubDependencyPlanEntry> entries,
+) {
+  if (entries.isEmpty) {
+    return;
+  }
+
+  output.blank();
+  output.section('Advisories:');
+  for (final entry in entries) {
+    for (final message in _advisoryMessages(entry)) {
+      output.indented(message);
+    }
   }
 }
 
@@ -195,10 +220,12 @@ void _printMutationPlan(
     }
   }
 
-  final skippedVersionMismatch = plan.entries
-      .where((entry) => entry.status == PubDependencyPlanStatus.versionMismatch)
+  final skippedIncompatibleVersion = plan.entries
+      .where(
+        (entry) => entry.status == PubDependencyPlanStatus.incompatibleVersion,
+      )
       .toList(growable: false);
-  for (final entry in skippedVersionMismatch) {
+  for (final entry in skippedIncompatibleVersion) {
     output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
   }
   final skippedManual = plan.entries
@@ -213,10 +240,11 @@ void _printMutationPlan(
   for (final entry in skippedManual) {
     output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
   }
-  if (skippedVersionMismatch.isNotEmpty &&
-      plan.policy.versionMismatch == PubDependencyVersionMismatchMode.skip) {
+  if (skippedIncompatibleVersion.isNotEmpty &&
+      plan.policy.versionChanges ==
+          PubDependencyVersionChangePolicy.compatible) {
     output.warning(
-      'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
+      'Set dependencyPolicy.versionChanges to any in fluoh.yaml to include '
       'incompatible version changes and downgrades.',
     );
   }
@@ -280,6 +308,30 @@ String _entryDetails(PubDependencyPlanEntry entry) {
   return entry.reason;
 }
 
+List<String> _advisoryMessages(PubDependencyPlanEntry entry) {
+  final advisory = entry.dependency.advisory!;
+  final messages = <String>[];
+  if (advisory.message != null && advisory.message!.trim().isNotEmpty) {
+    messages.add('${entry.dependency.name}: ${advisory.message}');
+  }
+  for (final alternative in advisory.alternatives) {
+    final details = [
+      if (alternative.reason != null && alternative.reason!.trim().isNotEmpty)
+        alternative.reason!,
+      if (alternative.url != null && alternative.url!.trim().isNotEmpty)
+        alternative.url!,
+    ].join(' ');
+    messages.add(
+      '${entry.dependency.name}: consider ${alternative.name}'
+      '${details.isEmpty ? '' : ' - $details'}',
+    );
+  }
+  if (messages.isEmpty) {
+    messages.add('${entry.dependency.name}: advisory available.');
+  }
+  return messages;
+}
+
 String _changeMessage(
   PubspecDependencyChange change, {
   required DependencyCompatibility dependency,
@@ -292,7 +344,7 @@ String _changeMessage(
     PubspecDependencyChangeKind.updateRef =>
       'update ${change.packageName} ${change.currentRef} -> ${change.nextRef}',
   };
-  return '$message${adapterUpstreamVersionChange(change, dependency)}';
+  return '$message${implementationUpstreamVersionChange(change, dependency)}';
 }
 
 String _changeSummary(
@@ -307,7 +359,7 @@ String _changeSummary(
     PubspecDependencyChangeKind.updateRef =>
       'update ${change.currentRef} -> ${change.nextRef}',
   };
-  return '$summary${adapterUpstreamVersionChange(change, dependency)}';
+  return '$summary${implementationUpstreamVersionChange(change, dependency)}';
 }
 
 void _printNextStep(TerminalOutput output) {

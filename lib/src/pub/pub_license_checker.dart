@@ -9,7 +9,7 @@ Future<List<String>> pubLicenseWarnings({
   if (license == null) {
     return [
       'Warning: Missing LICENSE for $packageName. Preserve or add the upstream '
-          'license before publishing the FlutterOH adapter.',
+          'license before publishing the FlutterOH package.',
     ];
   }
 
@@ -20,12 +20,12 @@ Future<List<String>> pubLicenseWarnings({
     _LicensePermission.disallowed => [
       'Warning: ${_displayPath(repository, license)} appears to disallow '
           'modified redistribution. Review the license before publishing the '
-          'FlutterOH adapter.',
+          'FlutterOH package.',
     ],
     _LicensePermission.unknown => [
       'Warning: ${_displayPath(repository, license)} could not be confirmed '
           'to allow modified redistribution. Review the license before '
-          'publishing the FlutterOH adapter.',
+          'publishing the FlutterOH package.',
     ],
   };
 }

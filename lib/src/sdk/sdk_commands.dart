@@ -89,7 +89,7 @@ class SdkListCommand extends Command<int> {
   String get name => 'list';
 
   @override
-  String get description => 'List SDK releases from configured sources.';
+  String get description => 'List SDK versions from configured sources.';
 
   @override
   Future<int> run() async {
@@ -140,7 +140,7 @@ class SdkInstallCommand extends Command<int> {
   String get name => 'install';
 
   @override
-  String get description => 'Install an SDK release into the local cache.';
+  String get description => 'Install an SDK version into the local cache.';
 
   @override
   String get invocation => 'fluoh sdk install <version-or-series>';
@@ -177,17 +177,17 @@ class SdkCurrentCommand extends Command<int> {
   String get name => 'current';
 
   @override
-  String get description => 'Print the current project SDK tag.';
+  String get description => 'Print the current project SDK version.';
 
   @override
   Future<int> run() async {
-    final tag = await manager.currentSdkTag();
-    if (tag == null || tag.isEmpty) {
+    final version = await manager.currentSdkVersion();
+    if (version == null || version.isEmpty) {
       _output.warning('No SDK selected.');
       return 1;
     }
 
-    _output.info('Current SDK: $tag');
+    _output.info('Current SDK: $version');
     return 0;
   }
 }
@@ -207,7 +207,7 @@ class SdkRemoveCommand extends Command<int> {
   String get name => 'remove';
 
   @override
-  String get description => 'Remove an SDK release from the local cache.';
+  String get description => 'Remove an SDK version from the local cache.';
 
   @override
   String get invocation => 'fluoh sdk remove <version-or-series>';

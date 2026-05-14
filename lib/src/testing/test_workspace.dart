@@ -15,14 +15,14 @@ class FluohTestInitResult {
 
   const FluohTestInitResult.skipped(this.skippedReason) : package = null;
 
-  final FlutterAdapterPackage? package;
+  final FlutterImplementationPackage? package;
   final String? skippedReason;
 
   bool get created => package != null;
 }
 
-class FlutterAdapterPackage {
-  const FlutterAdapterPackage({
+class FlutterImplementationPackage {
+  const FlutterImplementationPackage({
     required this.name,
     required this.version,
     required this.packagePath,
@@ -48,7 +48,7 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
   String? packageName,
 }) async {
   final terminal = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
-  final package = await findFlutterAdapterPackage(
+  final package = await findFlutterImplementationPackage(
     environment.workingDirectory,
     packageName: packageName,
   );
@@ -105,7 +105,7 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
   final runCommand = testPath == 'fluoh_test'
       ? 'fluoh test run'
       : 'fluoh test run --package ${package.name}';
-  terminal.next('Run "$runCommand" before publishing the adapter.');
+  terminal.next('Run "$runCommand" before publishing the FlutterOH package.');
   terminal.next('Use $testPath/example for manual platform verification.');
   return FluohTestInitResult.created(package);
 }
@@ -118,7 +118,7 @@ Future<int> runFluohTestWorkspace({
   String? packageName,
 }) async {
   final terminal = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
-  final package = await findFlutterAdapterPackage(
+  final package = await findFlutterImplementationPackage(
     environment.workingDirectory,
     packageName: packageName,
   );
@@ -160,7 +160,7 @@ Future<int> runFluohTestWorkspace({
     environment,
     output: terminal,
   );
-  final packageTest = await _runAdapterPackageTests(
+  final packageTest = await _runImplementationPackageTests(
     environment: environment,
     flutter: flutter,
     package: package,
@@ -226,7 +226,10 @@ Future<List<Directory>> fluohTestWorkspaceDirectories(
     if (name is! String || value is! YamlMap) {
       continue;
     }
-    final path = value['path'];
+    final packageRepository = value['repository'];
+    final path = packageRepository is YamlMap
+        ? packageRepository['path']
+        : null;
     final workspace = useScoped || (path is String && path.isNotEmpty)
         ? Directory('${repository.path}/fluoh_test/$name')
         : Directory('${repository.path}/fluoh_test');
@@ -247,10 +250,10 @@ List<Directory> _dedupeDirectories(List<Directory> directories) {
   ];
 }
 
-Future<int> _runAdapterPackageTests({
+Future<int> _runImplementationPackageTests({
   required FluohEnvironment environment,
   required File flutter,
-  required FlutterAdapterPackage package,
+  required FlutterImplementationPackage package,
   required OutputWriter stdout,
   required OutputWriter stderr,
   required TerminalOutput output,
@@ -307,11 +310,11 @@ Future<bool> _hasFlutterTests(Directory packageDirectory) async {
   return false;
 }
 
-Future<FlutterAdapterPackage?> findFlutterAdapterPackage(
+Future<FlutterImplementationPackage?> findFlutterImplementationPackage(
   Directory repository, {
   String? packageName,
 }) async {
-  final packagePath = await _adapterPackagePath(repository, packageName);
+  final packagePath = await _implementationPackagePath(repository, packageName);
   final directory = packageDirectory(repository, packagePath);
   final pubspec = File('${directory.path}/pubspec.yaml');
   if (!await pubspec.exists()) {
@@ -334,7 +337,7 @@ Future<FlutterAdapterPackage?> findFlutterAdapterPackage(
 
   final platforms = _platformsForExample(directory, yaml);
   final publicLibrary = File('${directory.path}/lib/$name.dart');
-  return FlutterAdapterPackage(
+  return FlutterImplementationPackage(
     name: name,
     version: version,
     packagePath: packagePath,
@@ -344,7 +347,7 @@ Future<FlutterAdapterPackage?> findFlutterAdapterPackage(
   );
 }
 
-Future<String> _adapterPackagePath(
+Future<String> _implementationPackagePath(
   Directory repository,
   String? packageName,
 ) async {
@@ -368,7 +371,10 @@ Future<String> _adapterPackagePath(
         '',
       );
     }
-    final path = package['path'];
+    final packageRepository = package['repository'];
+    final path = packageRepository is YamlMap
+        ? packageRepository['path']
+        : null;
     return path is String && path.isNotEmpty ? path : '.';
   }
   if (packages.length != 1) {
@@ -382,13 +388,14 @@ Future<String> _adapterPackagePath(
   if (package is! YamlMap) {
     return '.';
   }
-  final path = package['path'];
+  final packageRepository = package['repository'];
+  final path = packageRepository is YamlMap ? packageRepository['path'] : null;
   return path is String && path.isNotEmpty ? path : '.';
 }
 
 Future<Directory> _testWorkspaceDirectory(
   Directory repository,
-  FlutterAdapterPackage package,
+  FlutterImplementationPackage package,
 ) async {
   if (await _usesScopedTestWorkspace(repository, package)) {
     return Directory('${repository.path}/fluoh_test/${package.name}');
@@ -398,7 +405,7 @@ Future<Directory> _testWorkspaceDirectory(
 
 Future<Directory> _existingTestWorkspaceDirectory(
   Directory repository,
-  FlutterAdapterPackage package,
+  FlutterImplementationPackage package,
 ) async {
   final scoped = Directory('${repository.path}/fluoh_test/${package.name}');
   if (await File('${scoped.path}/pubspec.yaml').exists()) {
@@ -417,7 +424,7 @@ Future<Directory> _existingTestWorkspaceDirectory(
 
 Future<bool> _usesScopedTestWorkspace(
   Directory repository,
-  FlutterAdapterPackage package,
+  FlutterImplementationPackage package,
 ) async {
   if (package.packagePath != '.') {
     return true;
@@ -509,8 +516,8 @@ Future<File> _flutterExecutableForEnvironment(
   FluohEnvironment environment, {
   TerminalOutput? output,
 }) async {
-  final sdkTag = await readProjectSdkTag(environment.workingDirectory);
-  if (sdkTag == null || sdkTag.isEmpty) {
+  final sdkVersion = await readProjectSdkVersion(environment.workingDirectory);
+  if (sdkVersion == null || sdkVersion.isEmpty) {
     throw UsageException(
       'No SDK selected. Run "fluoh sdk use <version-or-series>".',
       '',
@@ -518,9 +525,9 @@ Future<File> _flutterExecutableForEnvironment(
   }
 
   final manager = SdkManager(environment);
-  var sdkDirectory = manager.sdkDirectory(sdkTag);
+  var sdkDirectory = manager.sdkDirectory(sdkVersion);
   if (!await sdkDirectory.exists()) {
-    final release = await manager.resolveRelease(sdkTag);
+    final release = await manager.resolveRelease(sdkVersion);
     sdkDirectory = output == null
         ? await manager.install(release)
         : await output.withProgress(
@@ -531,7 +538,7 @@ Future<File> _flutterExecutableForEnvironment(
   final flutter = File('${sdkDirectory.path}/bin/flutter');
   if (!await flutter.exists()) {
     throw UsageException(
-      'Selected SDK $sdkTag does not contain bin/flutter.',
+      'Selected SDK $sdkVersion does not contain bin/flutter.',
       '',
     );
   }
@@ -540,7 +547,7 @@ Future<File> _flutterExecutableForEnvironment(
 
 Future<void> _writeTestWorkspace(
   Directory testDirectory,
-  FlutterAdapterPackage package, {
+  FlutterImplementationPackage package, {
   required String testWorkspacePath,
 }) async {
   await File('${testDirectory.path}/.gitignore').writeAsString('''
@@ -589,7 +596,7 @@ Future<void> _createExampleProject({
   required File flutter,
   required Directory testDirectory,
   required String testWorkspacePath,
-  required FlutterAdapterPackage package,
+  required FlutterImplementationPackage package,
   required OutputWriter stdout,
   required OutputWriter stderr,
   required TerminalOutput output,
@@ -672,7 +679,7 @@ void _writeProcessOutput(Object? output, OutputWriter write) {
 }
 
 String _testPubspecContent({
-  required FlutterAdapterPackage package,
+  required FlutterImplementationPackage package,
   required String dependencyPath,
 }) {
   return '''
@@ -694,7 +701,7 @@ dev_dependencies:
 ''';
 }
 
-String _contractTestContent(FlutterAdapterPackage package) {
+String _contractTestContent(FlutterImplementationPackage package) {
   final import = package.hasPublicLibrary
       ? "import 'package:${package.name}/${package.name}.dart' "
             'as package_under_test;'
@@ -706,7 +713,7 @@ import 'package:flutter_test/flutter_test.dart';
 ${import ?? ''}
 
 void main() {
-  test('${package.name} FlutterOH adaptation test harness is ready', () {
+  test('${package.name} FlutterOH implementation test harness is ready', () {
     expect(true, isTrue);
   });
 }
@@ -714,7 +721,7 @@ void main() {
 }
 
 String _examplePubspecContent({
-  required FlutterAdapterPackage package,
+  required FlutterImplementationPackage package,
   required String dependencyPath,
 }) {
   return '''
@@ -739,7 +746,7 @@ flutter:
 ''';
 }
 
-String _exampleMainContent(FlutterAdapterPackage package) {
+String _exampleMainContent(FlutterImplementationPackage package) {
   return '''
 import 'package:flutter/material.dart';
 
@@ -777,7 +784,7 @@ class _VerifyPage extends StatelessWidget {
         SizedBox(height: 12),
         Text('Use this page for manual OHOS, Android, and iOS checks.'),
         SizedBox(height: 24),
-        Text('Add package-specific buttons for the adapted capability here.'),
+        Text('Add package-specific buttons for the OHOS implementation here.'),
       ],
     );
   }
@@ -786,20 +793,20 @@ class _VerifyPage extends StatelessWidget {
 }
 
 String _testReadmeContent(
-  FlutterAdapterPackage package, {
+  FlutterImplementationPackage package, {
   required String testWorkspacePath,
 }) {
   final runCommand = testWorkspacePath == 'fluoh_test'
       ? 'fluoh test run'
       : 'fluoh test run --package ${package.name}';
   return '''
-# FlutterOH Adaptation Test
+# FlutterOH Implementation Test
 
 Package: `${package.name}`
 
 ## Automated Verification
 
-Run from the adapter repository root:
+Run from the FlutterOH pub repository root:
 
 ```sh
 $runCommand
@@ -809,7 +816,7 @@ The command first runs package Flutter tests when `test/**/*_test.dart` exists, 
 
 ## Manual Verification
 
-Use `$testWorkspacePath/example` as the small app for checking platform behavior manually. Add package-specific UI actions when the adapter needs real device validation.
+Use `$testWorkspacePath/example` as the small app for checking platform behavior manually. Add package-specific UI actions when the implementation needs real device validation.
 ''';
 }
 
@@ -844,7 +851,7 @@ Future<String> _packageNameOrDirectory(
   Directory repository, {
   String? packageName,
 }) async {
-  final packagePath = await _adapterPackagePath(repository, packageName);
+  final packagePath = await _implementationPackagePath(repository, packageName);
   final pubspec = File(
     '${packageDirectory(repository, packagePath).path}/pubspec.yaml',
   );

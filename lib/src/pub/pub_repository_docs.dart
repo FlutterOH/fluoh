@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'manifest/pub_manifest.dart';
 
-const initialPubReleaseVersion = '0.1.0';
-
 class PubRepositoryDocPackage {
   const PubRepositoryDocPackage({
     required this.name,
@@ -25,7 +23,7 @@ class PubRepositoryDocPackage {
 Future<void> writeOrAppendPubAgentsInstructions({
   required Directory destination,
   required List<PubRepositoryDocPackage> packages,
-  required String upstreamRef,
+  required String upstreamBranch,
   required String sdkVersion,
   required String branch,
 }) async {
@@ -33,7 +31,7 @@ Future<void> writeOrAppendPubAgentsInstructions({
   final existing = await file.exists() ? await file.readAsString() : null;
   final generated = pubAgentsInstructionsContent(
     packages: packages,
-    upstreamRef: upstreamRef,
+    upstreamBranch: upstreamBranch,
     sdkVersion: sdkVersion,
     branch: branch,
     includeTitle: existing == null || existing.trim().isEmpty,
@@ -51,7 +49,7 @@ Future<void> writeOrAppendPubAgentsInstructions({
 
 String pubAgentsInstructionsContent({
   required List<PubRepositoryDocPackage> packages,
-  required String upstreamRef,
+  required String upstreamBranch,
   required String sdkVersion,
   required String branch,
   required bool includeTitle,
@@ -59,7 +57,7 @@ String pubAgentsInstructionsContent({
   if (packages.length == 1) {
     return _singlePackageAgentsInstructionsContent(
       package: packages.single,
-      upstreamRef: upstreamRef,
+      upstreamBranch: upstreamBranch,
       sdkVersion: sdkVersion,
       branch: branch,
       includeTitle: includeTitle,
@@ -71,9 +69,9 @@ String pubAgentsInstructionsContent({
     if (includeTitle) '',
     '## FlutterOH Context',
     '',
-    'This repository adapts multiple packages for Flutter OHOS SDK `$sdkVersion`.',
+    'This repository provides OHOS implementations for multiple packages on Flutter OHOS SDK `$sdkVersion`.',
     '',
-    '- Upstream ref at creation: `$upstreamRef`',
+    '- Upstream branch at creation: `$upstreamBranch`',
     '- FlutterOH branch: `$branch`',
     '- Metadata: `fluoh.yaml`.',
     '- Release notes: `FLUOH_CHANGELOG.md`.',
@@ -86,9 +84,9 @@ String pubAgentsInstructionsContent({
     '## Working Rules',
     '',
     '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh pub get` when dependencies may be stale.',
-    '- Keep OHOS adaptation changes focused near each package path; preserve upstream APIs and non-OHOS behavior.',
-    '- Keep each package-specific `fluoh_test/<package>/test` for automated adapter checks and `fluoh_test/<package>/example` for manual platform verification.',
-    '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
+    '- Keep OHOS implementation changes focused near each package path; preserve upstream APIs and non-OHOS behavior.',
+    '- Keep each package-specific `fluoh_test/<package>/test` for automated platform implementation checks and `fluoh_test/<package>/example` for manual platform verification.',
+    '- Update `fluoh.yaml` when SDK, upstream branch, package path, status, release version, or FlutterOH pub URL changes.',
     '- Update `FLUOH_CHANGELOG.md` for every package being released.',
     '- Run `${packages.first.testRunCommand}` or another package-specific `fluoh test run --package <name>` before release. Commit before `fluoh pub sync` or `fluoh pub release` because both require a clean worktree.',
     '',
@@ -104,7 +102,7 @@ String pubAgentsInstructionsContent({
 
 String _singlePackageAgentsInstructionsContent({
   required PubRepositoryDocPackage package,
-  required String upstreamRef,
+  required String upstreamBranch,
   required String sdkVersion,
   required String branch,
   required bool includeTitle,
@@ -114,10 +112,10 @@ String _singlePackageAgentsInstructionsContent({
     if (includeTitle) '',
     '## FlutterOH Context',
     '',
-    'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
+    'This repository provides an OHOS implementation for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
     '',
     '- Package path: `${package.packagePath}`.',
-    '- Upstream ref at creation: `$upstreamRef`',
+    '- Upstream branch at creation: `$upstreamBranch`',
     '- FlutterOH branch: `$branch`',
     '- Metadata: `fluoh.yaml`.',
     '- Release notes: `FLUOH_CHANGELOG.md`.',
@@ -125,9 +123,9 @@ String _singlePackageAgentsInstructionsContent({
     '## Working Rules',
     '',
     '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh pub get` when dependencies may be stale.',
-    '- Keep OHOS adaptation changes focused near `${package.packagePath}`; preserve upstream APIs and non-OHOS behavior.',
-    '- Keep `${package.testWorkspacePath}/test` for automated adapter checks and `${package.testWorkspacePath}/example` for manual platform verification.',
-    '- Update `fluoh.yaml` when SDK, upstream ref, package path, status, release version, or adapter URL changes.',
+    '- Keep OHOS implementation changes focused near `${package.packagePath}`; preserve upstream APIs and non-OHOS behavior.',
+    '- Keep `${package.testWorkspacePath}/test` for automated platform implementation checks and `${package.testWorkspacePath}/example` for manual platform verification.',
+    '- Update `fluoh.yaml` when SDK, upstream branch, package path, status, release version, or FlutterOH pub URL changes.',
     '- Update `FLUOH_CHANGELOG.md` for FlutterOH release notes.',
     '- Run `${package.testRunCommand}` before release. Commit before `fluoh pub sync` or `fluoh pub release` because both require a clean worktree.',
     '',
@@ -141,17 +139,17 @@ String _singlePackageAgentsInstructionsContent({
   ].join('\n');
 }
 
-String pubAdaptationGuideContent({
+String pubImplementationGuideContent({
   required List<PubRepositoryDocPackage> packages,
-  required String upstreamRef,
+  required String upstreamBranch,
   required String sdkVersion,
   required String branch,
   required bool includeTitle,
 }) {
   if (packages.length == 1) {
-    return _singlePackageAdaptationGuideContent(
+    return _singlePackageImplementationGuideContent(
       package: packages.single,
-      upstreamRef: upstreamRef,
+      upstreamBranch: upstreamBranch,
       sdkVersion: sdkVersion,
       branch: branch,
       includeTitle: includeTitle,
@@ -159,9 +157,9 @@ String pubAdaptationGuideContent({
   }
 
   return [
-    if (includeTitle) '# FlutterOH Adaptation',
+    if (includeTitle) '# FlutterOH Implementation',
     if (includeTitle) '',
-    'This repository adapts multiple packages for Flutter OHOS SDK `$sdkVersion`.',
+    'This repository provides OHOS implementations for multiple packages on Flutter OHOS SDK `$sdkVersion`.',
     '',
     '## Packages',
     '',
@@ -171,7 +169,7 @@ String pubAdaptationGuideContent({
     '## Metadata',
     '',
     '- `fluoh.yaml` records the upstream packages, FlutterOH repository, SDK target, and release metadata.',
-    '- Upstream ref: `$upstreamRef`',
+    '- Upstream branch: `$upstreamBranch`',
     '- FlutterOH branch: `$branch`',
     '- Metadata: `fluoh.yaml`',
     '- Release notes: `FLUOH_CHANGELOG.md`',
@@ -193,23 +191,23 @@ String pubAdaptationGuideContent({
   ].join('\n');
 }
 
-String _singlePackageAdaptationGuideContent({
+String _singlePackageImplementationGuideContent({
   required PubRepositoryDocPackage package,
-  required String upstreamRef,
+  required String upstreamBranch,
   required String sdkVersion,
   required String branch,
   required bool includeTitle,
 }) {
   return [
-    if (includeTitle) '# FlutterOH Adaptation',
+    if (includeTitle) '# FlutterOH Implementation',
     if (includeTitle) '',
-    'This repository adapts `${package.name}` ${package.version} for Flutter OHOS SDK `$sdkVersion`.',
+    'This repository provides an OHOS implementation for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
     '',
     '## Metadata',
     '',
     '- `fluoh.yaml` records the upstream package, FlutterOH repository, SDK target, and release metadata.',
     '- Package path: `${package.packagePath}`',
-    '- Upstream ref: `$upstreamRef`',
+    '- Upstream branch: `$upstreamBranch`',
     '- FlutterOH branch: `$branch`',
     '- Metadata: `fluoh.yaml`',
     '- Release notes: `FLUOH_CHANGELOG.md`',
@@ -262,7 +260,7 @@ List<String> pubFluohChangelogEntryLines({
   return [
     '## $tag',
     '',
-    '- Initial adapter for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
+    '- Initial OHOS implementation for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
     '',
   ];
 }

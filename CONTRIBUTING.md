@@ -46,7 +46,7 @@ metadata changed. To debug a published package, activate the hosted version:
 
 ```sh
 dart pub global activate fluoh --overwrite
-dart pub global activate fluoh 0.0.1 --overwrite
+dart pub global activate fluoh 0.1.0 --overwrite
 fluoh --version
 ```
 
@@ -139,8 +139,8 @@ a body when background, risk, or verification details are useful.
 This repository publishes to pub.dev through GitHub Actions when a version tag is pushed:
 
 ```sh
-git tag v0.0.1
-git push origin v0.0.1
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 The tag must match the `version` in `pubspec.yaml`. A pub.dev package admin must enable GitHub Actions automated publishing:
@@ -169,7 +169,7 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Pub Repository Workflow Maintenance
 
-`fluoh pub create` keeps the upstream default branch clean, keeps the clone source as `upstream`, creates an `ohos/<sdk-series>` pub branch, sets `origin` to the final pub repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
+`fluoh pub create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a Flutter OHOS SDK line branch such as `ohos/3.35`, sets `origin` to the final pub repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
 
 ```sh
 git@github.com:FlutterOH/<package>.git
@@ -185,25 +185,24 @@ fluoh pub create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, `fluoh.yaml`, and `fluoh_test/` when the selected package is a Flutter package or plugin, but intentionally does not create the initial commit. Maintainers can keep adapting and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh pub create` stages the generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, `fluoh.yaml`, and `fluoh_test/` when the selected package is a Flutter package or plugin, but intentionally does not create the initial commit. Maintainers can keep building the FlutterOH adaptation and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
-git commit -m "feat(pub): initialize FlutterOH adapter"
+git commit -m "feat(pub): initialize FlutterOH package"
 ```
 
-Use `fluoh pub sync` to fast-forward the clean upstream branch from `upstream`, merge that branch into the current pub branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep `package.version` unchanged until the new FlutterOH adaptation is complete.
+Use `fluoh pub sync` to fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge that branch into the current `ohos/<sdkLine>` branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep the upstream package version unchanged until the new FlutterOH adaptation is complete.
 
-Use `fluoh_test/test` for automated adapter checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` runs the adapter package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then executes the `fluoh_test` automated checks from the selected Flutter OHOS SDK.
+Use `fluoh_test/test` for automated platform adaptation checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` runs the package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then executes the `fluoh_test` automated checks from the selected Flutter OHOS SDK.
 
 `fluoh pub release` must continue to guarantee:
 
-- It only runs on `ohos/*` branches.
-- The current branch matches the `ohos/<sdk-series>` branch inferred from `fluoh.yaml`.
+- The current branch matches the `repository.git.branch` branch recorded in `fluoh.yaml`.
 - The worktree is clean.
-- The SDK tag comes from configured sources.
-- The manifest release version is newer than previous release tags for the same package, upstream version, and SDK.
+- The SDK version comes from configured sources.
+- The Package `version` is newer than previous release tags for the same package, upstream version, and SDK line.
 - Missing or incomplete `FLUOH_CHANGELOG.md` release notes are reported as warnings, not release blockers.
-- Package Flutter tests and `fluoh_test` pass through `fluoh test run` for Flutter adapter packages.
-- The release tag matches the package, upstream version, SDK tag, and release version recorded in the manifest.
+- Package Flutter tests and `fluoh_test` pass through `fluoh test run` for Flutter packages.
+- The release tag matches the package, upstream version, SDK line, and `version` recorded in Package `fluoh.yaml`.
 
-Adapter repository release commands must not write FlutterOH/pub source metadata directly. Register released adapters through a FlutterOH/pub pull request or the scheduled source ingestion process.
+FlutterOH pub repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released pub repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. FlutterOH/pub pull requests and scheduled package ingestion workflows should call the same source command path.

@@ -1,0 +1,24 @@
+schema: 1
+kind: manifest
+name: camera
+
+repository:
+  git:
+    url: ../mock_repositories/camera.git
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages
+    branch: main
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+    sdks:
+      "3.35":
+        releases:
+          - version: "1"
+            upstreamVersion: "0.11.0"

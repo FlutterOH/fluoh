@@ -18,7 +18,7 @@ void main() {
 
     expect(exitCode, 0);
     expect(stdout, [
-      'fluoh 0.0.1 - FlutterOH SDK and pub package CLI',
+      'fluoh $packageVersion - FlutterOH SDK and pub package CLI',
       'Dart $dartVersion',
       startsWith('Platform ${io.Platform.operatingSystem} '),
       'Repository https://github.com/FlutterOH/fluoh',
@@ -128,7 +128,7 @@ void main() {
     },
   );
 
-  test('suggests upgrade for update-style command typos', () async {
+  test('suggests upgrade for pub update-style command typos', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -427,7 +427,7 @@ void main() {
       '  check',
       '  fix',
       '  upgrade',
-      'Adapter repositories:',
+      'FlutterOH pub repositories:',
       '  create',
       '  sync',
       '  release',

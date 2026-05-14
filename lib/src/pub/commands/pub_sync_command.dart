@@ -69,7 +69,7 @@ class PubSyncCommand extends Command<int> {
       'Fetching upstream.',
       () => runGit(['fetch', 'upstream'], workingDirectory: repository),
     );
-    final defaultBranch = await upstreamDefaultBranch(repository);
+    final defaultBranch = manifest.upstreamBranch;
     var switchedBranches = false;
     try {
       _output.step('Checking out $defaultBranch.');
@@ -122,7 +122,7 @@ class PubSyncCommand extends Command<int> {
       );
     }
 
-    final defaultBranch = await upstreamDefaultBranch(repository);
+    final defaultBranch = manifest.upstreamBranch;
     return _updateManifestAndCommit(
       repository: repository,
       manifest: manifest,
@@ -171,13 +171,9 @@ class PubSyncCommand extends Command<int> {
     required String defaultBranch,
     required String pubBranch,
   }) async {
-    final upstreamRef = (await runGit([
-      'rev-parse',
-      defaultBranch,
-    ], workingDirectory: repository)).stdout.toString().trim();
     final packageVersions = <String, String>{};
     for (final packageManifest in manifest.packages) {
-      final upstreamPath = packageManifest.upstreamPath ?? '.';
+      final upstreamPath = packageManifest.upstreamPath;
       final package = await readPubspecPackage(
         packageDirectory(repository, upstreamPath),
       );
@@ -192,7 +188,6 @@ class PubSyncCommand extends Command<int> {
     }
     await updatePubManifestUpstream(
       destination: repository,
-      upstreamRef: upstreamRef,
       packageVersions: packageVersions,
     );
     await runGit(['add', 'fluoh.yaml'], workingDirectory: repository);
@@ -216,7 +211,7 @@ class PubSyncCommand extends Command<int> {
     ], workingDirectory: repository);
     _output.success('Updated upstream metadata for registered packages.');
     _output.next(
-      'Complete OHOS adaptation, then update package.version and '
+      'Complete the OHOS implementation, then update package.version and '
       'FLUOH_CHANGELOG.md before release.',
     );
     return 0;
@@ -236,9 +231,6 @@ class PubSyncCommand extends Command<int> {
   }
 
   void _ensurePubBranch(String branch, PubManifest manifest) {
-    if (!branch.startsWith('ohos/')) {
-      throw UsageException('Sync must run from an ohos/* pub branch.', '');
-    }
     if (branch != manifest.branch) {
       throw UsageException(
         'Current branch $branch does not match pub branch ${manifest.branch}.',

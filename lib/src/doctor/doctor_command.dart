@@ -187,9 +187,9 @@ class DoctorCommand extends Command<int> {
     final sdkDetails = <String>[];
     var sdkHealthy = true;
     var sdkReadable = true;
-    String? sdkTag;
+    String? sdkVersion;
     try {
-      sdkTag = await readProjectSdkTag(environment.workingDirectory);
+      sdkVersion = await readProjectSdkVersion(environment.workingDirectory);
     } on UsageException catch (error) {
       sdkDetails.add(error.message);
       sdkHealthy = false;
@@ -201,11 +201,11 @@ class DoctorCommand extends Command<int> {
     }
 
     if (sdkReadable) {
-      if (sdkTag == null) {
+      if (sdkVersion == null) {
         sdkDetails.add('No FlutterOH SDK selected.');
         sdkHealthy = false;
       } else {
-        sdkDetails.add('$sdkTag.');
+        sdkDetails.add('$sdkVersion.');
       }
     }
 
@@ -217,11 +217,11 @@ class DoctorCommand extends Command<int> {
   Future<_DoctorCheck> _checkOhosDirectory() async {
     final ohos = Directory('${environment.workingDirectory.path}/ohos');
     if (await ohos.exists()) {
-      return _DoctorCheck.ok('OpenHarmony platform', [
+      return _DoctorCheck.ok('OHOS platform', [
         'ohos platform directory exists.',
       ]);
     }
-    return _DoctorCheck.warning('OpenHarmony platform', [
+    return _DoctorCheck.warning('OHOS platform', [
       'Missing ohos platform directory.',
     ]);
   }

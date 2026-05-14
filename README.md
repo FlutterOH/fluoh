@@ -1,171 +1,139 @@
 # fluoh
 
-Command-line tools for the FlutterOH ecosystem. `fluoh` manages Flutter OHOS SDK versions, checks OHOS dependency adapter status, and helps third-party package maintainers create FlutterOH pub repositories.
+<p align="center">
+  <strong>Make FlutterOH projects boring to configure.</strong>
+</p>
 
-[简体中文](README.zh-CN.md) | [Contributing](CONTRIBUTING.md)
+<p align="center">
+  Pick the SDK. Fix FlutterOH dependency replacements. Run Flutter through the right toolchain.
+</p>
 
-## Why fluoh
+<p align="center">
+  <a href="https://pub.dev/packages/fluoh"><img src="https://img.shields.io/pub/v/fluoh.svg" alt="pub package"></a>
+  <a href="https://github.com/FlutterOH/fluoh/actions/workflows/ci.yml"><img src="https://github.com/FlutterOH/fluoh/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/FlutterOH/fluoh.svg" alt="License"></a>
+</p>
 
-FlutterOH projects usually need consistent SDK selection, dependency compatibility checks, and repeatable pub repository conventions. `fluoh` turns those workflows into a small set of CLI commands.
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="docs/commands.md">Commands</a> ·
+  <a href="docs/schema.md">Schema</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
-Core capabilities:
+`fluoh` is the project-level control plane for FlutterOH. It records the Flutter
+OHOS SDK version a project should use, runs Flutter through that SDK, checks pub
+dependencies for FlutterOH adaptations, and applies the safe `pubspec.yaml`
+changes for you.
 
-- Install, cache, switch, and run Flutter OHOS SDKs from `fluoh.yaml`.
-- Check dependencies against FlutterOH data sources and generate OHOS adapter replacements.
-- Initialize third-party FlutterOH pub repositories with OHOS branches and release tags.
-- Support pub repository remote configuration and Homebrew installation.
+```sh
+dart pub global activate fluoh
 
-## Installation
+cd your_flutter_project
+fluoh source update
+fluoh sdk use 3.35 --pub-get
+fluoh pub check
+fluoh pub fix
+fluohf build hap
+```
 
-Install with Dart:
+After that, the project has an exact SDK version in `fluoh.yaml`, a stable IDE
+SDK path at `.fluoh/flutter_sdk`, and FlutterOH dependency replacements that
+match the latest validated snapshot from the official FlutterOH source.
+
+## Why It Exists
+
+FlutterOH projects should not depend on a local checklist:
+
+- Which Flutter OHOS SDK checkout is this project using?
+- Did the IDE point at the same SDK as the terminal?
+- Do these pub dependencies already have FlutterOH adaptations?
+- Are the FlutterOH dependency replacements current, or copied from an old project?
+
+`fluoh` turns those answers into project state and repeatable commands.
+
+## The Daily Loop
+
+```sh
+# Select the SDK once per project.
+fluoh sdk list
+fluoh sdk use 3.35 --pub-get
+
+# Run Flutter through the selected SDK.
+fluohf pub get
+fluohf run
+fluohf build hap
+
+# Keep FlutterOH dependency replacements current.
+fluoh pub check
+fluoh pub fix --dry-run
+fluoh pub fix
+fluoh pub get
+```
+
+Useful extras:
+
+```sh
+fluoh pub upgrade   # upgrade existing FlutterOH dependency replacements only
+fluoh clean         # run flutter clean and remove generated fluoh_test output
+fluoh doctor        # diagnose sources, SDK selection, and project setup
+fluoh upgrade       # upgrade the fluoh CLI
+```
+
+`fluoh pub fix` writes `dependency_overrides` by default. Set
+`dependencyPolicy.pubspecSection: dependencies` in `fluoh.yaml` when a project
+should rewrite direct `dependencies` instead. Incompatible version changes and
+downgrades stay skipped unless `dependencyPolicy.versionChanges` is `any`.
+
+## Install
 
 ```sh
 dart pub global activate fluoh
 fluoh --version
 ```
 
-Make sure Dart's global pub bin directory is on `PATH`. On macOS and Linux this is usually:
+Make sure Dart's global pub bin directory is on `PATH`:
 
 ```sh
 export PATH="$HOME/.pub-cache/bin:$PATH"
 ```
 
-Install with Homebrew on macOS:
+Homebrew on macOS:
 
 ```sh
 brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-## Quick Start
+## Maintainers
 
-Run these commands from a Flutter project root:
-
-```sh
-fluoh source update
-fluoh sdk list
-fluoh sdk use 3.35
-fluoh pub get
-fluoh pub check
-fluoh pub fix
-fluoh pub get
-fluoh doctor
-```
-
-`fluoh sdk use` accepts an exact SDK tag or a version series such as `3.35`; a series resolves to the latest stable SDK in that series, records the exact tag in `fluoh.yaml`, and updates `.fluoh/flutter_sdk` as a stable IDE SDK path. Run project Flutter commands through `fluoh flutter ...` or the shortcut executable `fluohf ...`, for example `fluohf pub get`, `fluohf run`, or `fluohf build hap`. These commands use the nearest `fluoh.yaml` from the current directory upward, so generated test directories inherit the project SDK and monorepo packages can keep separate SDK selections. Add `--pub-get` to `fluoh sdk use` when you want to run the first `pub get` automatically.
-
-Use `fluoh pub get` for dependency resolution through the selected SDK. In adapter repositories it also runs `pub get` for generated `fluoh_test` workspaces, including package-scoped monorepo workspaces such as `fluoh_test/some_package` and their `example` apps.
-
-Use `fluoh clean` to run `fluoh flutter clean` for the current project and remove generated `fluoh_test` build artifacts. It does not remove cached SDKs or data sources.
-
-## Common Workflows
-
-### Switch Flutter OHOS SDK
-
-Use a version series or exact SDK tag from `fluoh sdk list`:
+Most users only need the project commands above. Maintainers also get workflows
+for third-party FlutterOH pub repositories and source metadata:
 
 ```sh
-fluoh sdk list
-fluoh sdk use 3.35
-fluoh flutter --version
-```
-
-### Check and fix OHOS dependency adapters
-
-```sh
-fluoh pub check
-fluoh pub fix
-fluoh pub get
-```
-
-`fluoh pub check` groups dependencies by compatibility and prints the next step. `fluoh pub fix` updates `pubspec.yaml` with recommended OHOS adapter refs; use `fluoh pub fix --dry-run` to preview changes. By default it writes `dependency_overrides`; set `dependencyPolicy.replacementMode: rewrite` in `fluoh.yaml` when you want to rewrite direct `dependencies` declarations instead. Exact matches and pub-semver compatible adapter upgrades are applied by default; incompatible version changes and downgrades are skipped unless `dependencyPolicy.versionMismatch` is set to `allow`. Use `fluoh pub upgrade` when a project already uses OHOS adapters and you only want to refresh existing adapter refs.
-
-### Create third-party pub repositories
-
-```sh
-fluoh pub create https://github.com/upstream/package.git --sdk 3.35.8-ohos-0.0.3
-git commit -m "feat(pub): initialize FlutterOH adapter"
+fluoh pub create
 fluoh pub sync
-fluoh pub release --push
+fluoh test init
+fluoh test run
+fluoh pub release
+fluoh source sync
 ```
 
-Select a package inside a monorepo:
+See [docs/commands.md](docs/commands.md) for the full command surface and
+[CONTRIBUTING.md](CONTRIBUTING.md) for repository, release, and publishing
+workflows.
 
-```sh
-fluoh pub create https://github.com/upstream/monorepo.git \
-  --path packages/some_package \
-  --sdk 3.35.8-ohos-0.0.3
-```
+## Source Data
 
-Register multiple packages from the same monorepo by repeating `--path`, or add another package later from the adapter repository:
-
-```sh
-fluoh pub create https://github.com/upstream/monorepo.git \
-  --path packages/package_a \
-  --path packages/package_b
-fluoh pub add --path packages/package_c
-```
-
-Generated pub repositories keep the upstream default branch clean, keep the source remote as `upstream`, create an `ohos/<sdk-series>` branch such as `ohos/3.35`, set `origin`, and write FlutterOH metadata, an adaptation guide, `FLUOH_CHANGELOG.md` release notes, AI agent instructions, and `fluoh_test/` workspaces for Flutter packages or plugins. Monorepo package adapters use `fluoh_test/<package>/` so each package has its own automated tests and manual example app. `fluoh pub create` and `fluoh pub add` stage generated files but do not commit. Commit before running `pub sync` or `pub release`. `fluoh pub sync` fast-forwards the upstream branch, merges it into the current pub branch, and refreshes only the upstream metadata in `fluoh.yaml`; update the FlutterOH package version after the new adaptation is complete.
-
-`fluoh test init` creates `fluoh_test/test` automated checks and a `fluoh_test/example` app for single-package adapters; monorepo package adapters use `fluoh test init --package <name>` and `fluoh_test/<name>/`. `fluoh test run` first runs the adapter package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the matching `fluoh_test` workspace. `fluoh pub release --package <name>` releases one package; `fluoh pub release --all` validates and tests every registered package before creating each package's release tag. FlutterOH/pub source metadata updates should go through a pull request or the scheduled source ingestion process.
-
-To choose the final push target:
-
-```sh
-fluoh pub create https://github.com/upstream/package.git \
-  --sdk 3.35.8-ohos-0.0.3 \
-  --repo git@github.com:FlutterOH/package.git
-```
-
-## Command Overview
-
-| Command | Purpose |
-| --- | --- |
-| `fluoh flutter ...` / `fluohf ...` | Run `flutter` from the SDK selected in the nearest `fluoh.yaml`; use this for normal Flutter commands in a FlutterOH project. |
-| `fluoh clean` | Run `flutter clean` through the selected SDK and remove generated `fluoh_test` artifacts. |
-| `fluoh sdk ...` | List, install, remove, and select local Flutter OHOS SDKs. |
-| `fluoh sdk use <version-or-series>` | Switch the SDK for the current Flutter project and update `.fluoh/flutter_sdk` for IDEs. |
-| `fluoh pub get` | Run `flutter pub get` through the selected SDK for the project and `fluoh_test` workspaces. |
-| `fluoh pub check` | Check OHOS compatibility for project dependencies. |
-| `fluoh pub fix` | Add missing OHOS adapter refs and refresh existing ones in `pubspec.yaml`. |
-| `fluoh pub upgrade` | Upgrade existing OHOS adapter refs without adding new replacements. |
-| `fluoh pub create/add/sync/release` | Create, extend, sync, and release third-party FlutterOH pub repositories. |
-| `fluoh test ...` | Create `fluoh_test` and run package plus `fluoh_test` verification for adapted Flutter packages. |
-| `fluoh source ...` | Manage FlutterOH data sources. |
-| `fluoh doctor` | Diagnose CLI version, project SDK, and OHOS directory status. |
-| `fluoh upgrade` | Upgrade the `fluoh` CLI itself. |
-
-`fluoh pub upgrade` and `fluoh upgrade` are intentionally different: `pub upgrade` refreshes existing OHOS adapter refs in the current project; `upgrade` upgrades the CLI tool itself.
-
-## Data Sources
-
-`fluoh` uses the official FlutterOH data source by default:
+`fluoh` uses the official FlutterOH source by default:
 
 ```text
 https://github.com/FlutterOH/pub.git
 ```
 
-You can also create a local source or use an internal team source:
-
-```sh
-fluoh source init ./flutteroh-pub-local
-fluoh source add local ./flutteroh-pub-local --priority 200
-fluoh source add internal https://github.com/example/flutteroh-pub.git --priority 200
-fluoh source update
-```
-
-`fluoh source init` creates a package-only source template compatible with `FlutterOH/pub`. Sources are layered by priority. Internal or local sources can provide only `packages/repositories.yaml` and `packages/manifests/*.yaml` to add team adapters while SDK releases continue to come from the official source. Any source except the official `flutteroh` source can be removed:
-
-```sh
-fluoh source remove internal
-```
-
-Remote and local sources are cached as the latest validated snapshot under `FLUOH_HOME`; `fluoh` does not keep Git history in the cache.
-
-## Contributing
-
-Local development, testing, pub.dev publishing, Homebrew formula maintenance, and pre-commit checks are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+`fluoh source update` refreshes the latest validated snapshot under
+`FLUOH_HOME`. Source file details are documented in
+[docs/schema.md](docs/schema.md).
 
 ## License
 

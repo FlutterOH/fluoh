@@ -3,8 +3,9 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 
 import '../config/fluoh_yaml_schema.dart';
+import '../schema/version_rules.dart';
 
-Future<String?> readProjectSdkTag(Directory workingDirectory) async {
+Future<String?> readProjectSdkVersion(Directory workingDirectory) async {
   final fluohYaml = await findProjectFluohConfig(workingDirectory);
   if (fluohYaml == null) {
     return null;
@@ -18,7 +19,9 @@ Future<String?> readProjectSdkTag(Directory workingDirectory) async {
 
   final sdk = loaded['sdk'];
   if (sdk is YamlMap && sdk['version'] != null) {
-    return '${sdk['version']}';
+    final sdkVersion = '${sdk['version']}';
+    flutterVersionFromSdkVersion(sdkVersion);
+    return sdkVersion;
   }
 
   return null;

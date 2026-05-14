@@ -52,14 +52,14 @@ sdk:
   version: 3.35.8-ohos-0.0.3
 
 dependencyPolicy:
-  # replacementMode controls where fluoh pub fix writes OHOS adapters:
-  # - overrides: add dependency_overrides without changing dependencies.
-  # - rewrite: replace matching entries in dependencies directly.
-  replacementMode: overrides
-  # versionMismatch controls version differences after exact matches and compatible upgrades:
-  # - skip: leave incompatible version changes and downgrades for manual review.
-  # - allow: apply the recommended adapter anyway.
-  versionMismatch: skip
+  # pubspecSection controls where fluoh pub fix writes OHOS implementations:
+  # - dependency_overrides: add dependency_overrides without changing dependencies.
+  # - dependencies: replace matching entries in dependencies directly.
+  pubspecSection: dependency_overrides
+  # versionChanges controls version differences after exact matches and compatible upgrades:
+  # - compatible: leave incompatible version changes and downgrades for manual review.
+  # - any: apply the recommended implementation anyway.
+  versionChanges: compatible
 ''');
     expect(fluohConfig, isNot(contains('line:')));
     expect(fluohConfig, contains('version: 3.35.8-ohos-0.0.3'));
@@ -282,7 +282,7 @@ schema: 1
 sdk:
   version: 3.34.0-ohos-0.0.1 # selected SDK
 dependencyPolicy:
-  replacementMode: rewrite
+  pubspecSection: dependencies
 custom:
   keep: true
 ''');
@@ -309,7 +309,7 @@ custom:
       final updated = manifest.readAsStringSync();
       expect(updated, contains('version: 3.35.8-ohos-0.0.3 # selected SDK'));
       expect(updated, contains('# Keep project-specific fluoh settings.'));
-      expect(updated, contains('replacementMode: rewrite'));
+      expect(updated, contains('pubspecSection: dependencies'));
       expect(updated, contains('custom:\n  keep: true'));
       expect(stderr, isEmpty);
     },
@@ -438,7 +438,6 @@ Future<Directory> _createPubGetSdkSourceFixture(
 ) async {
   final source = Directory('${parent.path}/pub_get_source');
   final sdkRepository = Directory('${parent.path}/flutter_with_pub_get');
-  await Directory('${source.path}/sdk').create(recursive: true);
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
   await _runProcess('git', [
@@ -459,13 +458,11 @@ exit 0
   await _runProcess('git', ['add', '.'], sdkRepository);
   await _runProcess('git', ['commit', '-m', 'Initial SDK'], sdkRepository);
   await _runProcess('git', ['tag', '3.35.8-ohos-0.0.3'], sdkRepository);
-  await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
+  await writeSdkSourceFixture(
+    source,
+    sdkRepository: sdkRepository.path,
+    releases: {'3.35.8-ohos-0.0.3': 'stable'},
+  );
   return source;
 }
 

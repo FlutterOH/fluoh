@@ -308,15 +308,11 @@ sdk:
       '${environment.homeDirectory.path}/flutter-ohos-sdk',
     );
     await _runProcess('git', ['tag', '3.35.9-ohos-0.0.4'], sdkRepository);
-    await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-  - version: 3.35.9-ohos-0.0.4
-    status: stable
-''');
+    await writeSdkSourceFixture(
+      source,
+      sdkRepository: sdkRepository.path,
+      releases: {'3.35.8-ohos-0.0.3': 'stable', '3.35.9-ohos-0.0.4': 'stable'},
+    );
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
@@ -348,42 +344,38 @@ versions:
     expect(stderr, isEmpty);
   });
 
-  test('stops when equal-priority sources disagree on an SDK tag', () async {
-    final environment = await createTestEnvironment();
-    final firstSource = await createPubSourceFixture(
-      Directory('${environment.homeDirectory.path}/first'),
-    );
-    final secondSource = await createPubSourceFixture(
-      Directory('${environment.homeDirectory.path}/second'),
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'stops when equal-priority sources disagree on an SDK version',
+    () async {
+      final environment = await createTestEnvironment();
+      final firstSource = await createPubSourceFixture(
+        Directory('${environment.homeDirectory.path}/first'),
+      );
+      final secondSource = await createPubSourceFixture(
+        Directory('${environment.homeDirectory.path}/second'),
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'first', firstSource.path, '--priority', '100'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['source', 'add', 'second', secondSource.path, '--priority', '100'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-
-    expect(
       await runFluoh(
-        ['sdk', 'list'],
+        ['source', 'add', 'first', firstSource.path, '--priority', '100'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      64,
-    );
-    expect(stderr.join('\n'), contains('Conflicting SDK release'));
-    expect(stderr.join('\n'), contains('first and second'));
-  });
+      );
+      expect(
+        await runFluoh(
+          ['source', 'add', 'second', secondSource.path, '--priority', '100'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(stderr.join('\n'), contains('Conflicting SDK version'));
+      expect(stderr.join('\n'), contains('first and second'));
+    },
+  );
 
   test('cleans up a partial SDK install when checkout fails', () async {
     final environment = await createTestEnvironment();
@@ -393,13 +385,11 @@ versions:
       tag: '3.35.8-ohos-0.0.3',
       readme: '# sdk\n',
     );
-    await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-9.9.9
-    status: stable
-''');
+    await writeSdkSourceFixture(
+      source,
+      sdkRepository: sdkRepository.path,
+      releases: {'3.35.8-ohos-9.9.9': 'stable'},
+    );
     final stdout = <String>[];
     final stderr = <String>[];
 

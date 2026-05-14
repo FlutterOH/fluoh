@@ -1,14 +1,10 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:yaml/yaml.dart';
 
-class PubspecPackage {
-  const PubspecPackage({required this.name, required this.version});
+import '../../schema/schema.dart';
 
-  final String name;
-  final String version;
-}
+export '../../schema/schema.dart' show PubspecPackage;
 
 Directory packageDirectory(Directory repository, String packagePath) {
   if (packagePath == '.' || packagePath.isEmpty) {
@@ -22,14 +18,9 @@ Future<PubspecPackage> readPubspecPackage(Directory repository) async {
   if (!await pubspec.exists()) {
     throw UsageException('Missing pubspec.yaml in upstream repository.', '');
   }
-  final yaml = loadYaml(await pubspec.readAsString());
-  if (yaml is! YamlMap) {
-    throw UsageException('pubspec.yaml must contain a YAML map.', '');
+  try {
+    return PubspecPackage.fromYaml(await pubspec.readAsString());
+  } on FormatException catch (error) {
+    throw UsageException(error.message, '');
   }
-  final name = yaml['name'];
-  final version = yaml['version'];
-  if (name is! String || version is! String) {
-    throw UsageException('pubspec.yaml must contain name and version.', '');
-  }
-  return PubspecPackage(name: name, version: version);
 }

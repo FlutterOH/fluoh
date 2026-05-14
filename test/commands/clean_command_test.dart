@@ -101,27 +101,30 @@ void main() {
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
+name: camera
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
 repository:
-  url: git@github.com:FlutterOH/camera.git
-  ref: ohos/3.35
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
 
 upstream:
-  url: https://github.com/flutter/packages.git
-  ref: camera-v0.11.0
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
 
 packages:
   camera:
-    path: packages/camera/camera
-    upstream:
-      version: 0.11.0
+    repository:
       path: packages/camera/camera
-    release:
-      version: 0.1.0
-      status: experimental
+    upstream:
+      path: packages/camera/camera
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
 ''',
     );
     await _writeFluohTestArtifactFixture(
@@ -315,7 +318,6 @@ Future<Directory> _createCleanCommandSdkSource(
 ) async {
   final source = Directory('${parent.path}/clean_command_source');
   final sdkRepository = Directory('${parent.path}/clean_command_sdk');
-  await Directory('${source.path}/sdk').create(recursive: true);
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
   await _runProcess('git', [
@@ -338,13 +340,11 @@ exit 0
   await _runProcess('git', ['add', '.'], sdkRepository);
   await _runProcess('git', ['commit', '-m', 'Initial SDK'], sdkRepository);
   await _runProcess('git', ['tag', '3.35.8-ohos-0.0.3'], sdkRepository);
-  await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
+  await writeSdkSourceFixture(
+    source,
+    sdkRepository: sdkRepository.path,
+    releases: {'3.35.8-ohos-0.0.3': 'stable'},
+  );
   return source;
 }
 

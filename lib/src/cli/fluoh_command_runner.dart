@@ -4,14 +4,13 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import '../clean/clean_command.dart';
-import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../doctor/doctor_command.dart';
 import '../pub/commands/pub_command.dart';
 import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
-import '../source/source_sync.dart';
+import '../source/source_runtime.dart';
 import '../testing/test_commands.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
@@ -137,14 +136,11 @@ class FluohCommandRunner extends CommandRunner<int> {
       }
       _throwUnknownCommandUsage(results);
 
-      if (_usesSourceConfiguration(results)) {
-        final config = await FluohConfigStore(_environment).load();
-        if (_repairsSourceSnapshots(results)) {
-          await ensureSourceSnapshots(
-            config,
-            output: _output.style.capabilities.decorated ? _output : null,
-          );
-        }
+      if (_usesSourceConfiguration(results) &&
+          _repairsSourceSnapshots(results)) {
+        await SourceRuntime(_environment).rebuildLock(
+          output: _output.style.capabilities.decorated ? _output : null,
+        );
       }
 
       return await runCommand(results) ?? 0;

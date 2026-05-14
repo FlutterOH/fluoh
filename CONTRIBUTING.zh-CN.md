@@ -41,7 +41,7 @@ export PATH="$HOME/.pub-cache/bin:$PATH"
 
 ```sh
 dart pub global activate fluoh --overwrite
-dart pub global activate fluoh 0.0.1 --overwrite
+dart pub global activate fluoh 0.1.0 --overwrite
 fluoh --version
 ```
 
@@ -130,8 +130,8 @@ ci: publish package on version tags
 本仓库通过 GitHub Actions 在收到版本 tag 后发布到 pub.dev：
 
 ```sh
-git tag v0.0.1
-git push origin v0.0.1
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 tag 必须和 `pubspec.yaml` 中的 `version` 对应。pub.dev package admin 需要启用 GitHub Actions automated publishing：
@@ -160,7 +160,7 @@ fluoh --version
 
 ## Pub 仓库工作流维护
 
-`fluoh pub create` 会保持上游默认分支干净，把克隆来源保留为 `upstream`，创建 `ohos/<sdk-series>` pub 分支，把 `origin` 设置为 pub 仓库最终推送位置，并配置所选 Flutter OHOS SDK 适配环境。默认仓库 URL 会根据 package 名称推导：
+`fluoh pub create` 会保持上游分支干净，把克隆来源保留为 `upstream`，创建 `ohos/3.35` 这类 Flutter OHOS SDK line 分支，把 `origin` 设置为 pub 仓库最终推送位置，并配置所选 Flutter OHOS SDK 环境。默认仓库 URL 会根据 package 名称推导：
 
 ```sh
 git@github.com:FlutterOH/<package>.git
@@ -176,25 +176,24 @@ fluoh pub create https://github.com/upstream/package.git \
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-`fluoh pub create` 会暂存生成的 `AGENTS.md`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、`fluoh.yaml`，以及 Flutter package/plugin 的 `fluoh_test/`，但不会创建初始提交。维护者可以继续适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
+`fluoh pub create` 会暂存生成的 `AGENTS.md`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、`fluoh.yaml`，以及 Flutter package/plugin 的 `fluoh_test/`，但不会创建初始提交。维护者可以继续完成 FlutterOH 适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
 
 ```sh
-git commit -m "feat(pub): initialize FlutterOH adapter"
+git commit -m "feat(pub): initialize FlutterOH package"
 ```
 
-使用 `fluoh pub sync` 从 `upstream` 快进同步干净的上游分支，把该分支合入当前 pub 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 `package.version` 不变。
+使用 `fluoh pub sync` 从 `upstream` 快进同步 Package `fluoh.yaml` 记录的上游分支，把该分支合入当前 `ohos/<sdkLine>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 upstream package version 不变。
 
-`fluoh_test/test` 用于发布前必须通过的自动化适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会在存在 `test/**/*_test.dart` 时先运行适配库自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再使用当前选择的 Flutter OHOS SDK 执行 `fluoh_test` 自动化检查。
+`fluoh_test/test` 用于发布前必须通过的自动化平台适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会在存在 `test/**/*_test.dart` 时先运行 package 自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再使用当前选择的 Flutter OHOS SDK 执行 `fluoh_test` 自动化检查。
 
 `fluoh pub release` 必须继续保证：
 
-- 只允许在 `ohos/*` 分支运行。
-- 当前分支和根据 `fluoh.yaml` 推导出的 `ohos/<sdk-series>` 分支一致。
+- 当前分支和 `fluoh.yaml` 记录的 `repository.git.branch` 分支一致。
 - 工作区干净。
-- SDK tag 来自已配置的数据源。
-- manifest release 版本大于同 package、上游版本、SDK 下已有 release tag 的版本。
+- SDK version 来自已配置的数据源。
+- Package `version` 大于同 package、上游版本、SDK line 下已有 release tag 的版本。
 - 缺失或未填写当前版本的 `FLUOH_CHANGELOG.md` release notes 会提示 warning，但不阻塞 release。
-- Flutter 适配库自身测试和 `fluoh_test` 通过 `fluoh test run`。
-- release tag 和 manifest 中的 package、上游版本、SDK tag、release 版本一致。
+- Flutter package 自身测试和 `fluoh_test` 通过 `fluoh test run`。
+- release tag 和 Package `fluoh.yaml` 中的 package、上游版本、SDK line、`version` 一致。
 
-适配仓库的 release 命令不得直接写入 FlutterOH/pub 数据源元数据。已发布适配库应通过 FlutterOH/pub PR 注册，或等待定时数据源拉取流程处理。
+FlutterOH pub 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 pub 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/pub PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。

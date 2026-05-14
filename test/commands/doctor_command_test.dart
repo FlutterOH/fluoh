@@ -7,6 +7,9 @@ import 'package:test/test.dart';
 
 import '../helpers/fluoh_test_context.dart';
 
+const _currentVersionPublished = '2026-05-01';
+const _newerVersion = '99.0.0';
+
 void main() {
   test('reports project, SDK, source, and platform status', () async {
     final environment = await createTestEnvironment();
@@ -31,8 +34,8 @@ void main() {
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async => const DoctorVersionMetadata(
-        latestVersion: '0.0.1',
-        currentVersionPublished: '2026-05-01',
+        latestVersion: packageVersion,
+        currentVersionPublished: _currentVersionPublished,
       ),
     );
     stdout.addAll(result.stdout);
@@ -41,9 +44,12 @@ void main() {
     expect(result.exitCode, 0);
 
     expect(stdout, contains('Doctor summary:'));
-    expect(stdout, contains('[✓] fluoh (0.0.1)'));
+    expect(stdout, contains('[✓] fluoh ($packageVersion)'));
     expect(stdout, contains('    • Installed with dart pub global activate.'));
-    expect(stdout, contains('    • Current version published: 2026-05-01.'));
+    expect(
+      stdout,
+      contains('    • Current version published: $_currentVersionPublished.'),
+    );
     expect(stdout, contains('    • Up to date.'));
     expect(stdout.join('\n'), isNot(contains('\u001b[')));
     expect(stdout, contains('[✓] Flutter project'));
@@ -53,18 +59,18 @@ void main() {
     expect(stdout, contains('    • Not updated: flutteroh.'));
     expect(stdout, contains('[✓] Project SDK'));
     expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
-    expect(stdout, contains('[!] OpenHarmony platform'));
+    expect(stdout, contains('[!] OHOS platform'));
     expect(stdout, contains('    • Missing ohos platform directory.'));
     expect(stdout.join('\n'), isNot(contains('Dependencies')));
     expect(stdout.join('\n'), isNot(contains('mystery_package')));
     expect(stdout.join('\n'), isNot(contains('camera_platform_interface')));
     expect(stdout, contains('Doctor found issues in 2 categories.'));
     _expectInOrder(stdout.join('\n'), [
-      '[✓] fluoh (0.0.1)',
+      '[✓] fluoh ($packageVersion)',
       '[!] Sources',
       '[✓] Flutter project',
       '[✓] Project SDK',
-      '[!] OpenHarmony platform',
+      '[!] OHOS platform',
     ]);
     expect(stderr, isEmpty);
   });
@@ -77,7 +83,7 @@ void main() {
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: '0.0.1'),
+          const DoctorVersionMetadata(latestVersion: packageVersion),
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
@@ -108,7 +114,7 @@ void main() {
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: '0.0.1'),
+          const DoctorVersionMetadata(latestVersion: packageVersion),
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
@@ -125,14 +131,14 @@ void main() {
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: '0.0.2'),
+          const DoctorVersionMetadata(latestVersion: _newerVersion),
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[!] fluoh (0.0.1)'));
+    expect(result.stdout, contains('[!] fluoh ($packageVersion)'));
     expect(
       result.stdout,
-      contains('    • Upgrade available: 0.0.2. Run `fluoh upgrade`.'),
+      contains('    • Upgrade available: $_newerVersion. Run `fluoh upgrade`.'),
     );
     expect(result.stderr, isEmpty);
   });
@@ -142,20 +148,20 @@ void main() {
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async => const DoctorVersionMetadata(
-        latestVersion: '0.0.1',
-        currentVersionPublished: '2026-05-01',
+        latestVersion: packageVersion,
+        currentVersionPublished: _currentVersionPublished,
       ),
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[✓] fluoh (0.0.1)'));
+    expect(result.stdout, contains('[✓] fluoh ($packageVersion)'));
     expect(
       result.stdout,
       contains('    • Installed with dart pub global activate.'),
     );
     expect(
       result.stdout,
-      contains('    • Current version published: 2026-05-01.'),
+      contains('    • Current version published: $_currentVersionPublished.'),
     );
     expect(result.stdout, contains('    • Up to date.'));
     expect(result.stderr, isEmpty);
@@ -169,7 +175,7 @@ void main() {
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[!] fluoh (0.0.1)'));
+    expect(result.stdout, contains('[!] fluoh ($packageVersion)'));
     expect(
       result.stdout,
       contains('    • Installed with dart pub global activate.'),
@@ -186,27 +192,33 @@ void main() {
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: '0.0.1'),
+          const DoctorVersionMetadata(latestVersion: packageVersion),
       enableColor: true,
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('\u001b[32m[✓] fluoh (0.0.1)\u001b[0m'));
+    expect(
+      result.stdout,
+      contains('\u001b[32m[✓] fluoh ($packageVersion)\u001b[0m'),
+    );
     expect(result.stdout, contains('\u001b[33m[!] Flutter project\u001b[0m'));
     expect(result.stderr, isEmpty);
   });
 
   test('parses the current version release date from pub.dev metadata', () {
     final metadata = parseFluohVersionMetadata({
-      'latest': {'version': '0.0.2'},
+      'latest': {'version': _newerVersion},
       'versions': [
         {'version': '0.0.0', 'published': '2026-04-01T08:00:00.000Z'},
-        {'version': '0.0.1', 'published': '2026-05-01T09:30:00.000Z'},
+        {
+          'version': packageVersion,
+          'published': '${_currentVersionPublished}T09:30:00.000Z',
+        },
       ],
     });
 
-    expect(metadata?.latestVersion, '0.0.2');
-    expect(metadata?.currentVersionPublished, '2026-05-01');
+    expect(metadata?.latestVersion, _newerVersion);
+    expect(metadata?.currentVersionPublished, _currentVersionPublished);
   });
 }
 

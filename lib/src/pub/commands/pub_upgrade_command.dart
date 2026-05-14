@@ -19,7 +19,8 @@ class PubUpgradeCommand extends Command<int> {
       'dry-run',
       abbr: 'n',
       negatable: false,
-      help: 'Show planned adapter ref upgrades without writing pubspec.yaml.',
+      help:
+          'Show planned OHOS implementation ref upgrades without writing pubspec.yaml.',
     );
   }
 
@@ -30,7 +31,7 @@ class PubUpgradeCommand extends Command<int> {
   String get name => 'upgrade';
 
   @override
-  String get description => 'Upgrade existing OHOS adapter refs.';
+  String get description => 'Upgrade existing OHOS implementation refs.';
 
   @override
   Future<int> run() async {
@@ -42,16 +43,17 @@ class PubUpgradeCommand extends Command<int> {
       purpose: PubDependencyPlanPurpose.upgrade,
     );
     final changes = plan.changes;
-    final skippedVersionMismatch = plan.entries
+    final skippedIncompatibleVersion = plan.entries
         .where(
-          (entry) => entry.status == PubDependencyPlanStatus.versionMismatch,
+          (entry) =>
+              entry.status == PubDependencyPlanStatus.incompatibleVersion,
         )
         .toList(growable: false);
     if (changes.isEmpty) {
-      if (skippedVersionMismatch.isEmpty) {
-        _output.skipped('No existing OHOS adapter refs need upgrades.');
+      if (skippedIncompatibleVersion.isEmpty) {
+        _output.skipped('No existing OHOS implementation refs need upgrades.');
       }
-      _printSkippedVersionMismatch(skippedVersionMismatch);
+      _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
       return 0;
     }
 
@@ -60,11 +62,11 @@ class PubUpgradeCommand extends Command<int> {
         _output.step(
           '${dryRun ? 'Would ' : ''}update ${change.packageName} '
           '${change.currentRef} -> ${change.nextRef}'
-          '${adapterUpstreamVersionChange(change, entry.dependency)}',
+          '${implementationUpstreamVersionChange(change, entry.dependency)}',
         );
       }
     }
-    _printSkippedVersionMismatch(skippedVersionMismatch);
+    _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
     if (dryRun) {
       _output.warning('Dry run only; pubspec.yaml was not modified.');
       _output.next(
@@ -85,13 +87,13 @@ class PubUpgradeCommand extends Command<int> {
     return 0;
   }
 
-  void _printSkippedVersionMismatch(List<PubDependencyPlanEntry> entries) {
+  void _printSkippedIncompatibleVersion(List<PubDependencyPlanEntry> entries) {
     for (final entry in entries) {
       _output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
     }
     if (entries.isNotEmpty) {
       _output.warning(
-        'Set dependencyPolicy.versionMismatch to allow in fluoh.yaml to include '
+        'Set dependencyPolicy.versionChanges to any in fluoh.yaml to include '
         'incompatible version changes and downgrades.',
       );
     }

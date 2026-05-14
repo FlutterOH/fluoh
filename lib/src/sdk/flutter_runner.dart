@@ -15,17 +15,17 @@ Future<File> resolveFlutterExecutable({
   String usage = '',
 }) async {
   final manager = SdkManager(environment);
-  final sdkTag = await manager.currentSdkTag();
-  if (sdkTag == null || sdkTag.isEmpty) {
+  final sdkVersion = await manager.currentSdkVersion();
+  if (sdkVersion == null || sdkVersion.isEmpty) {
     throw UsageException(
       'No SDK selected. Run "fluoh sdk use <version-or-series>".',
       usage,
     );
   }
 
-  var sdkDirectory = manager.sdkDirectory(sdkTag);
+  var sdkDirectory = manager.sdkDirectory(sdkVersion);
   if (!await sdkDirectory.exists()) {
-    final release = await manager.resolveRelease(sdkTag);
+    final release = await manager.resolveRelease(sdkVersion);
     sdkDirectory = await output.withProgress(
       'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
       () => manager.install(release),
@@ -35,7 +35,7 @@ Future<File> resolveFlutterExecutable({
   final flutter = File('${sdkDirectory.path}/bin/flutter');
   if (!await flutter.exists()) {
     throw UsageException(
-      'Selected SDK $sdkTag does not contain bin/flutter.',
+      'Selected SDK $sdkVersion does not contain bin/flutter.',
       '',
     );
   }

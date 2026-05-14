@@ -334,7 +334,6 @@ Future<Directory> _createFlutterCommandSdkSource(
 ) async {
   final source = Directory('${parent.path}/flutter_command_source');
   final sdkRepository = Directory('${parent.path}/flutter_command_sdk');
-  await Directory('${source.path}/sdk').create(recursive: true);
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
   await _runProcess('git', [
@@ -357,13 +356,11 @@ exit 0
   await _runProcess('git', ['add', '.'], sdkRepository);
   await _runProcess('git', ['commit', '-m', 'Initial SDK'], sdkRepository);
   await _runProcess('git', ['tag', '3.35.8-ohos-0.0.3'], sdkRepository);
-  await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
+  await writeSdkSourceFixture(
+    source,
+    sdkRepository: sdkRepository.path,
+    releases: {'3.35.8-ohos-0.0.3': 'stable'},
+  );
   return source;
 }
 

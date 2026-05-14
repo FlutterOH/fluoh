@@ -6,6 +6,32 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_test_context.dart';
 
 void main() {
+  test('prints wrapper help without running flutter pub get', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['pub', 'get', '--help'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      stdout.join('\n'),
+      contains(
+        'Run flutter pub get for the project and fluoh_test workspaces.',
+      ),
+    );
+    expect(stdout.join('\n'), contains('Usage: fluoh pub get'));
+    expect(stdout.join('\n'), isNot(contains('Running flutter pub get')));
+    expect(stderr, isEmpty);
+  });
+
   test('runs pub get for project, fluoh_test, and example', () async {
     final environment = await createTestEnvironment();
     final source = await _createPubGetSdkSource(
@@ -97,27 +123,30 @@ void main() {
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
+name: camera
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
 repository:
-  url: git@github.com:FlutterOH/camera.git
-  ref: ohos/3.35
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
 
 upstream:
-  url: https://github.com/flutter/packages.git
-  ref: camera-v0.11.0
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
 
 packages:
   camera:
-    path: packages/camera/camera
-    upstream:
-      version: 0.11.0
+    repository:
       path: packages/camera/camera
-    release:
-      version: 0.1.0
-      status: experimental
+    upstream:
+      path: packages/camera/camera
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
 ''',
     );
     final stdout = <String>[];
@@ -255,7 +284,6 @@ Future<Directory> _createPubGetSdkSource(
 ) async {
   final source = Directory('${parent.path}/pub_get_source');
   final sdkRepository = Directory('${parent.path}/pub_get_sdk');
-  await Directory('${source.path}/sdk').create(recursive: true);
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
   await _runProcess('git', [
@@ -278,13 +306,11 @@ exit 0
   await _runProcess('git', ['add', '.'], sdkRepository);
   await _runProcess('git', ['commit', '-m', 'Initial SDK'], sdkRepository);
   await _runProcess('git', ['tag', '3.35.8-ohos-0.0.3'], sdkRepository);
-  await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-''');
+  await writeSdkSourceFixture(
+    source,
+    sdkRepository: sdkRepository.path,
+    releases: {'3.35.8-ohos-0.0.3': 'stable'},
+  );
   return source;
 }
 

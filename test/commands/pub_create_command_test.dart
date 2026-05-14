@@ -70,35 +70,32 @@ void main() {
         '${pubRepository.path}/fluoh.yaml',
       ).readAsStringSync();
       expect(manifest, contains('schema: 1'));
-      expect(manifest, contains('schema: 1\n\nsdk:'));
+      expect(manifest, contains('name: camera'));
       expect(manifest, contains('packages:\n  camera:'));
       expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
       expect(manifest, contains('\n\nrepository:'));
       expect(manifest, contains('\n\nupstream:'));
-      expect(manifest, isNot(contains('adapter:')));
+      expect(manifest, isNot(contains('implementation:')));
       expect(manifest, isNot(contains('dependency:')));
       expect(manifest, isNot(contains('dependencyPolicy:')));
       expect(manifest, isNot(contains('fluoh:')));
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
-      expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
-      expect(manifest, contains('ref: ohos/3.35'));
-      expect(manifest, isNot(contains('branch: ohos/3.35')));
+      expect(manifest, contains('url: "git@github.com:FlutterOH/camera.git"'));
+      expect(manifest, contains('branch: ohos/3.35'));
+      expect(manifest, isNot(contains('ref: ohos/3.35')));
       expect(manifest, isNot(contains('sdkVersion:')));
       expect(manifest, contains('status: experimental'));
-      expect(manifest, contains('release:'));
+      expect(manifest, isNot(contains('release:')));
       expect(manifest, contains('version: 0.1.0'));
-      expect(manifest, contains('version: 0.11.0'));
+      expect(manifest, contains('upstreamVersion: 0.11.0'));
       expect(manifest, isNot(contains('tag: 0.1.0')));
       expect(manifest, isNot(contains('tag: 0.11.0')));
-      expect(
-        manifest,
-        isNot(contains('tag: camera-v0.11.0-ohos-3.35.8-0.1.0')),
-      );
+      expect(manifest, isNot(contains('tag: camera-0.11.0-ohos-3.35-0.1.0')));
       final guide = File('${pubRepository.path}/FLUOH.md');
       expect(guide.existsSync(), isTrue);
       final guideContent = guide.readAsStringSync();
-      expect(guideContent, contains('# FlutterOH Adaptation'));
+      expect(guideContent, contains('# FlutterOH Implementation'));
       expect(guideContent, contains('## Next Steps'));
       expect(guideContent, contains('## Before Commit'));
       expect(guideContent, contains('fluoh.yaml'));
@@ -111,14 +108,11 @@ void main() {
       final releaseNotes = File('${pubRepository.path}/FLUOH_CHANGELOG.md');
       expect(releaseNotes.existsSync(), isTrue);
       final releaseNotesContent = releaseNotes.readAsStringSync();
-      expect(
-        releaseNotesContent,
-        contains('## camera-v0.11.0-ohos-3.35.8-0.1.0'),
-      );
+      expect(releaseNotesContent, contains('## camera-0.11.0-ohos-3.35-0.1.0'));
       expect(
         releaseNotesContent,
         contains(
-          'Initial adapter for `camera` 0.11.0 on Flutter OHOS SDK '
+          'Initial OHOS implementation for `camera` 0.11.0 on Flutter OHOS SDK '
           '`3.35.8-ohos-0.0.3`.',
         ),
       );
@@ -130,7 +124,7 @@ void main() {
       expect(
         agentsContent,
         contains(
-          'This repository adapts `camera` 0.11.0 for Flutter OHOS SDK '
+          'This repository provides an OHOS implementation for `camera` 0.11.0 on Flutter OHOS SDK '
           '`3.35.8-ohos-0.0.3`.',
         ),
       );
@@ -165,7 +159,7 @@ void main() {
         agentsContent,
         contains('OHOS `signingConfigs` may exist for local testing'),
       );
-      expect(agentsContent, isNot(contains('## Adaptation Checklist')));
+      expect(agentsContent, isNot(contains('## Implementation Checklist')));
       final claude = File('${pubRepository.path}/CLAUDE.md');
       expect(claude.existsSync(), isTrue);
       expect(claude.readAsStringSync(), '@AGENTS.md\n');
@@ -246,7 +240,7 @@ void main() {
       final tags = await runGit(pubRepository, ['tag', '--list']);
       expect(
         tags.stdout.toString().split('\n'),
-        contains('camera-v0.11.0-ohos-3.35.8-0.1.0'),
+        contains('camera-0.11.0-ohos-3.35-0.1.0'),
       );
       expect(
         stdout,
@@ -282,7 +276,7 @@ void main() {
       expect(stdout, isNot(contains('Commit before running fluoh pub sync')));
       expect(
         stdout,
-        contains('See FLUOH.md and AGENTS.md for adaptation steps.'),
+        contains('See FLUOH.md and AGENTS.md for implementation steps.'),
       );
       expect(
         stdout,
@@ -292,7 +286,7 @@ void main() {
         stdout,
         contains(
           'Created release tag '
-          'camera-v0.11.0-ohos-3.35.8-0.1.0.',
+          'camera-0.11.0-ohos-3.35-0.1.0.',
         ),
       );
       expect(stderr, isEmpty);
@@ -750,86 +744,95 @@ Prefer the upstream release workflow.
     },
   );
 
-  test('creates a monorepo adapter with multiple package paths', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
-      Directory('${environment.homeDirectory.path}/upstream_multi_package'),
-      packagePath: 'packages/camera/camera',
-      packageName: 'camera',
-    );
-    await _addMonorepoPackage(
-      upstream,
-      path: 'packages/share_plus/share_plus',
-      name: 'share_plus',
-      version: '9.0.0',
-    );
-    final pubRepository = Directory(
-      '${environment.homeDirectory.path}/pub_multi_package',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'creates a monorepo implementation with multiple package paths',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamMonorepoRepository(
+        Directory('${environment.homeDirectory.path}/upstream_multi_package'),
+        packagePath: 'packages/camera/camera',
+        packageName: 'camera',
+      );
+      await _addMonorepoPackage(
+        upstream,
+        path: 'packages/share_plus/share_plus',
+        name: 'share_plus',
+        version: '9.0.0',
+      );
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_multi_package',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
 
-    final createResult = await runFluoh(
-      [
-        'pub',
-        'create',
-        upstream.path,
-        '--path',
-        'packages/camera/camera',
-        '--path',
-        'packages/share_plus/share_plus',
-        '--output',
-        pubRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    expect(createResult, 0);
+      final createResult = await runFluoh(
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--path',
+          'packages/camera/camera',
+          '--path',
+          'packages/share_plus/share_plus',
+          '--output',
+          pubRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      expect(createResult, 0);
 
-    final manifest = File(
-      '${pubRepository.path}/fluoh.yaml',
-    ).readAsStringSync();
-    expect(manifest, contains('packages:\n  camera:'));
-    expect(manifest, contains('  share_plus:'));
-    expect(manifest, contains('path: packages/camera/camera'));
-    expect(manifest, contains('path: packages/share_plus/share_plus'));
-    final guide = File('${pubRepository.path}/FLUOH.md').readAsStringSync();
-    expect(guide, contains('adapts multiple packages'));
-    expect(
-      guide,
-      contains(
-        '`camera` 0.11.0: package path `packages/camera/camera`, '
-        'tests `fluoh_test/camera`',
-      ),
-    );
-    expect(
-      guide,
-      contains(
-        '`share_plus` 9.0.0: package path '
-        '`packages/share_plus/share_plus`, tests `fluoh_test/share_plus`',
-      ),
-    );
-    expect(guide, contains('`fluoh pub release --package share_plus`'));
-    final agents = File('${pubRepository.path}/AGENTS.md').readAsStringSync();
-    expect(agents, contains('adapts multiple packages'));
-    expect(agents, contains('`fluoh test run --package <name>`'));
-    expect(agents, contains('`fluoh pub release --package camera`'));
-    expect(agents, contains('`fluoh pub release --package share_plus`'));
-    expect(stderr, isEmpty);
-  });
+      final manifest = File(
+        '${pubRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      expect(manifest, contains('packages:\n  camera:'));
+      expect(manifest, contains('  share_plus:'));
+      expect(manifest, contains('path: packages/camera/camera'));
+      expect(manifest, contains('path: packages/share_plus/share_plus'));
+      final guide = File('${pubRepository.path}/FLUOH.md').readAsStringSync();
+      expect(
+        guide,
+        contains('provides OHOS implementations for multiple packages'),
+      );
+      expect(
+        guide,
+        contains(
+          '`camera` 0.11.0: package path `packages/camera/camera`, '
+          'tests `fluoh_test/camera`',
+        ),
+      );
+      expect(
+        guide,
+        contains(
+          '`share_plus` 9.0.0: package path '
+          '`packages/share_plus/share_plus`, tests `fluoh_test/share_plus`',
+        ),
+      );
+      expect(guide, contains('`fluoh pub release --package share_plus`'));
+      final agents = File('${pubRepository.path}/AGENTS.md').readAsStringSync();
+      expect(
+        agents,
+        contains('provides OHOS implementations for multiple packages'),
+      );
+      expect(agents, contains('`fluoh test run --package <name>`'));
+      expect(agents, contains('`fluoh pub release --package camera`'));
+      expect(agents, contains('`fluoh pub release --package share_plus`'));
+      expect(stderr, isEmpty);
+    },
+  );
 
-  test('adds another package to an existing monorepo adapter', () async {
+  test('adds another package to an existing monorepo implementation', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamMonorepoRepository(
@@ -879,7 +882,7 @@ Prefer the upstream release workflow.
     );
     expect(
       await runFluoh(
-        ['pub', 'add', '--path', 'packages/share_plus/share_plus'],
+        ['pub', 'add', 'packages/share_plus/share_plus'],
         environment: pubEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -893,12 +896,27 @@ Prefer the upstream release workflow.
     expect(manifest, contains('packages:\n  camera:'));
     expect(manifest, contains('  share_plus:'));
     final guide = File('${pubRepository.path}/FLUOH.md').readAsStringSync();
-    expect(guide, contains('This repository adapts `camera` 0.11.0'));
-    expect(guide, contains('This repository adapts `share_plus` 9.0.0'));
+    expect(
+      guide,
+      contains(
+        'This repository provides an OHOS implementation for `camera` 0.11.0',
+      ),
+    );
+    expect(
+      guide,
+      contains(
+        'This repository provides an OHOS implementation for `share_plus` 9.0.0',
+      ),
+    );
     expect(guide, contains('Package path: `packages/share_plus/share_plus`'));
     expect(guide, contains('fluoh_test/share_plus/example'));
     final agents = File('${pubRepository.path}/AGENTS.md').readAsStringSync();
-    expect(agents, contains('This repository adapts `share_plus` 9.0.0'));
+    expect(
+      agents,
+      contains(
+        'This repository provides an OHOS implementation for `share_plus` 9.0.0',
+      ),
+    );
     expect(
       agents,
       contains('Run `fluoh test run --package share_plus` before release.'),
@@ -906,7 +924,7 @@ Prefer the upstream release workflow.
     final changelog = File(
       '${pubRepository.path}/FLUOH_CHANGELOG.md',
     ).readAsStringSync();
-    expect(changelog, contains('## share_plus-v9.0.0-ohos-3.35.8-0.1.0'));
+    expect(changelog, contains('## share_plus-9.0.0-ohos-3.35-0.1.0'));
     final status = await runGit(pubRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('M  fluoh.yaml'));
     expect(status.stdout.toString(), contains('M  AGENTS.md'));
@@ -1006,7 +1024,7 @@ Prefer the upstream release workflow.
         origin.stdout.toString().trim(),
         'git@github.com:FlutterOH/camera.git',
       );
-      expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
+      expect(manifest, contains('url: "git@github.com:FlutterOH/camera.git"'));
       expect(stderr, isEmpty);
     },
   );
@@ -1115,15 +1133,11 @@ Prefer the upstream release workflow.
       '${environment.homeDirectory.path}/flutter-ohos-sdk',
     );
     await runGit(sdkRepository, ['tag', '3.35.8-ohos-0.0.4']);
-    await File('${source.path}/sdk/releases.yaml').writeAsString('''
-schema: 1
-url: ${sdkRepository.path}
-versions:
-  - version: 3.35.8-ohos-0.0.3
-    status: stable
-  - version: 3.35.8-ohos-0.0.4
-    status: stable
-''');
+    await writeSdkSourceFixture(
+      source,
+      sdkRepository: sdkRepository.path,
+      releases: {'3.35.8-ohos-0.0.3': 'stable', '3.35.8-ohos-0.0.4': 'stable'},
+    );
     final upstream = await createUpstreamPackageRepository(
       Directory('${environment.homeDirectory.path}/upstream_default_sdk'),
     );
