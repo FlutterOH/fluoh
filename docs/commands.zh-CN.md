@@ -24,7 +24,7 @@
 | `fluoh source remove <name>` | `lib/src/source/source_commands.dart` | 从工具配置中移除非官方数据源。 |
 | `fluoh source update [name]` | `lib/src/source/source_commands.dart` | 刷新并校验已配置的数据源快照。 |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | 创建本地 source 仓库模板。 |
-| `fluoh source sync <source-path> <pub-repo-path>...` | `lib/src/source/source_commands.dart` | 把已发布 FlutterOH pub 仓库元数据同步进 source 仓库。 |
+| `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | 把已发布 FlutterOH pub 仓库元数据同步进 source 仓库。 |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | 本地 Flutter OHOS SDK 缓存的命令组。 |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | 列出远端 SDK version 和本地 SDK 缓存。 |
 | `fluoh sdk install <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | 把 SDK version 安装到 `$FLUOH_HOME/sdks`。 |
@@ -146,13 +146,14 @@ Source runtime 会一起提交配置项和重新生成后的 lock。
 Manifest 路由示例，维护者可按需取消注释。维护者直接编辑 Manifest 文件中的 advisory
 和 maintenance 信息；发布记录由 `fluoh source sync` 生成。
 
-`fluoh source sync <source-path> <pub-repo-path>...` 读取一个或多个已发布
-FlutterOH pub 仓库，扫描 release tags，读取每个 tag 下固化的 Package
-`fluoh.yaml`，然后把历史发布记录汇总到 Manifest。source 元数据应来自已发布适配记录，
-而不是维护中的仓库状态。当 `<source-path>` 是 `$FLUOH_HOME/sources/<name>` 下的某个已配置
-source 快照时，sync 会被视为已配置 Source 快照变更，由 Source runtime 重建合并后的
-lock。当 `<source-path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到
-已配置快照后，再运行 `fluoh source update <name>`。
+`fluoh source sync [path]` 读取 Source root 里的 Manifest routes，把每个
+Manifest 的 `repository.git.url` 作为 FlutterOH pub 仓库，读取 release tags，读取每个
+tag 下固化的 Package `fluoh.yaml`，然后把历史发布记录汇总到 Manifest。不传
+`path` 时默认使用当前目录。source 元数据应来自已发布适配记录，而不是维护中的仓库
+状态。当 `<path>` 是 `$FLUOH_HOME/sources/<name>` 下的某个已配置 source 快照时，
+sync 会被视为已配置 Source 快照变更，由 Source runtime 重建合并后的 lock。当
+`<path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到已配置快照后，
+再运行 `fluoh source update <name>`。
 
 ## SDK 命令
 

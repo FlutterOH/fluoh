@@ -94,6 +94,38 @@ void main() {
   });
 
   test(
+    'parses only requested lock packages during dependency checks',
+    () async {
+      final environment = await _preparedEnvironment();
+      final lockFile = File(
+        '${environment.homeDirectory.path}/sources.lock.json',
+      );
+      final lock =
+          jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
+      final packages = lock['packages'] as Map<String, Object?>;
+      packages['unrelated_bad_package'] = 'not a package object';
+      await lockFile.writeAsString(
+        '${const JsonEncoder.withIndent('  ').convert(lock)}\n',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['pub', 'check'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stdout, anyElement(contains('camera 0.11.0')));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
     'plans and writes tag-based overrides only for direct implemented packages',
     () async {
       final environment = await _preparedEnvironment();

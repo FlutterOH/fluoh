@@ -397,7 +397,7 @@ void main() {
     expect(commands, contains('fluoh help [command]'));
     expect(commands, contains('fluoh source`'));
     expect(commands, contains('fluohf <args>'));
-    expect(commands, contains('fluoh source sync <source-path>'));
+    expect(commands, contains('fluoh source sync [path]'));
     expect(commands, isNot(contains('fluoh source package')));
     expect(commands, contains('\$FLUOH_HOME/sources.lock.json'));
     expect(commands, contains('Dart global installs'));
@@ -432,7 +432,7 @@ void main() {
     expect(chineseCommands, contains('fluoh help [command]'));
     expect(chineseCommands, contains('fluoh source`'));
     expect(chineseCommands, contains('fluohf <args>'));
-    expect(chineseCommands, contains('fluoh source sync <source-path>'));
+    expect(chineseCommands, contains('fluoh source sync [path]'));
     expect(chineseCommands, isNot(contains('fluoh source package')));
     expect(chineseCommands, contains('\$FLUOH_HOME/sources.lock.json'));
     expect(chineseCommands, contains('Dart global 安装执行'));

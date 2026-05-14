@@ -17,21 +17,14 @@ class SourceRuntime {
   final FluohEnvironment environment;
 
   Future<SdkIndex> loadSdkIndex() async {
-    return (await _loadResolvedLock()).sdkIndex;
+    return (await _loadResolvedLock(includePackages: false)).sdkIndex;
   }
 
   Future<PackageIndex> loadPackageIndex({Set<String>? packageNames}) async {
-    final index = (await _loadResolvedLock()).packageIndex;
-    if (packageNames == null) {
-      return index;
-    }
-    return PackageIndex(
-      schemaVersion: index.schemaVersion,
-      packages: {
-        for (final entry in index.packages.entries)
-          if (packageNames.contains(entry.key)) entry.key: entry.value,
-      },
-    );
+    return (await _loadResolvedLock(
+      includeSdk: false,
+      packageNames: packageNames,
+    )).packageIndex;
   }
 
   Future<CompatibilityMatrix> loadCompatibilityMatrix({
@@ -95,11 +88,19 @@ class SourceRuntime {
     }
   }
 
-  Future<_ResolvedSourceLock> _loadResolvedLock() async {
+  Future<_ResolvedSourceLock> _loadResolvedLock({
+    bool includeSdk = true,
+    bool includePackages = true,
+    Set<String>? packageNames,
+  }) async {
     final config = await FluohConfigStore(environment).load();
     await ensureSourceSnapshots(config);
     final inputs = await _lockInputs(config);
-    final current = await _readLock();
+    final current = await _readLock(
+      includeSdk: includeSdk,
+      includePackages: includePackages,
+      packageNames: packageNames,
+    );
     if (current != null && _jsonEqual(current.inputs, inputs)) {
       return current;
     }
@@ -376,7 +377,11 @@ class SourceRuntime {
     };
   }
 
-  Future<_ResolvedSourceLock?> _readLock() async {
+  Future<_ResolvedSourceLock?> _readLock({
+    bool includeSdk = true,
+    bool includePackages = true,
+    Set<String>? packageNames,
+  }) async {
     final file = environment.sourcesLockFile;
     if (!await file.exists()) {
       return null;
@@ -386,7 +391,12 @@ class SourceRuntime {
       if (decoded is! Map<String, Object?>) {
         return null;
       }
-      return _ResolvedSourceLock.fromJson(decoded);
+      return _ResolvedSourceLock.fromJson(
+        decoded,
+        includeSdk: includeSdk,
+        includePackages: includePackages,
+        packageNames: packageNames,
+      );
     } on FormatException {
       return null;
     }
@@ -433,6 +443,9 @@ String _fileSystemMessage(FileSystemException error) {
   return '${error.message}: $path';
 }
 
+const _sourceSnapshotStateFileName = '.fluoh-source-state.json';
+const _sourceSnapshotStateVersion = 1;
+
 class _ResolvedSourceLock {
   const _ResolvedSourceLock({
     required this.generatedBy,
@@ -442,13 +455,22 @@ class _ResolvedSourceLock {
     required this.packageIndex,
   });
 
-  factory _ResolvedSourceLock.fromJson(Map<String, Object?> json) {
+  factory _ResolvedSourceLock.fromJson(
+    Map<String, Object?> json, {
+    bool includeSdk = true,
+    bool includePackages = true,
+    Set<String>? packageNames,
+  }) {
     return _ResolvedSourceLock(
       generatedBy: _optionalString(json['generatedBy']) ?? '',
       generatedAt: _optionalString(json['generatedAt']) ?? '',
       inputs: _jsonObject(json['inputs'], 'sources.lock.json inputs'),
-      sdkIndex: _sdkIndexFromLock(json),
-      packageIndex: _packageIndexFromLock(json),
+      sdkIndex: includeSdk
+          ? _sdkIndexFromLock(json)
+          : const SdkIndex(schemaVersion: 1, releases: []),
+      packageIndex: includePackages
+          ? _packageIndexFromLock(json, packageNames: packageNames)
+          : const PackageIndex(schemaVersion: 1, packages: {}),
     );
   }
 
@@ -524,7 +546,10 @@ SdkRelease _sdkReleaseFromLock(String version, Object? value) {
   );
 }
 
-PackageIndex _packageIndexFromLock(Map<String, Object?> json) {
+PackageIndex _packageIndexFromLock(
+  Map<String, Object?> json, {
+  Set<String>? packageNames,
+}) {
   final packages = _optionalJsonObject(
     json['packages'],
     'sources.lock.json packages',
@@ -534,9 +559,11 @@ PackageIndex _packageIndexFromLock(Map<String, Object?> json) {
   }
   return PackageIndex(
     schemaVersion: 1,
-    packages: packages.map(
-      (name, value) => MapEntry(name, _packageEntryFromLock(name, value)),
-    ),
+    packages: {
+      for (final entry in packages.entries)
+        if (packageNames == null || packageNames.contains(entry.key))
+          entry.key: _packageEntryFromLock(entry.key, entry.value),
+    },
   );
 }
 
@@ -682,6 +709,7 @@ Map<String, Object?> _packageEntryToJson(PackageEntry entry) {
 
 Map<String, Object?> _packageSdksToJson(PackageEntry entry) {
   final grouped = <String, List<PackageImplementation>>{};
+  final source = _packageEntrySource(entry);
   for (final implementation in entry.implementations) {
     grouped
         .putIfAbsent(implementation.sdkLine, () => <PackageImplementation>[])
@@ -695,31 +723,52 @@ Map<String, Object?> _packageSdksToJson(PackageEntry entry) {
           for (final implementation in _sortedImplementations(
             grouped[sdkLine]!,
           ))
-            {
-              'version': implementation.version,
-              'upstreamVersion': implementation.upstreamVersion,
-              'status': 'compatible',
-              'tag': implementation.tag,
-              'repository': {
-                'git': {'url': implementation.repository},
-                if (implementation.path != null && implementation.path != '.')
-                  'path': implementation.path,
-              },
-              'upstream': {
-                'git': {
-                  'url': entry.upstream,
-                  'branch': implementation.upstreamBranch,
-                },
-                if (implementation.upstreamPath != null &&
-                    implementation.upstreamPath != '.')
-                  'path': implementation.upstreamPath,
-              },
-              if (implementation.sourceName != null)
-                'source': implementation.sourceName,
-              'priority': implementation.sourcePriority,
-            },
+            _packageImplementationToJson(
+              entry: entry,
+              source: source,
+              implementation: implementation,
+            ),
         ],
       },
+  };
+}
+
+Map<String, Object?> _packageImplementationToJson({
+  required PackageEntry entry,
+  required ({String name, int priority})? source,
+  required PackageImplementation implementation,
+}) {
+  final repository = <String, Object?>{
+    if (implementation.repository != entry.repository)
+      'git': {'url': implementation.repository},
+    if (implementation.path != null &&
+        implementation.path != '.' &&
+        implementation.path != entry.repositoryPath)
+      'path': implementation.path,
+  };
+  final upstreamGit = <String, Object?>{
+    if (implementation.upstreamBranch != entry.upstreamBranch)
+      'branch': implementation.upstreamBranch,
+  };
+  final upstream = <String, Object?>{
+    if (upstreamGit.isNotEmpty) 'git': upstreamGit,
+    if (implementation.upstreamPath != null &&
+        implementation.upstreamPath != '.' &&
+        implementation.upstreamPath != entry.upstreamPath)
+      'path': implementation.upstreamPath,
+  };
+
+  return {
+    'version': implementation.version,
+    'upstreamVersion': implementation.upstreamVersion,
+    'tag': implementation.tag,
+    if (repository.isNotEmpty) 'repository': repository,
+    if (upstream.isNotEmpty) 'upstream': upstream,
+    if (implementation.sourceName != null &&
+        implementation.sourceName != source?.name)
+      'source': implementation.sourceName,
+    if (implementation.sourcePriority != source?.priority)
+      'priority': implementation.sourcePriority,
   };
 }
 
@@ -850,9 +899,21 @@ Future<String> _snapshotHash(Directory root) async {
   if (!await root.exists()) {
     return _stableHash({'missing': root.path});
   }
+  final fingerprint = await _snapshotFingerprint(root);
+  final stateHash = await _readSnapshotStateHash(root, fingerprint);
+  if (stateHash != null) {
+    return stateHash;
+  }
+  final hash = await _calculateSnapshotHash(root);
+  await _writeSnapshotState(root, hash, fingerprint);
+  return hash;
+}
+
+Future<String> _calculateSnapshotHash(Directory root) async {
   final files = <File>[];
   await for (final entity in root.list(recursive: true, followLinks: false)) {
-    if (entity is File) {
+    if (entity is File &&
+        _relativePath(root, entity) != _sourceSnapshotStateFileName) {
       files.add(entity);
     }
   }
@@ -863,6 +924,71 @@ Future<String> _snapshotHash(Directory root) async {
     for (final file in files)
       _relativePath(root, file): _hashBytes(await file.readAsBytes()),
   });
+}
+
+Future<Map<String, Object?>> _snapshotFingerprint(Directory root) async {
+  final entries = <Map<String, Object?>>[];
+  await for (final entity in root.list(recursive: true, followLinks: false)) {
+    if (entity is! File) {
+      continue;
+    }
+    final relative = _relativePath(root, entity);
+    if (relative == _sourceSnapshotStateFileName) {
+      continue;
+    }
+    final stat = await entity.stat();
+    entries.add({
+      'path': relative,
+      'size': stat.size,
+      'modified': stat.modified.toUtc().microsecondsSinceEpoch,
+    });
+  }
+  entries.sort((a, b) => '${a['path']}'.compareTo('${b['path']}'));
+  return {'files': entries};
+}
+
+Future<String?> _readSnapshotStateHash(
+  Directory root,
+  Map<String, Object?> fingerprint,
+) async {
+  final file = File('${root.path}/$_sourceSnapshotStateFileName');
+  if (!await file.exists()) {
+    return null;
+  }
+  try {
+    final decoded = jsonDecode(await file.readAsString());
+    if (decoded is! Map<String, Object?>) {
+      return null;
+    }
+    if (_optionalInt(decoded['stateVersion']) != _sourceSnapshotStateVersion) {
+      return null;
+    }
+    if (!_jsonEqual(decoded['fingerprint'], fingerprint)) {
+      return null;
+    }
+    final hash = _optionalString(decoded['contentHash']);
+    return hash == null || !hash.startsWith('hash64:') ? null : hash;
+  } on FormatException {
+    return null;
+  } on FileSystemException {
+    return null;
+  }
+}
+
+Future<void> _writeSnapshotState(
+  Directory root,
+  String contentHash,
+  Map<String, Object?> fingerprint,
+) async {
+  final file = File('${root.path}/$_sourceSnapshotStateFileName');
+  final content = const JsonEncoder.withIndent('  ').convert({
+    'stateVersion': _sourceSnapshotStateVersion,
+    'generatedBy': 'fluoh $packageVersion',
+    'generatedAt': DateTime.now().toUtc().toIso8601String(),
+    'fingerprint': fingerprint,
+    'contentHash': contentHash,
+  });
+  await file.writeAsString('$content\n');
 }
 
 String _relativePath(Directory root, FileSystemEntity entity) {
@@ -979,6 +1105,12 @@ Future<_SourceSnapshotTransaction> _replaceSourceSnapshotForTransaction({
   var installed = false;
   try {
     await copySourceSnapshot(source, staging);
+    final fingerprint = await _snapshotFingerprint(staging);
+    await _writeSnapshotState(
+      staging,
+      await _calculateSnapshotHash(staging),
+      fingerprint,
+    );
     if (await destination.exists()) {
       backup = await destination.rename(
         '${parent.path}/.${basename(destination.path)}-previous-'

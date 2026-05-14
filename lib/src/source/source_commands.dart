@@ -213,9 +213,7 @@ class SourceInitCommand extends Command<int> {
     _output.next(
       'Edit manifest files directly, or sync released packages with:',
     );
-    _output.next(
-      '  fluoh source sync ${_output.style.path(source.path)} <pub-repo-path>',
-    );
+    _output.next('  fluoh source sync ${_output.style.path(source.path)}');
     _output.next(
       'Add it with: fluoh source add <name> ${_output.style.path(source.path)}',
     );
@@ -242,16 +240,18 @@ class SourceSyncCommand extends Command<int> {
       'Sync released FlutterOH pub repositories into a source repository.';
 
   @override
-  String get invocation => 'fluoh source sync <source-path> <pub-repo-path>...';
+  String get invocation => 'fluoh source sync [path]';
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
-    if (rest.length < 2) {
-      usageException('Expected a source path and at least one pub repo path.');
+    if (rest.length > 1) {
+      usageException('Expected zero or one source path.');
     }
 
-    final source = Directory(rest.first);
+    final source = rest.isEmpty
+        ? environment.workingDirectory
+        : Directory(rest.single);
     if (!await source.exists()) {
       usageException('Source path does not exist: ${source.path}');
     }
@@ -266,19 +266,15 @@ class SourceSyncCommand extends Command<int> {
         : tempSource = await Directory.systemTemp.createTemp(
             'fluoh_source_sync_',
           );
+    var repositories = const <_SourceManifestRepository>[];
     try {
       if (configuredSource != null) {
         await copySourceSnapshot(source, workingSource);
       }
 
+      repositories = await _manifestRepositories(source);
       final syncPackages = <_SourceSyncPackage>[];
-      for (final repoPath in rest.skip(1)) {
-        final repository = Directory(repoPath);
-        if (!await repository.exists()) {
-          usageException(
-            'Pub repository path does not exist: ${repository.path}',
-          );
-        }
+      for (final repository in repositories) {
         syncPackages.addAll(await _releasedSourcePackages(repository));
       }
 
@@ -291,7 +287,7 @@ class SourceSyncCommand extends Command<int> {
         final package = syncPackage.package;
         final result = await _writeSourcePackageMetadata(
           source: workingSource,
-          manifestName: manifest.name,
+          manifestName: syncPackage.sourceManifestName,
           packageName: package.name,
           packageUrl: manifest.repositoryUrl,
           packagePath: package.repositoryPath,
@@ -347,6 +343,9 @@ class SourceSyncCommand extends Command<int> {
         );
       }
     } finally {
+      for (final repository in repositories) {
+        await repository.cleanup();
+      }
       if (tempSource != null) {
         await deleteIfExists(tempSource);
       }
@@ -354,13 +353,76 @@ class SourceSyncCommand extends Command<int> {
     return 0;
   }
 
-  Future<List<_SourceSyncPackage>> _releasedSourcePackages(
-    Directory repository,
+  Future<List<_SourceManifestRepository>> _manifestRepositories(
+    Directory source,
   ) async {
-    final tags = await _releaseTags(repository);
+    final root = await _readSourceRootManifest(
+      source,
+      usageException: usageException,
+    );
+    if (root.manifests.isEmpty) {
+      usageException(
+        'Source ${source.path} does not declare any manifest routes.',
+      );
+    }
+    final repositories = <_SourceManifestRepository>[];
+    for (final route in root.manifests) {
+      final manifest = await _readSourceManifest(source, route.name);
+      repositories.add(
+        await _sourceManifestRepository(
+          name: route.name,
+          source: source,
+          url: manifest.repositoryGitUrl,
+        ),
+      );
+    }
+    repositories.sort((a, b) => a.name.compareTo(b.name));
+    return repositories;
+  }
+
+  Future<_SourceManifestRepository> _sourceManifestRepository({
+    required String name,
+    required Directory source,
+    required String url,
+  }) async {
+    final local = localSourceDirectoryFromUrl(url);
+    if (local != null) {
+      final directory = local.isAbsolute
+          ? local
+          : Directory('${source.path}/${local.path}');
+      await _ensureLocalPubRepository(directory, url);
+      return _SourceManifestRepository(name: name, path: directory);
+    }
+
+    final directory = Directory(url);
+    if (directory.isAbsolute) {
+      await _ensureLocalPubRepository(directory, url);
+      return _SourceManifestRepository(name: name, path: directory);
+    }
+
+    if (!_looksLikeRemoteGitUrl(url)) {
+      final sourceRelative = Directory('${source.path}/$url');
+      await _ensureLocalPubRepository(sourceRelative, url);
+      return _SourceManifestRepository(name: name, path: sourceRelative);
+    }
+
+    final temp = await Directory.systemTemp.createTemp('fluoh_pub_repo_');
+    try {
+      await git(['clone', '--quiet', url, temp.path]);
+      return _SourceManifestRepository(name: name, path: temp, temporary: true);
+    } catch (_) {
+      await deleteIfExists(temp);
+      rethrow;
+    }
+  }
+
+  Future<List<_SourceSyncPackage>> _releasedSourcePackages(
+    _SourceManifestRepository repository,
+  ) async {
+    final tags = await _releaseTags(repository.path);
     final packages = <_SourceSyncPackage>[];
     for (final tag in tags) {
-      final manifest = await _readTaggedPubManifest(repository, tag);
+      final manifest = await _readTaggedPubManifest(repository.path, tag);
       if (manifest == null) {
         continue;
       }
@@ -370,7 +432,7 @@ class SourceSyncCommand extends Command<int> {
           expectedTag = package.releaseTag(manifest.sdkVersion);
         } on FormatException catch (error) {
           usageException(
-            'Could not read pub repository ${repository.path} at tag $tag: '
+            'Could not read pub repository ${repository.path.path} at tag $tag: '
             '${error.message}',
           );
         }
@@ -379,7 +441,8 @@ class SourceSyncCommand extends Command<int> {
         }
         packages.add(
           _SourceSyncPackage(
-            repository: repository,
+            sourceManifestName: repository.name,
+            repository: repository.path,
             manifest: manifest,
             package: package,
           ),
@@ -388,7 +451,7 @@ class SourceSyncCommand extends Command<int> {
     }
     if (packages.isEmpty) {
       usageException(
-        'No released Package fluoh.yaml records found in ${repository.path}. '
+        'No released Package fluoh.yaml records found in ${repository.path.path}. '
         'Run "fluoh pub release" first or fetch tags before syncing.',
       );
     }
@@ -438,6 +501,56 @@ class SourceSyncCommand extends Command<int> {
       );
     }
   }
+
+  Future<SourceManifest> _readSourceManifest(
+    Directory source,
+    String name,
+  ) async {
+    final manifestPath = 'manifests/$name/fluoh.yaml';
+    final file = File('${source.path}/$manifestPath');
+    try {
+      return parseSourceManifest(
+        content: await file.readAsString(),
+        label: manifestPath,
+      );
+    } on FormatException catch (error) {
+      usageException(error.message);
+    } on FileSystemException catch (error) {
+      usageException(
+        'Could not read source manifest $manifestPath: ${fileSystemMessage(error)}',
+      );
+    }
+  }
+
+  Future<void> _ensureLocalPubRepository(
+    Directory directory,
+    String url,
+  ) async {
+    if (!await directory.exists()) {
+      usageException('Pub repository path does not exist for $url.');
+    }
+    if (!await File('${directory.path}/fluoh.yaml').exists()) {
+      usageException('Pub repository ${directory.path} is missing fluoh.yaml.');
+    }
+  }
+}
+
+class _SourceManifestRepository {
+  const _SourceManifestRepository({
+    required this.name,
+    required this.path,
+    this.temporary = false,
+  });
+
+  final String name;
+  final Directory path;
+  final bool temporary;
+
+  Future<void> cleanup() async {
+    if (temporary) {
+      await deleteIfExists(path);
+    }
+  }
 }
 
 class _SourceSyncResult {
@@ -449,11 +562,13 @@ class _SourceSyncResult {
 
 class _SourceSyncPackage {
   const _SourceSyncPackage({
+    required this.sourceManifestName,
     required this.repository,
     required this.manifest,
     required this.package,
   });
 
+  final String sourceManifestName;
   final Directory repository;
   final PubManifest manifest;
   final PubManifestPackage package;
@@ -1016,6 +1131,11 @@ bool _looksLikeGitSource(String value) {
       value.endsWith('.git');
 }
 
+bool _looksLikeRemoteGitUrl(String value) {
+  return value.contains('://') ||
+      RegExp(r'^[^@\s]+@[^:\s]+:.+').hasMatch(value);
+}
+
 String _s(int count) => count == 1 ? '' : 's';
 
 String _localSourceReadme() {
@@ -1031,13 +1151,13 @@ fluoh source add <name> .
 Sync released pub repositories with:
 
 ```sh
-fluoh source sync . <pub-repo-path>
+fluoh source sync .
 ```
 
 Root `fluoh.yaml` declares SDK versions and package routing.
 `manifests/example/fluoh.yaml` contains a commented Manifest template.
 Copy or rename it when adding package routing, or let `fluoh source sync`
-create released package metadata from FlutterOH pub repositories.
+create released package metadata from Manifest repository URLs.
 Edit Manifest files directly for advisory and maintenance notes.
 
 The `pub` repository can be maintained as a source and add scheduled workflows on top of these files.
@@ -1066,7 +1186,7 @@ String _localSourceMetadata(Directory source) {
     '#     - 3.35.8-ohos-0.0.3',
     '',
     '# Uncomment after editing manifests/example/fluoh.yaml, or run:',
-    '# fluoh source sync . <pub-repo-path>',
+    '# fluoh source sync .',
     '# manifests:',
     '#   - name: example',
     '',

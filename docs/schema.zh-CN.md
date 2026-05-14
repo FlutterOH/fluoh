@@ -349,8 +349,9 @@ path_provider-2.1.5-ohos-3.35-0.2.0
    完成并可推荐给项目使用时省略 `status`，默认就是 `compatible`。
 6. `fluoh pub release` 使用 Package `fluoh.yaml` 派生 release tag。tag 固化当时的代码、
    测试和配置快照。
-7. `fluoh source sync` 扫描已发布 release tags，读取每个 tag 下的 Package
-   `fluoh.yaml`，把历史发布记录汇总进 Manifest。
+7. `fluoh source sync` 使用 Manifest `repository.git.url` 作为 Package 仓库，
+   扫描已发布 release tags，读取每个 tag 下的 Package `fluoh.yaml`，把历史发布记录汇总进
+   Manifest。
 8. 项目消费时先读取 Project `sdk.version`，推导 SDK line，再在 Manifest 的
    `sdks.<sdkLine>.releases` 下寻找匹配的 `compatible` 发布记录。
 
@@ -473,23 +474,7 @@ path_provider-2.1.5-ohos-3.35-0.2.0
             {
               "version": "0.2.0",
               "upstreamVersion": "2.1.5",
-              "status": "compatible",
-              "tag": "path_provider-2.1.5-ohos-3.35-0.2.0",
-              "repository": {
-                "git": {
-                  "url": "https://github.com/FlutterOH/packages.git"
-                },
-                "path": "packages/path_provider/path_provider"
-              },
-              "upstream": {
-                "git": {
-                  "url": "https://github.com/flutter/packages.git",
-                  "branch": "main"
-                },
-                "path": "packages/path_provider/path_provider"
-              },
-              "source": "flutteroh",
-              "priority": 0
+              "tag": "path_provider-2.1.5-ohos-3.35-0.2.0"
             }
           ]
         }
@@ -507,16 +492,20 @@ path_provider-2.1.5-ohos-3.35-0.2.0
   或局部更新 lock。
 - `config.json`、任一已配置 Source 快照、Source 合并规则或 `fluoh` 工具版本变化时，
   Source runtime 都会整体重新生成 lock。
+- 每个已配置 Source 快照包含生成的 `.fluoh-source-state.json`，记录快照内容 hash。
+  常规 lock 新鲜度检查读取这个 state 文件，而不是每次命令都递归 hash 整个快照。
+  state 文件缺失时，runtime 会重新计算快照 hash 并补写 state 文件。
 - Source 状态变更入口，包括 `fluoh source add`、`fluoh source remove`、
   `fluoh source update`、已配置快照 repair、目标是已配置快照的 `fluoh source sync`、
   以及首次默认 Source bootstrap，都会请求 Source runtime 重建 lock。消费 source 的流程使用
   同一个 load-index API；发现 lock 缺失或过期时，或者已选择 SDK 缺失且需要 SDK 元数据来安装
   selected SDK 时，会按需重新生成。
-- lock 保存规范化默认值和派生字段，例如 `status: compatible`、
-  `upstream.git.branch: main`、SDK line、release tag、胜出的 Source alias、
-  priority，以及最终 repository path。
-- release 记录也保存自己的 repository URL/path。这样多个 Source 为同一个 package
-  贡献不同 release 时，lock 读回后不会丢失该 release 原本来自哪个实现仓库。
+- lock 保存 SDK line、release tag、胜出的 Source alias、priority、最终 repository
+  path 等派生字段。默认字段会尽量省略：release `status` 默认为 `compatible`，
+  upstream branch 默认为 `main`，release 级 `repository`、`upstream`、`source`
+  和 `priority` 只有和 package 级默认值不同时才写入。
+- 消费 Source 的命令只读取需要的 lock 区段。SDK 命令跳过 package entries，依赖检查只把
+  project lockfile 中出现的 packages 构造成运行时对象。
 - lock 生成使用 Source 命令文档中的 priority 和冲突规则。发生冲突时生成失败，消费命令
   不读取半解析状态。
 - 写入使用临时文件加原子替换。生成失败时，除非旧文件记录的输入仍然匹配，否则旧文件不会被

@@ -391,8 +391,9 @@ change must increment `version`.
    projects, omit `status`; the default is `compatible`.
 6. `fluoh pub release` derives a release tag from Package `fluoh.yaml`. The tag
    freezes the code, tests, and config snapshot at release time.
-7. `fluoh source sync` scans released tags, reads Package `fluoh.yaml` from
-   each tag, and aggregates historical release records into Manifest files.
+7. `fluoh source sync` uses Manifest `repository.git.url` values as Package
+   repositories, scans released tags, reads Package `fluoh.yaml` from each tag,
+   and aggregates historical release records into Manifest files.
 8. Consumer projects read Project `sdk.version`, derive the SDK line, and look
    for matching `compatible` release records under Manifest
    `sdks.<sdkLine>.releases`.
@@ -523,23 +524,7 @@ Example shape:
             {
               "version": "0.2.0",
               "upstreamVersion": "2.1.5",
-              "status": "compatible",
-              "tag": "path_provider-2.1.5-ohos-3.35-0.2.0",
-              "repository": {
-                "git": {
-                  "url": "https://github.com/FlutterOH/packages.git"
-                },
-                "path": "packages/path_provider/path_provider"
-              },
-              "upstream": {
-                "git": {
-                  "url": "https://github.com/flutter/packages.git",
-                  "branch": "main"
-                },
-                "path": "packages/path_provider/path_provider"
-              },
-              "source": "flutteroh",
-              "priority": 0
+              "tag": "path_provider-2.1.5-ohos-3.35-0.2.0"
             }
           ]
         }
@@ -559,6 +544,11 @@ Rules:
 - The lock is regenerated from scratch by the Source runtime whenever
   `config.json`, any configured Source snapshot, Source merge rules, or the
   `fluoh` tool version changes.
+- Each configured Source snapshot contains a generated
+  `.fluoh-source-state.json` with the snapshot content hash. Normal lock
+  freshness checks read that state file instead of recursively hashing the
+  snapshot on every command. If the state file is missing, the runtime
+  recalculates the snapshot hash and writes a fresh state file.
 - Source mutation entrypoints, including `fluoh source add`,
   `fluoh source remove`, `fluoh source update`, configured snapshot repairs,
   configured-snapshot `fluoh source sync`, and first default Source bootstrap,
@@ -566,12 +556,14 @@ Rules:
   Source-consuming flows use the same load-index API, which regenerates the lock
   on demand when it is missing or stale, or when selected-SDK installation needs
   SDK metadata.
-- The lock stores normalized defaults and derived fields such as
-  `status: compatible`, `upstream.git.branch: main`, SDK line, release tag,
-  winning Source alias, priority, and final repository paths.
-  Release records also store their own repository URL/path so multiple Sources
-  can contribute releases for the same package without losing the release origin
-  when the lock is read back.
+- The lock stores derived fields such as SDK line, release tag, winning Source
+  alias, priority, and final repository paths. Default fields are omitted where
+  possible: release `status` defaults to `compatible`, upstream branch defaults
+  to `main`, and release-level `repository`, `upstream`, `source`, and
+  `priority` are written only when they differ from the package-level defaults.
+- Source-consuming commands read only the lock sections they need. SDK commands
+  skip package entries, and dependency checks materialize only the packages
+  found in the project lockfile.
 - Lock generation applies the same priority and conflict rules documented for
   Source commands. Conflicts fail generation before consumer commands read
   partially resolved data.
