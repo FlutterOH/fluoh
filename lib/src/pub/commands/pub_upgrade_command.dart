@@ -20,7 +20,7 @@ class PubUpgradeCommand extends Command<int> {
       abbr: 'n',
       negatable: false,
       help:
-          'Show planned OHOS implementation ref upgrades without writing pubspec.yaml.',
+          'Show planned FlutterOH dependency replacement upgrades without writing pubspec.yaml.',
     );
   }
 
@@ -31,7 +31,8 @@ class PubUpgradeCommand extends Command<int> {
   String get name => 'upgrade';
 
   @override
-  String get description => 'Upgrade existing OHOS implementation refs.';
+  String get description =>
+      'Upgrade existing FlutterOH dependency replacements.';
 
   @override
   Future<int> run() async {
@@ -51,7 +52,9 @@ class PubUpgradeCommand extends Command<int> {
         .toList(growable: false);
     if (changes.isEmpty) {
       if (skippedIncompatibleVersion.isEmpty) {
-        _output.skipped('No existing OHOS implementation refs need upgrades.');
+        _output.skipped(
+          'No existing FlutterOH dependency replacements need upgrades.',
+        );
       }
       _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
       return 0;
@@ -81,7 +84,8 @@ class PubUpgradeCommand extends Command<int> {
       changes: changes,
     );
     _output.success(
-      'Updated $applied OHOS dependency ref${applied == 1 ? '' : 's'}.',
+      'Updated $applied FlutterOH dependency '
+      'replacement${applied == 1 ? '' : 's'}.',
     );
     _output.next('Next: run ${_output.style.code('fluoh pub get')}.');
     return 0;

@@ -36,7 +36,7 @@ class UpgradeCommand extends Command<int> {
   String get name => 'upgrade';
 
   @override
-  String get description => 'Upgrade the fluoh CLI tool itself.';
+  String get description => 'Upgrade the fluoh CLI.';
 
   @override
   Future<int> run() async {

@@ -110,8 +110,9 @@ Source 本机副本。
 
 ### 消费侧命令
 
-`fluoh source list` 读取 `$FLUOH_HOME/config.json`，输出每个已配置 source 的
-名称和显示值。空配置是 warning，不是错误。
+`fluoh source list` 会先通过 Source runtime 确保已配置 source 快照和合并后的
+Source lock 可用，然后从 `$FLUOH_HOME/config.json` 输出每个已配置 source 的名称和
+显示值。空配置是 warning，不是错误。
 
 `fluoh source add <name> <url-or-path>` 校验 source 名称，拒绝替换官方 source
 名称，并把缓存路径固定为 `$FLUOH_HOME/sources/<name>`。本地路径和 `file:` URL 会复制
@@ -249,7 +250,8 @@ workspace rollback 保护本地状态。
 
 `fluoh test init` 为 Flutter package 创建 `fluoh_test`。多包仓库中，
 `--package <name>` 选择已注册 package，并创建 `fluoh_test/<name>`。命令会写入测试 package，
-使用已选择 SDK 创建 example app；`--force` 只用于替换已经存在的生成测试工作区。
+使用已选择 SDK 创建 example app；`--force` 表示用户明确确认替换已有目标
+`fluoh_test` 工作区。
 
 `fluoh test run` 定位 package 和已有测试工作区。如果 package 存在
 `test/**/*_test.dart`，会先运行 package 的 `pub get` 和 Flutter 测试；然后在 `fluoh_test`

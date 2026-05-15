@@ -37,6 +37,23 @@ class PubGetCommand extends Command<int> {
       'Run flutter pub get for the project and fluoh_test workspaces.';
 
   @override
+  String get invocation => 'fluoh pub get [arguments]';
+
+  @override
+  String get usage {
+    return [
+      description,
+      '',
+      'Usage: $invocation',
+      '-h, --help    Print this usage information.',
+      '',
+      'All other arguments are passed to flutter pub get.',
+      '',
+      'Run "${runner!.executableName} help" to see global options.',
+    ].join('\n');
+  }
+
+  @override
   void printUsage() {
     _output.write(usage);
   }
@@ -149,6 +166,6 @@ class PubGetCommand extends Command<int> {
 
   bool _isHelpRequest(List<String> arguments) {
     return arguments.length == 1 &&
-        const {'-h', '--help'}.contains(arguments.single);
+        const {'help', '-h', '--help'}.contains(arguments.single);
   }
 }

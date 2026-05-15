@@ -125,8 +125,10 @@ snapshot is the validated local copy of a Source stored under
 
 ### Consumer Commands
 
-`fluoh source list` reads `$FLUOH_HOME/config.json` and prints each configured
-source name and display value. Empty configuration is a warning, not an error.
+`fluoh source list` ensures configured source snapshots and the merged Source
+lock are usable through the Source runtime, then prints each configured source
+name and display value from `$FLUOH_HOME/config.json`. Empty configuration is a
+warning, not an error.
 
 `fluoh source add <name> <url-or-path>` validates the source name, refuses to
 replace the official source name, and stores a cache path under
@@ -299,9 +301,9 @@ package. Existing tags are accepted only when they already point at HEAD.
 
 `fluoh test init` creates `fluoh_test` for a Flutter package. In
 multi-package repositories, `--package <name>` selects the registered package
-and creates `fluoh_test/<name>`. The command writes a test package, creates an
-example app with the selected SDK, and uses `--force` only to replace an
-existing generated test workspace.
+and creates `fluoh_test/<name>`. The command writes a test package and creates
+an example app with the selected SDK. `--force` treats the flag as explicit user
+confirmation to replace the existing target `fluoh_test` workspace.
 
 `fluoh test run` locates the package and existing test workspace. If the
 package has `test/**/*_test.dart`, it runs package `pub get` and Flutter tests

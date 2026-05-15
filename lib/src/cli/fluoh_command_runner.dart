@@ -46,7 +46,7 @@ class FluohCommandRunner extends CommandRunner<int> {
        ),
        super(
          executableName,
-         'FlutterOH SDK and pub package CLI.',
+         'CLI for Flutter OHOS SDKs and package workflows.',
          suggestionDistanceLimit: 0,
        ) {
     final env = _environment;
@@ -160,7 +160,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     final style = _output.style;
     _output.write(
       '${style.header('fluoh')} ${style.value(packageVersion)} - '
-      'FlutterOH SDK and pub package CLI',
+      'CLI for Flutter OHOS SDKs and package workflows',
     );
     _output.write('${style.label('Dart')} $dartVersion');
     _output.write(
@@ -232,7 +232,8 @@ class FluohCommandRunner extends CommandRunner<int> {
         style: _output.style,
       ),
       '',
-      'Shortcut: use "fluohf <args>" for "fluoh flutter <args>".',
+      'Shortcut: use "fluohf <flutter-args>" for '
+          '"fluoh flutter <flutter-args>".',
       '',
       'Run "$executableName help <command>" for more information about a command.',
     ].join('\n');

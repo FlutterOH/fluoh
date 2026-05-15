@@ -28,6 +28,10 @@ void main() {
       ),
     );
     expect(stdout.join('\n'), contains('Usage: fluoh pub get'));
+    expect(
+      stdout.join('\n'),
+      contains('All other arguments are passed to flutter pub get.'),
+    );
     expect(stdout.join('\n'), isNot(contains('Running flutter pub get')));
     expect(stderr, isEmpty);
   });

@@ -368,7 +368,7 @@ PubDependencyPlanEntry _upgradeEntry(
     return PubDependencyPlanEntry(
       dependency: dependency,
       status: PubDependencyPlanStatus.transitive,
-      reason: 'No existing OHOS implementation ref found.',
+      reason: 'No existing FlutterOH dependency replacement found.',
     );
   }
   return _updateExistingEntry(dependency, existingOhosRefs, policy);
@@ -419,14 +419,14 @@ PubDependencyPlanEntry _updateExistingEntry(
       dependency: dependency,
       status: PubDependencyPlanStatus.alreadyCurrent,
       reason:
-          'Existing OHOS implementation refs already match the recommended ref.',
+          'Existing FlutterOH dependency replacements already match the recommended replacement.',
     );
   }
 
   return PubDependencyPlanEntry(
     dependency: dependency,
     status: PubDependencyPlanStatus.ready,
-    reason: 'Existing OHOS implementation refs can be upgraded.',
+    reason: 'Existing FlutterOH dependency replacements can be upgraded.',
     recommendedAction: 'upgrade-existing-ref',
     changes: changes,
   );

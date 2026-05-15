@@ -30,7 +30,8 @@ class SdkUseCommand extends Command<int> {
   String get name => 'use';
 
   @override
-  String get description => 'Use a Flutter OHOS SDK version or series here.';
+  String get description =>
+      'Select a Flutter OHOS SDK version or series for this project.';
 
   @override
   String get invocation => 'fluoh sdk use <version-or-series>';

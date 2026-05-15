@@ -80,7 +80,7 @@ class PubCommand extends Command<int> {
 
   @override
   String get description =>
-      'Manage FlutterOH pub dependencies and repositories.';
+      'Manage FlutterOH package dependencies and pub repositories.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';

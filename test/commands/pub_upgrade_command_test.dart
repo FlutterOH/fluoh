@@ -63,7 +63,7 @@ void main() {
           'Would update camera camera-0.11.0-ohos-3.35-0 -> camera-0.11.0-ohos-3.35-1',
         ),
       );
-      expect(stdout, contains('Updated 1 OHOS dependency ref.'));
+      expect(stdout, contains('Updated 1 FlutterOH dependency replacement.'));
       expect(stdout, contains('Next: run `fluoh pub get`.'));
       expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
       expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-0')));
@@ -193,7 +193,7 @@ dependency_overrides:
     );
     expect(updated, contains('ref: "camera-0.11.0-ohos-3.35-1"'));
     expect(updated, isNot(contains('camera-0.11.0-ohos-3.35-0')));
-    expect(stdout, contains('Updated 2 OHOS dependency refs.'));
+    expect(stdout, contains('Updated 2 FlutterOH dependency replacements.'));
     expect(stderr, isEmpty);
   });
 
@@ -245,7 +245,7 @@ dependencies:
     final updated = pubspec.readAsStringSync();
     expect(updated, contains('camera-0.11.0-ohos-3.35-1'));
     expect(updated, isNot(contains('camera-0.11.0-ohos-3.35-0')));
-    expect(stdout, contains('Updated 1 OHOS dependency ref.'));
+    expect(stdout, contains('Updated 1 FlutterOH dependency replacement.'));
     expect(stderr, isEmpty);
   });
 

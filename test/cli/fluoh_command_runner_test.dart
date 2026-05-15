@@ -18,7 +18,7 @@ void main() {
 
     expect(exitCode, 0);
     expect(stdout, [
-      'fluoh $packageVersion - FlutterOH SDK and pub package CLI',
+      'fluoh $packageVersion - CLI for Flutter OHOS SDKs and package workflows',
       'Dart $dartVersion',
       startsWith('Platform ${io.Platform.operatingSystem} '),
       'Repository https://github.com/FlutterOH/fluoh',
@@ -120,7 +120,7 @@ void main() {
       final output = stdout.join('\n');
       expect(
         output,
-        contains('Manage FlutterOH pub dependencies and repositories.'),
+        contains('Manage FlutterOH package dependencies and pub repositories.'),
       );
       expect(output, contains('Usage: fluoh pub <subcommand> [arguments]'));
       expect(output, isNot(contains('Did you mean one of these?')));
@@ -309,7 +309,10 @@ void main() {
     expect(help, isNot(contains('  update')));
     expect(
       help,
-      contains('Shortcut: use "fluohf <args>" for "fluoh flutter <args>".'),
+      contains(
+        'Shortcut: use "fluohf <flutter-args>" for '
+        '"fluoh flutter <flutter-args>".',
+      ),
     );
     expect(stderr, isEmpty);
   });
@@ -359,7 +362,7 @@ void main() {
     final help = stdout.join('\n');
     expect(
       help,
-      contains('Manage FlutterOH pub dependencies and repositories.'),
+      contains('Manage FlutterOH package dependencies and pub repositories.'),
     );
     expect(help, contains('get'));
     expect(help, contains('check'));

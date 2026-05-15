@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -124,6 +125,43 @@ void main() {
     expect(stdout, contains('[!] Project SDK'));
     expect(stdout, contains('    • fluoh.yaml is not valid YAML.'));
     expect(stderr, isEmpty);
+  });
+
+  test('reports invalid source snapshots as warnings', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory(
+      '${environment.homeDirectory.path}/sources/broken',
+    );
+    await source.create(recursive: true);
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Broken source
+repository:
+  git:
+    url: /tmp/broken
+manifests:
+  - name: missing
+''');
+    await File('${environment.homeDirectory.path}/config.json').writeAsString(
+      jsonEncode({
+        'sources': {
+          'broken': {'path': source.path, 'priority': 10},
+        },
+      }),
+    );
+
+    final result = await _runDoctorCommand(
+      environment: environment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+    );
+
+    expect(result.exitCode, 0);
+    expect(result.stdout, contains('[!] Sources'));
+    expect(result.stdout.join('\n'), isNot(contains('Available: broken.')));
+    expect(result.stdout.join('\n'), contains('Invalid: broken'));
+    expect(result.stderr, isEmpty);
   });
 
   test('reports the current CLI version and available upgrades', () async {

@@ -1,11 +1,11 @@
 # fluoh
 
 <p align="center">
-  <strong>Make FlutterOH projects boring to configure.</strong>
+  <strong>A command-line toolkit for FlutterOH projects.</strong>
 </p>
 
 <p align="center">
-  Pick the SDK. Fix FlutterOH dependency replacements. Run Flutter through the right toolchain.
+  Select the Flutter OHOS SDK, keep dependency replacements up to date, and run Flutter through the selected toolchain.
 </p>
 
 <p align="center">
@@ -15,16 +15,23 @@
 </p>
 
 <p align="center">
-  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="#quick-start">Quick start</a> ·
   <a href="docs/commands.md">Commands</a> ·
   <a href="docs/schema.md">Schema</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-`fluoh` is the project-level control plane for FlutterOH. It records the Flutter
-OHOS SDK version a project should use, runs Flutter through that SDK, checks pub
-dependencies for FlutterOH adaptations, and applies the safe `pubspec.yaml`
-changes for you.
+<p align="center">
+  <img src="docs/assets/readme-hero-placeholder.svg" alt="fluoh terminal workflow preview" width="900">
+</p>
+
+`fluoh` helps FlutterOH projects keep SDK selection, IDE configuration,
+dependency replacements, and Flutter command execution in sync. It records the
+selected SDK in the project, exposes a stable IDE SDK link, and runs Flutter
+through the same toolchain from the terminal.
+
+## Quick Start
 
 ```sh
 dart pub global activate fluoh
@@ -37,53 +44,9 @@ fluoh pub fix
 fluohf build hap
 ```
 
-After that, the project has an exact SDK version in `fluoh.yaml`, a stable IDE
-SDK path at `.fluoh/flutter_sdk`, and FlutterOH dependency replacements that
-match the latest validated snapshot from the official FlutterOH source.
-
-## Why It Exists
-
-FlutterOH projects should not depend on a local checklist:
-
-- Which Flutter OHOS SDK checkout is this project using?
-- Did the IDE point at the same SDK as the terminal?
-- Do these pub dependencies already have FlutterOH adaptations?
-- Are the FlutterOH dependency replacements current, or copied from an old project?
-
-`fluoh` turns those answers into project state and repeatable commands.
-
-## The Daily Loop
-
-```sh
-# Select the SDK once per project.
-fluoh sdk list
-fluoh sdk use 3.35 --pub-get
-
-# Run Flutter through the selected SDK.
-fluohf pub get
-fluohf run
-fluohf build hap
-
-# Keep FlutterOH dependency replacements current.
-fluoh pub check
-fluoh pub fix --dry-run
-fluoh pub fix
-fluoh pub get
-```
-
-Useful extras:
-
-```sh
-fluoh pub upgrade   # upgrade existing FlutterOH dependency replacements only
-fluoh clean         # run flutter clean and remove generated fluoh_test output
-fluoh doctor        # diagnose sources, SDK selection, and project setup
-fluoh upgrade       # upgrade the fluoh CLI
-```
-
-`fluoh pub fix` writes `dependency_overrides` by default. Set
-`dependencyPolicy.pubspecSection: dependencies` in `fluoh.yaml` when a project
-should rewrite direct `dependencies` instead. Incompatible version changes and
-downgrades stay skipped unless `dependencyPolicy.versionChanges` is `any`.
+After setup, the project has an exact SDK version in `fluoh.yaml`, a stable IDE
+SDK link at `.fluoh/flutter_sdk`, and FlutterOH dependency replacements from
+the latest validated snapshot.
 
 ## Install
 
@@ -98,17 +61,50 @@ Make sure Dart's global pub bin directory is on `PATH`:
 export PATH="$HOME/.pub-cache/bin:$PATH"
 ```
 
-Homebrew on macOS:
+macOS users can also install with Homebrew:
 
 ```sh
 brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-## Maintainers
+## Common Workflows
 
-Most users only need the project commands above. Maintainers also get workflows
-for third-party FlutterOH pub repositories and source metadata:
+| Workflow | Command |
+| --- | --- |
+| Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
+| Run Flutter from the selected SDK | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
+| Check FlutterOH dependency support | `fluoh pub check` |
+| Rewrite dependencies safely | `fluoh pub fix --dry-run`, `fluoh pub fix` |
+| Update existing FlutterOH dependency replacements | `fluoh pub upgrade` |
+| Clean generated project output | `fluoh clean` |
+| Diagnose project setup | `fluoh doctor` |
+| Upgrade the CLI | `fluoh upgrade` |
+
+<p align="center">
+  <img src="docs/assets/readme-flow-placeholder.svg" alt="fluoh workflow diagram placeholder" width="860">
+</p>
+
+## Daily Loop
+
+```sh
+fluoh sdk list
+fluoh sdk use 3.35 --pub-get
+
+fluoh pub check
+fluoh pub fix --dry-run
+fluoh pub fix
+fluoh pub get
+
+fluohf pub get
+fluohf run
+fluohf build hap
+```
+
+## Maintainer Workflows
+
+Most app projects only need the commands above. FlutterOH package maintainers
+can also create, sync, test, and release third-party FlutterOH pub repositories:
 
 ```sh
 fluoh pub create
@@ -131,8 +127,7 @@ workflows.
 https://github.com/FlutterOH/pub.git
 ```
 
-`fluoh source update` refreshes the latest validated snapshot under
-`FLUOH_HOME`. Source file details are documented in
+Source metadata and compatibility schema details are documented in
 [docs/schema.md](docs/schema.md).
 
 ## License

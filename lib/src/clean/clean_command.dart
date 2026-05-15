@@ -33,7 +33,7 @@ class CleanCommand extends Command<int> {
 
   @override
   String get description =>
-      'Clean the current FlutterOH project and fluoh_test artifacts.';
+      'Clean FlutterOH project build output and fluoh_test artifacts.';
 
   @override
   Future<int> run() async {

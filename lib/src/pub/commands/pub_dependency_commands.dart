@@ -20,7 +20,7 @@ class PubCheckCommand extends Command<int> {
     argParser.addFlag(
       'json',
       negatable: false,
-      help: 'Print the OHOS support report as JSON.',
+      help: 'Print the dependency OHOS support report as JSON.',
     );
   }
 
@@ -32,7 +32,7 @@ class PubCheckCommand extends Command<int> {
   String get name => 'check';
 
   @override
-  String get description => 'Check dependency OHOS support.';
+  String get description => 'Check whether dependencies support OHOS.';
 
   @override
   Future<int> run() async {
@@ -62,7 +62,7 @@ class PubFixCommand extends Command<int> {
       'dry-run',
       abbr: 'n',
       negatable: false,
-      help: 'Show planned dependency changes without writing pubspec.yaml.',
+      help: 'Show planned dependency rewrites without writing pubspec.yaml.',
     );
   }
 
@@ -75,7 +75,7 @@ class PubFixCommand extends Command<int> {
 
   @override
   String get description =>
-      'Apply recommended OHOS dependency implementation changes.';
+      'Rewrite dependencies to recommended FlutterOH replacements.';
 
   @override
   Future<int> run() async {

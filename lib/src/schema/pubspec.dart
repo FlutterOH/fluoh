@@ -254,7 +254,8 @@ PubspecDependencyApplyResult applyPubspecDependencyChangesToContent({
 
   if (failed.isNotEmpty) {
     throw FluohSchemaException(
-      'Could not update OHOS dependency refs: ${failed.join(', ')}.',
+      'Could not update FlutterOH dependency replacements: '
+      '${failed.join(', ')}.',
     );
   }
 

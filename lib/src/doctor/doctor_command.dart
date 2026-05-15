@@ -10,7 +10,7 @@ import '../context/fluoh_environment.dart';
 import '../cli/fluoh_installation.dart';
 import '../cli/terminal_output.dart';
 import '../sdk/sdk_project_config.dart';
-import '../source/source_index.dart';
+import '../source/source_sync.dart';
 import '../version.dart';
 
 typedef DoctorVersionMetadataProvider =
@@ -159,12 +159,20 @@ class DoctorCommand extends Command<int> {
 
     final available = <String>[];
     final missing = <String>[];
+    final invalid = <String>[];
     for (final entry in config.sources.entries) {
-      final source = SourceIndex.directory(entry.value.directory);
-      if (source.hasSdkIndex || source.hasPackageIndex) {
-        available.add(entry.key);
-      } else {
+      final sourceDirectory = entry.value.directory;
+      final sourceManifest = File('${sourceDirectory.path}/fluoh.yaml');
+      if (!await sourceDirectory.exists() || !await sourceManifest.exists()) {
         missing.add(entry.key);
+        continue;
+      }
+
+      try {
+        await validateSource(entry.key, entry.value);
+        available.add(entry.key);
+      } on UsageException catch (error) {
+        invalid.add('${entry.key} (${error.message})');
       }
     }
 
@@ -177,8 +185,11 @@ class DoctorCommand extends Command<int> {
     if (missing.isNotEmpty) {
       details.add('Not updated: ${missing.join(', ')}.');
     }
+    if (invalid.isNotEmpty) {
+      details.add('Invalid: ${invalid.join(', ')}.');
+    }
 
-    return missing.isEmpty && available.isNotEmpty
+    return missing.isEmpty && invalid.isEmpty && available.isNotEmpty
         ? _DoctorCheck.ok('Sources', details)
         : _DoctorCheck.warning('Sources', details);
   }
