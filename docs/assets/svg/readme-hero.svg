@@ -1,0 +1,116 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">fluoh animated terminal workflow</title>
+  <desc id="desc">An animated SVG showing fluoh commands switching on the left while matching source update, SDK selection, dependency check, pubspec rewrite, and build output changes on the right.</desc>
+  <defs>
+    <filter id="shadow" x="40" y="44" width="1200" height="560" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#334155" flood-opacity="0.18"/>
+    </filter>
+    <style>
+      .mono { font-family: Menlo, Consolas, monospace; }
+      .ui { font-family: Inter, Arial, sans-serif; }
+      .label { font-family: Inter, Arial, sans-serif; fill: #64748B; font-size: 15px; font-weight: 800; letter-spacing: 0; }
+      .caption { font-family: Inter, Arial, sans-serif; fill: #64748B; font-size: 14px; letter-spacing: 0; }
+      .row1, .row2, .row3, .row4, .row5, .panel1, .panel2, .panel3, .panel4, .panel5 { animation: showStep 15s ease-in-out infinite; }
+      .row2, .panel2 { animation-delay: 3s; }
+      .row3, .panel3 { animation-delay: 6s; }
+      .row4, .panel4 { animation-delay: 9s; }
+      .row5, .panel5 { animation-delay: 12s; }
+      @keyframes showStep {
+        0%, 18% { opacity: 1; visibility: visible; transform: translate(0, 0); }
+        20% { opacity: 0; visibility: visible; transform: translate(0, -8px); }
+        21%, 100% { opacity: 0; visibility: hidden; transform: translate(0, 800px); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .row1, .row2, .row3, .row4, .row5, .panel1, .panel2, .panel3, .panel4, .panel5 { animation: none; }
+      }
+    </style>
+  </defs>
+
+  <rect width="1280" height="640" rx="30" fill="#F8FAFC"/>
+  <g opacity="0.48">
+    <path d="M74 486C190 531 346 554 501 528C647 504 728 433 864 400C982 371 1106 396 1208 441" stroke="#CBD5E1" stroke-width="2"/>
+    <path d="M84 125C212 85 348 88 488 126C628 164 737 196 894 164C1028 137 1121 88 1200 96" stroke="#D8B4FE" stroke-width="2"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="64" y="64" width="1152" height="512" rx="26" fill="#FFFFFF"/>
+    <rect x="64" y="64" width="1152" height="78" rx="26" fill="#1E293B"/>
+    <path d="M64 116H1216V142H64V116Z" fill="#1E293B"/>
+    <circle cx="104" cy="103" r="9" fill="#F87171"/>
+    <circle cx="136" cy="103" r="9" fill="#FBBF24"/>
+    <circle cx="168" cy="103" r="9" fill="#34D399"/>
+    <rect x="218" y="86" width="402" height="34" rx="17" fill="#0F172A" fill-opacity="0.68"/>
+    <text x="242" y="109" class="mono" fill="#DDEAFE" font-size="17">fluoh project setup loop</text>
+
+    <rect x="104" y="176" width="520" height="334" rx="20" fill="#0F172A"/>
+    <rect x="104" y="176" width="520" height="334" rx="20" stroke="#1E293B" stroke-width="2"/>
+    <text x="136" y="216" class="label" fill="#94A3B8">COMMAND SEQUENCE</text>
+
+    <g>
+      <rect class="row1" x="128" y="238" width="472" height="44" rx="12" fill="#1D4ED8"/>
+      <rect class="row2" x="128" y="292" width="472" height="44" rx="12" fill="#047857" opacity="0" visibility="hidden" transform="translate(0 800)"/>
+      <rect class="row3" x="128" y="346" width="472" height="44" rx="12" fill="#B45309" opacity="0" visibility="hidden" transform="translate(0 800)"/>
+      <rect class="row4" x="128" y="400" width="472" height="44" rx="12" fill="#7C3AED" opacity="0" visibility="hidden" transform="translate(0 800)"/>
+      <rect class="row5" x="128" y="454" width="472" height="44" rx="12" fill="#BE123C" opacity="0" visibility="hidden" transform="translate(0 800)"/>
+    </g>
+
+    <g class="mono" font-size="18">
+      <text x="150" y="266" fill="#EAF2FF">$ fluoh source update</text>
+      <text x="150" y="320" fill="#E2E8F0">$ fluoh sdk use 3.35 --pub-get</text>
+      <text x="150" y="374" fill="#E2E8F0">$ fluoh pub check</text>
+      <text x="150" y="428" fill="#E2E8F0">$ fluoh pub fix</text>
+      <text x="150" y="482" fill="#E2E8F0">$ fluohf build hap</text>
+    </g>
+
+    <rect x="714" y="176" width="462" height="334" rx="20" fill="#F8FAFC" stroke="#D8DEE8" stroke-width="2"/>
+    <text x="746" y="216" class="label">MATCHING OUTPUT</text>
+
+    <g class="panel1">
+      <text x="746" y="260" class="mono" fill="#1D4ED8" font-size="24">Source index updated</text>
+      <text x="746" y="302" class="mono" fill="#334155" font-size="20">Fetched FlutterOH source metadata</text>
+      <text x="746" y="338" class="mono" fill="#334155" font-size="20">SDK releases: 3.35, 3.32, 3.29</text>
+      <rect x="746" y="374" width="356" height="54" rx="14" fill="#EAF2FF" stroke="#BFDBFE"/>
+      <text x="768" y="407" class="ui" fill="#1D4ED8" font-size="19" font-weight="800">Ready for SDK selection</text>
+    </g>
+
+    <g class="panel2" opacity="0" visibility="hidden" transform="translate(0 800)">
+      <text x="746" y="260" class="mono" fill="#047857" font-size="24">SDK 3.35 selected</text>
+      <text x="746" y="302" class="mono" fill="#334155" font-size="20">Exact version written to fluoh.yaml</text>
+      <text x="746" y="338" class="mono" fill="#334155" font-size="20">IDE SDK link refreshed</text>
+      <rect x="746" y="374" width="356" height="54" rx="14" fill="#ECFDF3" stroke="#A7F3D0"/>
+      <text x="768" y="407" class="ui" fill="#047857" font-size="19" font-weight="800">pub get completed</text>
+    </g>
+
+    <g class="panel3" opacity="0" visibility="hidden" transform="translate(0 800)">
+      <text x="746" y="260" class="mono" fill="#B45309" font-size="24">Dependency check complete</text>
+      <text x="746" y="302" class="mono" fill="#334155" font-size="20">3 replacements ready</text>
+      <text x="746" y="338" class="mono" fill="#334155" font-size="20">0 manual actions required</text>
+      <rect x="746" y="374" width="356" height="54" rx="14" fill="#FFFBEB" stroke="#FCD34D"/>
+      <text x="768" y="407" class="ui" fill="#B45309" font-size="19" font-weight="800">Ready for pubspec fix</text>
+    </g>
+
+    <g class="panel4" opacity="0" visibility="hidden" transform="translate(0 800)">
+      <text x="746" y="260" class="mono" fill="#7C3AED" font-size="24">Pubspec rewritten</text>
+      <text x="746" y="302" class="mono" fill="#334155" font-size="20">dependency_overrides updated</text>
+      <text x="746" y="338" class="mono" fill="#334155" font-size="20">User comments preserved</text>
+      <rect x="746" y="374" width="356" height="54" rx="14" fill="#F3E8FF" stroke="#C4B5FD"/>
+      <text x="768" y="407" class="ui" fill="#6D28D9" font-size="19" font-weight="800">pubspec.yaml changed safely</text>
+    </g>
+
+    <g class="panel5" opacity="0" visibility="hidden" transform="translate(0 800)">
+      <text x="746" y="260" class="mono" fill="#BE123C" font-size="24">Build runs through fluohf</text>
+      <text x="746" y="302" class="mono" fill="#334155" font-size="20">Selected FlutterOH SDK used</text>
+      <text x="746" y="338" class="mono" fill="#334155" font-size="20">HAP artifact generated</text>
+      <rect x="746" y="374" width="356" height="54" rx="14" fill="#FFF1F2" stroke="#FDA4AF"/>
+      <text x="768" y="407" class="ui" fill="#BE123C" font-size="19" font-weight="800">Build output is reproducible</text>
+    </g>
+
+    <g fill="#94A3B8">
+      <rect x="624" y="340" width="76" height="4" rx="2"/>
+      <path d="M696 330L714 342L696 354V330Z"/>
+    </g>
+    <rect x="104" y="534" width="1072" height="2" rx="1" fill="#E2E8F0"/>
+    <text x="104" y="559" class="caption">Repeatable CLI workflow</text>
+    <text x="1176" y="559" text-anchor="end" class="mono" fill="#475569" font-size="15">source -> sdk -> pub -> fix -> build</text>
+  </g>
+</svg>

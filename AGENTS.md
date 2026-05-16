@@ -60,6 +60,8 @@ Use `test/helpers/fluoh_test_context.dart` for isolated temporary homes, project
 
 Every command behavior change, pubspec rewrite, source index rule, SDK selection rule, pub workflow, release validation, or publishing artifact change should include a regression test. For documentation or packaging changes, update `test/release/release_artifacts_test.dart` when the expected release surface changes.
 
+Documentation and generated-guidance tests should protect stable release contracts and structure, not exact prose. Assert key commands, files, schema keys, links, and deprecated terms that must not reappear; avoid broad `contains(...)` checks for full sentences or translated wording so documentation can be edited for clarity without brittle test failures.
+
 ## Documentation Standards
 
 `README.md` is the primary public document and should stay user-facing in English. `README.zh-CN.md` is the Simplified Chinese public document. Keep installation, quick start, core workflows, and command overview aligned between them.

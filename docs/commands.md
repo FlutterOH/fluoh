@@ -270,17 +270,19 @@ more packages, configures `upstream` and `origin`, creates a Flutter OHOS
 SDK line branch such as `ohos/3.35`, configures the Flutter OHOS SDK, writes
 `fluoh.yaml`, `FLUOH.md`,
 `FLUOH_CHANGELOG.md`, agent instructions, and `fluoh_test` workspaces, then
-stages generated files. It never commits. Options include repeated `--path`,
-`--output`, `--sdk`, and `--repo`.
+stages generated files. The generated `fluoh.yaml` includes comments beside
+the `repository`, `upstream`, package path, `version`, and `status` fields that
+maintainers commonly edit before release. It never commits. Options include
+repeated `--path`, `--output`, `--sdk`, and `--repo`.
 
 `fluoh pub add <package-path>` registers another package in an existing
-FlutterOH pub monorepo. It requires a clean working tree and the maintenance branch recorded by Package
-`repository.git.branch`, validates `<package-path>`, optionally verifies
-`--expected-package`, appends Package `fluoh.yaml`, docs, and test workspace
-state, and stages generated files. If a single-package repository becomes a
-multi-package repository, the root `fluoh_test` workspace is migrated under
-`fluoh_test/<package>`. File snapshots and workspace rollback protect local
-state when the command fails.
+FlutterOH pub monorepo. It requires a clean working tree and the maintenance
+branch recorded by Package `repository.git.branch`, validates `<package-path>`,
+optionally verifies `--expected-package`, appends Package `fluoh.yaml`, docs,
+and test workspace state, and stages generated files. If a single-package
+repository becomes a multi-package repository, the root `fluoh_test` workspace
+is migrated under `fluoh_test/<package>`. File snapshots and workspace rollback
+protect local state when the command fails.
 
 `fluoh pub sync` fetches upstream, fast-forwards the upstream branch recorded
 in Package `upstream.git.branch`, returns to the `repository.git.branch` branch

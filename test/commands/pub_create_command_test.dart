@@ -71,10 +71,20 @@ void main() {
       ).readAsStringSync();
       expect(manifest, contains('schema: 1'));
       expect(manifest, contains('name: camera'));
+      expect(
+        manifest,
+        contains(
+          '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
+        ),
+      );
+      expect(
+        manifest,
+        contains('# Upstream package repository tracked by fluoh pub sync.'),
+      );
       expect(manifest, contains('packages:\n  camera:'));
       expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
-      expect(manifest, contains('\n\nrepository:'));
-      expect(manifest, contains('\n\nupstream:'));
+      expect(manifest, contains('repository:\n  git:'));
+      expect(manifest, contains('upstream:\n  git:'));
       expect(manifest, isNot(contains('implementation:')));
       expect(manifest, isNot(contains('dependency:')));
       expect(manifest, isNot(contains('dependencyPolicy:')));
@@ -143,6 +153,10 @@ void main() {
       );
       expect(agentsContent, contains('fluoh pub get'));
       expect(agentsContent, contains('fluoh_test/example'));
+      expect(
+        agentsContent,
+        contains('assert stable commands, files, schema keys'),
+      );
       expect(agentsContent, contains('Run `fluoh test run` before release.'));
       expect(
         agentsContent,
@@ -825,6 +839,7 @@ Prefer the upstream release workflow.
         agents,
         contains('provides OHOS implementations for multiple packages'),
       );
+      expect(agents, contains('assert stable commands, files, schema keys'));
       expect(agents, contains('`fluoh test run --package <name>`'));
       expect(agents, contains('`fluoh pub release --package camera`'));
       expect(agents, contains('`fluoh pub release --package share_plus`'));

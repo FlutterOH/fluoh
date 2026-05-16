@@ -185,7 +185,7 @@ manifests:
 - `description` 可选。
 - `repository.git.url` 必填，可以是 HTTPS URL、SSH URL、`file:` URL 或本地路径。
 - `environment.fluoh` 可选，表示最低 `fluoh` 版本要求。
-- `sdk` 和 `manifests` 都是可选项。Source 可以是既没有 SDK version、也没有 Manifest
+- `sdk` 和 `manifests` 都是可选项。Source 可以是既没有 SDK 版本、也没有 Manifest
   route 的空脚手架；它是合法配置，但合并时不贡献数据。
 - 提供 SDK 安装清单的 Source 必须写 `sdk.git.url`。维护者准备 Source 时，
   `sdk.versions` 可以暂时为空。
@@ -299,8 +299,8 @@ packages:
 - `advisory` 可选，是 package 级用户提示，会用于 `fluoh pub check`，但不改变机器
   判定状态。
 - `sdks.<sdkLine>` 使用派生的 Flutter OHOS 大版本线，例如 `3.35`。项目选择完整 SDK
-  版本后，消费侧从中推导 SDK line，再查 Manifest。
-- `releases` 是当前 SDK line 下的历史发布记录列表。
+  版本后，消费侧从中推导 SDK 版本线，再查 Manifest。
+- `releases` 是当前 SDK 版本线下的历史发布记录列表。
 - `releases[].version` 必填，是 FlutterOH 适配发布版本，使用数字点分格式，例如
   `1` 或 `0.1.0`，不带 `v` 前缀。
 - `releases[].upstreamVersion` 必填，是对应的 upstream package 版本。
@@ -310,7 +310,7 @@ packages:
 - Manifest 不记录 `native`、`blocked` 或 `support` 机器状态。上游已原生支持时用
   `advisory` 提示；不支持或不再适配时，没有可推荐发布记录即自然不可用。
 
-SDK line 推导规则在 Package 分支、Manifest key 和 release tag 中保持一致：取 `-ohos`
+SDK 版本线推导规则在 Package 分支、Manifest key 和 release tag 中保持一致：取 `-ohos`
 前语义化版本的前两个数字段。
 
 ```text
@@ -326,20 +326,20 @@ release tag 字符串不在 Manifest 中重复保存，而是按约定派生：
 <package>-<upstreamVersion>-ohos-<sdkLine>-<version>
 ```
 
-例如 package `path_provider`、upstream 版本 `2.1.5`、SDK line `3.35`、version
+例如 package `path_provider`、upstream 版本 `2.1.5`、SDK 版本线 `3.35`、version
 `0.2.0` 会派生：
 
 ```text
 path_provider-2.1.5-ohos-3.35-0.2.0
 ```
 
-同一个 package、upstream 版本和 SDK line 下，只要适配内容发生变化，就必须递增
+同一个 package、upstream 版本和 SDK 版本线下，只要适配内容发生变化，就必须递增
 `version`。
 
 ## 适配规则和流程
 
 1. 选择完整 Flutter OHOS SDK 版本，例如 `3.35.8-ohos-0.0.3`。
-2. 从完整 SDK 版本推导 SDK line：取 `-ohos` 前语义化版本的前两个数字段，例如
+2. 从完整 SDK 版本推导 SDK 版本线：取 `-ohos` 前语义化版本的前两个数字段，例如
    `3.35.8-ohos-0.0.3 -> 3.35`。
 3. 为适配库创建或切换分支 `ohos/<sdkLine>`，例如 `ohos/3.35`。分支按大版本线维护，
    不按 SDK patch 版本维护。
@@ -352,19 +352,19 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 7. `fluoh source sync` 使用 Manifest `repository.git.url` 作为 Package 仓库，
    扫描已发布 release tags，读取每个 tag 下的 Package `fluoh.yaml`，把历史发布记录汇总进
    Manifest。
-8. 项目消费时先读取 Project `sdk.version`，推导 SDK line，再在 Manifest 的
+8. 项目消费时先读取 Project `sdk.version`，推导 SDK 版本线，再在 Manifest 的
    `sdks.<sdkLine>.releases` 下寻找匹配的 `compatible` 发布记录。
 
-## Dependency Report 和 Plan
+## 依赖报告和计划
 
 `fluoh pub check` 读取本机已解析的 Source lock。source 输入变化或 lock 缺失时，lock
 会从 Source root 和 Manifest YAML 重新生成。不需要提交生成的 matrix 文件。
 
 消费侧状态只由发布记录决定：
 
-- 精确匹配当前 lockfile 中 package 版本和 SDK line 的 `compatible` 发布记录 -> `ready`。
-- 同一 SDK line 下存在 pub 语义化版本兼容的更新 upstream 版本 -> `version upgrade`。
-- 某个 package 有其它 SDK line 的发布记录，但没有当前 SDK line -> `SDK mismatch`。
+- 精确匹配当前 lockfile 中 package 版本和 SDK 版本线的 `compatible` 发布记录 -> `ready`。
+- 同一 SDK 版本线下存在 pub 语义化版本兼容的更新 upstream 版本 -> `version upgrade`。
+- 某个 package 有其它 SDK 版本线的发布记录，但没有当前 SDK 版本线 -> `SDK mismatch`。
 - 版本变化策略不允许当前候选 -> `needs decision`。
 - 没有可推荐发布记录 -> `unavailable`。
 
@@ -488,19 +488,19 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 
 - lock 不包含 `schema` 字段。它是可丢弃的生成状态，不兼容或过期时直接重建，不做迁移。
 - Source root 和 Manifest YAML 仍然是唯一需要人工编辑的 Source 数据。
-- Source lock 维护由 `lib/src/source/` 中的 Source runtime 统一负责。命令不应该自己组装
+- Source lock 维护由 `lib/src/source/` 中的 Source 运行时统一负责。命令不应该自己组装
   或局部更新 lock。
 - `config.json`、任一已配置 Source 快照、Source 合并规则或 `fluoh` 工具版本变化时，
-  Source runtime 都会整体重新生成 lock。
+  Source 运行时都会整体重新生成 lock。
 - 每个已配置 Source 快照包含生成的 `.fluoh-source-state.json`，记录快照内容 hash。
   常规 lock 新鲜度检查读取这个 state 文件，而不是每次命令都递归 hash 整个快照。
-  state 文件缺失时，runtime 会重新计算快照 hash 并补写 state 文件。
+  state 文件缺失时，运行时会重新计算快照 hash 并补写 state 文件。
 - Source 状态变更入口，包括 `fluoh source add`、`fluoh source remove`、
   `fluoh source update`、已配置快照 repair、目标是已配置快照的 `fluoh source sync`、
-  以及首次默认 Source bootstrap，都会请求 Source runtime 重建 lock。消费 source 的流程使用
+  以及首次默认 Source bootstrap，都会请求 Source 运行时重建 lock。消费 source 的流程使用
   同一个 load-index API；发现 lock 缺失或过期时，或者已选择 SDK 缺失且需要 SDK 元数据来安装
-  selected SDK 时，会按需重新生成。
-- lock 保存 SDK line、release tag、胜出的 Source alias、priority、最终 repository
+  已选择的 SDK 时，会按需重新生成。
+- lock 保存 SDK 版本线、release tag、胜出的 Source alias、priority、最终 repository
   path 等派生字段。默认字段会尽量省略：release `status` 默认为 `compatible`，
   upstream branch 默认为 `main`，release 级 `repository`、`upstream`、`source`
   和 `priority` 只有和 package 级默认值不同时才写入。

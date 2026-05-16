@@ -1,4 +1,7 @@
-# fluoh
+<h1 align="center">
+  <img src="docs/assets/svg/fluoh-logo.svg" alt="fluoh logo" width="82" align="absmiddle">
+  fluoh
+</h1>
 
 <p align="center">
   <strong>A command-line toolkit for FlutterOH projects.</strong>
@@ -23,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme-hero-placeholder.svg" alt="fluoh terminal workflow preview" width="900">
+  <img src="docs/assets/svg/readme-hero.svg" alt="fluoh terminal workflow preview" width="900">
 </p>
 
 `fluoh` helps FlutterOH projects keep SDK selection, IDE configuration,
@@ -82,7 +85,7 @@ brew install fluoh
 | Upgrade the CLI | `fluoh upgrade` |
 
 <p align="center">
-  <img src="docs/assets/readme-flow-placeholder.svg" alt="fluoh workflow diagram placeholder" width="860">
+  <img src="docs/assets/svg/readme-flow.svg" alt="fluoh workflow diagram" width="860">
 </p>
 
 ## Daily Loop
@@ -107,7 +110,7 @@ Most app projects only need the commands above. FlutterOH package maintainers
 can also create, sync, test, and release third-party FlutterOH pub repositories:
 
 ```sh
-fluoh pub create
+fluoh pub create <upstream-git-url>
 fluoh pub sync
 fluoh test init
 fluoh test run

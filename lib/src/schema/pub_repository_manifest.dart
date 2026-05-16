@@ -303,9 +303,11 @@ String pubRepositoryManifestContent(PubRepositoryManifest manifest) {
     'schema: $pubManifestSchema',
     'name: ${_yamlScalar(manifest.name)}',
     '',
+    '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
     'sdk:',
     '  version: ${manifest.sdkVersion}',
     '',
+    '# FlutterOH adaptation repository. Branches normally follow ohos/<sdkLine>.',
     'repository:',
     '  git:',
     '    url: ${_yamlScalar(manifest.repositoryUrl)}',
@@ -313,6 +315,7 @@ String pubRepositoryManifestContent(PubRepositoryManifest manifest) {
     if (manifest.repositoryPath != '.')
       '    path: ${_yamlScalar(manifest.repositoryPath)}',
     '',
+    '# Upstream package repository tracked by fluoh pub sync.',
     'upstream:',
     '  git:',
     '    url: ${_yamlScalar(manifest.upstreamUrl)}',
@@ -321,21 +324,29 @@ String pubRepositoryManifestContent(PubRepositoryManifest manifest) {
     if (manifest.upstreamPath != '.')
       '    path: ${_yamlScalar(manifest.upstreamPath)}',
     '',
+    '# Package release metadata. Update version/status before fluoh pub release.',
+    '# Omit status when the package is complete and compatible.',
     'packages:',
     for (final package in manifest.packages) ...[
       '  ${package.name}:',
       if (package.repositoryPath != manifest.repositoryPath) ...[
+        '    # Dependency path inside this FlutterOH repository.',
         '    repository:',
         '      path: ${_yamlScalar(package.repositoryPath)}',
       ],
       if (package.upstreamPath != manifest.upstreamPath) ...[
+        '    # Package path inside the upstream repository.',
         '    upstream:',
         '      path: ${_yamlScalar(package.upstreamPath)}',
       ],
+      '    # FlutterOH adaptation package release version.',
       '    version: ${_yamlScalar(package.version)}',
+      '    # Upstream package version this adaptation targets.',
       '    upstreamVersion: ${_yamlScalar(package.upstreamVersion)}',
-      if (package.status != null && package.status != 'compatible')
+      if (package.status != null && package.status != 'compatible') ...[
+        '    # Use experimental while porting; remove when compatible.',
         '    status: ${package.status}',
+      ],
     ],
     '',
   ].join('\n');

@@ -83,6 +83,24 @@ void main() {
     final content = File('${root.path}/fluoh.yaml').readAsStringSync();
     expect(content, contains('schema: 1'));
     expect(content, contains('name: image_gallery_saver'));
+    expect(
+      content,
+      contains(
+        '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
+      ),
+    );
+    expect(
+      content,
+      contains(
+        '# FlutterOH adaptation repository. Branches normally follow ohos/<sdkLine>.',
+      ),
+    );
+    expect(
+      content,
+      contains(
+        '# Package release metadata. Update version/status before fluoh pub release.',
+      ),
+    );
     expect(content, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
     expect(content, contains('repository:'));
     expect(content, contains('  git:'));

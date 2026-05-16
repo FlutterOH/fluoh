@@ -1,0 +1,12 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">fluoh logo</title>
+  <desc id="desc">A simple fluoh logo combining a blue toolchain mark with a green completed build badge.</desc>
+  <rect x="24" y="24" width="208" height="208" rx="50" fill="#FFFFFF"/>
+  <rect x="25" y="25" width="206" height="206" rx="49" stroke="#D7E5F4" stroke-width="2"/>
+
+  <path d="M74 70C74 62.3 80.3 56 88 56H174C181.7 56 188 62.3 188 70V86C188 93.7 181.7 100 174 100H116V121H154C161.7 121 168 127.3 168 135V149C168 156.7 161.7 163 154 163H116V188C116 195.7 109.7 202 102 202H88C80.3 202 74 195.7 74 188V70Z" fill="#2563EB"/>
+
+  <circle cx="172" cy="164" r="40" fill="#FFFFFF"/>
+  <circle cx="172" cy="164" r="34" fill="#10B981"/>
+  <path d="M166 181L148 163L158 153L166 161L188 137L199 147L166 181Z" fill="#FFFFFF"/>
+</svg>

@@ -1,11 +1,14 @@
-# fluoh
+<h1 align="center">
+  <img src="docs/assets/svg/fluoh-logo.svg" alt="fluoh logo" width="82" align="absmiddle">
+  fluoh
+</h1>
 
 <p align="center">
   <strong>FlutterOH 项目的命令行工具包。</strong>
 </p>
 
 <p align="center">
-  选择 Flutter OHOS SDK，维护依赖替换，并始终通过同一套工具链运行 Flutter。
+  选择 Flutter OHOS SDK，保持依赖替换更新，并始终通过同一套工具链运行 Flutter。
 </p>
 
 <p align="center">
@@ -23,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme-hero-placeholder.svg" alt="fluoh terminal workflow preview" width="900">
+  <img src="docs/assets/svg/readme-hero.svg" alt="fluoh terminal workflow preview" width="900">
 </p>
 
 `fluoh` 用来统一 FlutterOH 项目的 SDK 选择、IDE 配置、依赖替换和 Flutter 命令执行。
@@ -42,8 +45,8 @@ fluoh pub fix
 fluohf build hap
 ```
 
-配置完成后，项目会在 `fluoh.yaml` 中记录精确 SDK version，`.fluoh/flutter_sdk`
-会作为稳定的 IDE SDK 链接，FlutterOH 依赖替换也会来自最新校验通过的快照。
+配置完成后，项目会在 `fluoh.yaml` 中记录精确的 SDK 版本，`.fluoh/flutter_sdk`
+会作为稳定的 IDE SDK 链接，FlutterOH 依赖替换来自最新校验通过的快照。
 
 ## 安装
 
@@ -79,7 +82,7 @@ brew install fluoh
 | 升级 CLI | `fluoh upgrade` |
 
 <p align="center">
-  <img src="docs/assets/readme-flow-placeholder.svg" alt="fluoh workflow diagram placeholder" width="860">
+  <img src="docs/assets/svg/readme-flow.svg" alt="fluoh workflow diagram" width="860">
 </p>
 
 ## 日常循环
@@ -100,11 +103,11 @@ fluohf build hap
 
 ## 维护者工作流
 
-大多数应用项目只需要上面的命令。FlutterOH package 维护者还可以使用下面的命令创建、
+大多数应用项目只需要上面的命令。FlutterOH package 的维护者还可以使用下面的命令创建、
 同步、测试和发布第三方库 FlutterOH pub 仓库：
 
 ```sh
-fluoh pub create
+fluoh pub create <upstream-git-url>
 fluoh pub sync
 fluoh test init
 fluoh test run
@@ -123,9 +126,9 @@ fluoh source sync
 https://github.com/FlutterOH/pub.git
 ```
 
-Source metadata 和 compatibility schema 的细节见
+Source 元数据和兼容性 schema 的细节见
 [docs/schema.zh-CN.md](docs/schema.zh-CN.md)。
 
-## License
+## 许可证
 
 MIT

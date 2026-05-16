@@ -1,0 +1,108 @@
+<svg width="1280" height="520" viewBox="0 0 1280 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">fluoh workflow map</title>
+  <desc id="desc">A two-lane workflow map showing ordinary app project commands and FlutterOH package maintainer commands.</desc>
+  <defs>
+    <linearGradient id="flowBg" x1="40" y1="32" x2="1200" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F5F9FC"/>
+    </linearGradient>
+    <filter id="softShadow" x="52" y="54" width="1176" height="410" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#475569" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .mono { font-family: Menlo, Consolas, monospace; }
+      .ui { font-family: Inter, Arial, sans-serif; }
+      .lane { font-family: Inter, Arial, sans-serif; fill: #475569; font-size: 18px; font-weight: 800; letter-spacing: 0; }
+      .kicker { font-family: Inter, Arial, sans-serif; fill: #64748B; font-size: 13px; font-weight: 800; letter-spacing: 0; }
+      .titleText { font-family: Inter, Arial, sans-serif; font-size: 24px; font-weight: 800; letter-spacing: 0; }
+      .bodyText { font-family: Inter, Arial, sans-serif; fill: #475569; font-size: 16px; letter-spacing: 0; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="520" rx="30" fill="url(#flowBg)"/>
+  <path d="M76 248C224 202 358 202 496 246C641 292 755 296 910 244C1030 204 1132 202 1210 226" stroke="#D7E3EA" stroke-width="2"/>
+  <path d="M92 414C244 448 390 444 544 410C697 377 841 372 992 414C1086 440 1168 442 1210 426" stroke="#DBEAFE" stroke-width="2"/>
+
+  <g filter="url(#softShadow)">
+    <rect x="72" y="72" width="1136" height="148" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+    <rect x="72" y="264" width="1136" height="148" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+
+    <text x="108" y="122" class="lane">App project loop</text>
+    <text x="108" y="314" class="lane">Maintainer loop</text>
+
+    <g>
+      <rect x="300" y="96" width="220" height="100" rx="18" fill="#F8FBFF" stroke="#BFDBFE" stroke-width="2"/>
+      <rect x="322" y="116" width="34" height="34" rx="10" fill="#DBEAFE"/>
+      <path d="M331 133H347M339 125V141" stroke="#2563EB" stroke-width="3" stroke-linecap="round"/>
+      <text x="374" y="128" class="kicker">SDK</text>
+      <text x="374" y="158" class="titleText" fill="#1D4ED8">Select</text>
+      <text x="374" y="184" class="mono" fill="#475569" font-size="15">sdk use 3.35</text>
+    </g>
+
+    <g>
+      <rect x="580" y="96" width="220" height="100" rx="18" fill="#FFFCF5" stroke="#FCD34D" stroke-width="2"/>
+      <rect x="602" y="116" width="34" height="34" rx="10" fill="#FEF3C7"/>
+      <path d="M611 127H627M611 137H623M611 147H627" stroke="#D97706" stroke-width="3" stroke-linecap="round"/>
+      <text x="654" y="128" class="kicker">DEPENDENCIES</text>
+      <text x="654" y="158" class="titleText" fill="#B45309">Check + fix</text>
+      <text x="654" y="179" class="mono" fill="#475569" font-size="13">pub check</text>
+      <text x="654" y="193" class="mono" fill="#475569" font-size="13">pub fix</text>
+    </g>
+
+    <g>
+      <rect x="860" y="96" width="220" height="100" rx="18" fill="#FFF7F7" stroke="#FECACA" stroke-width="2"/>
+      <rect x="882" y="116" width="34" height="34" rx="10" fill="#FFE4E6"/>
+      <path d="M892 145L908 135L892 125V145Z" fill="#E11D48"/>
+      <text x="934" y="128" class="kicker">FLUTTER</text>
+      <text x="934" y="158" class="titleText" fill="#BE123C">Run</text>
+      <text x="934" y="179" class="mono" fill="#475569" font-size="13">fluohf build</text>
+      <text x="934" y="193" class="mono" fill="#475569" font-size="13">hap</text>
+    </g>
+
+    <g fill="#94A3B8">
+      <rect x="532" y="144" width="26" height="4" rx="2"/>
+      <path d="M554 134L568 146L554 158V134Z"/>
+      <rect x="812" y="144" width="26" height="4" rx="2"/>
+      <path d="M834 134L848 146L834 158V134Z"/>
+    </g>
+
+    <g>
+      <rect x="300" y="288" width="220" height="100" rx="18" fill="#F7FEFA" stroke="#A7F3D0" stroke-width="2"/>
+      <rect x="322" y="308" width="34" height="34" rx="10" fill="#D1FAE5"/>
+      <path d="M329 326L337 334L350 316" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="374" y="320" class="kicker">REPOSITORY</text>
+      <text x="374" y="350" class="titleText" fill="#047857">Create</text>
+      <text x="374" y="376" class="mono" fill="#475569" font-size="15">pub create</text>
+    </g>
+
+    <g>
+      <rect x="580" y="288" width="220" height="100" rx="18" fill="#F8F7FF" stroke="#C4B5FD" stroke-width="2"/>
+      <rect x="602" y="308" width="34" height="34" rx="10" fill="#EDE9FE"/>
+      <path d="M611 326H627M619 318V334" stroke="#7C3AED" stroke-width="3" stroke-linecap="round"/>
+      <text x="654" y="320" class="kicker">QUALITY</text>
+      <text x="654" y="350" class="titleText" fill="#6D28D9">Test + tag</text>
+      <text x="654" y="371" class="mono" fill="#475569" font-size="13">test run</text>
+      <text x="654" y="385" class="mono" fill="#475569" font-size="13">pub release</text>
+    </g>
+
+    <g>
+      <rect x="860" y="288" width="220" height="100" rx="18" fill="#F8FBFF" stroke="#BFDBFE" stroke-width="2"/>
+      <rect x="882" y="308" width="34" height="34" rx="10" fill="#DBEAFE"/>
+      <path d="M890 327C898 317 910 317 918 327M890 327H884M918 327H924M890 327C898 337 910 337 918 327" stroke="#2563EB" stroke-width="3" stroke-linecap="round"/>
+      <text x="934" y="320" class="kicker">SOURCE</text>
+      <text x="934" y="350" class="titleText" fill="#1D4ED8">Sync source</text>
+      <text x="934" y="376" class="mono" fill="#475569" font-size="13">source sync</text>
+    </g>
+
+    <g fill="#94A3B8">
+      <rect x="532" y="336" width="26" height="4" rx="2"/>
+      <path d="M554 326L568 338L554 350V326Z"/>
+      <rect x="812" y="336" width="26" height="4" rx="2"/>
+      <path d="M834 326L848 338L834 350V326Z"/>
+    </g>
+  </g>
+
+  <rect x="224" y="446" width="832" height="46" rx="16" fill="#101828"/>
+  <text x="254" y="475" class="mono" fill="#93C5FD" font-size="16">fluoh.yaml</text>
+  <text x="380" y="475" class="ui" fill="#CBD5E1" font-size="16">keeps SDK, dependency, repository, and release state explicit</text>
+</svg>
