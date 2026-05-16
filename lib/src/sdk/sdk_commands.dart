@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
@@ -93,6 +94,7 @@ class SdkListCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final entries = await manager.listEntries();
     if (_output.style.capabilities.decorated) {
       _output.table(
@@ -147,10 +149,12 @@ class SdkInstallCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 1) {
-      usageException('Expected an SDK version or version series.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      1,
+      'Expected an SDK version or version series.',
+      usageException,
+    );
 
     final release = await manager.resolveRelease(rest.single);
     await _output.withProgress(
@@ -181,6 +185,7 @@ class SdkCurrentCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final version = await manager.currentSdkVersion();
     if (version == null || version.isEmpty) {
       _output.warning('No SDK selected.');
@@ -214,10 +219,12 @@ class SdkRemoveCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 1) {
-      usageException('Expected an SDK version or version series.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      1,
+      'Expected an SDK version or version series.',
+      usageException,
+    );
 
     final tag = await manager.remove(rest.single);
     _output.success('Removed SDK $tag.');

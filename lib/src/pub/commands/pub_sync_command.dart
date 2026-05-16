@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
@@ -40,6 +41,7 @@ class PubSyncCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final repository = environment.workingDirectory;
     final shouldContinue = argResults!.flag('continue');
     final shouldAbort = argResults!.flag('abort');

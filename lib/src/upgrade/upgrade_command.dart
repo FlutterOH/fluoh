@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/fluoh_installation.dart';
 import '../cli/terminal_output.dart';
@@ -40,6 +41,7 @@ class UpgradeCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final plan = _resolveUpgradePlan(_scriptUriProvider());
 
     if (plan.refusalMessage != null) {

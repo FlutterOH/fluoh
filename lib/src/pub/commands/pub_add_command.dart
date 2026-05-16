@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
+import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
@@ -23,6 +24,7 @@ class PubAddCommand extends Command<int> {
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
     argParser.addOption(
       'expected-package',
+      valueHelp: 'name',
       help: 'Expected package name at <package-path>.',
     );
   }
@@ -44,10 +46,12 @@ class PubAddCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 1) {
-      usageException('Expected <package-path>.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      1,
+      'Expected <package-path>.',
+      usageException,
+    );
 
     final repository = environment.workingDirectory;
     await ensureCleanWorkingTree(repository, 'Add package');

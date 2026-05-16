@@ -49,6 +49,44 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('does not repair sources when list has unexpected arguments', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPubSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
+    final configFile = File('${environment.homeDirectory.path}/config.json');
+    final sourceCache = Directory(
+      '${environment.homeDirectory.path}/sources/flutteroh',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await environment.homeDirectory.delete(recursive: true);
+
+    expect(
+      await runFluoh(
+        ['source', 'list', 'extra'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(configFile.existsSync(), isFalse);
+    expect(sourceCache.existsSync(), isFalse);
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('Unexpected argument: extra.'));
+  });
+
   test(
     'lists the default FlutterOH source before user configuration',
     () async {

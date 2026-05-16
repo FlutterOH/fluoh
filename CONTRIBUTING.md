@@ -175,12 +175,12 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 git@github.com:FlutterOH/<package>.git
 ```
 
-If a package needs to be pushed to a dedicated FlutterOH pub repository, pass `--repo` when creating it:
+If a package needs to be pushed to a dedicated FlutterOH pub repository, pass `--repository` when creating it:
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
   --sdk 3.35.8-ohos-0.0.3 \
-  --repo git@github.com:FlutterOH/package.git
+  --repository git@github.com:FlutterOH/package.git
 ```
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.

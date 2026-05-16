@@ -227,7 +227,7 @@ Flutter OHOS SDK，写入
 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、agent 指令和 `fluoh_test`
 工作区，然后暂存生成文件。生成的 `fluoh.yaml` 会在 `repository`、`upstream`、package
 path、`version` 和 `status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数
-包括可重复的 `--path`、`--output`、`--sdk` 和 `--repo`。
+包括可重复的 `--package-path`、`--output`、`--sdk` 和 `--repository`。
 
 `fluoh pub add <package-path>` 在现有 FlutterOH pub monorepo 中注册另一个 package。
 它要求工作树干净且位于 Package `repository.git.branch` 记录的维护分支，校验

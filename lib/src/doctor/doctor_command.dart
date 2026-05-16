@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
@@ -74,6 +75,7 @@ class DoctorCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final checks = <_DoctorCheck>[];
     checks.add(await _checkToolVersion());
     checks.add(await _checkSource());

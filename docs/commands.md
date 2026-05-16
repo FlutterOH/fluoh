@@ -273,7 +273,7 @@ SDK line branch such as `ohos/3.35`, configures the Flutter OHOS SDK, writes
 stages generated files. The generated `fluoh.yaml` includes comments beside
 the `repository`, `upstream`, package path, `version`, and `status` fields that
 maintainers commonly edit before release. It never commits. Options include
-repeated `--path`, `--output`, `--sdk`, and `--repo`.
+repeated `--package-path`, `--output`, `--sdk`, and `--repository`.
 
 `fluoh pub add <package-path>` registers another package in an existing
 FlutterOH pub monorepo. It requires a clean working tree and the maintenance

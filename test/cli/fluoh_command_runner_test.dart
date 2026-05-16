@@ -278,6 +278,21 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('rejects unexpected arguments for leaf commands', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['doctor', 'extra'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('Unexpected argument: extra.'));
+  });
+
   test('prints top-level commands without grouping', () async {
     final stdout = <String>[];
     final stderr = <String>[];
@@ -388,6 +403,8 @@ void main() {
     final help = stdout.join('\n');
     expect(help, contains('Usage: fluoh pub create <upstream>'));
     expect(help, contains('Upstream: Git URL or local Git repo path.'));
+    expect(help, contains('--package-path'));
+    expect(help, contains('--repository'));
     expect(stderr, isEmpty);
   });
 

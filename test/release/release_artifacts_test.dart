@@ -143,7 +143,7 @@ void main() {
     expectContainsNone(readme, [
       'fluoh source package',
       'fluoh source use',
-      '--repo git@github.com:FlutterOH/package.git',
+      '--repository git@github.com:FlutterOH/package.git',
       'dart pub publish --dry-run',
       'git tag v0.1.0',
     ]);
@@ -165,7 +165,7 @@ void main() {
     expectContainsNone(chineseReadme, [
       'fluoh source package',
       'fluoh source use',
-      '--repo git@github.com:FlutterOH/package.git',
+      '--repository git@github.com:FlutterOH/package.git',
       'dart pub publish --dry-run',
       'git tag v0.1.0',
     ]);
@@ -180,7 +180,7 @@ void main() {
       'git tag v0.1.0',
       'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
       'fluoh pub create',
-      '--repo git@github.com:FlutterOH/package.git',
+      '--repository git@github.com:FlutterOH/package.git',
       'fluoh pub sync',
       'fluoh test run',
       'fluoh pub release',
@@ -204,7 +204,7 @@ void main() {
       'git tag v0.1.0',
       'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
       'fluoh pub create',
-      '--repo git@github.com:FlutterOH/package.git',
+      '--repository git@github.com:FlutterOH/package.git',
       'fluoh pub sync',
       'fluoh test run',
       'fluoh pub release',

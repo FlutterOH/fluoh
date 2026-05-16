@@ -649,52 +649,55 @@ Prefer the upstream release workflow.
     expect(stderr, isEmpty);
   });
 
-  test('uses --path as a package path inside a monorepo upstream', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
-      Directory('${environment.homeDirectory.path}/upstream_monorepo'),
-    );
-    final pubRepository = Directory(
-      '${environment.homeDirectory.path}/pub_monorepo',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'uses --package-path as a package path inside a monorepo upstream',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      final upstream = await createUpstreamMonorepoRepository(
+        Directory('${environment.homeDirectory.path}/upstream_monorepo'),
+      );
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_monorepo',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-
-    expect(
       await runFluoh(
-        [
-          'pub',
-          'create',
-          upstream.path,
-          '--path',
-          'packages/camera/camera',
-          '--output',
-          pubRepository.path,
-          '--sdk',
-          '3.35.8-ohos-0.0.3',
-        ],
+        ['source', 'add', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      0,
-    );
+      );
 
-    final manifest = File(
-      '${pubRepository.path}/fluoh.yaml',
-    ).readAsStringSync();
-    expect(manifest, contains('packages:\n  camera:'));
-    expect(manifest, contains('path: packages/camera/camera'));
-    expect(stderr, isEmpty);
-  });
+      expect(
+        await runFluoh(
+          [
+            'pub',
+            'create',
+            upstream.path,
+            '--package-path',
+            'packages/camera/camera',
+            '--output',
+            pubRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final manifest = File(
+        '${pubRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      expect(manifest, contains('packages:\n  camera:'));
+      expect(manifest, contains('path: packages/camera/camera'));
+      expect(stderr, isEmpty);
+    },
+  );
 
   test(
     'keeps monorepo default output while selecting a package path',
@@ -725,7 +728,7 @@ Prefer the upstream release workflow.
             'pub',
             'create',
             upstream.path,
-            '--path',
+            '--package-path',
             'packages/syncfusion_flutter_pdf',
             '--sdk',
             '3.35.8-ohos-0.0.3',
@@ -792,9 +795,9 @@ Prefer the upstream release workflow.
           'pub',
           'create',
           upstream.path,
-          '--path',
+          '--package-path',
           'packages/camera/camera',
-          '--path',
+          '--package-path',
           'packages/share_plus/share_plus',
           '--output',
           pubRepository.path,
@@ -878,7 +881,7 @@ Prefer the upstream release workflow.
         'pub',
         'create',
         upstream.path,
-        '--path',
+        '--package-path',
         'packages/camera/camera',
         '--output',
         pubRepository.path,
@@ -962,6 +965,9 @@ Prefer the upstream release workflow.
         '${environment.homeDirectory.path}/upstream_unselected_monorepo',
       ),
     );
+    final pubRepository = Directory(
+      '${environment.homeDirectory.path}/pub_unselected_monorepo',
+    );
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -974,7 +980,15 @@ Prefer the upstream release workflow.
 
     expect(
       await runFluoh(
-        ['pub', 'create', upstream.path, '--sdk', '3.35.8-ohos-0.0.3'],
+        [
+          'pub',
+          'create',
+          upstream.path,
+          '--output',
+          pubRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -983,11 +997,12 @@ Prefer the upstream release workflow.
     );
 
     expect(stderr.join('\n'), contains('For a monorepo, select package paths'));
-    expect(stderr.join('\n'), contains('--path <package-path>'));
+    expect(stderr.join('\n'), contains('--package-path <package-path>'));
+    expect(pubRepository.existsSync(), isFalse);
   });
 
   test(
-    'uses an explicit pub repository URL when provided with --repo',
+    'uses an explicit pub repository URL when provided with --repository',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPubSourceFixture(environment.homeDirectory);
@@ -1017,7 +1032,7 @@ Prefer the upstream release workflow.
             pubRepository.path,
             '--sdk',
             '3.35.8-ohos-0.0.3',
-            '--repo',
+            '--repository',
             'git@github.com:FlutterOH/camera.git',
           ],
           environment: environment,
@@ -1275,6 +1290,28 @@ Prefer the upstream release workflow.
 
     expect(stderr.join('\n'), contains('Could not find an option named'));
     expect(Directory('${pubRepository.path}/.git').existsSync(), isFalse);
+  });
+
+  test('does not accept removed pub create option names', () async {
+    final environment = await createTestEnvironment();
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_removed_options'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['pub', 'create', upstream.path, '--path', '.', '--repo', 'origin'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('Could not find an option named'));
   });
 
   test('does not accept removed GitHub automation flags', () async {

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
@@ -36,6 +37,7 @@ class PubCheckCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final policy = await readPubDependencyPolicy(environment.workingDirectory);
     final plan = await buildPubDependencyPlan(
       environment: environment,
@@ -79,6 +81,7 @@ class PubFixCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
     final policy = await readPubDependencyPolicy(environment.workingDirectory);
     final plan = await buildPubDependencyPlan(

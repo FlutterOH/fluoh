@@ -166,12 +166,12 @@ fluoh --version
 git@github.com:FlutterOH/<package>.git
 ```
 
-如果某个 package 需要推送到独立 FlutterOH pub 仓库，创建时使用 `--repo` 指定：
+如果某个 package 需要推送到独立 FlutterOH pub 仓库，创建时使用 `--repository` 指定：
 
 ```sh
 fluoh pub create https://github.com/upstream/package.git \
   --sdk 3.35.8-ohos-0.0.3 \
-  --repo git@github.com:FlutterOH/package.git
+  --repository git@github.com:FlutterOH/package.git
 ```
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。

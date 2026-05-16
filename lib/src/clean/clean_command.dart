@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
@@ -37,6 +38,7 @@ class CleanCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     for (final packageDirectory in await _primaryPackageDirectories()) {
       _output.step(
         'Running flutter clean in ${_relativePath(packageDirectory)}',

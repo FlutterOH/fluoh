@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../config/fluoh_yaml_schema.dart';
@@ -38,10 +39,12 @@ class SdkUseCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 1) {
-      usageException('Expected an SDK version or version series.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      1,
+      'Expected an SDK version or version series.',
+      usageException,
+    );
 
     await _ensureFlutterProject();
     await _ensureProjectConfigIsNotPubManifest();

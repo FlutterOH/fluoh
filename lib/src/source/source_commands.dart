@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
@@ -124,6 +125,7 @@ class SourceListCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     final config = await FluohConfigStore(environment).load();
     if (config.sources.isEmpty) {
       _output.warning('No sources configured.');
@@ -176,10 +178,12 @@ class SourceInitCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 1) {
-      usageException('Expected a local source path.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      1,
+      'Expected a local source path.',
+      usageException,
+    );
     final source = Directory(rest.single);
     final metadata = File('${source.path}/fluoh.yaml');
     final exampleManifest = File('${source.path}/manifests/example/fluoh.yaml');
@@ -244,10 +248,12 @@ class SourceSyncCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length > 1) {
-      usageException('Expected zero or one source path.');
-    }
+    final rest = expectArgumentCountAtMost(
+      argResults!,
+      1,
+      'Expected zero or one source path.',
+      usageException,
+    );
 
     final source = rest.isEmpty
         ? environment.workingDirectory
@@ -903,6 +909,7 @@ class SourceAddCommand extends Command<int> {
   }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addOption(
       'priority',
+      valueHelp: 'int',
       help: 'Source priority. Higher values win when indexes overlap.',
       defaultsTo: '$defaultSourcePriority',
     );
@@ -923,10 +930,12 @@ class SourceAddCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 2) {
-      usageException('Expected a source name and URL or path.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      2,
+      'Expected a source name and URL or path.',
+      usageException,
+    );
 
     final name = rest[0];
     _ensureValidSourceName(name);
@@ -999,10 +1008,12 @@ class SourceRemoveCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
-    if (rest.length != 1) {
-      usageException('Expected a source name.');
-    }
+    final rest = expectArgumentCount(
+      argResults!,
+      1,
+      'Expected a source name.',
+      usageException,
+    );
 
     final name = rest.single;
     _ensureValidSourceName(name);
@@ -1043,11 +1054,13 @@ class SourceUpdateCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    final rest = expectArgumentCountAtMost(
+      argResults!,
+      1,
+      'Expected zero or one source name.',
+      usageException,
+    );
     final config = await FluohConfigStore(environment).load();
-    final rest = argResults!.rest;
-    if (rest.length > 1) {
-      usageException('Expected zero or one source name.');
-    }
 
     final sources = rest.isEmpty
         ? config.sources.entries.toList(growable: false)
@@ -1127,7 +1140,7 @@ void _ensureValidSourceName(String name) {
 
 bool _looksLikeGitSource(String value) {
   return value.startsWith('file:') ||
-      value.contains('://') ||
+      _looksLikeRemoteGitUrl(value) ||
       value.endsWith('.git');
 }
 

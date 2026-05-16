@@ -279,7 +279,12 @@ bool _repairsSourceSnapshots(ArgResults results) {
     return false;
   }
   final sourceResults = results.command!;
-  final subcommand = sourceResults.command?.name;
+  final sourceSubcommandResults = sourceResults.command;
+  if (sourceSubcommandResults != null &&
+      sourceSubcommandResults.rest.isNotEmpty) {
+    return false;
+  }
+  final subcommand = sourceSubcommandResults?.name;
   return subcommand == null || subcommand == 'list';
 }
 

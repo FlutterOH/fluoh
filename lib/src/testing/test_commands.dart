@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 
+import '../cli/argument_validation.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
@@ -82,6 +83,7 @@ class TestInitCommand extends Command<int> {
     argParser
       ..addOption(
         'package',
+        valueHelp: 'name',
         help: 'Package to initialize tests for in a multi-package repository.',
       )
       ..addFlag(
@@ -104,6 +106,7 @@ class TestInitCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     await initializeFluohTestWorkspace(
       environment: environment,
       stdout: _stdout,
@@ -127,6 +130,7 @@ class TestRunCommand extends Command<int> {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser.addOption(
       'package',
+      valueHelp: 'name',
       help: 'Package to test in a multi-package repository.',
     );
   }
@@ -144,6 +148,7 @@ class TestRunCommand extends Command<int> {
 
   @override
   Future<int> run() {
+    expectNoArguments(argResults!, usageException);
     return runFluohTestWorkspace(
       environment: environment,
       stdout: _stdout,

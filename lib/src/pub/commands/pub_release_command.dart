@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 
+import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
@@ -21,6 +22,7 @@ class PubReleaseCommand extends Command<int> {
     argParser
       ..addOption(
         'package',
+        valueHelp: 'name',
         help: 'Package to release when fluoh.yaml registers multiple packages.',
       )
       ..addFlag(
@@ -48,6 +50,7 @@ class PubReleaseCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
     if (argResults!.flag('all') &&
         (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
       usageException('Use only one of --all or --package.');
