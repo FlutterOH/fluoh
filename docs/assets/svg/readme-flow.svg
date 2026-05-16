@@ -23,9 +23,9 @@
   <path d="M76 248C224 202 358 202 496 246C641 292 755 296 910 244C1030 204 1132 202 1210 226" stroke="#D7E3EA" stroke-width="2"/>
   <path d="M92 414C244 448 390 444 544 410C697 377 841 372 992 414C1086 440 1168 442 1210 426" stroke="#DBEAFE" stroke-width="2"/>
 
-  <g filter="url(#softShadow)">
-    <rect x="72" y="72" width="1136" height="148" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
-    <rect x="72" y="264" width="1136" height="148" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+  <g>
+    <rect x="72" y="72" width="1136" height="148" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2" filter="url(#softShadow)"/>
+    <rect x="72" y="264" width="1136" height="148" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2" filter="url(#softShadow)"/>
 
     <text x="108" y="122" class="lane">App project loop</text>
     <text x="108" y="314" class="lane">Maintainer loop</text>
