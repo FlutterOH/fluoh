@@ -24,6 +24,7 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh source add <name> <url-or-path>` | `lib/src/source/source_commands.dart` | Add a local or Git data source to tool config. |
 | `fluoh source remove <name>` | `lib/src/source/source_commands.dart` | Remove a non-official data source from tool config. |
 | `fluoh source update [name]` | `lib/src/source/source_commands.dart` | Refresh and validate configured source snapshots. |
+| `fluoh source validate [path]` | `lib/src/source/source_commands.dart` | Validate a local source repository without registering it. |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | Create a local source repository template. |
 | `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import released FlutterOH pub repository metadata into a source repository. |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | Command group for local Flutter OHOS SDK caches. |
@@ -171,6 +172,14 @@ Source runtime. If validation or lock generation fails, the runtime preserves
 the previous usable config, snapshots, and lock.
 
 ### Maintainer Commands
+
+`fluoh source validate [path]` validates a local Source repository without
+reading or writing `$FLUOH_HOME/config.json`, source snapshots, or
+`sources.lock.json`. When `path` is omitted, the current directory is used. The
+command checks the Source root schema, `environment.fluoh`, SDK metadata,
+Manifest routes, Manifest names, duplicate packages, package release records,
+and whether the package index can be built. It does not fetch SDK tags or pub
+repositories; release metadata updates remain the job of `fluoh source sync`.
 
 `fluoh source init <path>` creates a source root `fluoh.yaml`, a
 `manifests/example/fluoh.yaml` commented Manifest template, and a README. It is

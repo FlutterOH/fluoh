@@ -45,9 +45,80 @@ void main() {
     expect(stdout.join('\n'), contains('Use configured sources:'));
     expect(stdout.join('\n'), contains('Maintain source repositories:'));
     expect(stdout.join('\n'), contains('  list'));
+    expect(stdout.join('\n'), contains('  validate'));
     expect(stdout.join('\n'), contains('  sync'));
     expect(stderr, isEmpty);
   });
+
+  test('validates a local source path without registering it', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPubSourceFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'validate', 'pub_source'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, contains('Validated source ${source.path}.'));
+    expect(
+      File('${environment.homeDirectory.path}/config.json').existsSync(),
+      isFalse,
+    );
+    expect(
+      File('${environment.homeDirectory.path}/sources.lock.json').existsSync(),
+      isFalse,
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'reports invalid source validation without config side effects',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = Directory('${environment.workingDirectory.path}/broken');
+      await source.create(recursive: true);
+      await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Broken source
+repository:
+  git: {}
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['source', 'validate', 'broken'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stdout, isEmpty);
+      expect(stderr.join('\n'), contains('Source ${source.path} is not valid'));
+      expect(stderr.join('\n'), contains('Expected "url"'));
+      expect(
+        File('${environment.homeDirectory.path}/config.json').existsSync(),
+        isFalse,
+      );
+      expect(
+        File(
+          '${environment.homeDirectory.path}/sources.lock.json',
+        ).existsSync(),
+        isFalse,
+      );
+    },
+  );
 
   test('does not repair sources when list has unexpected arguments', () async {
     final baseEnvironment = await createTestEnvironment();
