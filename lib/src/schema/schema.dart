@@ -1,4 +1,5 @@
 export 'dependency_analysis.dart';
+export 'fluoh_yaml_migration.dart';
 export 'project_config.dart';
 export 'pub_dependency_policy.dart';
 export 'pub_repository_manifest.dart';

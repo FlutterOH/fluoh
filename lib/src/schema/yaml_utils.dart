@@ -60,12 +60,17 @@ void ensureSupportedSchema(
     throw FluohSchemaException('$label schema must be an integer.');
   }
   if (schema != supportedFluohYamlSchema) {
-    final suffix = packageVersion == null
-        ? 'Expected schema $supportedFluohYamlSchema.'
-        : 'Upgrade fluoh and try again.';
-    final version = packageVersion == null ? '' : ' by fluoh $packageVersion';
+    if (schema > supportedFluohYamlSchema) {
+      final version = packageVersion == null
+          ? ''
+          : ' Current version is $packageVersion.';
+      throw FluohSchemaException(
+        '$label schema $schema requires a newer fluoh.$version',
+      );
+    }
+    final suffix = 'Expected schema $supportedFluohYamlSchema.';
     throw FluohSchemaException(
-      '$label schema $schema is not supported$version. $suffix',
+      '$label schema $schema is not supported. $suffix',
     );
   }
 }

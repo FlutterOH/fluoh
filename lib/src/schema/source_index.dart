@@ -1,5 +1,6 @@
 import 'version_rules.dart';
 import 'yaml_utils.dart';
+import 'fluoh_yaml_migration.dart';
 
 const sourceManifestSchema = 1;
 
@@ -7,18 +8,18 @@ class SourceRootManifest {
   const SourceRootManifest({
     required this.schemaVersion,
     required this.name,
-    required this.repositoryGitUrl,
     required this.manifests,
     required this.sdkRepository,
     required this.sdkReleases,
     this.description,
+    this.repositoryGitUrl,
     this.fluohConstraint,
   });
 
   final int schemaVersion;
   final String name;
   final String? description;
-  final String repositoryGitUrl;
+  final String? repositoryGitUrl;
   final List<SourceManifestRoute> manifests;
   final String? sdkRepository;
   final List<SdkRelease> sdkReleases;
@@ -31,8 +32,8 @@ class SourceRootManifest {
 class SourceRootManifestTemplate {
   const SourceRootManifestTemplate({
     required this.name,
-    required this.repositoryGitUrl,
     this.description,
+    this.repositoryGitUrl,
     this.fluohConstraint,
     this.manifests = const <SourceManifestRoute>[],
     this.sdkRepository,
@@ -41,7 +42,7 @@ class SourceRootManifestTemplate {
 
   final String name;
   final String? description;
-  final String repositoryGitUrl;
+  final String? repositoryGitUrl;
   final String? fluohConstraint;
   final List<SourceManifestRoute> manifests;
   final String? sdkRepository;
@@ -152,11 +153,13 @@ class SourceManifestRelease {
   const SourceManifestRelease({
     required this.version,
     required this.upstreamVersion,
+    this.tag,
     this.status = 'compatible',
   });
 
   final String version;
   final String upstreamVersion;
+  final String? tag;
   final String status;
 }
 
@@ -231,6 +234,7 @@ class SourceManifestPackageTemplate {
     required this.upstreamVersion,
     required this.sdkLine,
     required this.version,
+    this.tag,
     this.status = 'compatible',
   });
 
@@ -240,6 +244,7 @@ class SourceManifestPackageTemplate {
   final String upstreamVersion;
   final String sdkLine;
   final String version;
+  final String? tag;
   final String status;
 }
 
@@ -380,7 +385,10 @@ class CompatibilityVersion {
 }
 
 SourceRootManifest parseSourceRootManifest(String content) {
-  final yaml = parseYamlMap(content, label: 'fluoh.yaml');
+  final yaml = migrateFluohYamlContent(
+    content,
+    owner: FluohYamlOwner.sourceRoot,
+  ).yaml;
   _ensureSourceSchema(yaml, 'fluoh.yaml');
   ensureAllowedKeys(yaml, 'fluoh.yaml', {
     'schema',
@@ -394,10 +402,14 @@ SourceRootManifest parseSourceRootManifest(String content) {
   });
   _requireKind(yaml, 'source', 'fluoh.yaml');
 
-  final repository = objectMap(yaml['repository'], 'repository');
-  ensureAllowedKeys(repository, 'repository', {'git'});
-  final repositoryGit = objectMap(repository['git'], 'repository.git');
-  ensureAllowedKeys(repositoryGit, 'repository.git', {'url'});
+  final repository = optionalObjectMap(yaml['repository'], 'repository');
+  String? repositoryGitUrl;
+  if (repository != null) {
+    ensureAllowedKeys(repository, 'repository', {'git'});
+    final repositoryGit = objectMap(repository['git'], 'repository.git');
+    ensureAllowedKeys(repositoryGit, 'repository.git', {'url'});
+    repositoryGitUrl = requiredString(repositoryGit, 'url');
+  }
 
   final environment = optionalObjectMap(yaml['environment'], 'environment');
   if (environment != null) {
@@ -410,7 +422,7 @@ SourceRootManifest parseSourceRootManifest(String content) {
     schemaVersion: yaml['schema'] as int,
     name: requiredString(yaml, 'name'),
     description: optionalString(yaml, 'description'),
-    repositoryGitUrl: requiredString(repositoryGit, 'url'),
+    repositoryGitUrl: repositoryGitUrl,
     manifests: manifests,
     sdkRepository: sdkSource?.repository,
     sdkReleases: sdkSource?.releases ?? const <SdkRelease>[],
@@ -426,7 +438,11 @@ SourceManifest parseSourceManifest({
   required String content,
   required String label,
 }) {
-  final yaml = parseYamlMap(content, label: label);
+  final yaml = migrateFluohYamlContent(
+    content,
+    owner: FluohYamlOwner.sourceManifest,
+    label: label,
+  ).yaml;
   _ensureSourceSchema(yaml, label);
   ensureAllowedKeys(yaml, label, {
     'schema',
@@ -507,12 +523,14 @@ List<SourcePackageManifest> sourcePackageManifestsFromManifest(
             sdkLine: sdk.sdkLine,
             upstreamVersion: release.upstreamVersion,
             repository: manifest.repositoryGitUrl,
-            tag: pubReleaseTagForPackage(
-              packageName: package.name,
-              upstreamVersion: release.upstreamVersion,
-              sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
-              releaseVersion: release.version,
-            ),
+            tag:
+                release.tag ??
+                pubReleaseTagForPackage(
+                  packageName: package.name,
+                  upstreamVersion: release.upstreamVersion,
+                  sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
+                  releaseVersion: release.version,
+                ),
             version: release.version,
             path: _manifestPath(package.repositoryPath),
             upstreamPath: _manifestPath(package.upstreamPath),
@@ -555,13 +573,15 @@ String sourceRootManifestContent(SourceRootManifestTemplate template) {
     if (template.description != null)
       'description: ${_yamlScalar(template.description!)}',
     '',
-    'repository:',
-    '  git:',
-    '    url: ${_yamlScalar(template.repositoryGitUrl)}',
-    '',
+    if (template.repositoryGitUrl != null) ...[
+      'repository:',
+      '  git:',
+      '    url: ${_yamlScalar(template.repositoryGitUrl!)}',
+      '',
+    ],
     if (template.fluohConstraint != null) ...[
       'environment:',
-      '  fluoh: ${_yamlScalar(template.fluohConstraint!)}',
+      '  fluoh: ${_singleQuotedYamlScalar(template.fluohConstraint!)}',
       '',
     ],
   ];
@@ -618,6 +638,7 @@ String sourceManifestContent(SourceManifestTemplate template) {
                   SourceManifestRelease(
                     version: package.version,
                     upstreamVersion: package.upstreamVersion,
+                    tag: package.tag,
                     status: package.status,
                   ),
                 ],
@@ -676,9 +697,17 @@ String sourceManifestToContent(SourceManifest manifest) {
       lines.addAll(['      "${sdk.sdkLine}":', '        releases:']);
       for (final release in sdk.releases) {
         validateReleaseVersion(release.version, label: 'release version');
+        final canonicalTag = pubReleaseTagForPackage(
+          packageName: package.name,
+          upstreamVersion: release.upstreamVersion,
+          sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
+          releaseVersion: release.version,
+        );
         lines.addAll([
           '          - version: ${_yamlScalar(release.version)}',
           '            upstreamVersion: ${_yamlScalar(release.upstreamVersion)}',
+          if (release.tag != null && release.tag != canonicalTag)
+            '            tag: ${_yamlScalar(release.tag!)}',
           if (release.status != 'compatible')
             '            status: ${release.status}',
         ]);
@@ -882,7 +911,12 @@ SourceManifestRelease _readManifestRelease(
   Map<String, Object?> yaml,
   String label,
 ) {
-  ensureAllowedKeys(yaml, label, {'version', 'upstreamVersion', 'status'});
+  ensureAllowedKeys(yaml, label, {
+    'version',
+    'upstreamVersion',
+    'tag',
+    'status',
+  });
   final status = optionalString(yaml, 'status') ?? 'compatible';
   if (!const {'compatible', 'experimental', 'broken'}.contains(status)) {
     throw FluohSchemaException(
@@ -894,6 +928,7 @@ SourceManifestRelease _readManifestRelease(
   return SourceManifestRelease(
     version: version,
     upstreamVersion: requiredString(yaml, 'upstreamVersion'),
+    tag: optionalString(yaml, 'tag'),
     status: status,
   );
 }
@@ -976,6 +1011,10 @@ String _yamlScalar(String value) {
       .replaceAll('\r', '\\r')
       .replaceAll('\t', '\\t');
   return '"$escaped"';
+}
+
+String _singleQuotedYamlScalar(String value) {
+  return "'${value.replaceAll("'", "''")}'";
 }
 
 bool _shouldQuoteYamlScalar(String value) {
@@ -1065,7 +1104,10 @@ void _ensureSourceSchema(Map<String, Object?> yaml, String label) {
   if (schema is! int) {
     throw FluohSchemaException('$label schema must be an integer.');
   }
-  if (schema != sourceManifestSchema) {
+  if (schema > sourceManifestSchema) {
+    throw FluohSchemaException('$label schema $schema requires a newer fluoh.');
+  }
+  if (schema < sourceManifestSchema) {
     throw FluohSchemaException(
       '$label schema $schema is not supported. Expected schema '
       '$sourceManifestSchema.',

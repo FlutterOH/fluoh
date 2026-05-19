@@ -192,11 +192,25 @@ class SourceInitCommand extends Command<int> {
         await metadata.exists() ||
         await exampleManifest.exists() ||
         await readme.exists();
+    var migratedMetadata = false;
 
     await exampleManifest.parent.create(recursive: true);
     if (!await metadata.exists()) {
       await source.create(recursive: true);
-      await metadata.writeAsString(_localSourceMetadata(source));
+      await metadata.writeAsString(_localSourceMetadata());
+    } else {
+      final content = await metadata.readAsString();
+      final migration = migrateFluohYamlContent(
+        content,
+        owner: FluohYamlOwner.sourceRoot,
+      );
+      if (migration.migrated) {
+        final parsed = parseSourceRootManifest(content);
+        await metadata.writeAsString(
+          sourceRootManifestContent(_sourceRootTemplate(parsed)),
+        );
+        migratedMetadata = true;
+      }
     }
     if (!await exampleManifest.exists()) {
       await exampleManifest.writeAsString(_localSourceManifestTemplate());
@@ -205,7 +219,11 @@ class SourceInitCommand extends Command<int> {
       await readme.writeAsString(_localSourceReadme());
     }
 
-    if (existed) {
+    if (migratedMetadata) {
+      _output.success(
+        'Updated local source template at ${_output.style.path(source.path)}.',
+      );
+    } else if (existed) {
       _output.skipped(
         'Local source template already exists at ${_output.style.path(source.path)}.',
       );
@@ -303,6 +321,7 @@ class SourceSyncCommand extends Command<int> {
           upstreamVersion: package.upstreamVersion,
           sdkVersion: manifest.sdkVersion,
           releaseVersion: package.releaseVersion,
+          releaseTag: syncPackage.releaseTag,
           releaseStatus: package.status ?? 'compatible',
           usageException: usageException,
         );
@@ -433,16 +452,16 @@ class SourceSyncCommand extends Command<int> {
         continue;
       }
       for (final package in manifest.packages) {
-        final String expectedTag;
+        final bool matchesTag;
         try {
-          expectedTag = package.releaseTag(manifest.sdkVersion);
+          matchesTag = package.matchesReleaseTag(manifest.sdkVersion, tag);
         } on FormatException catch (error) {
           usageException(
             'Could not read pub repository ${repository.path.path} at tag $tag: '
             '${error.message}',
           );
         }
-        if (expectedTag != tag) {
+        if (!matchesTag) {
           continue;
         }
         packages.add(
@@ -451,6 +470,7 @@ class SourceSyncCommand extends Command<int> {
             repository: repository.path,
             manifest: manifest,
             package: package,
+            releaseTag: tag,
           ),
         );
       }
@@ -499,7 +519,10 @@ class SourceSyncCommand extends Command<int> {
       return null;
     }
     try {
-      return PubRepositoryManifest.parse(result.stdout.toString());
+      return PubRepositoryManifest.parse(
+        result.stdout.toString(),
+        releaseTag: tag,
+      );
     } on FormatException catch (error) {
       usageException(
         'Could not read pub repository ${repository.path} at tag $tag: '
@@ -572,12 +595,14 @@ class _SourceSyncPackage {
     required this.repository,
     required this.manifest,
     required this.package,
+    required this.releaseTag,
   });
 
   final String sourceManifestName;
   final Directory repository;
   final PubManifest manifest;
   final PubManifestPackage package;
+  final String releaseTag;
 }
 
 class _SourcePackageMetadataResult {
@@ -606,6 +631,7 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
   required String upstreamVersion,
   required String sdkVersion,
   required String releaseVersion,
+  required String releaseTag,
   required String releaseStatus,
   required Never Function(String message) usageException,
 }) async {
@@ -633,6 +659,7 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
     upstreamVersion: upstreamVersion,
     version: releaseVersion,
     sdkLine: sdkLineFromSdkVersion(sdkVersion),
+    tag: releaseTag,
     status: releaseStatus,
   );
 
@@ -815,6 +842,7 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
   final release = SourceManifestRelease(
     version: package.version,
     upstreamVersion: package.upstreamVersion,
+    tag: package.tag,
     status: package.status,
   );
   final sdk = SourceManifestSdk(sdkLine: package.sdkLine, releases: [release]);
@@ -948,7 +976,10 @@ class SourceAddCommand extends Command<int> {
       usageException('Expected --priority to be an integer.');
     }
     final localUrlDirectory = localSourceDirectoryFromUrl(urlOrPath);
-    final localSource = localUrlDirectory ?? Directory(urlOrPath);
+    final localSource = _resolveUserSourceDirectory(
+      environment.workingDirectory,
+      localUrlDirectory ?? Directory(urlOrPath),
+    );
     final isLocalSource = await localSource.exists();
     if (localUrlDirectory != null && !isLocalSource) {
       usageException('Source path does not exist: ${localSource.path}');
@@ -960,9 +991,13 @@ class SourceAddCommand extends Command<int> {
     final store = FluohConfigStore(environment);
     final config = await store.load();
     final cachePath = '${environment.homeDirectory.path}/sources/$name';
-    final updated = localUrlDirectory == null && isLocalSource
-        ? config.addSource(name, cachePath, priority: priority)
-        : config.addGitSource(name, urlOrPath, cachePath, priority: priority);
+    final sourceUrl = isLocalSource ? _localSourceUrl(localSource) : urlOrPath;
+    final updated = config.addGitSource(
+      name,
+      sourceUrl,
+      cachePath,
+      priority: priority,
+    );
     Directory? snapshot;
     try {
       snapshot = isLocalSource
@@ -1081,7 +1116,13 @@ class SourceUpdateCommand extends Command<int> {
                   sourceConfig,
                   output: _output,
                 )
-              : await prepareLocalSourceSnapshot(entry.key, localSource);
+              : await prepareLocalSourceSnapshot(
+                  entry.key,
+                  _resolveUserSourceDirectory(
+                    environment.workingDirectory,
+                    localSource,
+                  ),
+                );
         } else {
           await validateSource(entry.key, sourceConfig);
         }
@@ -1149,6 +1190,20 @@ bool _looksLikeRemoteGitUrl(String value) {
       RegExp(r'^[^@\s]+@[^:\s]+:.+').hasMatch(value);
 }
 
+Directory _resolveUserSourceDirectory(
+  Directory workingDirectory,
+  Directory directory,
+) {
+  if (directory.isAbsolute) {
+    return directory;
+  }
+  return Directory('${workingDirectory.path}/${directory.path}');
+}
+
+String _localSourceUrl(Directory directory) {
+  return Uri.file(directory.path).toString();
+}
+
 String _s(int count) => count == 1 ? '' : 's';
 
 String _localSourceReadme() {
@@ -1177,19 +1232,32 @@ The `pub` repository can be maintained as a source and add scheduled workflows o
 ''';
 }
 
-String _localSourceMetadata(Directory source) {
+SourceRootManifestTemplate _sourceRootTemplate(SourceRootManifest manifest) {
+  return SourceRootManifestTemplate(
+    name: manifest.name,
+    description: manifest.description,
+    repositoryGitUrl: manifest.repositoryGitUrl,
+    fluohConstraint: manifest.fluohConstraint,
+    sdkRepository: manifest.sdkRepository,
+    sdkReleases: manifest.sdkReleases,
+    manifests: manifest.manifests,
+  );
+}
+
+String _localSourceMetadata() {
   return [
     'schema: 1',
     'kind: source',
     'name: "Local FlutterOH source"',
     'description: "Local FlutterOH source maintained by fluoh users."',
     '',
-    'repository:',
-    '  git:',
-    '    url: ${_yamlScalar('file:${source.path}')}',
-    '',
     'environment:',
-    '  fluoh: ">=0.1.0"',
+    "  fluoh: '>=0.1.0'",
+    '',
+    '# Uncomment to document where this source is published.',
+    '# repository:',
+    '#   git:',
+    '#     url: "https://github.com/FlutterOH/pub.git"',
     '',
     '# Uncomment to publish Flutter OHOS SDK versions from this source.',
     '# sdk:',
@@ -1250,33 +1318,4 @@ List<SourceManifestRoute> _updatedManifestRoutes(
     return routes;
   }
   return [...routes, SourceManifestRoute(name: manifestName)];
-}
-
-String _yamlScalar(String value) {
-  if (!_shouldQuoteYamlScalar(value)) {
-    return value;
-  }
-  final escaped = value
-      .replaceAll('\\', '\\\\')
-      .replaceAll('"', '\\"')
-      .replaceAll('\n', '\\n')
-      .replaceAll('\r', '\\r')
-      .replaceAll('\t', '\\t');
-  return '"$escaped"';
-}
-
-bool _shouldQuoteYamlScalar(String value) {
-  if (value.isEmpty) {
-    return true;
-  }
-  if (value.startsWith(RegExp(r'''[-?:,[\]{}#&*!|>@`"']'''))) {
-    return true;
-  }
-  if (value.contains(RegExp(r'[\s:]'))) {
-    return true;
-  }
-  if (const {'true', 'false', 'null', '~'}.contains(value.toLowerCase())) {
-    return true;
-  }
-  return false;
 }

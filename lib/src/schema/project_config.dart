@@ -1,6 +1,7 @@
 import 'pub_dependency_policy.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
+import 'fluoh_yaml_migration.dart';
 
 class ProjectFluohConfig {
   const ProjectFluohConfig({
@@ -10,7 +11,10 @@ class ProjectFluohConfig {
   });
 
   factory ProjectFluohConfig.parse(String content) {
-    final yaml = parseYamlMap(content, label: 'fluoh.yaml');
+    final yaml = migrateFluohYamlContent(
+      content,
+      owner: FluohYamlOwner.project,
+    ).yaml;
     ensureSupportedSchema(yaml);
     final sdk = yaml['sdk'];
     final sdkVersion = sdk is Map<String, Object?> && sdk['version'] != null
@@ -65,18 +69,24 @@ String upsertProjectSdkVersion(String content, String sdkVersion) {
       lines[sdkIndex] = 'sdk:';
       lines.insert(sdkIndex + 1, '  version: $sdkVersion');
     }
+    _ensureSchemaLine(lines);
     return '${lines.join('\n')}\n';
   }
 
   final schemaIndex = _topLevelKeyIndex(lines, 'schema');
-  final insertIndex = schemaIndex == -1 ? 0 : schemaIndex + 1;
-  lines.insertAll(insertIndex, [
-    if (schemaIndex != -1) '',
-    'sdk:',
-    '  version: $sdkVersion',
-    '',
-  ]);
+  if (schemaIndex == -1) {
+    lines.insertAll(0, ['schema: 1', '']);
+  }
+  final insertIndex = _topLevelKeyIndex(lines, 'schema') + 1;
+  lines.insertAll(insertIndex, ['', 'sdk:', '  version: $sdkVersion', '']);
   return '${lines.join('\n')}\n';
+}
+
+void _ensureSchemaLine(List<String> lines) {
+  if (_topLevelKeyIndex(lines, 'schema') != -1) {
+    return;
+  }
+  lines.insertAll(0, ['schema: 1', '']);
 }
 
 void _upsertSdkVersion(List<String> lines, int sdkIndex, String sdkVersion) {

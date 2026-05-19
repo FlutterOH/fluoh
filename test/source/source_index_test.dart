@@ -1,6 +1,9 @@
 import 'dart:io';
 
+import 'package:args/command_runner.dart';
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/config/fluoh_config.dart';
+import 'package:fluoh/src/source/source_sync.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -136,6 +139,78 @@ void main() {
 
       expect(packageIndex.packages, contains('camera'));
       expect(packageIndex.packages, isNot(contains('share_plus')));
+    },
+  );
+
+  test('parses relative file source URLs as relative paths', () {
+    expect(localSourceDirectoryFromUrl('file:.')!.path, '.');
+    expect(
+      localSourceDirectoryFromUrl('file:test/fixtures/pub_source')!.path,
+      'test/fixtures/pub_source',
+    );
+    expect(
+      localSourceDirectoryFromUrl('file:///tmp/pub_source')!.path,
+      '/tmp/pub_source',
+    );
+  });
+
+  test(
+    'rejects legacy sidecars when current root sections are missing',
+    () async {
+      final legacyPackages = await _createSourceRoot();
+      await File('${legacyPackages.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Legacy packages
+repository:
+  git:
+    url: file:${legacyPackages.path}
+sdk:
+  git:
+    url: /tmp/flutter-ohos-sdk
+  versions:
+    - 3.35.8-ohos-0.0.3
+''');
+      await File(
+        '${legacyPackages.path}/packages/repositories.yaml',
+      ).create(recursive: true);
+
+      final legacySdk = await _createSourceRoot();
+      await File('${legacySdk.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Legacy SDK
+repository:
+  git:
+    url: file:${legacySdk.path}
+manifests:
+  - name: camera
+''');
+      await File('${legacySdk.path}/sdk/releases.yaml').create(recursive: true);
+
+      await expectLater(
+        validateSource(
+          'legacy_packages',
+          SourceConfig(path: legacyPackages.path),
+        ),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            contains('legacy source layout stores SDK'),
+          ),
+        ),
+      );
+      await expectLater(
+        validateSource('legacy_sdk', SourceConfig(path: legacySdk.path)),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            contains('legacy source layout stores SDK'),
+          ),
+        ),
+      );
     },
   );
 }

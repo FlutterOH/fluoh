@@ -51,12 +51,12 @@ kind: source
 name: flutteroh
 description: Flutter OHOS SDK and package implementation source.
 
-repository:
-  git:
-    url: https://github.com/FlutterOH/pub.git
+# repository:
+#   git:
+#     url: https://github.com/FlutterOH/pub.git
 
 environment:
-  fluoh: ">=0.1.0"
+  fluoh: '>=0.1.0'
 
 sdk:
   git:

@@ -115,10 +115,11 @@ Source lock 可用，然后从 `$FLUOH_HOME/config.json` 输出每个已配置 s
 显示值。空配置是 warning，不是错误。
 
 `fluoh source add <name> <url-or-path>` 校验 source 名称，拒绝替换官方 source
-名称，并把缓存路径固定为 `$FLUOH_HOME/sources/<name>`。本地路径和 `file:` URL 会复制
-校验后的快照；HTTPS/SSH URL 会立即 clone，并且在写入配置项前完成校验。
-`--priority` 默认值为 `10`，source 数据重叠时优先级越高越先使用。新快照校验通过后，
-Source 运行时会一起提交配置项和重新生成后的 lock。
+名称，并把缓存路径固定为 `$FLUOH_HOME/sources/<name>`。普通本地路径会在
+`$FLUOH_HOME/config.json` 中规范化为绝对 `file:` URL，后续 `source update` 才能从原始目录
+刷新缓存。本地路径和 `file:` URL 会复制校验后的快照；HTTPS/SSH URL 会立即 clone，
+并且在写入配置项前完成校验。`--priority` 默认值为 `10`，source 数据重叠时优先级越高越先使用。
+新快照校验通过后，Source 运行时会一起提交配置项和重新生成后的 lock。
 
 重叠数据的合并规则是显式的：
 
@@ -132,9 +133,9 @@ Source 运行时会一起提交配置项和重新生成后的 lock。
 `fluoh source remove <name>` 从工具配置中移除非官方 source。官方 Source alias
 `flutteroh` 不允许删除。该命令不拥有配置项以外的无关文件，lock 维护交给 Source 运行时。
 
-`fluoh source update [name]` 刷新全部 source 或单个指定 source。Git source 会先
-同步命令选中的 source。随后 Source 运行时会校验所有已配置 source 快照，因为 lock 是
-基于全部已配置 source 的合并索引。
+`fluoh source update [name]` 刷新全部 source 或单个指定 source。命令选中的 Git source
+会重新 clone，命令选中的 `file:` source 会从配置的本地目录重新复制。随后 Source 运行时会校验
+所有已配置 source 快照，因为 lock 是基于全部已配置 source 的合并索引。
 
 会修改 source 状态的命令把候选 config 或快照状态交给 Source 运行时。校验或 lock
 生成失败时，运行时必须保留上一份可用的 config、快照和 lock。
@@ -143,9 +144,10 @@ Source 运行时会一起提交配置项和重新生成后的 lock。
 
 `fluoh source init <path>` 创建 source root `fluoh.yaml`、
 `manifests/example/fluoh.yaml` 注释 Manifest 模板和 README。目标文件已存在时会保守
-跳过并报告。生成的 `fluoh.yaml` 是合法的空 Source 脚手架，并带有注释形式的 SDK 和
-Manifest 路由示例，维护者可按需取消注释。维护者直接编辑 Manifest 文件中的 advisory
-和 maintenance 信息；发布记录由 `fluoh source sync` 生成。
+跳过并报告。已知旧版 Source root 元数据会升级为当前 canonical layout，而不是被视为
+完整模板直接跳过。生成的 `fluoh.yaml` 是合法的空 Source 脚手架，并带有注释形式的
+repository、SDK 和 Manifest 路由示例，维护者可按需取消注释。维护者直接编辑 Manifest
+文件中的 advisory 和 maintenance 信息；发布记录由 `fluoh source sync` 生成。
 
 `fluoh source sync [path]` 读取 Source root 里的 Manifest routes，把每个
 Manifest 的 `repository.git.url` 作为 FlutterOH pub 仓库，读取 release tags，读取每个

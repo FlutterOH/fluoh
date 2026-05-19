@@ -1,6 +1,7 @@
 import 'pubspec.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
+import 'fluoh_yaml_migration.dart';
 
 const pubManifestSchema = 1;
 const initialPubReleaseVersion = '0.1.0';
@@ -19,8 +20,12 @@ class PubRepositoryManifest {
     this.upstreamPath = '.',
   });
 
-  factory PubRepositoryManifest.parse(String content) {
-    final yaml = parseYamlMap(content, label: 'fluoh.yaml');
+  factory PubRepositoryManifest.parse(String content, {String? releaseTag}) {
+    final yaml = migrateFluohYamlContent(
+      content,
+      owner: FluohYamlOwner.pubRepository,
+      releaseTag: releaseTag,
+    ).yaml;
     _ensurePubManifestSchema(yaml);
 
     ensureAllowedKeys(yaml, 'fluoh.yaml', {
@@ -174,6 +179,28 @@ class PubRepositoryManifestPackage {
       sdkVersion: sdkVersion,
       releaseVersion: version,
     );
+  }
+
+  bool matchesReleaseTag(String sdkVersion, String tag) {
+    validateReleaseVersion(version);
+    return _releaseTagCandidates(sdkVersion).contains(tag);
+  }
+
+  Set<String> _releaseTagCandidates(String sdkVersion) {
+    return {
+      pubReleaseTagForPackage(
+        packageName: name,
+        upstreamVersion: upstreamVersion,
+        sdkVersion: sdkVersion,
+        releaseVersion: version,
+      ),
+      legacyPubReleaseTagForPackage(
+        packageName: name,
+        upstreamVersion: upstreamVersion,
+        sdkVersion: sdkVersion,
+        releaseVersion: version,
+      ),
+    };
   }
 
   PubRepositoryManifestPackage copyWith({
@@ -424,7 +451,12 @@ void _ensurePubManifestSchema(Map<String, Object?> yaml) {
   if (schema is! int) {
     throw const FluohSchemaException('fluoh.yaml schema must be an integer.');
   }
-  if (schema != pubManifestSchema) {
+  if (schema > pubManifestSchema) {
+    throw FluohSchemaException(
+      'fluoh.yaml schema $schema requires a newer fluoh.',
+    );
+  }
+  if (schema < pubManifestSchema) {
     throw FluohSchemaException(
       'fluoh.yaml schema $schema is not supported for pub repositories. '
       'Expected schema $pubManifestSchema.',

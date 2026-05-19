@@ -16,6 +16,14 @@
 | Source | 记录 Source 元数据、可安装 SDK 版本和 Manifest 路由。 |
 | Manifest | 记录已发布、可被项目消费的 FlutterOH package 适配记录。 |
 
+### 兼容性
+
+`schema` 是面向未来版本的安全边界。当文件声明的 schema 高于当前 `fluoh`
+支持范围时，命令必须停止并提示用户升级 `fluoh`，不能猜测解析。新版 `fluoh`
+可以在校验当前模型前，把已知旧版 `fluoh.yaml` layout 先在内存中归一化。原本就会
+重写文件的命令，可以在正常更新流程中写回当前 canonical layout。未知或可能丢失信息的
+layout 必须失败并给出可执行的处理建议，不能自动改写。
+
 ### Project
 
 项目配置保持很小：
@@ -163,7 +171,7 @@ repository:
     url: https://github.com/FlutterOH/pub.git
 
 environment:
-  fluoh: ">=0.1.0"
+  fluoh: '>=0.1.0'
 
 sdk:
   git:
@@ -183,7 +191,8 @@ manifests:
 - `kind` 必填，固定为 `source`。
 - `name` 必填，是 Source 自描述名称，不要求等于本机 `config.json` 中的 Source alias。
 - `description` 可选。
-- `repository.git.url` 必填，可以是 HTTPS URL、SSH URL、`file:` URL 或本地路径。
+- `repository.git.url` 可选，是 Source 自描述元数据。维护者需要记录 Source 自身发布
+  位置时，可以填写 HTTPS URL、SSH URL、`file:` URL 或本地路径。
 - `environment.fluoh` 可选，表示最低 `fluoh` 版本要求。
 - `sdk` 和 `manifests` 都是可选项。Source 可以是既没有 SDK 版本、也没有 Manifest
   route 的空脚手架；它是合法配置，但合并时不贡献数据。
@@ -304,6 +313,8 @@ packages:
 - `releases[].version` 必填，是 FlutterOH 适配发布版本，使用数字点分格式，例如
   `1` 或 `0.1.0`，不带 `v` 前缀。
 - `releases[].upstreamVersion` 必填，是对应的 upstream package 版本。
+- `releases[].tag` 可选。当前 canonical tag 不需要写；`fluoh source sync`
+  只会在需要保留已有非 canonical release tag（例如旧版 tag）时写入。
 - `releases[].status` 可选；不写表示 `compatible`。只有适配中或已知不可用时才写
   `experimental` 或 `broken`。
 - `fluoh pub check/fix/upgrade` 默认只推荐 `compatible` 发布记录。
@@ -320,7 +331,7 @@ SDK 版本线推导规则在 Package 分支、Manifest key 和 release tag 中�
 
 不符合该格式的完整 SDK 版本校验失败。
 
-release tag 字符串不在 Manifest 中重复保存，而是按约定派生：
+release tag 字符串通常不在 Manifest 中重复保存，而是按约定派生：
 
 ```text
 <package>-<upstreamVersion>-ohos-<sdkLine>-<version>
@@ -383,7 +394,7 @@ path_provider-2.1.5-ohos-3.35-0.2.0
       "priority": 0
     },
     "local": {
-      "url": "/Users/user/source/pub",
+      "url": "file:///Users/user/source/pub",
       "path": "/home/user/.fluoh/sources/local",
       "priority": 10
     }
@@ -395,9 +406,9 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 
 - 官方 Source alias 固定为 `flutteroh`，默认 priority 为 `0`，不允许删除。
 - 用户新增 Source 默认 priority 为 `10`。数值越大优先级越高。
-- `url` 支持 HTTPS URL、SSH URL、`file:` URL 和本地路径。
-- HTTPS/SSH URL 走 Git clone/update；本地路径和 `file:` URL 复制校验后的 Source
-  快照。
+- `url` 支持 HTTPS URL、SSH URL 和 `file:` URL。`fluoh source add` 会把用户传入的
+  本地路径规范化为绝对 `file:` URL。
+- HTTPS/SSH URL 走 Git clone/update；`file:` URL 复制校验后的 Source 快照。
 - `path` 是本机缓存路径。
 - Source 缓存只保留最新校验通过的快照，不保留 Git 历史和无关仓库文件。
 

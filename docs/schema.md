@@ -18,6 +18,16 @@ schema from the execution context, not from the filename alone.
 | Source | Records Source metadata, installable SDK versions, and Manifest routing. |
 | Manifest | Records released FlutterOH package adaptation records consumable by projects. |
 
+### Compatibility
+
+`schema` is a forward-safety boundary. When a file declares a schema newer than
+the running `fluoh` supports, commands stop and ask the user to upgrade `fluoh`
+instead of guessing. Newer `fluoh` releases may normalize known older
+`fluoh.yaml` layouts in memory before validating the current model. Commands
+that already rewrite a file may write the current canonical layout as part of
+their normal update. Unknown or lossy layouts must fail with an actionable
+message instead of being rewritten.
+
 ### Project
 
 Project config stays small:
@@ -185,7 +195,7 @@ repository:
     url: https://github.com/FlutterOH/pub.git
 
 environment:
-  fluoh: ">=0.1.0"
+  fluoh: '>=0.1.0'
 
 sdk:
   git:
@@ -206,8 +216,9 @@ Rules:
 - `name` is required. It is Source self-description and does not need to match
   the local Source alias in `config.json`.
 - `description` is optional.
-- `repository.git.url` is required and can be an HTTPS URL, SSH URL, `file:`
-  URL, or local path.
+- `repository.git.url` is optional Source self-description. It can be an HTTPS
+  URL, SSH URL, `file:` URL, or local path when maintainers want to record
+  where the Source itself is published.
 - `environment.fluoh` is optional and defines the minimum `fluoh` version.
 - `sdk` and `manifests` are both optional. A Source can be an empty scaffold
   with neither SDK versions nor Manifest routes; it is valid but contributes no
@@ -341,6 +352,9 @@ Rules:
   no `v` prefix.
 - `releases[].upstreamVersion` is required and is the corresponding upstream
   package version.
+- `releases[].tag` is optional. Omit it for current canonical tags; `fluoh
+  source sync` writes it only when preserving an existing non-canonical release
+  tag, such as a legacy tag.
 - `releases[].status` is optional. Omitted means `compatible`; write
   `experimental` or `broken` only for in-progress or known-bad records.
 - `fluoh pub check/fix/upgrade` recommends only `compatible` release records by
@@ -360,7 +374,7 @@ numeric components:
 
 Complete SDK versions that do not match this shape fail validation.
 
-Release tag strings are derived rather than repeated in Manifest data:
+Release tag strings are normally derived rather than repeated in Manifest data:
 
 ```text
 <package>-<upstreamVersion>-ohos-<sdkLine>-<version>
@@ -430,7 +444,7 @@ Tool config remains JSON because it is machine-owned runtime state:
       "priority": 0
     },
     "local": {
-      "url": "/Users/user/source/pub",
+      "url": "file:///Users/user/source/pub",
       "path": "/home/user/.fluoh/sources/local",
       "priority": 10
     }
@@ -443,9 +457,10 @@ Rules:
 - The official Source alias is `flutteroh`, its default priority is `0`, and it
   cannot be removed.
 - User-added Sources default to priority `10`. Higher values win.
-- `url` supports HTTPS URLs, SSH URLs, `file:` URLs, and local paths.
-- HTTPS/SSH URLs use Git clone/update. Local paths and `file:` URLs are copied
-  into validated Source snapshots.
+- `url` supports HTTPS URLs, SSH URLs, and `file:` URLs. `fluoh source add`
+  normalizes user-provided local paths to absolute `file:` URLs.
+- HTTPS/SSH URLs use Git clone/update. `file:` URLs are copied into validated
+  Source snapshots.
 - `path` is the local cache path.
 - Source caches store only the latest validated snapshot. Git history and
   unrelated repository files are not kept.

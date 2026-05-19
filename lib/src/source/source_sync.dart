@@ -105,6 +105,7 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   }
 
   try {
+    await _rejectUnreadableLegacySourceSidecars(sourceConfig.directory);
     await _validateSourceEnvironment(source);
     for (final entry in present) {
       await entry.validate();
@@ -119,6 +120,29 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
       '',
     );
   }
+}
+
+Future<void> _rejectUnreadableLegacySourceSidecars(Directory source) async {
+  final hasLegacySdkSidecars = await File(
+    '${source.path}/sdk/releases.yaml',
+  ).exists();
+  final hasLegacyPackageSidecars =
+      await Directory('${source.path}/packages/manifests').exists() ||
+      await File('${source.path}/packages/repositories.yaml').exists();
+  if (!hasLegacySdkSidecars && !hasLegacyPackageSidecars) {
+    return;
+  }
+
+  final manifest = await SourceIndex.directory(source).loadRootManifest();
+  if ((!hasLegacySdkSidecars || manifest.sdkRepository != null) &&
+      (!hasLegacyPackageSidecars || manifest.manifests.isNotEmpty)) {
+    return;
+  }
+  throw const FormatException(
+    'legacy source layout stores SDK or package indexes outside source '
+    'fluoh.yaml. Recreate the source with current fluoh source init and '
+    'source sync.',
+  );
 }
 
 Future<void> _validateSourceEnvironment(SourceIndex source) async {
@@ -196,6 +220,11 @@ Directory? localSourceDirectoryFromUrl(String? value) {
     return null;
   }
 
+  final path = value.substring('file:'.length);
+  if (!path.startsWith('/')) {
+    return Directory(Uri.decodeComponent(path));
+  }
+
   try {
     final uri = Uri.parse(value);
     if (uri.scheme != 'file') {
@@ -206,9 +235,9 @@ Directory? localSourceDirectoryFromUrl(String? value) {
     }
     return Directory(Uri.decodeComponent(uri.path));
   } on FormatException {
-    return Directory(value.substring('file:'.length));
+    return Directory(path);
   } on UnsupportedError {
-    return Directory(value.substring('file:'.length));
+    return Directory(path);
   }
 }
 

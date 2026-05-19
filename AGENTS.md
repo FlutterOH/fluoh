@@ -10,7 +10,7 @@
 - `lib/fluoh.dart`: public package API and command runner export.
 - `lib/src/cli/`: command runner wiring.
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
-- `lib/src/schema/`: internal YAML/JSON/text schema models, validation, canonical generation, and pure rewrite rules.
+- `lib/src/schema/`: internal YAML/JSON/text schema models, validation, migration, canonical generation, and pure rewrite rules.
 - `lib/src/source/`: FlutterOH data source registry and YAML source loading.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
 - `lib/src/pub/`: pub dependency analysis and commands, plus repository create, sync, and release workflows.
