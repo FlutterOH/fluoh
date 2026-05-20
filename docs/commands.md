@@ -59,9 +59,14 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
   snapshot, repairs snapshots when possible, rebuilds the merged lock, and only
   then commits the new local Source state.
 - Commands that consume Source data access it only through the Source runtime's
-  load-index API. That API bootstraps the first default Source configuration,
-  verifies or repairs configured source snapshots, and regenerates missing or
-  stale `sources.lock.json` before returning data.
+  load-index API. That API bootstraps the first default Source configuration and
+  returns a fresh `sources.lock.json` when recorded inputs still match. When the
+  lock is missing, stale, or uses an older package-lock shape, the runtime
+  verifies or repairs configured source snapshots and regenerates the lock
+  before returning data.
+- `fluoh source` without a subcommand and `fluoh source list` use the same
+  Source runtime rebuild path before printing configuration, so users see
+  invalid or missing source state before relying on listed sources.
 - `fluoh pub get` skips package Source data so dependency resolution remains
   available when source snapshots need repair. `fluoh flutter`, `fluohf`,
   `fluoh clean`, and `fluoh pub get` may still load the Source index through the
@@ -126,10 +131,10 @@ snapshot is the validated local copy of a Source stored under
 
 ### Consumer Commands
 
-`fluoh source list` ensures configured source snapshots and the merged Source
-lock are usable through the Source runtime, then prints each configured source
-name and display value from `$FLUOH_HOME/config.json`. Empty configuration is a
-warning, not an error.
+`fluoh source list` first asks the Source runtime to ensure configured source
+snapshots and `sources.lock.json` are usable, then reads `$FLUOH_HOME/config.json`
+and prints each configured source name and display value. Empty configuration is
+a warning, not an error.
 
 `fluoh source add <name> <url-or-path>` validates the source name, refuses to
 replace the official source name, and stores a cache path under
@@ -243,7 +248,9 @@ the Source index only for the lookup needed to install that SDK.
 `fluoh pub check` reads dependency policy from project `fluoh.yaml`, builds a
 dependency plan from configured sources, and groups dependencies into ready,
 needs decision, manual action, unavailable, already OK, transitive, and
-advisory sections. `--json` prints the same plan as machine-readable JSON.
+advisory sections. A fresh Source lock provides package route hints; the command
+then reads only the Manifest files that can contain packages from the project
+lockfile. `--json` prints the same plan as machine-readable JSON.
 
 `fluoh pub fix` applies recommended FlutterOH adaptation changes from the
 dependency plan. It writes to either `dependency_overrides` or direct dependency

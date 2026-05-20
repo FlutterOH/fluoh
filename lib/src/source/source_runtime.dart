@@ -17,14 +17,17 @@ class SourceRuntime {
   final FluohEnvironment environment;
 
   Future<SdkIndex> loadSdkIndex() async {
-    return (await _loadResolvedLock(includePackages: false)).sdkIndex;
+    return (await _loadResolvedLock()).sdkIndex;
   }
 
   Future<PackageIndex> loadPackageIndex({Set<String>? packageNames}) async {
-    return (await _loadResolvedLock(
-      includeSdk: false,
+    final config = await FluohConfigStore(environment).load();
+    final lock = await _loadResolvedLock(config: config);
+    return _buildPackageIndex(
+      config,
       packageNames: packageNames,
-    )).packageIndex;
+      packageRoutes: lock.packageRoutes,
+    );
   }
 
   Future<CompatibilityMatrix> loadCompatibilityMatrix({
@@ -41,7 +44,7 @@ class SourceRuntime {
   }) async {
     final resolvedConfig = config ?? await FluohConfigStore(environment).load();
     await ensureSourceSnapshots(resolvedConfig, output: output);
-    await _writeLock(await _buildLock(resolvedConfig));
+    await _writeLock(await _buildLock(resolvedConfig, ensureSnapshots: false));
   }
 
   Future<void> saveConfigAndRebuildLock(
@@ -88,23 +91,28 @@ class SourceRuntime {
     }
   }
 
-  Future<_ResolvedSourceLock> _loadResolvedLock({
-    bool includeSdk = true,
-    bool includePackages = true,
-    Set<String>? packageNames,
-  }) async {
-    final config = await FluohConfigStore(environment).load();
-    await ensureSourceSnapshots(config);
-    final inputs = await _lockInputs(config);
-    final current = await _readLock(
-      includeSdk: includeSdk,
-      includePackages: includePackages,
-      packageNames: packageNames,
-    );
-    if (current != null && _jsonEqual(current.inputs, inputs)) {
+  Future<_ResolvedSourceLock> _loadResolvedLock({FluohConfig? config}) async {
+    final resolvedConfig = config ?? await FluohConfigStore(environment).load();
+    final inputs = await _lockInputs(resolvedConfig);
+    final current = await _readLock();
+    if (current != null &&
+        current.packageRoutes != null &&
+        _jsonEqual(current.inputs, inputs)) {
       return current;
     }
-    final lock = await _buildLock(config, inputs: inputs);
+    await ensureSourceSnapshots(resolvedConfig);
+    final refreshedInputs = await _lockInputs(resolvedConfig);
+    final refreshed = await _readLock();
+    if (refreshed != null &&
+        refreshed.packageRoutes != null &&
+        _jsonEqual(refreshed.inputs, refreshedInputs)) {
+      return refreshed;
+    }
+    final lock = await _buildLock(
+      resolvedConfig,
+      inputs: refreshedInputs,
+      ensureSnapshots: false,
+    );
     await _writeLock(lock);
     return lock;
   }
@@ -113,16 +121,19 @@ class SourceRuntime {
     FluohConfig config, {
     TerminalOutput? output,
     Map<String, Object?>? inputs,
+    bool ensureSnapshots = true,
   }) async {
-    await ensureSourceSnapshots(config, output: output);
+    if (ensureSnapshots) {
+      await ensureSourceSnapshots(config, output: output);
+    }
     final sdkIndex = await _buildSdkIndex(config);
-    final packageIndex = await _buildPackageIndex(config);
+    final packageRoutes = await _buildPackageRoutes(config);
     return _ResolvedSourceLock(
       generatedBy: 'fluoh $packageVersion',
       generatedAt: DateTime.now().toUtc().toIso8601String(),
       inputs: inputs ?? await _lockInputs(config),
       sdkIndex: sdkIndex,
-      packageIndex: packageIndex,
+      packageRoutes: packageRoutes,
     );
   }
 
@@ -169,13 +180,49 @@ class SourceRuntime {
     );
   }
 
+  Future<_PackageRouteLock> _buildPackageRoutes(FluohConfig config) async {
+    final sources = await _readableSources(
+      config: config,
+      hasIndex: (source) => source.hasPackageIndex,
+    );
+    final manifests = <String, Map<String, Map<String, List<String>>>>{};
+
+    for (final source in sources) {
+      final routeIndex = await _loadSourceIndex(
+        source,
+        (pubSource) => pubSource.loadPackageRouteIndex(),
+      );
+      if (routeIndex.manifests.isNotEmpty) {
+        manifests[source.name] = {
+          for (final entry in _sortedRouteManifests(routeIndex.manifests))
+            entry.name: {
+              for (final packageEntry in _sortedPackageRoutes(entry.packages))
+                packageEntry.key: packageEntry.value,
+            },
+        };
+      }
+    }
+
+    return _PackageRouteLock(
+      manifests: {
+        for (final sourceName in _sortedStrings(manifests.keys))
+          sourceName: {
+            for (final entry in _sortedManifestRoutes(manifests[sourceName]!))
+              entry.key: entry.value,
+          },
+      },
+    );
+  }
+
   Future<PackageIndex> _buildPackageIndex(
     FluohConfig config, {
     Set<String>? packageNames,
+    _PackageRouteLock? packageRoutes,
   }) async {
     final sources = await _readableSources(
       config: config,
       hasIndex: (source) => source.hasPackageIndex,
+      validate: packageRoutes == null,
     );
     final packages = <String, PackageEntry>{};
     final groupPriorities = <String, int>{};
@@ -183,9 +230,19 @@ class SourceRuntime {
     final seenReplacements = <String, _Replacement>{};
 
     for (final source in sources) {
+      final manifestNames = packageRoutes?.manifestNamesForSource(
+        source.name,
+        packageNames,
+      );
+      if (manifestNames != null && manifestNames.isEmpty) {
+        continue;
+      }
       final index = await _loadSourceIndex(
         source,
-        (pubSource) => pubSource.loadPackageIndex(packageNames: packageNames),
+        (pubSource) => pubSource.loadPackageIndex(
+          packageNames: packageNames,
+          manifestNames: manifestNames,
+        ),
       );
       for (final packageEntry in index.packages.entries) {
         final packageName = packageEntry.key;
@@ -306,6 +363,7 @@ class SourceRuntime {
   Future<List<_NamedSource>> _readableSources({
     required FluohConfig config,
     required bool Function(SourceIndex source) hasIndex,
+    bool validate = true,
   }) async {
     final sources = <_NamedSource>[];
     for (final entry in config.sources.entries) {
@@ -314,10 +372,12 @@ class SourceRuntime {
       if (!hasIndex(index)) {
         continue;
       }
-      try {
-        await validateSource(source.name, source.config);
-      } on UsageException {
-        continue;
+      if (validate) {
+        try {
+          await validateSource(source.name, source.config);
+        } on UsageException {
+          continue;
+        }
       }
       sources.add(source);
     }
@@ -377,11 +437,7 @@ class SourceRuntime {
     };
   }
 
-  Future<_ResolvedSourceLock?> _readLock({
-    bool includeSdk = true,
-    bool includePackages = true,
-    Set<String>? packageNames,
-  }) async {
+  Future<_ResolvedSourceLock?> _readLock() async {
     final file = environment.sourcesLockFile;
     if (!await file.exists()) {
       return null;
@@ -391,13 +447,10 @@ class SourceRuntime {
       if (decoded is! Map<String, Object?>) {
         return null;
       }
-      return _ResolvedSourceLock.fromJson(
-        decoded,
-        includeSdk: includeSdk,
-        includePackages: includePackages,
-        packageNames: packageNames,
-      );
+      return _resolvedSourceLockFromJson(decoded.cast<String, Object?>());
     } on FormatException {
+      return null;
+    } on FileSystemException {
       return null;
     }
   }
@@ -405,13 +458,12 @@ class SourceRuntime {
   Future<void> _writeLock(_ResolvedSourceLock lock) async {
     final file = environment.sourcesLockFile;
     await file.parent.create(recursive: true);
-    final content = const JsonEncoder.withIndent('  ').convert(lock.toJson());
     final temp = File(
       '${file.path}.fluoh-next-${DateTime.now().microsecondsSinceEpoch}',
     );
     File? backup;
     try {
-      await temp.writeAsString(content);
+      await temp.writeAsString('${_encodeSourceLockJson(lock.toJson())}\n');
       if (await file.exists()) {
         backup = File(
           '${file.path}.fluoh-previous-'
@@ -435,6 +487,100 @@ class SourceRuntime {
   }
 }
 
+const _sourceLockInlineJsonMaxLength = 120;
+
+String _encodeSourceLockJson(Object? value) {
+  final buffer = StringBuffer();
+  _writeSourceLockJsonValue(buffer, value, 0, allowInline: false);
+  return buffer.toString();
+}
+
+void _writeSourceLockJsonValue(
+  StringBuffer buffer,
+  Object? value,
+  int indent, {
+  bool allowInline = true,
+}) {
+  if (allowInline) {
+    final inline = _inlineSourceLockJson(value);
+    if (inline != null) {
+      buffer.write(inline);
+      return;
+    }
+  }
+
+  if (value is Map) {
+    _writeSourceLockJsonMap(buffer, value, indent);
+    return;
+  }
+  if (value is Iterable) {
+    _writeSourceLockJsonList(buffer, value.toList(growable: false), indent);
+    return;
+  }
+  buffer.write(jsonEncode(value));
+}
+
+String? _inlineSourceLockJson(Object? value) {
+  if (value is! Map && value is! Iterable) {
+    return jsonEncode(value);
+  }
+  final encoded = jsonEncode(value);
+  return encoded.length <= _sourceLockInlineJsonMaxLength ? encoded : null;
+}
+
+void _writeSourceLockJsonMap(
+  StringBuffer buffer,
+  Map<Object?, Object?> map,
+  int indent,
+) {
+  if (map.isEmpty) {
+    buffer.write('{}');
+    return;
+  }
+  buffer.write('{\n');
+  final entries = map.entries.toList(growable: false);
+  for (var index = 0; index < entries.length; index += 1) {
+    final entry = entries[index];
+    _writeSourceLockJsonIndent(buffer, indent + 1);
+    buffer
+      ..write(jsonEncode('${entry.key}'))
+      ..write(': ');
+    _writeSourceLockJsonValue(buffer, entry.value, indent + 1);
+    if (index != entries.length - 1) {
+      buffer.write(',');
+    }
+    buffer.write('\n');
+  }
+  _writeSourceLockJsonIndent(buffer, indent);
+  buffer.write('}');
+}
+
+void _writeSourceLockJsonList(
+  StringBuffer buffer,
+  List<Object?> list,
+  int indent,
+) {
+  if (list.isEmpty) {
+    buffer.write('[]');
+    return;
+  }
+  buffer.write('[\n');
+  for (var index = 0; index < list.length; index += 1) {
+    _writeSourceLockJsonIndent(buffer, indent + 1);
+    _writeSourceLockJsonValue(buffer, list[index], indent + 1);
+    if (index != list.length - 1) {
+      buffer.write(',');
+    }
+    buffer.write('\n');
+  }
+  _writeSourceLockJsonIndent(buffer, indent);
+  buffer.write(']');
+}
+
+void _writeSourceLockJsonIndent(StringBuffer buffer, int indent) {
+  buffer.write('  ' * indent);
+}
+
 String _fileSystemMessage(FileSystemException error) {
   final path = error.path;
   if (path == null || path.isEmpty) {
@@ -452,33 +598,14 @@ class _ResolvedSourceLock {
     required this.generatedAt,
     required this.inputs,
     required this.sdkIndex,
-    required this.packageIndex,
+    required this.packageRoutes,
   });
-
-  factory _ResolvedSourceLock.fromJson(
-    Map<String, Object?> json, {
-    bool includeSdk = true,
-    bool includePackages = true,
-    Set<String>? packageNames,
-  }) {
-    return _ResolvedSourceLock(
-      generatedBy: _optionalString(json['generatedBy']) ?? '',
-      generatedAt: _optionalString(json['generatedAt']) ?? '',
-      inputs: _jsonObject(json['inputs'], 'sources.lock.json inputs'),
-      sdkIndex: includeSdk
-          ? _sdkIndexFromLock(json)
-          : const SdkIndex(schemaVersion: 1, releases: []),
-      packageIndex: includePackages
-          ? _packageIndexFromLock(json, packageNames: packageNames)
-          : const PackageIndex(schemaVersion: 1, packages: {}),
-    );
-  }
 
   final String generatedBy;
   final String generatedAt;
   final Map<String, Object?> inputs;
   final SdkIndex sdkIndex;
-  final PackageIndex packageIndex;
+  final _PackageRouteLock? packageRoutes;
 
   Map<String, Object?> toJson() {
     return {
@@ -488,25 +615,118 @@ class _ResolvedSourceLock {
       'sdk': {
         'versions': {
           for (final release in _sortedSdkReleases(sdkIndex.releases))
-            release.version: {
-              if (release.sourceName != null) 'source': release.sourceName,
-              'priority': release.sourcePriority,
-              'versionSeries': release.versionSeries,
-              'flutterVersion': release.flutterVersion,
-              'channel': release.channel,
-              'tag': release.tag,
-              if (release.publishedAt != null)
-                'publishedAt': release.publishedAt,
-              'git': {'url': release.repository},
-            },
+            release.version: _sdkReleaseToJson(release),
         },
       },
-      'packages': {
-        for (final entry in _sortedPackageEntries(packageIndex.packages))
-          entry.key: _packageEntryToJson(entry.value),
+      'packages': packageRoutes?.toJson() ?? _PackageRouteLock.empty.toJson(),
+    };
+  }
+}
+
+_ResolvedSourceLock _resolvedSourceLockFromJson(Map<String, Object?> json) {
+  return _ResolvedSourceLock(
+    generatedBy: _optionalString(json['generatedBy']) ?? '',
+    generatedAt: _optionalString(json['generatedAt']) ?? '',
+    inputs: _jsonObject(json['inputs'], 'sources.lock.json inputs'),
+    sdkIndex: _sdkIndexFromLock(json),
+    packageRoutes: _packageRouteLockFromJson(json['packages']),
+  );
+}
+
+class _PackageRouteLock {
+  const _PackageRouteLock({required this.manifests});
+
+  static const empty = _PackageRouteLock(
+    manifests: <String, Map<String, Map<String, List<String>>>>{},
+  );
+
+  final Map<String, Map<String, Map<String, List<String>>>> manifests;
+
+  Set<String>? manifestNamesForSource(
+    String sourceName,
+    Set<String>? packageNames,
+  ) {
+    if (packageNames == null) {
+      return null;
+    }
+    final sourceManifests = manifests[sourceName];
+    if (sourceManifests == null) {
+      return <String>{};
+    }
+    return {
+      for (final entry in sourceManifests.entries)
+        if (entry.value.keys.any(packageNames.contains)) entry.key,
+    };
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'manifests': {
+        for (final sourceEntry in manifests.entries)
+          sourceEntry.key: {
+            for (final manifestEntry in sourceEntry.value.entries)
+              manifestEntry.key: manifestEntry.value,
+          },
       },
     };
   }
+}
+
+_PackageRouteLock? _packageRouteLockFromJson(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  final json = _jsonObject(value, 'sources.lock.json packages');
+  final manifests = _jsonObject(
+    json['manifests'],
+    'sources.lock.json packages.manifests',
+  );
+  return _PackageRouteLock(
+    manifests: {
+      for (final sourceEntry in manifests.entries)
+        sourceEntry.key: _packageManifestRoutesFromJson(
+          sourceEntry.value,
+          'sources.lock.json packages.manifests.${sourceEntry.key}',
+        ),
+    },
+  );
+}
+
+Map<String, Map<String, List<String>>> _packageManifestRoutesFromJson(
+  Object? value,
+  String label,
+) {
+  final json = _jsonObject(value, label);
+  return {
+    for (final entry in json.entries)
+      entry.key: _packageSdkLinesFromJson(entry.value, '$label.${entry.key}'),
+  };
+}
+
+Map<String, List<String>> _packageSdkLinesFromJson(
+  Object? value,
+  String label,
+) {
+  final json = _jsonObject(value, label);
+  return {
+    for (final entry in json.entries)
+      entry.key: _jsonStringList(entry.value, '$label.${entry.key}'),
+  };
+}
+
+Map<String, Object?> _sdkReleaseToJson(SdkRelease release) {
+  return {
+    if (release.sourceName != null) 'source': release.sourceName,
+    if (release.versionSeries !=
+        sdkVersionSeriesFromSdkVersion(release.version))
+      'versionSeries': release.versionSeries,
+    if (release.flutterVersion != flutterVersionFromSdkVersion(release.version))
+      'flutterVersion': release.flutterVersion,
+    if (release.channel != 'stable') 'channel': release.channel,
+    if (release.tag != release.version) 'tag': release.tag,
+    if (release.publishedAt != null) 'publishedAt': release.publishedAt,
+    'git': {'url': release.repository},
+  };
 }
 
 SdkIndex _sdkIndexFromLock(Map<String, Object?> json) {
@@ -546,232 +766,6 @@ SdkRelease _sdkReleaseFromLock(String version, Object? value) {
   );
 }
 
-PackageIndex _packageIndexFromLock(
-  Map<String, Object?> json, {
-  Set<String>? packageNames,
-}) {
-  final packages = _optionalJsonObject(
-    json['packages'],
-    'sources.lock.json packages',
-  );
-  if (packages == null) {
-    return const PackageIndex(schemaVersion: 1, packages: {});
-  }
-  return PackageIndex(
-    schemaVersion: 1,
-    packages: {
-      for (final entry in packages.entries)
-        if (packageNames == null || packageNames.contains(entry.key))
-          entry.key: _packageEntryFromLock(entry.key, entry.value),
-    },
-  );
-}
-
-PackageEntry _packageEntryFromLock(String name, Object? value) {
-  final json = _jsonObject(value, 'sources.lock.json packages.$name');
-  final repository = _jsonObject(json['repository'], '$name.repository');
-  final repositoryGit = _jsonObject(repository['git'], '$name.repository.git');
-  final upstream = _jsonObject(json['upstream'], '$name.upstream');
-  final upstreamGit = _jsonObject(upstream['git'], '$name.upstream.git');
-  final upstreamBranch = _optionalString(upstreamGit['branch']) ?? 'main';
-  final repositoryUrl = _requiredString(
-    repositoryGit['url'],
-    '$name.repository.git.url',
-  );
-  final repositoryPath = _optionalString(repository['path']);
-  final upstreamPath = _optionalString(upstream['path']);
-  final packageSource = _optionalString(json['source']);
-  final packagePriority = _optionalInt(json['priority']) ?? 0;
-  final sdks = _optionalJsonObject(json['sdks'], '$name.sdks');
-  final implementations = <PackageImplementation>[];
-  final compatibility = <SourceCompatibilityStatus>[];
-
-  if (sdks != null) {
-    for (final sdkEntry in sdks.entries) {
-      final sdkLine = sdkEntry.key;
-      final sdkJson = _jsonObject(sdkEntry.value, '$name.sdks.$sdkLine');
-      final releases = _jsonList(
-        sdkJson['releases'],
-        '$name.sdks.$sdkLine.releases',
-      );
-      for (final releaseValue in releases) {
-        final release = _jsonObject(
-          releaseValue,
-          '$name.sdks.$sdkLine.releases[]',
-        );
-        final status = _optionalString(release['status']) ?? 'compatible';
-        if (status != 'compatible') {
-          continue;
-        }
-        final upstreamVersion = _requiredString(
-          release['upstreamVersion'],
-          '$name upstreamVersion',
-        );
-        final version = _requiredString(release['version'], '$name version');
-        final sourceName = _optionalString(release['source']) ?? packageSource;
-        final sourcePriority =
-            _optionalInt(release['priority']) ?? packagePriority;
-        final releaseRepository = _optionalJsonObject(
-          release['repository'],
-          '$name.sdks.$sdkLine.releases[].repository',
-        );
-        final releaseRepositoryGit = releaseRepository == null
-            ? null
-            : _optionalJsonObject(
-                releaseRepository['git'],
-                '$name.sdks.$sdkLine.releases[].repository.git',
-              );
-        final releaseUpstream = _optionalJsonObject(
-          release['upstream'],
-          '$name.sdks.$sdkLine.releases[].upstream',
-        );
-        final releaseUpstreamGit = releaseUpstream == null
-            ? null
-            : _optionalJsonObject(
-                releaseUpstream['git'],
-                '$name.sdks.$sdkLine.releases[].upstream.git',
-              );
-        implementations.add(
-          PackageImplementation(
-            sdkLine: sdkLine,
-            upstreamVersion: upstreamVersion,
-            repository: releaseRepositoryGit == null
-                ? repositoryUrl
-                : _requiredString(
-                    releaseRepositoryGit['url'],
-                    '$name.sdks.$sdkLine.releases[].repository.git.url',
-                  ),
-            tag:
-                _optionalString(release['tag']) ??
-                pubReleaseTagForPackage(
-                  packageName: name,
-                  upstreamVersion: upstreamVersion,
-                  sdkVersion: '$sdkLine.0-ohos-0.0.0',
-                  releaseVersion: version,
-                ),
-            version: version,
-            path: _optionalString(releaseRepository?['path']) ?? repositoryPath,
-            upstreamPath:
-                _optionalString(releaseUpstream?['path']) ?? upstreamPath,
-            upstreamBranch:
-                _optionalString(releaseUpstreamGit?['branch']) ??
-                upstreamBranch,
-            sourceName: sourceName,
-            sourcePriority: sourcePriority,
-          ),
-        );
-        compatibility.add(
-          SourceCompatibilityStatus(
-            sdkLine: sdkLine,
-            upstreamVersion: upstreamVersion,
-            status: 'implemented',
-          ),
-        );
-      }
-    }
-  }
-
-  return PackageEntry(
-    repository: repositoryUrl,
-    upstream: _requiredString(upstreamGit['url'], '$name.upstream.git.url'),
-    repositoryPath: repositoryPath,
-    upstreamPath: upstreamPath,
-    upstreamBranch: upstreamBranch,
-    implementations: implementations,
-    compatibility: compatibility,
-    maintenance: _maintenanceFromLock(json['maintenance']),
-    advisory: _advisoryFromLock(json['advisory']),
-  );
-}
-
-Map<String, Object?> _packageEntryToJson(PackageEntry entry) {
-  final source = _packageEntrySource(entry);
-  return {
-    if (source != null) 'source': source.name,
-    if (source != null) 'priority': source.priority,
-    'repository': {
-      'git': {'url': entry.repository},
-      if (entry.repositoryPath != null && entry.repositoryPath != '.')
-        'path': entry.repositoryPath,
-    },
-    'upstream': {
-      'git': {'url': entry.upstream, 'branch': entry.upstreamBranch},
-      if (entry.upstreamPath != null && entry.upstreamPath != '.')
-        'path': entry.upstreamPath,
-    },
-    if (entry.maintenance != null)
-      'maintenance': _maintenanceToJson(entry.maintenance!),
-    if (entry.advisory != null && entry.advisory!.toJson().isNotEmpty)
-      'advisory': entry.advisory!.toJson(),
-    'sdks': _packageSdksToJson(entry),
-  };
-}
-
-Map<String, Object?> _packageSdksToJson(PackageEntry entry) {
-  final grouped = <String, List<PackageImplementation>>{};
-  final source = _packageEntrySource(entry);
-  for (final implementation in entry.implementations) {
-    grouped
-        .putIfAbsent(implementation.sdkLine, () => <PackageImplementation>[])
-        .add(implementation);
-  }
-  final sdkLines = grouped.keys.toList(growable: false)..sort();
-  return {
-    for (final sdkLine in sdkLines)
-      sdkLine: {
-        'releases': [
-          for (final implementation in _sortedImplementations(
-            grouped[sdkLine]!,
-          ))
-            _packageImplementationToJson(
-              entry: entry,
-              source: source,
-              implementation: implementation,
-            ),
-        ],
-      },
-  };
-}
-
-Map<String, Object?> _packageImplementationToJson({
-  required PackageEntry entry,
-  required ({String name, int priority})? source,
-  required PackageImplementation implementation,
-}) {
-  final repository = <String, Object?>{
-    if (implementation.repository != entry.repository)
-      'git': {'url': implementation.repository},
-    if (implementation.path != null &&
-        implementation.path != '.' &&
-        implementation.path != entry.repositoryPath)
-      'path': implementation.path,
-  };
-  final upstreamGit = <String, Object?>{
-    if (implementation.upstreamBranch != entry.upstreamBranch)
-      'branch': implementation.upstreamBranch,
-  };
-  final upstream = <String, Object?>{
-    if (upstreamGit.isNotEmpty) 'git': upstreamGit,
-    if (implementation.upstreamPath != null &&
-        implementation.upstreamPath != '.' &&
-        implementation.upstreamPath != entry.upstreamPath)
-      'path': implementation.upstreamPath,
-  };
-
-  return {
-    'version': implementation.version,
-    'upstreamVersion': implementation.upstreamVersion,
-    'tag': implementation.tag,
-    if (repository.isNotEmpty) 'repository': repository,
-    if (upstream.isNotEmpty) 'upstream': upstream,
-    if (implementation.sourceName != null &&
-        implementation.sourceName != source?.name)
-      'source': implementation.sourceName,
-    if (implementation.sourcePriority != source?.priority)
-      'priority': implementation.sourcePriority,
-  };
-}
-
 CompatibilityMatrix _compatibilityMatrixFromPackageIndex(PackageIndex index) {
   final versions = <String, List<String>>{};
   for (final entry in index.packages.entries) {
@@ -797,87 +791,34 @@ CompatibilityMatrix _compatibilityMatrixFromPackageIndex(PackageIndex index) {
   );
 }
 
-SourcePackageMaintenance? _maintenanceFromLock(Object? value) {
-  if (value == null) {
-    return null;
-  }
-  final json = _jsonObject(value, 'maintenance');
-  return SourcePackageMaintenance(
-    status: _optionalString(json['status']) ?? 'active',
-    reason: _optionalString(json['reason']),
-  );
-}
-
-Map<String, Object?> _maintenanceToJson(SourcePackageMaintenance maintenance) {
-  return {
-    'status': maintenance.status,
-    if (maintenance.reason != null) 'reason': maintenance.reason,
-  };
-}
-
-SourcePackageAdvisory? _advisoryFromLock(Object? value) {
-  if (value == null) {
-    return null;
-  }
-  final json = _jsonObject(value, 'advisory');
-  return SourcePackageAdvisory(
-    message: _optionalString(json['message']),
-    alternatives: [
-      for (final item in _jsonList(
-        json['alternatives'],
-        'advisory.alternatives',
-        allowNull: true,
-      ))
-        _alternativeFromLock(item),
-    ],
-  );
-}
-
-SourcePackageAlternative _alternativeFromLock(Object? value) {
-  final json = _jsonObject(value, 'advisory.alternatives[]');
-  return SourcePackageAlternative(
-    name: _requiredString(json['name'], 'advisory.alternatives[].name'),
-    reason: _optionalString(json['reason']),
-    url: _optionalString(json['url']),
-  );
-}
-
-({String name, int priority})? _packageEntrySource(PackageEntry entry) {
-  for (final implementation in entry.implementations) {
-    final sourceName = implementation.sourceName;
-    if (sourceName != null) {
-      return (name: sourceName, priority: implementation.sourcePriority);
-    }
-  }
-  return null;
-}
-
 List<SdkRelease> _sortedSdkReleases(Iterable<SdkRelease> releases) {
   return releases.toList(growable: false)
     ..sort((a, b) => a.version.compareTo(b.version));
 }
 
-List<MapEntry<String, PackageEntry>> _sortedPackageEntries(
-  Map<String, PackageEntry> packages,
+List<SourcePackageRouteManifest> _sortedRouteManifests(
+  Map<String, SourcePackageRouteManifest> manifests,
+) {
+  return manifests.values.toList(growable: false)
+    ..sort((a, b) => a.name.compareTo(b.name));
+}
+
+List<MapEntry<String, List<String>>> _sortedPackageRoutes(
+  Map<String, List<String>> packages,
 ) {
   return packages.entries.toList(growable: false)
     ..sort((a, b) => a.key.compareTo(b.key));
 }
 
-List<PackageImplementation> _sortedImplementations(
-  Iterable<PackageImplementation> implementations,
+List<MapEntry<String, Map<String, List<String>>>> _sortedManifestRoutes(
+  Map<String, Map<String, List<String>>> manifests,
 ) {
-  return implementations.toList(growable: false)..sort((a, b) {
-    final bySdk = a.sdkLine.compareTo(b.sdkLine);
-    if (bySdk != 0) {
-      return bySdk;
-    }
-    final byUpstream = a.upstreamVersion.compareTo(b.upstreamVersion);
-    if (byUpstream != 0) {
-      return byUpstream;
-    }
-    return a.version.compareTo(b.version);
-  });
+  return manifests.entries.toList(growable: false)
+    ..sort((a, b) => a.key.compareTo(b.key));
+}
+
+List<String> _sortedStrings(Iterable<String> values) {
+  return values.toSet().toList(growable: false)..sort();
 }
 
 Map<String, Object?> _normalizedConfig(FluohConfig config) {
@@ -1041,21 +982,18 @@ Map<String, Object?> _jsonObject(Object? value, String label) {
   return {for (final entry in value.entries) '${entry.key}': entry.value};
 }
 
+List<String> _jsonStringList(Object? value, String label) {
+  if (value is! Iterable) {
+    throw FormatException('$label must be a JSON array.');
+  }
+  return [for (final item in value) _requiredString(item, '$label[]')];
+}
+
 Map<String, Object?>? _optionalJsonObject(Object? value, String label) {
   if (value == null) {
     return null;
   }
   return _jsonObject(value, label);
-}
-
-List<Object?> _jsonList(Object? value, String label, {bool allowNull = false}) {
-  if (value == null && allowNull) {
-    return const <Object?>[];
-  }
-  if (value is! List) {
-    throw FormatException('$label must be a JSON list.');
-  }
-  return value.cast<Object?>();
 }
 
 String _requiredString(Object? value, String label) {

@@ -414,9 +414,12 @@ change must increment `version`.
 
 ## Dependency Report And Plan
 
-`fluoh pub check` reads the local resolved Source lock. The lock is regenerated
-from Source root and Manifest YAML when source inputs change or the lock is
-missing. Generated matrix files are not committed.
+`fluoh pub check` reads the project SDK and pub lockfile, then loads package
+metadata through the Source runtime. A fresh `sources.lock.json` provides the
+package route index used to narrow Manifest reads; full package metadata still
+comes from Source Manifest YAML on demand. The lock is regenerated from Source
+root and Manifest YAML when source inputs change, when it is missing, or when it
+uses an older package-lock shape. Generated matrix files are not committed.
 
 Consumer status is based only on release records:
 
@@ -467,10 +470,13 @@ Rules:
 
 ## `sources.lock.json`
 
-`$FLUOH_HOME/sources.lock.json` is a machine-generated, local-only resolved
-Source index. It is derived from `config.json` plus every validated Source
-snapshot, then merged by priority so source-consuming commands can read one
-stable JSON file instead of reparsing all Source YAML every time.
+`$FLUOH_HOME/sources.lock.json` is a machine-generated, local-only resolved SDK
+lock manifest plus a compact package routing index. It is derived from
+`config.json` plus every validated Source snapshot so commands can read stable
+JSON instead of reparsing Source YAML every time. Full package entries are not
+stored in the lock; package commands use the routing index to find relevant
+Manifest files, then read package metadata from the configured Source snapshots
+on demand.
 
 Example shape:
 
@@ -502,11 +508,6 @@ Example shape:
     "versions": {
       "3.35.8-ohos-0.0.3": {
         "source": "flutteroh",
-        "priority": 0,
-        "versionSeries": "3.35",
-        "flutterVersion": "3.35.8",
-        "channel": "stable",
-        "tag": "3.35.8-ohos-0.0.3",
         "git": {
           "url": "https://gitcode.com/openharmony-tpc/flutter_flutter.git"
         }
@@ -514,40 +515,25 @@ Example shape:
     }
   },
   "packages": {
-    "path_provider": {
-      "source": "flutteroh",
-      "priority": 0,
-      "repository": {
-        "git": {
-          "url": "https://github.com/FlutterOH/packages.git"
-        },
-        "path": "packages/path_provider/path_provider"
+    "manifests": {
+      "flutteroh": {
+        "flutter_packages": {
+          "camera": ["3.35", "3.36"],
+          "path_provider": ["3.35"]
+        }
       },
-      "upstream": {
-        "git": {
-          "url": "https://github.com/flutter/packages.git",
-          "branch": "main"
-        },
-        "path": "packages/path_provider/path_provider"
-      },
-      "advisory": {
-        "message": "Prefer upstream path_provider for new projects."
-      },
-      "sdks": {
-        "3.35": {
-          "releases": [
-            {
-              "version": "0.2.0",
-              "upstreamVersion": "2.1.5",
-              "tag": "path_provider-2.1.5-ohos-3.35-0.2.0"
-            }
-          ]
+      "local": {
+        "flutter_packages": {
+          "camera": ["3.35"]
         }
       }
     }
   }
 }
 ```
+
+Legacy locks without `packages.manifests`, or with older full package-entry
+data, are rebuilt before they are treated as fresh.
 
 Rules:
 
@@ -557,7 +543,7 @@ Rules:
 - Source lock maintenance is owned by the Source runtime in `lib/src/source/`.
   Commands must not assemble or partially update the lock themselves.
 - The lock is regenerated from scratch by the Source runtime whenever
-  `config.json`, any configured Source snapshot, Source merge rules, or the
+  `config.json`, any configured Source snapshot, SDK merge rules, or the
   `fluoh` tool version changes.
 - Each configured Source snapshot contains a generated
   `.fluoh-source-state.json` with the snapshot content hash. Normal lock
@@ -571,16 +557,23 @@ Rules:
   Source-consuming flows use the same load-index API, which regenerates the lock
   on demand when it is missing or stale, or when selected-SDK installation needs
   SDK metadata.
-- The lock stores derived fields such as SDK line, release tag, winning Source
-  alias, priority, and final repository paths. Default fields are omitted where
-  possible: release `status` defaults to `compatible`, upstream branch defaults
-  to `main`, and release-level `repository`, `upstream`, `source`, and
-  `priority` are written only when they differ from the package-level defaults.
-- Source-consuming commands read only the lock sections they need. SDK commands
-  skip package entries, and dependency checks materialize only the packages
-  found in the project lockfile.
-- Lock generation applies the same priority and conflict rules documented for
-  Source commands. Conflicts fail generation before consumer commands read
-  partially resolved data.
+- The lock stores resolved SDK releases with the winning Source alias and final
+  repository URL. Fields that can be derived from object keys, defaults, or
+  `inputs.sources` are omitted: source priority is stored only in
+  `inputs.sources`, SDK `versionSeries` and `flutterVersion` derive from the SDK
+  version key, SDK `tag` defaults to the version key, and SDK `channel` defaults
+  to `stable`.
+- The package routing index stores only Source/Manifest/package routing and the
+  compatible SDK lines seen for each package at that route. It does not store
+  package repositories, paths, upstream versions, release versions, tags,
+  advisories, maintenance notes, or selected implementations.
+- Generated lock files use compact-pretty JSON: root sections and large objects
+  stay multiline, while short leaf objects and arrays are emitted on one line.
+- SDK commands read the SDK lock. Package commands use the package routing
+  index to parse only Manifest files that can contain the current project
+  packages, then apply package priority and conflict rules in memory.
+- Lock generation applies SDK priority and conflict rules documented for Source
+  commands. Package priority and conflict rules run when package metadata is
+  loaded for dependency workflows.
 - Writes use a temporary file plus atomic replacement. If generation fails, the
-  previous file is not treated as fresh unless its recorded inputs still match.
+  previous lock is not treated as fresh unless its recorded inputs still match.

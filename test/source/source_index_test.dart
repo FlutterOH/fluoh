@@ -79,6 +79,28 @@ void main() {
     },
   );
 
+  test('loads package route indexes with compatible sdk lines', () async {
+    final root = await _createSourceRoot();
+    await _writeSourceRoot(root, manifests: const ['camera', 'share_plus']);
+    await _writeManifest(root, manifestName: 'camera', packageName: 'camera');
+    await _writeManifest(
+      root,
+      manifestName: 'share_plus',
+      packageName: 'share_plus',
+      releaseStatus: 'experimental',
+    );
+    final source = SourceIndex.directory(root);
+
+    final routeIndex = await source.loadPackageRouteIndex();
+
+    expect(routeIndex.manifests['camera']!.packages, {
+      'camera': ['3.35'],
+    });
+    expect(routeIndex.manifests['share_plus']!.packages, {
+      'share_plus': <String>[],
+    });
+  });
+
   test('rejects release records without releases', () async {
     final root = await _createSourceRoot();
     await _writeSourceRoot(root, manifests: const ['camera']);
@@ -139,6 +161,30 @@ void main() {
 
       expect(packageIndex.packages, contains('camera'));
       expect(packageIndex.packages, isNot(contains('share_plus')));
+    },
+  );
+
+  test(
+    'loads only selected manifests when manifest routes are provided',
+    () async {
+      final root = await _createSourceRoot();
+      await _writeSourceRoot(root, manifests: const ['camera', 'broken']);
+      await _writeManifest(root, manifestName: 'camera', packageName: 'camera');
+      await _writeManifest(
+        root,
+        manifestName: 'broken',
+        packageName: 'broken',
+        includeReleases: false,
+      );
+      final source = SourceIndex.directory(root);
+
+      final packageIndex = await source.loadPackageIndex(
+        packageNames: {'camera'},
+        manifestNames: {'camera'},
+      );
+
+      expect(packageIndex.packages, contains('camera'));
+      expect(packageIndex.packages, isNot(contains('broken')));
     },
   );
 

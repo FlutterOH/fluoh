@@ -368,8 +368,11 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 
 ## 依赖报告和计划
 
-`fluoh pub check` 读取本机已解析的 Source lock。source 输入变化或 lock 缺失时，lock
-会从 Source root 和 Manifest YAML 重新生成。不需要提交生成的 matrix 文件。
+`fluoh pub check` 读取项目 SDK 和 pub lockfile，然后通过 Source 运行时加载 package
+metadata。fresh `sources.lock.json` 提供 package 路由索引，用来缩小需要读取的 Manifest
+范围；完整 package metadata 仍然按需来自 Source Manifest YAML。source 输入变化、lock
+缺失或仍是旧 package-lock 结构时，lock 会从 Source root 和 Manifest YAML 重新生成。
+不需要提交生成的 matrix 文件。
 
 消费侧状态只由发布记录决定：
 
@@ -414,9 +417,11 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 
 ## `sources.lock.json`
 
-`$FLUOH_HOME/sources.lock.json` 是机器生成、仅存在于本机的已解析 Source 索引。它由
-`config.json` 和每个已校验 Source 快照派生，再按 priority 合并，让消费 source 的命令
-读取一个稳定 JSON 文件，而不是每次重新解析所有 Source YAML。
+`$FLUOH_HOME/sources.lock.json` 是机器生成、仅存在于本机的已解析 SDK lock manifest，
+同时包含轻量 package 路由索引。它由 `config.json` 和每个已校验 Source 快照派生，
+让命令读取稳定 JSON，而不是每次重新解析 Source YAML。完整 package entries 不写入
+lock；package 命令先用路由索引找到相关 Manifest 文件，再按需从已配置 Source 快照读取
+package metadata。
 
 结构示例：
 
@@ -448,11 +453,6 @@ path_provider-2.1.5-ohos-3.35-0.2.0
     "versions": {
       "3.35.8-ohos-0.0.3": {
         "source": "flutteroh",
-        "priority": 0,
-        "versionSeries": "3.35",
-        "flutterVersion": "3.35.8",
-        "channel": "stable",
-        "tag": "3.35.8-ohos-0.0.3",
         "git": {
           "url": "https://gitcode.com/openharmony-tpc/flutter_flutter.git"
         }
@@ -460,34 +460,16 @@ path_provider-2.1.5-ohos-3.35-0.2.0
     }
   },
   "packages": {
-    "path_provider": {
-      "source": "flutteroh",
-      "priority": 0,
-      "repository": {
-        "git": {
-          "url": "https://github.com/FlutterOH/packages.git"
-        },
-        "path": "packages/path_provider/path_provider"
+    "manifests": {
+      "flutteroh": {
+        "flutter_packages": {
+          "camera": ["3.35", "3.36"],
+          "path_provider": ["3.35"]
+        }
       },
-      "upstream": {
-        "git": {
-          "url": "https://github.com/flutter/packages.git",
-          "branch": "main"
-        },
-        "path": "packages/path_provider/path_provider"
-      },
-      "advisory": {
-        "message": "Prefer upstream path_provider for new projects."
-      },
-      "sdks": {
-        "3.35": {
-          "releases": [
-            {
-              "version": "0.2.0",
-              "upstreamVersion": "2.1.5",
-              "tag": "path_provider-2.1.5-ohos-3.35-0.2.0"
-            }
-          ]
+      "local": {
+        "flutter_packages": {
+          "camera": ["3.35"]
         }
       }
     }
@@ -495,13 +477,16 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 }
 ```
 
+没有 `packages.manifests` 的旧 lock，或者包含旧版完整 package-entry 数据的 lock，会先重建，
+再被当成 fresh lock 使用。
+
 规则：
 
 - lock 不包含 `schema` 字段。它是可丢弃的生成状态，不兼容或过期时直接重建，不做迁移。
 - Source root 和 Manifest YAML 仍然是唯一需要人工编辑的 Source 数据。
 - Source lock 维护由 `lib/src/source/` 中的 Source 运行时统一负责。命令不应该自己组装
   或局部更新 lock。
-- `config.json`、任一已配置 Source 快照、Source 合并规则或 `fluoh` 工具版本变化时，
+- `config.json`、任一已配置 Source 快照、SDK 合并规则或 `fluoh` 工具版本变化时，
   Source 运行时都会整体重新生成 lock。
 - 每个已配置 Source 快照包含生成的 `.fluoh-source-state.json`，记录快照内容 hash。
   常规 lock 新鲜度检查读取这个 state 文件，而不是每次命令都递归 hash 整个快照。
@@ -511,13 +496,17 @@ path_provider-2.1.5-ohos-3.35-0.2.0
   以及首次默认 Source bootstrap，都会请求 Source 运行时重建 lock。消费 source 的流程使用
   同一个 load-index API；发现 lock 缺失或过期时，或者已选择 SDK 缺失且需要 SDK 元数据来安装
   已选择的 SDK 时，会按需重新生成。
-- lock 保存 SDK 版本线、release tag、胜出的 Source alias、priority、最终 repository
-  path 等派生字段。默认字段会尽量省略：release `status` 默认为 `compatible`，
-  upstream branch 默认为 `main`，release 级 `repository`、`upstream`、`source`
-  和 `priority` 只有和 package 级默认值不同时才写入。
-- 消费 Source 的命令只读取需要的 lock 区段。SDK 命令跳过 package entries，依赖检查只把
-  project lockfile 中出现的 packages 构造成运行时对象。
-- lock 生成使用 Source 命令文档中的 priority 和冲突规则。发生冲突时生成失败，消费命令
-  不读取半解析状态。
-- 写入使用临时文件加原子替换。生成失败时，除非旧文件记录的输入仍然匹配，否则旧文件不会被
-  当成新状态使用。
+- lock 保存已解析的 SDK release、胜出的 Source alias 以及最终 repository URL。能从对象
+  key、默认值或 `inputs.sources` 推导的数据会省略：source priority 只保存在
+  `inputs.sources`，SDK `versionSeries` 和 `flutterVersion` 由 SDK version key 推导，
+  SDK `tag` 默认等于 version key，SDK `channel` 默认为 `stable`。
+- package 路由索引只保存 Source/Manifest/package 路由，以及该 route 下 package 出现过的
+  compatible SDK line。它不保存 package repository、path、upstream version、release version、
+  tag、advisory、maintenance 或已选 implementation。
+- 生成的 lock 文件使用 compact-pretty JSON：根区段和大对象保持多行，短的叶子对象和数组压成单行。
+- SDK 命令读取 SDK lock。Package 命令使用 package 路由索引，只解析可能包含当前项目
+  package 的 Manifest 文件，然后在内存中执行 package priority 和冲突规则。
+- lock 生成使用 Source 命令文档中的 SDK priority 和冲突规则。Package priority 和冲突规则
+  在依赖工作流加载 package metadata 时执行。
+- 写入使用临时文件加原子替换。生成失败时，除非旧 lock 记录的输入仍然匹配，否则旧 lock
+  不会被当成新状态使用。

@@ -94,7 +94,7 @@ void main() {
   });
 
   test(
-    'parses only requested lock packages during dependency checks',
+    'repairs invalid package route data in source locks during dependency checks',
     () async {
       final environment = await _preparedEnvironment();
       final lockFile = File(
@@ -102,8 +102,7 @@ void main() {
       );
       final lock =
           jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-      final packages = lock['packages'] as Map<String, Object?>;
-      packages['unrelated_bad_package'] = 'not a package object';
+      lock['packages'] = {'camera': 'not a package object'};
       await lockFile.writeAsString(
         '${const JsonEncoder.withIndent('  ').convert(lock)}\n',
       );
@@ -121,6 +120,75 @@ void main() {
       );
 
       expect(stdout, anyElement(contains('camera 0.11.0')));
+      final repairedLock =
+          jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
+      final packages = repairedLock['packages'] as Map<String, Object?>;
+      final manifests = packages['manifests'] as Map<String, Object?>;
+      final fixtureManifests = manifests['fixture'] as Map<String, Object?>;
+      final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
+      expect(cameraManifest, containsPair('camera', ['3.35']));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'uses fresh package routes without validating unrelated manifests',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPubSourceFixture(environment.homeDirectory);
+      await _writeCameraOnlyProjectFixture(environment.workingDirectory);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      final lockFile = File(
+        '${environment.homeDirectory.path}/sources.lock.json',
+      );
+      final snapshotHash = _lockSourceSnapshotHash(lockFile, 'fixture');
+      final cachedSource = Directory(
+        '${environment.homeDirectory.path}/sources/fixture',
+      );
+      final unrelatedManifest = File(
+        '${cachedSource.path}/manifests/share_plus/fluoh.yaml',
+      );
+      await unrelatedManifest.writeAsString(
+        unrelatedManifest.readAsStringSync().replaceFirst(
+          '        releases:\n',
+          '        releases: []\n',
+        ),
+      );
+      await _writeSnapshotStateForCurrentFingerprint(
+        cachedSource,
+        contentHash: snapshotHash,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          ['pub', 'check'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        stdout,
+        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1'),
+      );
       expect(stderr, isEmpty);
     },
   );
@@ -688,6 +756,27 @@ dependencyPolicy: true
           stdout: stdout.add,
           stderr: stderr.add,
         ),
+        0,
+      );
+      expect(
+        await runFluoh(
+          ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          ['pub', 'check'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
         64,
       );
       expect(stderr.join('\n'), contains('Conflicting OHOS implementation'));
@@ -975,6 +1064,85 @@ Future<FluohEnvironment> _preparedEnvironment() async {
   );
 
   return environment;
+}
+
+Future<void> _writeCameraOnlyProjectFixture(Directory project) async {
+  await File('${project.path}/pubspec.yaml').writeAsString('''
+name: fixture_app
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: 0.11.0
+''');
+
+  await File('${project.path}/pubspec.lock').writeAsString('''
+packages:
+  camera:
+    dependency: "direct main"
+    description:
+      name: camera
+    source: hosted
+    version: "0.11.0"
+sdks:
+  dart: ">=3.0.0 <4.0.0"
+''');
+}
+
+String _lockSourceSnapshotHash(File lockFile, String sourceName) {
+  final lock = jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
+  final inputs = lock['inputs'] as Map<String, Object?>;
+  final sources = inputs['sources'] as List<Object?>;
+  final source = sources.cast<Map<String, Object?>>().singleWhere(
+    (source) => source['name'] == sourceName,
+  );
+  return source['snapshotHash'] as String;
+}
+
+Future<void> _writeSnapshotStateForCurrentFingerprint(
+  Directory root, {
+  required String contentHash,
+}) async {
+  final state = {
+    'stateVersion': 1,
+    'generatedBy': 'fluoh test',
+    'generatedAt': DateTime.now().toUtc().toIso8601String(),
+    'fingerprint': await _snapshotFingerprint(root),
+    'contentHash': contentHash,
+  };
+  await File(
+    '${root.path}/.fluoh-source-state.json',
+  ).writeAsString('${const JsonEncoder.withIndent('  ').convert(state)}\n');
+}
+
+Future<Map<String, Object?>> _snapshotFingerprint(Directory root) async {
+  final entries = <Map<String, Object?>>[];
+  await for (final entity in root.list(recursive: true, followLinks: false)) {
+    if (entity is! File) {
+      continue;
+    }
+    final relative = _relativePath(root, entity);
+    if (relative == '.fluoh-source-state.json') {
+      continue;
+    }
+    final stat = await entity.stat();
+    entries.add({
+      'path': relative,
+      'size': stat.size,
+      'modified': stat.modified.toUtc().microsecondsSinceEpoch,
+    });
+  }
+  entries.sort((a, b) => '${a['path']}'.compareTo('${b['path']}'));
+  return {'files': entries};
+}
+
+String _relativePath(Directory root, FileSystemEntity entity) {
+  final rootPath = root.absolute.path;
+  final entityPath = entity.absolute.path;
+  if (entityPath == rootPath) {
+    return '';
+  }
+  return entityPath.substring(rootPath.length + 1);
 }
 
 Future<void> _setImplementationStatus(

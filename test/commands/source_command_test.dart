@@ -519,8 +519,12 @@ repository:
     );
     final lock = File('${environment.homeDirectory.path}/sources.lock.json');
     expect(lock.existsSync(), isTrue);
-    expect(lock.readAsStringSync(), contains('"fixture"'));
-    expect(lock.readAsStringSync(), contains('"camera"'));
+    final lockJson = _readJsonObject(lock);
+    final packages = lockJson['packages'] as Map<String, Object?>;
+    final manifests = packages['manifests'] as Map<String, Object?>;
+    final fixtureManifests = manifests['fixture'] as Map<String, Object?>;
+    final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
+    expect(cameraManifest, contains('camera'));
     expect(Directory('${cachedSource.path}/packages').existsSync(), isFalse);
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
     expect(stderr, isEmpty);
@@ -625,26 +629,27 @@ environment:
     expect(state.existsSync(), isTrue);
     expect(state.readAsStringSync(), contains('"contentHash"'));
 
-    final lock =
-        jsonDecode(
-              File(
-                '${environment.homeDirectory.path}/sources.lock.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>;
+    final lockFile = File(
+      '${environment.homeDirectory.path}/sources.lock.json',
+    );
+    final lockContent = lockFile.readAsStringSync();
+    final lock = jsonDecode(lockContent) as Map<String, Object?>;
+    final sdk = lock['sdk'] as Map<String, Object?>;
+    final sdkVersions = sdk['versions'] as Map<String, Object?>;
+    final sdkRelease = sdkVersions['3.35.8-ohos-0.0.3'] as Map<String, Object?>;
+    expect(sdkRelease, containsPair('source', 'fixture'));
+    expect(sdkRelease, isNot(contains('priority')));
+    expect(sdkRelease, isNot(contains('versionSeries')));
+    expect(sdkRelease, isNot(contains('flutterVersion')));
+    expect(sdkRelease, isNot(contains('channel')));
+    expect(sdkRelease, isNot(contains('tag')));
     final packages = lock['packages'] as Map<String, Object?>;
-    final camera = packages['camera'] as Map<String, Object?>;
-    final sdks = camera['sdks'] as Map<String, Object?>;
-    final sdk = sdks['3.35'] as Map<String, Object?>;
-    final releases = sdk['releases'] as List<Object?>;
-    for (final item in releases) {
-      final release = item as Map<String, Object?>;
-      expect(release, isNot(contains('status')));
-      expect(release, isNot(contains('repository')));
-      expect(release, isNot(contains('upstream')));
-      expect(release, isNot(contains('source')));
-      expect(release, isNot(contains('priority')));
-    }
+    final manifests = packages['manifests'] as Map<String, Object?>;
+    final fixtureManifests = manifests['fixture'] as Map<String, Object?>;
+    final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
+    expect(cameraManifest, containsPair('camera', ['3.35']));
+    expect(lockContent, isNot(contains('packages/camera/camera')));
+    expect(lockContent, isNot(contains('"upstreamVersion"')));
     expect(stderr, isEmpty);
   });
 
@@ -664,6 +669,8 @@ environment:
       0,
     );
 
+    final lock = File('${environment.homeDirectory.path}/sources.lock.json');
+    final previousSnapshotHash = _lockSourceSnapshotHash(lock, 'fixture');
     final cachedManifest = File(
       '${environment.homeDirectory.path}/sources/fixture/manifests/camera/fluoh.yaml',
     );
@@ -686,8 +693,10 @@ environment:
       0,
     );
 
-    final lock = File('${environment.homeDirectory.path}/sources.lock.json');
-    expect(lock.readAsStringSync(), contains('"upstreamVersion": "0.12.0"'));
+    expect(
+      _lockSourceSnapshotHash(lock, 'fixture'),
+      isNot(previousSnapshotHash),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -725,11 +734,14 @@ environment:
       File('${source.path}/manifests/example/fluoh.yaml').readAsStringSync(),
       contains('# name: example'),
     );
-    final lock = File(
-      '${environment.homeDirectory.path}/sources.lock.json',
-    ).readAsStringSync();
-    expect(lock, contains('"versions": {}'));
-    expect(lock, contains('"packages": {}'));
+    final lock = _readJsonObject(
+      File('${environment.homeDirectory.path}/sources.lock.json'),
+    );
+    final sdk = lock['sdk'] as Map<String, Object?>;
+    final versions = sdk['versions'] as Map<String, Object?>;
+    expect(versions, isEmpty);
+    final packages = lock['packages'] as Map<String, Object?>;
+    expect(packages['manifests'], isEmpty);
 
     expect(
       stdout,
@@ -1342,6 +1354,8 @@ manifests:
     expect(local['url'], Uri.file(source.path).toString());
 
     final sourceManifest = File('${source.path}/manifests/camera/fluoh.yaml');
+    final lock = File('${environment.homeDirectory.path}/sources.lock.json');
+    final previousSnapshotHash = _lockSourceSnapshotHash(lock, 'local');
     await sourceManifest.writeAsString(
       sourceManifest.readAsStringSync().replaceFirst(
         'upstreamVersion: "0.11.0"',
@@ -1368,12 +1382,7 @@ manifests:
       ).readAsStringSync(),
       contains('upstreamVersion: "0.12.0"'),
     );
-    expect(
-      File(
-        '${environment.homeDirectory.path}/sources.lock.json',
-      ).readAsStringSync(),
-      contains('"upstreamVersion": "0.12.0"'),
-    );
+    expect(_lockSourceSnapshotHash(lock, 'local'), isNot(previousSnapshotHash));
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
     expect(stdout, contains('Updated source local.'));
     expect(stderr, isEmpty);
@@ -1763,8 +1772,8 @@ manifests:
       );
       await initializeGitRepository(firstSource);
       await initializeGitRepository(remoteSource);
-      final cachedManifest = File(
-        '${environment.homeDirectory.path}/sources/remote/manifests/camera/fluoh.yaml',
+      final cachedSourceRoot = File(
+        '${environment.homeDirectory.path}/sources/remote/fluoh.yaml',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -1801,18 +1810,16 @@ manifests:
         ),
         0,
       );
-      final previousSnapshot = cachedManifest.readAsStringSync();
+      final previousSnapshot = cachedSourceRoot.readAsStringSync();
 
-      final remoteManifest = File(
-        '${remoteSource.path}/manifests/camera/fluoh.yaml',
-      );
-      await remoteManifest.writeAsString(
-        remoteManifest.readAsStringSync().replaceAll(
-          '${firstParent.path}/camera',
-          '${remoteParent.path}/camera',
+      final remoteRoot = File('${remoteSource.path}/fluoh.yaml');
+      await remoteRoot.writeAsString(
+        remoteRoot.readAsStringSync().replaceAll(
+          '${firstParent.path}/flutter-ohos-sdk',
+          '${remoteParent.path}/flutter-ohos-sdk',
         ),
       );
-      await commitAll(remoteSource, message: 'Change camera repository URL');
+      await commitAll(remoteSource, message: 'Change SDK repository URL');
 
       expect(
         await runFluoh(
@@ -1826,12 +1833,12 @@ manifests:
 
       expect(
         stderr.join('\n'),
-        contains('Conflicting OHOS implementation camera'),
+        contains('Conflicting SDK version 3.35.8-ohos-0.0.3'),
       );
-      expect(cachedManifest.readAsStringSync(), previousSnapshot);
+      expect(cachedSourceRoot.readAsStringSync(), previousSnapshot);
       expect(
-        cachedManifest.readAsStringSync(),
-        isNot(contains('${remoteParent.path}/camera')),
+        cachedSourceRoot.readAsStringSync(),
+        isNot(contains('${remoteParent.path}/flutter-ohos-sdk')),
       );
     },
   );
@@ -2168,6 +2175,20 @@ packages:
           - version: 0.1.0
             upstreamVersion: 0.10.0
 ''');
+}
+
+Map<String, Object?> _readJsonObject(File file) {
+  return jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+}
+
+String _lockSourceSnapshotHash(File lockFile, String sourceName) {
+  final lock = _readJsonObject(lockFile);
+  final inputs = lock['inputs'] as Map<String, Object?>;
+  final sources = inputs['sources'] as List<Object?>;
+  final source = sources.cast<Map<String, Object?>>().singleWhere(
+    (source) => source['name'] == sourceName,
+  );
+  return source['snapshotHash'] as String;
 }
 
 Future<ProcessResult> _runGit(Directory repo, List<String> arguments) async {

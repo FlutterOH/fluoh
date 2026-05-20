@@ -55,8 +55,11 @@
 - 会修改 Source 配置或已配置快照的命令，把变更交给 Source 运行时。运行时会校验所有
   已配置 source 快照，尽可能修复快照，重建合并后的 lock，然后再提交新的本地 Source 状态。
 - 消费 Source 数据的命令只能通过 Source 运行时的 load-index API 读取。这个 API 负责
-  首次默认 Source bootstrap、校验或修复已配置 source 快照，并在返回数据前重新生成缺失或
-  过期的 `sources.lock.json`。
+  首次默认 Source bootstrap；当 `sources.lock.json` 记录的输入仍然匹配时会直接返回。
+  lock 缺失、过期或仍是旧 package-lock 结构时，运行时会先校验或修复已配置 source 快照，
+  再重新生成 lock 并返回数据。
+- `fluoh source` 不带子命令和 `fluoh source list` 在打印配置前也会走同一套 Source
+  运行时重建路径，所以用户会先看到无效或缺失的 source 状态，再依赖列表结果。
 - `fluoh pub get` 会跳过 package Source 数据，让依赖解析在 source 快照需要修复时仍然可用。
   `fluoh flutter`、`fluohf`、`fluoh clean` 和 `fluoh pub get` 在已选择 SDK 缺失时，
   仍可能通过 SDK resolver 加载 Source index，因为安装已选择的 SDK 需要 SDK 元数据。
@@ -111,9 +114,9 @@ Source 本机副本。
 
 ### 消费侧命令
 
-`fluoh source list` 会先通过 Source 运行时确保已配置 source 快照和合并后的
-Source lock 可用，然后从 `$FLUOH_HOME/config.json` 输出每个已配置 source 的名称和
-显示值。空配置是 warning，不是错误。
+`fluoh source list` 会先要求 Source 运行时确保已配置 source 快照和 `sources.lock.json`
+可用，然后读取 `$FLUOH_HOME/config.json`，输出每个已配置 source 的名称和显示值。
+空配置是 warning，不是错误。
 
 `fluoh source add <name> <url-or-path>` 校验 source 名称，拒绝替换官方 source
 名称，并把缓存路径固定为 `$FLUOH_HOME/sources/<name>`。普通本地路径会在
@@ -196,7 +199,8 @@ SDK 缺失，SDK resolver 只会为查询并安装该 SDK 而加载 Source index
 
 `fluoh pub check` 读取项目 `fluoh.yaml` 中的依赖策略，根据已配置 source 构建依赖计划，
 并把依赖分组为 ready、needs decision、manual action、unavailable、already OK、
-transitive 和 advisory。`--json` 输出同一计划的机器可读 JSON。
+transitive 和 advisory。fresh Source lock 会提供 package 路由提示；命令随后只读取可能包含
+项目 lockfile 中 package 的 Manifest 文件。`--json` 输出同一计划的机器可读 JSON。
 
 `fluoh pub fix` 根据依赖计划应用推荐 FlutterOH 适配变更。它会按照
 `dependencyPolicy.pubspecSection` 写入 `dependency_overrides` 或直接改写依赖声明。
