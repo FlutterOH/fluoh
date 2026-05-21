@@ -38,7 +38,7 @@
 | `fluoh pub fix` | `lib/src/pub/commands/pub_dependency_commands.dart` | 应用推荐的 FlutterOH 依赖变更。 |
 | `fluoh pub upgrade` | `lib/src/pub/commands/pub_upgrade_command.dart` | 只升级已有 FlutterOH 依赖替换。 |
 | `fluoh pub create <upstream>` | `lib/src/pub/commands/pub_create_command.dart` | 初始化 FlutterOH pub 仓库。 |
-| `fluoh pub add <package-path>` | `lib/src/pub/commands/pub_add_command.dart` | 在 FlutterOH pub monorepo 中注册另一个 package。 |
+| `fluoh pub add <package-path>` | `lib/src/pub/commands/pub_add_command.dart` | 在 FlutterOH pub 仓库中注册另一个 package。 |
 | `fluoh pub sync` | `lib/src/pub/commands/pub_sync_command.dart` | 把 upstream 合入当前 OHOS pub 分支。 |
 | `fluoh pub release` | `lib/src/pub/commands/pub_release_command.dart` | 校验、测试、打 tag，并可选择推送 FlutterOH package release。 |
 | `fluoh test` | `lib/src/testing/test_commands.dart` | package 验证工作区的命令组。 |
@@ -154,8 +154,7 @@ SDK tags 或 pub 仓库；发布数据更新仍由 `fluoh source sync` 负责。
 
 `fluoh source init <path>` 创建 source root `fluoh.yaml`、
 `manifests/example/fluoh.yaml` 注释 Manifest 模板和 README。目标文件已存在时会保守
-跳过并报告。已知旧版 Source root 元数据会升级为当前 canonical layout，而不是被视为
-完整模板直接跳过。生成的 `fluoh.yaml` 是合法的空 Source 脚手架，并带有注释形式的
+跳过并报告。生成的 `fluoh.yaml` 是合法的空 Source 脚手架，并带有注释形式的
 repository、SDK 和 Manifest 路由示例，维护者可按需取消注释。维护者直接编辑 Manifest
 文件中的 advisory 和 maintenance 信息；发布记录由 `fluoh source sync` 生成。
 
@@ -237,16 +236,20 @@ transitive 和 advisory。fresh Source lock 会提供 package 路由提示；命
 `fluoh pub create <upstream>` clone upstream 仓库，选择一个或多个 package，配置
 `upstream` 和 `origin`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，配置
 Flutter OHOS SDK，写入
-`fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、agent 指令和 `fluoh_test`
-工作区，然后暂存生成文件。生成的 `fluoh.yaml` 会在 `repository`、`upstream`、package
-path、`version` 和 `status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数
-包括可重复的 `--package-path`、`--output`、`--sdk` 和 `--repository`。
+`fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、agent 指令和 package 级
+`fluoh_test` 工作区，然后暂存生成文件。
+不传 `--package-path` 时，命令只选择 upstream 仓库根目录 package。若 upstream
+仓库同时有根目录 package 和子目录 package，需要传 `--package-path .`，并为每个要注册的
+子 package 重复传 `--package-path <subdir>`。
+生成的 `fluoh.yaml` 会在 `repository`、`upstream`、package path、`version` 和
+`status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括可重复的
+`--package-path`、`--output`、`--sdk` 和 `--repository`。
 
-`fluoh pub add <package-path>` 在现有 FlutterOH pub monorepo 中注册另一个 package。
-它要求工作树干净且位于 Package `repository.git.branch` 记录的维护分支，校验
+`fluoh pub add <package-path>` 在现有 FlutterOH pub 仓库中注册另一个 package。它要求
+工作树干净且位于 Package `repository.git.branch` 记录的维护分支，校验
 `<package-path>`，可选校验 `--expected-package`，追加 Package `fluoh.yaml`、文档和
-测试工作区状态，并暂存生成文件。单包仓库转为多包仓库时，根级 `fluoh_test` 会迁移到
-`fluoh_test/<package>`。命令失败时会通过文件快照和工作区回滚保护本地状态。
+package 级测试工作区状态，并暂存生成文件。命令失败时会通过文件快照和工作区回滚保护
+本地状态。
 
 `fluoh pub sync` 会拉取 upstream，快进 Package `upstream.git.branch` 记录的 upstream
 分支，回到 `fluoh.yaml` 记录的 `repository.git.branch` 分支，先把 upstream 分支合并进来但
@@ -262,10 +265,10 @@ path、`version` 和 `status` 等维护者常改字段旁提供注释。它不�
 
 ## Test 命令
 
-`fluoh test init` 为 Flutter package 创建 `fluoh_test`。多包仓库中，
-`--package <name>` 选择已注册 package，并创建 `fluoh_test/<name>`。命令会写入测试 package，
-使用已选择 SDK 创建 example app；`--force` 表示用户明确确认替换已有目标
-`fluoh_test` 工作区。
+`fluoh test init` 为 Flutter package 创建 `fluoh_test`。在 Package 仓库中，它创建
+package 级 `fluoh_test/<name>` 工作区；注册多个 package 时用 `--package <name>` 明确
+选择。命令会写入测试 package，使用已选择 SDK 创建 example app；`--force` 表示用户明确
+确认替换已有目标 `fluoh_test` 工作区。
 
 `fluoh test run` 定位 package 和已有测试工作区。如果 package 存在
 `test/**/*_test.dart`，会先运行 package 的 `pub get` 和 Flutter 测试；然后在 `fluoh_test`

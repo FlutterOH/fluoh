@@ -30,8 +30,7 @@ class PubCreateCommand extends Command<int> {
       ..addMultiOption(
         'package-path',
         valueHelp: 'path',
-        help:
-            'Package path inside a monorepo upstream repository. Can be repeated.',
+        help: 'Package path inside the upstream repository. Can be repeated.',
       )
       ..addOption(
         'output',
@@ -111,6 +110,10 @@ class PubCreateCommand extends Command<int> {
         repository: destination,
         packagePaths: packagePaths,
       );
+      final packageCollection = await _isPackageCollectionRepository(
+        repository: destination,
+        selectedPackages: selectedPackages,
+      );
       for (final selected in selectedPackages) {
         if (selected.path != '.') {
           _output.info(
@@ -120,16 +123,17 @@ class PubCreateCommand extends Command<int> {
       }
       final docPackages = [
         for (final selected in selectedPackages)
-          _docPackageForSelection(
-            selectedPackages: selectedPackages,
-            selectedPackage: selected,
-          ),
+          _docPackageForSelection(selectedPackage: selected),
       ];
 
       final repositoryUrl =
           argResults!.option('repository') ??
           defaultPubRepositoryUrl(
-            _defaultImplementationRepositoryName(upstream, selectedPackages),
+            _defaultImplementationRepositoryName(
+              upstream,
+              selectedPackages,
+              packageCollection: packageCollection,
+            ),
           );
       await configurePubRemotes(destination, repositoryUrl);
 
@@ -172,6 +176,7 @@ class PubCreateCommand extends Command<int> {
           name: _defaultImplementationRepositoryName(
             upstream,
             selectedPackages,
+            packageCollection: packageCollection,
           ),
           sdkVersion: release.tag,
           repositoryBranch: branch,
@@ -191,14 +196,12 @@ class PubCreateCommand extends Command<int> {
           ],
         ),
       );
-      await File('${destination.path}/FLUOH.md').writeAsString(
-        pubImplementationGuideContent(
-          packages: docPackages,
-          upstreamBranch: upstreamBranch,
-          sdkVersion: release.tag,
-          branch: branch,
-          includeTitle: true,
-        ),
+      await writeOrReplacePubImplementationGuide(
+        destination: destination,
+        packages: docPackages,
+        upstreamBranch: upstreamBranch,
+        sdkVersion: release.tag,
+        branch: branch,
       );
       await File('${destination.path}/FLUOH_CHANGELOG.md').writeAsString(
         pubFluohChangelogContent(
@@ -207,7 +210,7 @@ class PubCreateCommand extends Command<int> {
           releaseVersion: initialPubReleaseVersion,
         ),
       );
-      await writeOrAppendPubAgentsInstructions(
+      await writeOrReplacePubAgentsInstructions(
         destination: destination,
         packages: docPackages,
         upstreamBranch: upstreamBranch,
@@ -343,26 +346,24 @@ Future<List<_SelectedPackage>> _selectPackages({
 
 String _defaultImplementationRepositoryName(
   String upstream,
-  List<_SelectedPackage> selectedPackages,
-) {
-  if (selectedPackages.length == 1 && selectedPackages.single.path == '.') {
+  List<_SelectedPackage> selectedPackages, {
+  required bool packageCollection,
+}) {
+  if (!packageCollection &&
+      selectedPackages.length == 1 &&
+      selectedPackages.single.path == '.') {
     return selectedPackages.single.package.name;
   }
   return repositoryNameFromUpstream(upstream);
 }
 
 String _testWorkspacePathForSelection({
-  required List<_SelectedPackage> selectedPackages,
   required _SelectedPackage selectedPackage,
 }) {
-  if (selectedPackages.length > 1 || selectedPackage.path != '.') {
-    return 'fluoh_test/${selectedPackage.package.name}';
-  }
-  return 'fluoh_test';
+  return 'fluoh_test/${selectedPackage.package.name}';
 }
 
 PubRepositoryDocPackage _docPackageForSelection({
-  required List<_SelectedPackage> selectedPackages,
   required _SelectedPackage selectedPackage,
 }) {
   return PubRepositoryDocPackage(
@@ -370,10 +371,115 @@ PubRepositoryDocPackage _docPackageForSelection({
     version: selectedPackage.package.version,
     packagePath: selectedPackage.path,
     testWorkspacePath: _testWorkspacePathForSelection(
-      selectedPackages: selectedPackages,
       selectedPackage: selectedPackage,
     ),
   );
+}
+
+bool _isPackageCollectionSelection(List<_SelectedPackage> selectedPackages) {
+  return selectedPackages.length > 1 ||
+      selectedPackages.any((selected) => selected.path != '.');
+}
+
+Future<bool> _isPackageCollectionRepository({
+  required Directory repository,
+  required List<_SelectedPackage> selectedPackages,
+}) async {
+  if (_isPackageCollectionSelection(selectedPackages)) {
+    return true;
+  }
+
+  final packagePaths = await _discoverRepositoryPackagePaths(repository);
+  if (packagePaths.length > 1) {
+    return true;
+  }
+
+  final selectedPaths = selectedPackages
+      .map((selected) => _normalizePackagePath(selected.path))
+      .toSet();
+  return packagePaths.any((path) => !selectedPaths.contains(path));
+}
+
+Future<List<String>> _discoverRepositoryPackagePaths(
+  Directory repository,
+) async {
+  final paths = <String>{};
+  final pending = <Directory>[repository];
+  while (pending.isNotEmpty) {
+    final directory = pending.removeLast();
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is Directory) {
+        final relativeDirectory = _relativeDirectoryPath(repository, entity);
+        if (!_isIgnoredPackageScanDirectory(relativeDirectory)) {
+          pending.add(entity);
+        }
+        continue;
+      }
+      if (entity is File && _pathName(entity.path) == 'pubspec.yaml') {
+        final packagePath = _relativeDirectoryPath(repository, entity.parent);
+        if (!_isIgnoredPackageScanDirectory(packagePath)) {
+          paths.add(packagePath);
+        }
+      }
+    }
+  }
+  return paths.toList()..sort();
+}
+
+bool _isIgnoredPackageScanDirectory(String path) {
+  if (path == '.') {
+    return false;
+  }
+  return _pathSegments(path).any(_ignoredPackageScanSegmentNames.contains);
+}
+
+const _ignoredPackageScanSegmentNames = {
+  '.dart_tool',
+  '.git',
+  '.idea',
+  'build',
+  'coverage',
+  'example',
+  'examples',
+  'fixture',
+  'fixtures',
+  'integration_test',
+  'test',
+  'tool',
+  'tools',
+};
+
+String _relativeDirectoryPath(Directory root, Directory directory) {
+  final rootPath = root.absolute.path;
+  final directoryPath = directory.absolute.path;
+  if (directoryPath == rootPath) {
+    return '.';
+  }
+  if (directoryPath.startsWith('$rootPath/')) {
+    return _normalizePackagePath(directoryPath.substring(rootPath.length + 1));
+  }
+  return _normalizePackagePath(directoryPath);
+}
+
+String _normalizePackagePath(String path) {
+  final segments = _pathSegments(path);
+  if (segments.isEmpty) {
+    return '.';
+  }
+  return segments.join('/');
+}
+
+List<String> _pathSegments(String path) {
+  return path
+      .replaceAll('\\', '/')
+      .split('/')
+      .where((segment) => segment.isNotEmpty && segment != '.')
+      .toList(growable: false);
+}
+
+String _pathName(String path) {
+  final segments = _pathSegments(path);
+  return segments.isEmpty ? path : segments.last;
 }
 
 Future<PubspecPackage> _readSelectedPackage({
@@ -389,7 +495,7 @@ Future<PubspecPackage> _readSelectedPackage({
   if (packagePath == '.' || packagePath.isEmpty) {
     throw UsageException(
       'Missing pubspec.yaml at the upstream repository root. '
-          'For a monorepo, select package paths with '
+          'For packages below the root, select package paths with '
           '"--package-path <package-path>".',
       '',
     );

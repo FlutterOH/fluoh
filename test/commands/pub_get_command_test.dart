@@ -201,6 +201,189 @@ packages:
     );
   });
 
+  test('uses scoped fluoh_test for package path manifests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPubGetSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    final packageDirectory = Directory(
+      '${environment.workingDirectory.path}/packages/camera',
+    );
+    await _writePubWorkspace(packageDirectory, 'camera');
+    await _writePubWorkspace(
+      Directory('${environment.workingDirectory.path}/fluoh_test/camera'),
+      'camera_fluoh_test',
+    );
+    await _writePubWorkspace(
+      Directory(
+        '${environment.workingDirectory.path}/fluoh_test/camera/example',
+      ),
+      'camera_fluoh_test_example',
+    );
+    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
+      '''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
+packages:
+  camera:
+    repository:
+      path: packages/camera
+    upstream:
+      path: packages/camera
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['pub', 'get'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    final packagePath = await packageDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/pub_get_invocations.txt',
+      ).readAsStringSync(),
+      [
+        '$packagePath::pub get',
+        '$root/fluoh_test/camera::pub get',
+        '$root/fluoh_test/camera/example::pub get',
+        '',
+      ].join('\n'),
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in packages/camera'),
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in fluoh_test/camera'),
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in fluoh_test/camera/example'),
+    );
+  });
+
+  test('uses scoped fluoh_test for root package manifests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPubGetSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePubWorkspace(environment.workingDirectory, 'camera');
+    await _writePubWorkspace(
+      Directory('${environment.workingDirectory.path}/fluoh_test/camera'),
+      'camera_fluoh_test',
+    );
+    await _writePubWorkspace(
+      Directory(
+        '${environment.workingDirectory.path}/fluoh_test/camera/example',
+      ),
+      'camera_fluoh_test_example',
+    );
+    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
+      '''
+schema: 1
+name: flutter-widgets-root
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: git@github.com:FlutterOH/flutter-widgets-root.git
+    branch: ohos/3.35
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
+packages:
+  camera:
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['pub', 'get'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/pub_get_invocations.txt',
+      ).readAsStringSync(),
+      [
+        '$root::pub get',
+        '$root/fluoh_test/camera::pub get',
+        '$root/fluoh_test/camera/example::pub get',
+        '',
+      ].join('\n'),
+    );
+    expect(stdout.join('\n'), contains('Running flutter pub get in .'));
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in fluoh_test/camera'),
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Running flutter pub get in fluoh_test/camera/example'),
+    );
+  });
+
   test('runs cached selected SDK with malformed source config', () async {
     final environment = await createTestEnvironment();
     final source = await _createPubGetSdkSource(

@@ -26,12 +26,8 @@ Future<PubDependencyPolicy> readPubDependencyPolicy(
     return const PubDependencyPolicy();
   }
   try {
-    final migrated = migrateFluohYamlMap(
-      yaml,
-      owner: FluohYamlOwner.project,
-    ).yaml;
-    ensureSupportedSchema(migrated, packageVersion: packageVersion);
-    return parsePubDependencyPolicy(migrated);
+    ensureSupportedSchema(yaml, packageVersion: packageVersion);
+    return parsePubDependencyPolicy(yaml);
   } on FormatException catch (error) {
     throw UsageException(error.message, '');
   }

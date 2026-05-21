@@ -248,25 +248,11 @@ class SourceInitCommand extends Command<int> {
         await metadata.exists() ||
         await exampleManifest.exists() ||
         await readme.exists();
-    var migratedMetadata = false;
 
     await exampleManifest.parent.create(recursive: true);
     if (!await metadata.exists()) {
       await source.create(recursive: true);
       await metadata.writeAsString(_localSourceMetadata());
-    } else {
-      final content = await metadata.readAsString();
-      final migration = migrateFluohYamlContent(
-        content,
-        owner: FluohYamlOwner.sourceRoot,
-      );
-      if (migration.migrated) {
-        final parsed = parseSourceRootManifest(content);
-        await metadata.writeAsString(
-          sourceRootManifestContent(_sourceRootTemplate(parsed)),
-        );
-        migratedMetadata = true;
-      }
     }
     if (!await exampleManifest.exists()) {
       await exampleManifest.writeAsString(_localSourceManifestTemplate());
@@ -275,11 +261,7 @@ class SourceInitCommand extends Command<int> {
       await readme.writeAsString(_localSourceReadme());
     }
 
-    if (migratedMetadata) {
-      _output.success(
-        'Updated local source template at ${_output.style.path(source.path)}.',
-      );
-    } else if (existed) {
+    if (existed) {
       _output.skipped(
         'Local source template already exists at ${_output.style.path(source.path)}.',
       );
@@ -575,10 +557,7 @@ class SourceSyncCommand extends Command<int> {
       return null;
     }
     try {
-      return PubRepositoryManifest.parse(
-        result.stdout.toString(),
-        releaseTag: tag,
-      );
+      return PubRepositoryManifest.parse(result.stdout.toString());
     } on FormatException catch (error) {
       usageException(
         'Could not read pub repository ${repository.path} at tag $tag: '
@@ -1286,18 +1265,6 @@ Edit Manifest files directly for advisory and maintenance notes.
 
 The `pub` repository can be maintained as a source and add scheduled workflows on top of these files.
 ''';
-}
-
-SourceRootManifestTemplate _sourceRootTemplate(SourceRootManifest manifest) {
-  return SourceRootManifestTemplate(
-    name: manifest.name,
-    description: manifest.description,
-    repositoryGitUrl: manifest.repositoryGitUrl,
-    fluohConstraint: manifest.fluohConstraint,
-    sdkRepository: manifest.sdkRepository,
-    sdkReleases: manifest.sdkReleases,
-    manifests: manifest.manifests,
-  );
 }
 
 String _localSourceMetadata() {

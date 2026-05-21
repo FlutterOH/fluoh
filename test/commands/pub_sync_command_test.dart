@@ -526,7 +526,7 @@ environment:
   test('pub sync preserves separate upstream and dependency paths', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
+    final upstream = await createUpstreamWorkspaceRepository(
       Directory('${environment.homeDirectory.path}/upstream_sync_paths'),
       packagePath: 'packages/camera/camera',
     );
@@ -614,7 +614,7 @@ environment:
     () async {
       final environment = await createTestEnvironment();
       final source = await createPubSourceFixture(environment.homeDirectory);
-      final upstream = await createUpstreamMonorepoRepository(
+      final upstream = await createUpstreamWorkspaceRepository(
         Directory('${environment.homeDirectory.path}/upstream_sync_root_path'),
         packagePath: 'packages/camera/camera',
       );
@@ -696,12 +696,12 @@ environment:
     () async {
       final environment = await createTestEnvironment();
       final source = await createPubSourceFixture(environment.homeDirectory);
-      final upstream = await createUpstreamMonorepoRepository(
+      final upstream = await createUpstreamWorkspaceRepository(
         Directory('${environment.homeDirectory.path}/upstream_sync_wrong_path'),
         packagePath: 'packages/camera/camera',
         packageName: 'camera',
       );
-      await _addMonorepoPackage(
+      await _addWorkspacePackage(
         upstream,
         path: 'packages/share_plus/share_plus',
         name: 'share_plus',
@@ -773,7 +773,7 @@ environment:
   );
 }
 
-Future<void> _addMonorepoPackage(
+Future<void> _addWorkspacePackage(
   Directory repository, {
   required String path,
   required String name,

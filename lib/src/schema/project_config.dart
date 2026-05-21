@@ -1,7 +1,6 @@
 import 'pub_dependency_policy.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
-import 'fluoh_yaml_migration.dart';
 
 class ProjectFluohConfig {
   const ProjectFluohConfig({
@@ -11,10 +10,7 @@ class ProjectFluohConfig {
   });
 
   factory ProjectFluohConfig.parse(String content) {
-    final yaml = migrateFluohYamlContent(
-      content,
-      owner: FluohYamlOwner.project,
-    ).yaml;
+    final yaml = parseYamlMap(content, label: 'fluoh.yaml');
     ensureSupportedSchema(yaml);
     final sdk = yaml['sdk'];
     final sdkVersion = sdk is Map<String, Object?> && sdk['version'] != null

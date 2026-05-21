@@ -219,23 +219,24 @@ Future<List<Directory>> fluohTestWorkspaceDirectories(
     return _testWorkspacePair(Directory('${repository.path}/fluoh_test'));
   }
 
-  final useScoped = packages.length > 1;
   for (final entry in packages.entries) {
     final name = entry.key;
     final value = entry.value;
     if (name is! String || value is! YamlMap) {
       continue;
     }
-    final packageRepository = value['repository'];
-    final path = packageRepository is YamlMap
-        ? packageRepository['path']
-        : null;
-    final workspace = useScoped || (path is String && path.isNotEmpty)
+    final workspace = _looksLikePubRepositoryManifest(yaml)
         ? Directory('${repository.path}/fluoh_test/$name')
         : Directory('${repository.path}/fluoh_test');
     directories.addAll(_testWorkspacePair(workspace));
   }
   return _dedupeDirectories(directories);
+}
+
+bool _looksLikePubRepositoryManifest(YamlMap yaml) {
+  return yaml['kind'] == null &&
+      yaml['sdk'] is YamlMap &&
+      yaml['packages'] is YamlMap;
 }
 
 List<Directory> _testWorkspacePair(Directory workspace) {
@@ -363,6 +364,7 @@ Future<String> _implementationPackagePath(
   if (packages is! YamlMap) {
     return '.';
   }
+  final defaultRepositoryPath = _defaultRepositoryPackagePath(yaml);
   if (packageName != null && packageName.trim().isNotEmpty) {
     final package = packages[packageName.trim()];
     if (package is! YamlMap) {
@@ -371,11 +373,7 @@ Future<String> _implementationPackagePath(
         '',
       );
     }
-    final packageRepository = package['repository'];
-    final path = packageRepository is YamlMap
-        ? packageRepository['path']
-        : null;
-    return path is String && path.isNotEmpty ? path : '.';
+    return _packageRepositoryPath(package, defaultRepositoryPath);
   }
   if (packages.length != 1) {
     throw UsageException(
@@ -386,11 +384,22 @@ Future<String> _implementationPackagePath(
   }
   final package = packages.values.single;
   if (package is! YamlMap) {
-    return '.';
+    return defaultRepositoryPath;
   }
+  return _packageRepositoryPath(package, defaultRepositoryPath);
+}
+
+String _defaultRepositoryPackagePath(YamlMap yaml) {
+  final repository = yaml['repository'];
+  final git = repository is YamlMap ? repository['git'] : null;
+  final path = git is YamlMap ? git['path'] : null;
+  return path is String && path.isNotEmpty ? path : '.';
+}
+
+String _packageRepositoryPath(YamlMap package, String defaultRepositoryPath) {
   final packageRepository = package['repository'];
   final path = packageRepository is YamlMap ? packageRepository['path'] : null;
-  return path is String && path.isNotEmpty ? path : '.';
+  return path is String && path.isNotEmpty ? path : defaultRepositoryPath;
 }
 
 Future<Directory> _testWorkspaceDirectory(
@@ -426,17 +435,16 @@ Future<bool> _usesScopedTestWorkspace(
   Directory repository,
   FlutterImplementationPackage package,
 ) async {
-  if (package.packagePath != '.') {
-    return true;
-  }
-
   final manifest = File('${repository.path}/fluoh.yaml');
   if (await manifest.exists()) {
     final yaml = loadYaml(await manifest.readAsString());
-    final packages = yaml is YamlMap ? yaml['packages'] : null;
-    if (packages is YamlMap && packages.length > 1) {
+    if (yaml is YamlMap && _looksLikePubRepositoryManifest(yaml)) {
       return true;
     }
+  }
+
+  if (package.packagePath != '.') {
+    return true;
   }
 
   final root = Directory('${repository.path}/fluoh_test');
@@ -813,6 +821,12 @@ $runCommand
 ```
 
 The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the tests in this `$testWorkspacePath` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
+
+## What To Edit
+
+- Add deterministic automated checks under `$testWorkspacePath/test`; replace or extend the generated `contract_test.dart` with package-specific OHOS behavior checks.
+- Add focused manual verification actions to `$testWorkspacePath/example/lib/main.dart` when behavior needs a device or visual confirmation.
+- Run `fluoh pub get` after dependency or metadata changes, then run `$runCommand`.
 
 ## Manual Verification
 

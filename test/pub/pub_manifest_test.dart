@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
 import 'package:fluoh/src/pub/manifest/pub_manifest.dart';
 import 'package:fluoh/src/pub/manifest/pubspec_package.dart';
 import 'package:test/test.dart';
@@ -139,44 +138,6 @@ void main() {
     expect(manifest.dependencyPath, '.');
     expect(manifest.primaryPackage.upstreamPath, '.');
     expect(manifest.releaseTag, 'image_gallery_saver-2.0.3-ohos-3.35-0.1.0');
-  });
-
-  test('rejects legacy pub manifest layout', () async {
-    final root = await Directory.systemTemp.createTemp('fluoh_manifest_');
-    addTearDown(() async {
-      if (await root.exists()) {
-        await root.delete(recursive: true);
-      }
-    });
-
-    await File('${root.path}/fluoh.yaml').writeAsString('''
-schema: 1
-sdk:
-  version: 3.35.8-ohos-0.0.3
-package:
-  name: image_gallery_saver
-  version: 0.1.0
-  status: experimental
-  git:
-    url: git@github.com:FlutterOH/image_gallery_saver.git
-    ref: ohos/3.35
-upstream:
-  version: 2.0.3
-  git:
-    url: https://github.com/fluttercandies/image_gallery_saver
-    ref: image_gallery_saver-v2.0.3
-''');
-
-    expect(
-      () => readPubManifest(root),
-      throwsA(
-        isA<UsageException>().having(
-          (error) => error.message,
-          'message',
-          contains('fluoh.yaml must not contain "package"'),
-        ),
-      ),
-    );
   });
 
   test(

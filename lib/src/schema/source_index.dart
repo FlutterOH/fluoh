@@ -1,6 +1,5 @@
 import 'version_rules.dart';
 import 'yaml_utils.dart';
-import 'fluoh_yaml_migration.dart';
 
 const sourceManifestSchema = 1;
 
@@ -385,10 +384,7 @@ class CompatibilityVersion {
 }
 
 SourceRootManifest parseSourceRootManifest(String content) {
-  final yaml = migrateFluohYamlContent(
-    content,
-    owner: FluohYamlOwner.sourceRoot,
-  ).yaml;
+  final yaml = parseYamlMap(content, label: 'fluoh.yaml');
   _ensureSourceSchema(yaml, 'fluoh.yaml');
   ensureAllowedKeys(yaml, 'fluoh.yaml', {
     'schema',
@@ -438,11 +434,7 @@ SourceManifest parseSourceManifest({
   required String content,
   required String label,
 }) {
-  final yaml = migrateFluohYamlContent(
-    content,
-    owner: FluohYamlOwner.sourceManifest,
-    label: label,
-  ).yaml;
+  final yaml = parseYamlMap(content, label: label);
   _ensureSourceSchema(yaml, label);
   ensureAllowedKeys(yaml, label, {
     'schema',

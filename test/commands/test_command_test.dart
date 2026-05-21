@@ -36,12 +36,12 @@ void main() {
     );
 
     final testPubspec = File(
-      '${environment.workingDirectory.path}/fluoh_test/pubspec.yaml',
+      '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
     ).readAsStringSync();
     expect(testPubspec, contains('name: camera_fluoh_test'));
-    expect(testPubspec, contains('camera:\n    path: ..'));
+    expect(testPubspec, contains('camera:\n    path: ../..'));
     final gitignore = File(
-      '${environment.workingDirectory.path}/fluoh_test/.gitignore',
+      '${environment.workingDirectory.path}/fluoh_test/camera/.gitignore',
     ).readAsStringSync();
     expect(gitignore, contains('.flutter-plugins'));
     expect(gitignore, contains('.flutter-plugins-dependencies'));
@@ -58,16 +58,24 @@ void main() {
     expect(gitignore, contains('example/coverage/'));
     expect(gitignore, contains('example/local.properties'));
     final contractTest = File(
-      '${environment.workingDirectory.path}/fluoh_test/test/contract_test.dart',
+      '${environment.workingDirectory.path}/fluoh_test/camera/test/contract_test.dart',
     ).readAsStringSync();
     expect(contractTest, contains("package:camera/camera.dart"));
-    final examplePubspec = File(
-      '${environment.workingDirectory.path}/fluoh_test/example/pubspec.yaml',
+    final testReadme = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/README.md',
     ).readAsStringSync();
-    expect(examplePubspec, contains('camera:\n    path: ../..'));
+    expect(testReadme, contains('## What To Edit'));
+    expect(testReadme, contains('fluoh_test/camera/test'));
+    expect(testReadme, contains('fluoh_test/camera/example/lib/main.dart'));
+    expect(testReadme, contains('fluoh pub get'));
+    expect(testReadme, contains('then run `fluoh test run --package camera`'));
+    final examplePubspec = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/example/pubspec.yaml',
+    ).readAsStringSync();
+    expect(examplePubspec, contains('camera:\n    path: ../../..'));
     expect(
       Directory(
-        '${environment.workingDirectory.path}/fluoh_test/example/ohos',
+        '${environment.workingDirectory.path}/fluoh_test/camera/example/ohos',
       ).existsSync(),
       isTrue,
     );
@@ -76,7 +84,313 @@ void main() {
     ).readAsStringSync();
     expect(flutterLog, contains('create --no-pub --project-name'));
     expect(flutterLog, contains('--platforms=android,ios,ohos'));
-    expect(stdout, contains('Created fluoh_test for camera.'));
+    expect(stdout, contains('Created fluoh_test/camera for camera.'));
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'test commands use package-scoped workspaces for package manifests',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterSdkSource(
+        environment.homeDirectory,
+        logName: 'workspace_root_flutter_args.log',
+      );
+      await _writeFlutterPluginPackage(environment.workingDirectory);
+      await _writePubRepositoryManifest(environment.workingDirectory);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['test', 'init'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        File(
+          '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(stdout, contains('Created fluoh_test/camera for camera.'));
+
+      await File(
+        '${environment.homeDirectory.path}/workspace_root_flutter_args.log',
+      ).writeAsString('');
+      expect(
+        await runFluoh(
+          ['test', 'run'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final flutterLog = File(
+        '${environment.homeDirectory.path}/workspace_root_flutter_args.log',
+      ).readAsStringSync();
+      _expectInOrder(flutterLog, [
+        '${environment.workingDirectory.path}::pub get',
+        '${environment.workingDirectory.path}::test',
+        '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
+        '${environment.workingDirectory.path}/fluoh_test/camera::test',
+      ]);
+      expect(stdout, contains('fluoh_test/camera passed.'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'test init uses package-scoped tests for root package manifests',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterSdkSource(
+        environment.homeDirectory,
+        logName: 'root_manifest_flutter_args.log',
+      );
+      await _writeFlutterPluginPackage(environment.workingDirectory);
+      await File(
+        '${environment.workingDirectory.path}/fluoh.yaml',
+      ).writeAsString('''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
+packages:
+  camera:
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['test', 'init'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        File(
+          '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${environment.workingDirectory.path}/fluoh_test/pubspec.yaml',
+        ).existsSync(),
+        isFalse,
+      );
+      expect(stdout, contains('Created fluoh_test/camera for camera.'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'test init uses package-scoped tests for package path manifests',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterSdkSource(
+        environment.homeDirectory,
+        logName: 'path_manifest_flutter_args.log',
+      );
+      await _writeFlutterPluginPackage(
+        Directory('${environment.workingDirectory.path}/packages/camera'),
+      );
+      await File(
+        '${environment.workingDirectory.path}/fluoh.yaml',
+      ).writeAsString('''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
+packages:
+  camera:
+    repository:
+      path: packages/camera
+    upstream:
+      path: packages/camera
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['test', 'init'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        File(
+          '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${environment.workingDirectory.path}/fluoh_test/pubspec.yaml',
+        ).existsSync(),
+        isFalse,
+      );
+      final testPubspec = File(
+        '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
+      ).readAsStringSync();
+      expect(testPubspec, contains('path: ../../packages/camera'));
+      expect(stdout, contains('Created fluoh_test/camera for camera.'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('test commands honor repository git path defaults', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createFlutterSdkSource(
+      environment.homeDirectory,
+      logName: 'default_path_manifest_flutter_args.log',
+    );
+    final packageDirectory = Directory(
+      '${environment.workingDirectory.path}/packages/camera',
+    );
+    await _writeFlutterPluginPackage(packageDirectory);
+    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
+      '''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
+    path: packages/camera
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+    path: packages/camera
+
+packages:
+  camera:
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['test', 'init'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final testPubspec = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
+    ).readAsStringSync();
+    expect(testPubspec, contains('path: ../../packages/camera'));
+    await File(
+      '${environment.homeDirectory.path}/default_path_manifest_flutter_args.log',
+    ).writeAsString('');
+
+    expect(
+      await runFluoh(
+        ['test', 'run'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final flutterLog = File(
+      '${environment.homeDirectory.path}/default_path_manifest_flutter_args.log',
+    ).readAsStringSync();
+    _expectInOrder(flutterLog, [
+      '${packageDirectory.path}::pub get',
+      '${packageDirectory.path}::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera::test',
+    ]);
+    expect(stdout, contains('Created fluoh_test/camera for camera.'));
+    expect(stdout, contains('fluoh_test/camera passed.'));
     expect(stderr, isEmpty);
   });
 
@@ -123,12 +437,12 @@ void main() {
     _expectInOrder(flutterLog, [
       '${environment.workingDirectory.path}::pub get',
       '${environment.workingDirectory.path}::test',
-      '${environment.workingDirectory.path}/fluoh_test::pub get',
-      '${environment.workingDirectory.path}/fluoh_test::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera::test',
     ]);
     expect(stdout, contains('Running camera package Flutter tests.'));
     expect(stdout, contains('camera package tests passed.'));
-    expect(stdout, contains('fluoh_test passed.'));
+    expect(stdout, contains('fluoh_test/camera passed.'));
     expect(stderr, isEmpty);
   });
 
@@ -180,22 +494,22 @@ void main() {
       isNot(contains('${environment.workingDirectory.path}::test')),
     );
     _expectInOrder(flutterLog, [
-      '${environment.workingDirectory.path}/fluoh_test::pub get',
-      '${environment.workingDirectory.path}/fluoh_test::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera::test',
     ]);
     expect(
       stdout,
       contains('Skipping camera package tests: no test files found.'),
     );
-    expect(stdout, contains('fluoh_test passed.'));
+    expect(stdout, contains('fluoh_test/camera passed.'));
     expect(stderr, isEmpty);
   });
 
-  test('test run executes package tests from monorepo package path', () async {
+  test('test run executes package tests from package manifest path', () async {
     final environment = await createTestEnvironment();
     final source = await _createFlutterSdkSource(
       environment.homeDirectory,
-      logName: 'monorepo_flutter_run_args.log',
+      logName: 'workspace_flutter_run_args.log',
     );
     final packageDirectory = Directory(
       '${environment.workingDirectory.path}/packages/camera/camera',
@@ -233,7 +547,7 @@ void main() {
       isFalse,
     );
     await File(
-      '${environment.homeDirectory.path}/monorepo_flutter_run_args.log',
+      '${environment.homeDirectory.path}/workspace_flutter_run_args.log',
     ).writeAsString('');
 
     expect(
@@ -247,7 +561,7 @@ void main() {
     );
 
     final flutterLog = File(
-      '${environment.homeDirectory.path}/monorepo_flutter_run_args.log',
+      '${environment.homeDirectory.path}/workspace_flutter_run_args.log',
     ).readAsStringSync();
     _expectInOrder(flutterLog, [
       '${packageDirectory.path}::pub get',
@@ -340,12 +654,14 @@ environment:
       );
 
       expect(
-        File('${pubRepository.path}/fluoh_test/pubspec.yaml').existsSync(),
+        File(
+          '${pubRepository.path}/fluoh_test/camera/pubspec.yaml',
+        ).existsSync(),
         isTrue,
       );
       expect(
         File(
-          '${pubRepository.path}/fluoh_test/example/lib/main.dart',
+          '${pubRepository.path}/fluoh_test/camera/example/lib/main.dart',
         ).existsSync(),
         isTrue,
       );
@@ -362,8 +678,8 @@ environment:
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
           'fluoh.yaml',
-          'fluoh_test/pubspec.yaml',
-          'fluoh_test/test/contract_test.dart',
+          'fluoh_test/camera/pubspec.yaml',
+          'fluoh_test/camera/test/contract_test.dart',
         ]),
       );
       expect(staged.stdout.toString(), isNot(contains('local.properties')));
@@ -372,13 +688,99 @@ environment:
         isNot(contains('.flutter-plugins-dependencies')),
       );
       expect(staged.stdout.toString(), isNot(contains('.fluoh')));
-      expect(stdout, contains('Created fluoh_test for camera.'));
+      expect(stdout, contains('Created fluoh_test/camera for camera.'));
       expect(
         stdout,
-        contains('Creating fluoh_test/example for android,ios,ohos.'),
+        contains('Creating fluoh_test/camera/example for android,ios,ohos.'),
       );
       expect(stdout.join('\n'), isNot(contains('fluoh flutter create')));
       expect(stdout, isNot(contains('flutter create stdout')));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'pub create initializes root and nested Flutter packages when selected',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterSdkSource(
+        environment.homeDirectory,
+        logName: 'pub_create_root_nested_flutter_args.log',
+      );
+      final upstream = await _createUpstreamFlutterPluginRepository(
+        Directory('${environment.homeDirectory.path}/upstream_root_nested'),
+      );
+      await _writeFlutterPluginPackage(
+        Directory('${upstream.path}/packages/share_plus/share_plus'),
+        packageName: 'share_plus',
+      );
+      await _runProcess('git', ['add', '.'], upstream);
+      await _runProcess('git', [
+        'commit',
+        '-m',
+        'Add nested Flutter package',
+      ], upstream);
+      final pubRepository = Directory(
+        '${environment.homeDirectory.path}/pub_root_nested',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          [
+            'pub',
+            'create',
+            upstream.path,
+            '--package-path',
+            '.',
+            '--package-path',
+            'packages/share_plus/share_plus',
+            '--output',
+            pubRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final manifest = File(
+        '${pubRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      expect(manifest, contains('packages:\n  camera:'));
+      expect(manifest, contains('  share_plus:'));
+      expect(manifest, contains('path: packages/share_plus/share_plus'));
+      expect(
+        File(
+          '${pubRepository.path}/fluoh_test/camera/pubspec.yaml',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${pubRepository.path}/fluoh_test/share_plus/pubspec.yaml',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(stdout, contains('Created fluoh_test/camera for camera.'));
+      expect(stdout, contains('Created fluoh_test/share_plus for share_plus.'));
+      expect(
+        stdout,
+        contains(
+          'Selected package share_plus at packages/share_plus/share_plus.',
+        ),
+      );
       expect(stderr, isEmpty);
     },
   );
@@ -430,7 +832,7 @@ environment:
       expect(stderr, contains('flutter create stderr'));
       expect(
         stderr.join('\n'),
-        contains('flutter create failed for fluoh_test/example.'),
+        contains('flutter create failed for fluoh_test/camera/example.'),
       );
     },
   );
@@ -441,8 +843,13 @@ environment:
       environment.homeDirectory,
       logName: 'pub_add_flutter_args.log',
     );
-    await _writeFlutterPluginPackage(environment.workingDirectory);
-    await _writePubRepositoryManifest(environment.workingDirectory);
+    await _writeFlutterPluginPackage(
+      Directory('${environment.workingDirectory.path}/packages/camera/camera'),
+    );
+    await _writePubRepositoryManifest(
+      environment.workingDirectory,
+      packagePath: 'packages/camera/camera',
+    );
     await _writeFlutterPluginPackage(
       Directory(
         '${environment.workingDirectory.path}/packages/share_plus/share_plus',
@@ -497,6 +904,15 @@ environment:
       ).existsSync(),
       isTrue,
     );
+    final cameraReadme = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/README.md',
+    ).readAsStringSync();
+    expect(cameraReadme, contains('\nfluoh test run --package camera\n'));
+    expect(
+      cameraReadme,
+      contains('runs the tests in this `fluoh_test/camera` package'),
+    );
+    expect(cameraReadme, isNot(contains('\nfluoh test run\n')));
     expect(
       File(
         '${environment.workingDirectory.path}/fluoh_test/share_plus/pubspec.yaml',
@@ -509,27 +925,29 @@ environment:
     ]);
     expect(
       status.stdout.toString(),
-      contains('fluoh_test/camera/pubspec.yaml'),
-    );
-    expect(
-      status.stdout.toString(),
       contains('fluoh_test/share_plus/pubspec.yaml'),
     );
-    expect(stdout, contains('Moved existing fluoh_test to fluoh_test/camera.'));
     expect(stdout, contains('Created fluoh_test/share_plus for share_plus.'));
     expect(stderr, isEmpty);
   });
 
   test(
-    'pub add rolls back fluoh_test migration when test init fails',
+    'pub add rolls back added fluoh_test workspace when test init fails',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
         environment.homeDirectory,
         logName: 'pub_add_rollback_flutter_args.log',
       );
-      await _writeFlutterPluginPackage(environment.workingDirectory);
-      await _writePubRepositoryManifest(environment.workingDirectory);
+      await _writeFlutterPluginPackage(
+        Directory(
+          '${environment.workingDirectory.path}/packages/camera/camera',
+        ),
+      );
+      await _writePubRepositoryManifest(
+        environment.workingDirectory,
+        packagePath: 'packages/camera/camera',
+      );
       await _writeFlutterPluginPackage(
         Directory(
           '${environment.workingDirectory.path}/packages/share_plus/share_plus',
@@ -585,19 +1003,82 @@ environment:
       expect(manifest, isNot(contains('share_plus:')));
       expect(
         File(
-          '${environment.workingDirectory.path}/fluoh_test/pubspec.yaml',
+          '${environment.workingDirectory.path}/fluoh_test/camera/pubspec.yaml',
         ).existsSync(),
         isTrue,
       );
       expect(
         Directory(
-          '${environment.workingDirectory.path}/fluoh_test/camera',
+          '${environment.workingDirectory.path}/fluoh_test/share_plus',
         ).existsSync(),
         isFalse,
       );
       expect(stderr.join('\n'), contains('flutter create failed'));
     },
   );
+
+  test('pub add extends a single-package manifest', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createFlutterSdkSource(
+      environment.homeDirectory,
+      logName: 'pub_add_single_package_args.log',
+    );
+    await _writeFlutterPluginPackage(environment.workingDirectory);
+    await _writePubRepositoryManifest(environment.workingDirectory);
+    await _writeFlutterPluginPackage(
+      Directory(
+        '${environment.workingDirectory.path}/packages/share_plus/share_plus',
+      ),
+      packageName: 'share_plus',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await initializeGitRepository(environment.workingDirectory);
+    await runGit(environment.workingDirectory, ['checkout', '-b', 'ohos/3.35']);
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'pub',
+          'add',
+          'packages/share_plus/share_plus',
+          '--expected-package',
+          'share_plus',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = File(
+      '${environment.workingDirectory.path}/fluoh.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('share_plus:'));
+    expect(
+      File(
+        '${environment.workingDirectory.path}/fluoh_test/share_plus/pubspec.yaml',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      stdout,
+      contains(
+        'Registered package share_plus at packages/share_plus/share_plus.',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
 
   test(
     'pub release runs package tests and fluoh_test before tagging',
@@ -661,8 +1142,8 @@ environment:
       _expectInOrder(flutterLog, [
         '${pubRepository.path}::pub get',
         '${pubRepository.path}::test',
-        '${pubRepository.path}/fluoh_test::pub get',
-        '${pubRepository.path}/fluoh_test::test',
+        '${pubRepository.path}/fluoh_test/camera::pub get',
+        '${pubRepository.path}/fluoh_test/camera::test',
       ]);
       final tags = await runGit(pubRepository, ['tag', '--list']);
       expect(
@@ -672,7 +1153,7 @@ environment:
       expect(stdout, contains('Running fluoh test run before release.'));
       expect(stdout, contains('Running camera package Flutter tests.'));
       expect(stdout, contains('camera package tests passed.'));
-      expect(stdout, contains('fluoh_test passed.'));
+      expect(stdout, contains('fluoh_test/camera passed.'));
       expect(stderr, isEmpty);
     },
   );

@@ -18,7 +18,7 @@ sdk:
     expect(await readProjectSdkVersion(testDirectory), '3.35.8-ohos-0.0.3');
   });
 
-  test('prefers the nearest fluoh.yaml in nested monorepo projects', () async {
+  test('prefers the nearest fluoh.yaml in nested workspace projects', () async {
     final root = await _createTempDirectory();
     final project = Directory('${root.path}/project');
     final package = Directory('${project.path}/packages/camera');

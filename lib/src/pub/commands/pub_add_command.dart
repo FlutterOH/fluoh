@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:yaml/yaml.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
@@ -39,7 +38,7 @@ class PubAddCommand extends Command<int> {
 
   @override
   String get description =>
-      'Register another package in an existing FlutterOH pub monorepo.';
+      'Register another package in an existing FlutterOH pub repository.';
 
   @override
   String get invocation => 'fluoh pub add <package-path>';
@@ -85,24 +84,17 @@ class PubAddCommand extends Command<int> {
       'FLUOH_CHANGELOG.md',
       'AGENTS.md',
     ]);
-    final existingPackage = manifest.packages.length == 1
-        ? manifest.packages.single.name
-        : null;
     final packageTestWorkspace = Directory(
       '${repository.path}/fluoh_test/${package.name}',
     );
     final packageTestWorkspaceExisted = await packageTestWorkspace.exists();
-    var migratedTestWorkspace = false;
     try {
-      migratedTestWorkspace = await _migrateRootTestWorkspaceForMultiPackage(
-        repository,
-        manifest,
-      );
       await addPubManifestPackage(
         destination: repository,
         package: package,
         packagePath: packagePath,
       );
+      final updatedManifest = await readPubManifest(repository);
       final testInitResult = await initializeFluohTestWorkspace(
         environment: environment,
         stdout: _stdout,
@@ -110,15 +102,10 @@ class PubAddCommand extends Command<int> {
         output: _output,
         packageName: package.name,
       );
-      await _appendPackageDocs(
+      await _writePackageDocs(
         repository: repository,
-        manifest: manifest,
-        package: PubRepositoryDocPackage(
-          name: package.name,
-          version: package.version,
-          packagePath: packagePath,
-          testWorkspacePath: 'fluoh_test/${package.name}',
-        ),
+        manifest: updatedManifest,
+        addedPackageName: package.name,
       );
       await runGit([
         'add',
@@ -128,15 +115,13 @@ class PubAddCommand extends Command<int> {
         'FLUOH_CHANGELOG.md',
         'AGENTS.md',
       ], workingDirectory: repository);
-      if (migratedTestWorkspace || testInitResult.created) {
+      if (testInitResult.created) {
         await runGit(['add', '-A', 'fluoh_test'], workingDirectory: repository);
       }
     } catch (_) {
       await _restoreFiles(repository, originalFiles);
       await _rollbackTestWorkspaceChanges(
         repository: repository,
-        migrated: migratedTestWorkspace,
-        existingPackage: existingPackage,
         addedPackage: package.name,
         addedWorkspaceExisted: packageTestWorkspaceExisted,
       );
@@ -150,23 +135,26 @@ class PubAddCommand extends Command<int> {
     return 0;
   }
 
-  Future<void> _appendPackageDocs({
+  Future<void> _writePackageDocs({
     required Directory repository,
     required PubManifest manifest,
-    required PubRepositoryDocPackage package,
+    required String addedPackageName,
   }) async {
-    final guide = File('${repository.path}/FLUOH.md');
-    await _writeOrAppendMarkdown(
-      guide,
-      (includeTitle) => pubImplementationGuideContent(
-        packages: [package],
-        upstreamBranch: manifest.upstreamBranch,
-        sdkVersion: manifest.sdkVersion,
-        branch: manifest.branch,
-        includeTitle: includeTitle,
-      ),
+    final packages = _docPackagesForManifest(manifest);
+    await writeOrReplacePubImplementationGuide(
+      destination: repository,
+      packages: packages,
+      upstreamBranch: manifest.upstreamBranch,
+      sdkVersion: manifest.sdkVersion,
+      branch: manifest.branch,
     );
 
+    final addedManifestPackage = manifest.packages.firstWhere(
+      (package) => package.name == addedPackageName,
+    );
+    final addedDocPackage = packages.firstWhere(
+      (package) => package.name == addedPackageName,
+    );
     final changelog = File('${repository.path}/FLUOH_CHANGELOG.md');
     final changelogContent = await changelog.exists()
         ? await changelog.readAsString()
@@ -174,43 +162,45 @@ class PubAddCommand extends Command<int> {
     if (changelogContent == null || changelogContent.trim().isEmpty) {
       await changelog.writeAsString(
         pubFluohChangelogContent(
-          packages: [package],
+          packages: [addedDocPackage],
           sdkVersion: manifest.sdkVersion,
-          releaseVersion: initialPubReleaseVersion,
+          releaseVersion: addedManifestPackage.version,
         ),
       );
     } else {
       final entry = pubFluohChangelogEntryLines(
-        package: package,
+        package: addedDocPackage,
         sdkVersion: manifest.sdkVersion,
-        releaseVersion: initialPubReleaseVersion,
+        releaseVersion: addedManifestPackage.version,
       ).join('\n');
       await changelog.writeAsString(
         '$changelogContent${markdownAppendSeparator(changelogContent)}$entry',
       );
     }
 
-    await writeOrAppendPubAgentsInstructions(
+    await writeOrReplacePubAgentsInstructions(
       destination: repository,
-      packages: [package],
+      packages: packages,
       upstreamBranch: manifest.upstreamBranch,
       sdkVersion: manifest.sdkVersion,
       branch: manifest.branch,
     );
   }
 
-  Future<void> _writeOrAppendMarkdown(
-    File file,
-    String Function(bool includeTitle) content,
-  ) async {
-    final existing = await file.exists() ? await file.readAsString() : null;
-    if (existing == null || existing.trim().isEmpty) {
-      await file.writeAsString(content(true));
-      return;
-    }
-    await file.writeAsString(
-      '$existing${markdownAppendSeparator(existing)}${content(false)}',
-    );
+  List<PubRepositoryDocPackage> _docPackagesForManifest(PubManifest manifest) {
+    return [
+      for (final package in manifest.packages)
+        PubRepositoryDocPackage(
+          name: package.name,
+          version: package.upstreamVersion,
+          packagePath: package.repositoryPath,
+          testWorkspacePath: _testWorkspacePathForPackage(package),
+        ),
+    ];
+  }
+
+  String _testWorkspacePathForPackage(PubManifestPackage package) {
+    return 'fluoh_test/${package.name}';
   }
 
   Future<Map<String, String?>> _snapshotFiles(
@@ -242,95 +232,15 @@ class PubAddCommand extends Command<int> {
     }
   }
 
-  Future<bool> _migrateRootTestWorkspaceForMultiPackage(
-    Directory repository,
-    PubManifest manifest,
-  ) async {
-    if (manifest.packages.length != 1) {
-      return false;
-    }
-    final existingPackage = manifest.packages.single;
-    final root = Directory('${repository.path}/fluoh_test');
-    final rootPubspec = File('${root.path}/pubspec.yaml');
-    if (!await rootPubspec.exists()) {
-      return false;
-    }
-    if (!await _testWorkspaceTargetsPackage(
-      rootPubspec,
-      existingPackage.name,
-    )) {
-      return false;
-    }
-
-    final scoped = Directory('${root.path}/${existingPackage.name}');
-    if (await scoped.exists()) {
-      throw UsageException(
-        'Cannot move fluoh_test to ${existingPackage.name}: '
-            '${scoped.path} already exists.',
-        '',
-      );
-    }
-
-    final temporary = Directory(
-      '${repository.path}/.fluoh_test_${existingPackage.name}_migration',
-    );
-    if (await temporary.exists()) {
-      throw UsageException(
-        'Cannot move fluoh_test because ${temporary.path} already exists.',
-        '',
-      );
-    }
-
-    await root.rename(temporary.path);
-    await root.create(recursive: true);
-    await temporary.rename(scoped.path);
-    _output.info(
-      'Moved existing fluoh_test to fluoh_test/${existingPackage.name}.',
-    );
-    return true;
-  }
-
   Future<void> _rollbackTestWorkspaceChanges({
     required Directory repository,
-    required bool migrated,
-    required String? existingPackage,
     required String addedPackage,
     required bool addedWorkspaceExisted,
   }) async {
     final root = Directory('${repository.path}/fluoh_test');
-    if (migrated && existingPackage != null) {
-      final scopedExisting = Directory('${root.path}/$existingPackage');
-      final temporary = Directory(
-        '${repository.path}/.fluoh_test_${existingPackage}_rollback_'
-        '${DateTime.now().microsecondsSinceEpoch}',
-      );
-      if (await scopedExisting.exists()) {
-        await scopedExisting.rename(temporary.path);
-      }
-      if (await root.exists()) {
-        await root.delete(recursive: true);
-      }
-      if (await temporary.exists()) {
-        await temporary.rename(root.path);
-      }
-      return;
-    }
-
     final addedWorkspace = Directory('${root.path}/$addedPackage');
     if (!addedWorkspaceExisted && await addedWorkspace.exists()) {
       await addedWorkspace.delete(recursive: true);
     }
-  }
-
-  Future<bool> _testWorkspaceTargetsPackage(
-    File pubspec,
-    String packageName,
-  ) async {
-    final yaml = loadYaml(await pubspec.readAsString());
-    if (yaml is! YamlMap) {
-      return false;
-    }
-    final dependencies = yaml['dependencies'];
-    return dependencies is YamlMap && dependencies[packageName] != null;
   }
 }

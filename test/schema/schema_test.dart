@@ -26,23 +26,6 @@ sdk:
       );
     });
 
-    test('migrates legacy project config without a schema', () {
-      final config = ProjectFluohConfig.parse('''
-sdk:
-  version: 3.35.8-ohos-0.0.3
-''');
-
-      expect(config.schemaVersion, 1);
-      expect(config.sdkVersion, '3.35.8-ohos-0.0.3');
-      expect(
-        upsertProjectSdkVersion('''
-sdk:
-  version: old
-''', '3.35.8-ohos-0.0.3'),
-        startsWith('schema: 1\n\nsdk:\n  version: 3.35.8-ohos-0.0.3'),
-      );
-    });
-
     test('rejects incomplete SDK versions', () {
       expect(
         () => ProjectFluohConfig.parse('''
@@ -84,90 +67,6 @@ sdk:
         'https://github.com/FlutterOH/image_gallery_saver.git',
       );
       expect(parsed.releaseTag, 'image_gallery_saver-2.0.3-ohos-3.35-0.1.0');
-    });
-
-    test('migrates legacy ref and release layouts', () {
-      final manifest = PubRepositoryManifest.parse('''
-schema: 1
-name: camera
-sdk:
-  version: 3.35.8-ohos-0.0.3
-repository:
-  url: git@github.com:FlutterOH/camera.git
-  ref: ohos/3.35
-upstream:
-  url: https://github.com/flutter/packages
-  defaultBranch: main
-packages:
-  camera:
-    path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    release:
-      version: 0.1.0
-      status: experimental
-    upstreamVersion: "0.11.0"
-''');
-
-      expect(manifest.repositoryUrl, 'git@github.com:FlutterOH/camera.git');
-      expect(manifest.repositoryBranch, 'ohos/3.35');
-      expect(manifest.upstreamBranch, 'main');
-      expect(manifest.primaryPackage.version, '0.1.0');
-      expect(manifest.primaryPackage.upstreamVersion, '0.11.0');
-      expect(manifest.primaryPackage.status, 'experimental');
-      expect(manifest.primaryPackage.repositoryPath, 'packages/camera/camera');
-    });
-
-    test('migrates the legacy release that matches a tag context', () {
-      const legacyManifest = '''
-schema: 1
-name: path_provider
-sdk:
-  version: 3.35.8-ohos-0.0.3
-repository:
-  url: https://github.com/FlutterOH/path_provider.git
-  ref: ohos/3.35
-upstream:
-  url: https://github.com/flutter/packages.git
-  defaultBranch: main
-packages:
-  path_provider:
-    path: packages/path_provider/path_provider
-    upstream:
-      path: packages/path_provider/path_provider
-    releases:
-      - upstream:
-          version: 2.1.5
-        release:
-          version: 0.1.1
-          status: compatible
-      - upstream:
-          version: 2.1.6
-        release:
-          version: 0.1.2
-          status: experimental
-''';
-
-      final manifest = PubRepositoryManifest.parse(
-        legacyManifest,
-        releaseTag: 'path_provider-v2.1.5-ohos-3.35.8-0.1.1',
-      );
-
-      expect(manifest.primaryPackage.upstreamVersion, '2.1.5');
-      expect(manifest.primaryPackage.version, '0.1.1');
-      expect(manifest.primaryPackage.status, 'compatible');
-      expect(manifest.releaseTag, 'path_provider-2.1.5-ohos-3.35-0.1.1');
-      expect(
-        manifest.primaryPackage.matchesReleaseTag(
-          manifest.sdkVersion,
-          'path_provider-v2.1.5-ohos-3.35.8-0.1.1',
-        ),
-        isTrue,
-      );
-      expect(
-        () => PubRepositoryManifest.parse(legacyManifest),
-        throwsA(isA<FormatException>()),
-      );
     });
 
     test('rejects invalid release status and version values', () {
@@ -219,20 +118,6 @@ packages:
   });
 
   group('source indexes', () {
-    test('migrates legacy source root metadata', () {
-      final source = parseSourceRootManifest('''
-schema: 1
-name: Legacy source
-description: Legacy source metadata.
-repositoryUrl: https://github.com/FlutterOH/pub.git
-''');
-
-      expect(source.schemaVersion, 1);
-      expect(source.name, 'Legacy source');
-      expect(source.repositoryGitUrl, 'https://github.com/FlutterOH/pub.git');
-      expect(source.manifests, isEmpty);
-    });
-
     test('accepts empty source scaffolds', () {
       final source = parseSourceRootManifest('''
 schema: 1
@@ -309,50 +194,6 @@ packages:
         ).packages['camera']!.implementations.single.tag,
         'camera-v1.0.0-ohos-3.35.8-1',
       );
-    });
-
-    test('migrates legacy source package manifests', () {
-      final manifest = parseSourceManifest(
-        label: 'manifests/path_provider/fluoh.yaml',
-        content: '''
-schema: 1
-package:
-  name: path_provider
-  git:
-    url: https://github.com/FlutterOH/packages.git
-    path: packages/path_provider/path_provider
-upstream:
-  git:
-    url: https://github.com/flutter/packages.git
-    path: packages/path_provider/path_provider
-releases:
-  - upstream:
-      version: 2.1.5
-      git:
-        ref: path_provider-v2.1.5
-    package:
-      version: 0.1.1
-      git:
-        ref: ohos/3.35
-    sdk:
-      versionSeries: "3.35"
-      versions:
-        - 3.35.8-ohos-0.0.3
-    status: experimental
-''',
-      );
-
-      expect(manifest.name, 'path_provider');
-      expect(
-        manifest.repositoryGitUrl,
-        'https://github.com/FlutterOH/packages.git',
-      );
-      final package = manifest.packages['path_provider']!;
-      expect(package.repositoryPath, 'packages/path_provider/path_provider');
-      final release = package.sdks['3.35']!.releases.single;
-      expect(release.version, '0.1.1');
-      expect(release.upstreamVersion, '2.1.5');
-      expect(release.status, 'experimental');
     });
 
     test('parses SDKs, manifests, and compatible releases', () {

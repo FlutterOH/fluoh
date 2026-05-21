@@ -13,19 +13,6 @@ String pubReleaseTagForPackage({
   return '$packageName-$upstreamVersion-ohos-$sdkLine-$releaseVersion';
 }
 
-String legacyPubReleaseTagForPackage({
-  required String packageName,
-  required String upstreamVersion,
-  required String sdkVersion,
-  required String releaseVersion,
-}) {
-  final flutterVersion = flutterVersionFromSdkVersion(sdkVersion);
-  final upstreamTagVersion = upstreamVersion.startsWith('v')
-      ? upstreamVersion
-      : 'v$upstreamVersion';
-  return '$packageName-$upstreamTagVersion-ohos-$flutterVersion-$releaseVersion';
-}
-
 String flutterOhosVersionFromSdkVersion(String sdkVersion) {
   final match = RegExp(r'^(\d+\.\d+\.\d+-ohos)-.+$').firstMatch(sdkVersion);
   if (match == null) {

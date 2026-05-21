@@ -172,6 +172,81 @@ packages:
     );
   });
 
+  test('cleans scoped fluoh_test for root package manifests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCleanCommandSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
+      '''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
+packages:
+  camera:
+    version: 0.1.0
+    upstreamVersion: 0.11.0
+    status: experimental
+''',
+    );
+    await _writeFluohTestArtifactFixture(
+      environment.workingDirectory,
+      workspacePath: 'fluoh_test/camera',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['clean'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final projectPath = await environment.workingDirectory
+        .resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/flutter_invocations.txt',
+      ).readAsStringSync(),
+      '$projectPath::clean\n',
+    );
+    expect(
+      Directory(
+        '${environment.workingDirectory.path}/fluoh_test/camera/build',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(stdout.join('\n'), contains('Removed 4 fluoh_test artifacts.'));
+  });
+
   test('skips tracked fluoh_test artifact paths', () async {
     final environment = await createTestEnvironment();
     final source = await _createCleanCommandSdkSource(

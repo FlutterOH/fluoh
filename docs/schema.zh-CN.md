@@ -19,10 +19,8 @@
 ### 兼容性
 
 `schema` 是面向未来版本的安全边界。当文件声明的 schema 高于当前 `fluoh`
-支持范围时，命令必须停止并提示用户升级 `fluoh`，不能猜测解析。新版 `fluoh`
-可以在校验当前模型前，把已知旧版 `fluoh.yaml` layout 先在内存中归一化。原本就会
-重写文件的命令，可以在正常更新流程中写回当前 canonical layout。未知或可能丢失信息的
-layout 必须失败并给出可执行的处理建议，不能自动改写。
+支持范围时，命令必须停止并提示用户升级 `fluoh`，不能猜测解析。当前这些 schema
+尚未正式发布，因此命令直接校验当前 canonical layout，不为旧草案 layout 保留向后兼容迁移。
 
 ### Project
 
@@ -57,7 +55,7 @@ Package `fluoh.yaml` 记录 FlutterOH package 适配仓库的当前工作流状�
 只描述当前分支正在维护或准备发布的版本关系；历史发布记录由 release tag 固化，再由
 `fluoh source sync` 汇总进 Source Manifest。
 
-非 monorepo 示例：
+单包示例：
 
 ```yaml
 schema: 1
@@ -82,7 +80,7 @@ packages:
     upstreamVersion: "0.11.0"
 ```
 
-monorepo 示例：
+多 package 示例：
 
 ```yaml
 schema: 1
@@ -124,8 +122,15 @@ packages:
 
 - `schema` 必填，目前必须为 `1`。
 - Package 不使用 `kind`；命令在 `fluoh pub ...` 上下文中解析这套 schema。
-- `name` 必填，表示适配仓库或工作区的逻辑名，不是 Dart package 名。单包仓库通常
-  使用 package 名；monorepo 使用稳定的工作区别名，例如 `flutter_packages`。
+- `name` 必填，表示适配仓库的逻辑名，不一定是 Dart package 名。只跟踪根 package
+  的仓库通常使用 package 名；跟踪多个 package 的仓库通常使用稳定的仓库别名，例如
+  `flutter_packages`。
+- `packages` 是单包和多包仓库共用的 package registry。只有一个已注册 package 时命令
+  默认选择它；注册多个 package 时需要 `--package <name>` 明确选择。
+- package path 默认是 `.`。单包仓库可以省略 `repository.path` 和 `upstream.path`；
+  嵌套 package 仓库可以在 package 级设置 path，或使用顶层 git `path` 默认值。
+- Package 仓库的验证工作区统一放在 package 级 `fluoh_test/<name>` 下。`fluoh pub add`
+  可以向任意 Package 仓库追加 package entry。
 - `sdk.version` 必填，是适配、测试和发布当前 package 使用的完整 Flutter OHOS SDK 版本。
 - `repository.git.url` 必填，是 FlutterOH 适配仓库 URL 或本地路径。
 - `repository.git.branch` 必填，是维护分支。适配分支按 Flutter OHOS 大版本线创建，
@@ -210,7 +215,7 @@ Manifest 记录已发布、可被项目消费的 FlutterOH package 适配记录�
 `fluoh source sync` 从 Package release tags 汇总生成，也可以由维护者手动补充
 `advisory` 和 `maintenance`。
 
-非 monorepo 示例：
+单包示例：
 
 ```yaml
 schema: 1
@@ -235,7 +240,7 @@ packages:
             upstreamVersion: "0.11.0"
 ```
 
-monorepo 示例：
+多 package 示例：
 
 ```yaml
 schema: 1
@@ -314,7 +319,7 @@ packages:
   `1` 或 `0.1.0`，不带 `v` 前缀。
 - `releases[].upstreamVersion` 必填，是对应的 upstream package 版本。
 - `releases[].tag` 可选。当前 canonical tag 不需要写；`fluoh source sync`
-  只会在需要保留已有非 canonical release tag（例如旧版 tag）时写入。
+  只会在需要保留已有非 canonical release tag 时写入。
 - `releases[].status` 可选；不写表示 `compatible`。只有适配中或已知不可用时才写
   `experimental` 或 `broken`。
 - `fluoh pub check/fix/upgrade` 默认只推荐 `compatible` 发布记录。

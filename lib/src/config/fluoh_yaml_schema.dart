@@ -15,13 +15,8 @@ void ensureSupportedFluohYamlSchema(
     if (converted is! Map<String, Object?>) {
       throw FluohSchemaException('$label must contain a YAML map.');
     }
-    final migrated = migrateFluohYamlMap(
-      converted,
-      owner: FluohYamlOwner.project,
-      label: label,
-    );
     ensureSupportedSchema(
-      migrated.yaml,
+      converted,
       label: label,
       packageVersion: packageVersion,
     );

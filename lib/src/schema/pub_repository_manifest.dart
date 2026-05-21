@@ -1,7 +1,6 @@
 import 'pubspec.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
-import 'fluoh_yaml_migration.dart';
 
 const pubManifestSchema = 1;
 const initialPubReleaseVersion = '0.1.0';
@@ -20,12 +19,8 @@ class PubRepositoryManifest {
     this.upstreamPath = '.',
   });
 
-  factory PubRepositoryManifest.parse(String content, {String? releaseTag}) {
-    final yaml = migrateFluohYamlContent(
-      content,
-      owner: FluohYamlOwner.pubRepository,
-      releaseTag: releaseTag,
-    ).yaml;
+  factory PubRepositoryManifest.parse(String content) {
+    final yaml = parseYamlMap(content, label: 'fluoh.yaml');
     _ensurePubManifestSchema(yaml);
 
     ensureAllowedKeys(yaml, 'fluoh.yaml', {
@@ -194,12 +189,6 @@ class PubRepositoryManifestPackage {
         sdkVersion: sdkVersion,
         releaseVersion: version,
       ),
-      legacyPubReleaseTagForPackage(
-        packageName: name,
-        upstreamVersion: upstreamVersion,
-        sdkVersion: sdkVersion,
-        releaseVersion: version,
-      ),
     };
   }
 
@@ -237,6 +226,7 @@ PubRepositoryManifest createPubRepositoryManifest({
   String releaseVersion = initialPubReleaseVersion,
   String status = 'experimental',
 }) {
+  final repositoryPackagePath = _manifestPath(repositoryPath ?? packagePath);
   return PubRepositoryManifest(
     name: name ?? package.name,
     sdkVersion: sdkVersion,
@@ -249,7 +239,7 @@ PubRepositoryManifest createPubRepositoryManifest({
         name: package.name,
         upstreamVersion: package.version,
         version: releaseVersion,
-        repositoryPath: _manifestPath(repositoryPath ?? packagePath),
+        repositoryPath: repositoryPackagePath,
         upstreamPath: _manifestPath(upstreamPath ?? packagePath),
         status: status,
       ),

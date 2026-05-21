@@ -326,12 +326,12 @@ void main() {
   test('release --all creates one tag per registered package', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
+    final upstream = await createUpstreamWorkspaceRepository(
       Directory('${environment.homeDirectory.path}/release_all_upstream'),
       packagePath: 'packages/camera/camera',
       packageName: 'camera',
     );
-    await _addMonorepoPackage(
+    await _addWorkspacePackage(
       upstream,
       path: 'packages/share_plus/share_plus',
       name: 'share_plus',
@@ -396,12 +396,12 @@ void main() {
   test('release --all --push does not push partial remote tags', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
+    final upstream = await createUpstreamWorkspaceRepository(
       Directory('${environment.homeDirectory.path}/release_all_push_upstream'),
       packagePath: 'packages/camera/camera',
       packageName: 'camera',
     );
-    await _addMonorepoPackage(
+    await _addWorkspacePackage(
       upstream,
       path: 'packages/share_plus/share_plus',
       name: 'share_plus',
@@ -482,14 +482,14 @@ exit 0
     () async {
       final environment = await createTestEnvironment();
       final source = await createPubSourceFixture(environment.homeDirectory);
-      final upstream = await createUpstreamMonorepoRepository(
+      final upstream = await createUpstreamWorkspaceRepository(
         Directory(
           '${environment.homeDirectory.path}/release_all_conflict_upstream',
         ),
         packagePath: 'packages/camera/camera',
         packageName: 'camera',
       );
-      await _addMonorepoPackage(
+      await _addWorkspacePackage(
         upstream,
         path: 'packages/share_plus/share_plus',
         name: 'share_plus',
@@ -562,12 +562,12 @@ exit 0
   test('multi-package release notes must identify the package', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamMonorepoRepository(
+    final upstream = await createUpstreamWorkspaceRepository(
       Directory('${environment.homeDirectory.path}/release_notes_upstream'),
       packagePath: 'packages/camera/camera',
       packageName: 'camera',
     );
-    await _addMonorepoPackage(
+    await _addWorkspacePackage(
       upstream,
       path: 'packages/share_plus/share_plus',
       name: 'share_plus',
@@ -634,7 +634,7 @@ exit 0
   });
 }
 
-Future<void> _addMonorepoPackage(
+Future<void> _addWorkspacePackage(
   Directory repository, {
   required String path,
   required String name,

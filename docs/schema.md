@@ -22,11 +22,9 @@ schema from the execution context, not from the filename alone.
 
 `schema` is a forward-safety boundary. When a file declares a schema newer than
 the running `fluoh` supports, commands stop and ask the user to upgrade `fluoh`
-instead of guessing. Newer `fluoh` releases may normalize known older
-`fluoh.yaml` layouts in memory before validating the current model. Commands
-that already rewrite a file may write the current canonical layout as part of
-their normal update. Unknown or lossy layouts must fail with an actionable
-message instead of being rewritten.
+instead of guessing. The package has not published these schemas yet, so
+commands validate the current canonical layout directly instead of carrying
+backward-compatibility migrations for older draft layouts.
 
 ### Project
 
@@ -68,7 +66,7 @@ relationship currently maintained or prepared on the branch. Release tags freeze
 historical release records, and `fluoh source sync` aggregates those records
 into Source Manifests.
 
-Non-monorepo example:
+Single-package example:
 
 ```yaml
 schema: 1
@@ -93,7 +91,7 @@ packages:
     upstreamVersion: "0.11.0"
 ```
 
-Monorepo example:
+Package collection example:
 
 ```yaml
 schema: 1
@@ -136,10 +134,19 @@ Rules:
 - `schema` is required and currently must be `1`.
 - Package config does not use `kind`; commands parse this schema in
   `fluoh pub ...` context.
-- `name` is required. It is the logical name of the adaptation repository or
-  workspace, not the Dart package name. Single-package repositories usually use
-  the package name; monorepos use a stable workspace alias such as
-  `flutter_packages`.
+- `name` is required. It is the logical name of the adaptation repository, not
+  necessarily the Dart package name. Repositories with one root package usually
+  use that package name; repositories tracking multiple packages usually use a
+  stable repository alias such as `flutter_packages`.
+- `packages` is the package registry for both one-package and multi-package
+  repositories. Commands default to the only registered package and require
+  `--package <name>` when more than one package is registered.
+- Package paths default to `.`. Single-package repositories can omit
+  `repository.path` and `upstream.path`; nested package repositories set them per
+  package or through the top-level git `path` defaults.
+- Package repository verification workspaces are package-scoped under
+  `fluoh_test/<name>`. `fluoh pub add` appends another package entry to any
+  Package repository.
 - `sdk.version` is required. It is the complete Flutter OHOS SDK version used to
   adapt, test, and release the current package.
 - `repository.git.url` is required and is the FlutterOH adaptation repository
@@ -239,7 +246,7 @@ Manifest files record released FlutterOH package adaptation records consumable
 by projects. `fluoh source sync` can aggregate them from Package release tags,
 and maintainers can manually add `advisory` and `maintenance`.
 
-Non-monorepo example:
+Single-package example:
 
 ```yaml
 schema: 1
@@ -264,7 +271,7 @@ packages:
             upstreamVersion: "0.11.0"
 ```
 
-Monorepo example:
+Package collection example:
 
 ```yaml
 schema: 1
@@ -354,7 +361,7 @@ Rules:
   package version.
 - `releases[].tag` is optional. Omit it for current canonical tags; `fluoh
   source sync` writes it only when preserving an existing non-canonical release
-  tag, such as a legacy tag.
+  tag.
 - `releases[].status` is optional. Omitted means `compatible`; write
   `experimental` or `broken` only for in-progress or known-bad records.
 - `fluoh pub check/fix/upgrade` recommends only `compatible` release records by

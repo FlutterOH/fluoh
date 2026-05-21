@@ -250,7 +250,7 @@ environment:
   return repo;
 }
 
-Future<Directory> createUpstreamMonorepoRepository(
+Future<Directory> createUpstreamWorkspaceRepository(
   Directory repo, {
   String packagePath = 'packages/camera/camera',
   String packageName = 'camera',
@@ -270,12 +270,12 @@ version: $version
 environment:
   sdk: ^3.0.0
 ''');
-  await File('${repo.path}/README.md').writeAsString('# monorepo\n');
+  await File('${repo.path}/README.md').writeAsString('# workspace\n');
   if (licenseContent != null) {
     await File('${repo.path}/LICENSE').writeAsString(licenseContent);
   }
   await _git(repo, ['add', '.']);
-  await _git(repo, ['commit', '-m', 'Initial monorepo fixture']);
+  await _git(repo, ['commit', '-m', 'Initial workspace fixture']);
 
   return repo;
 }
