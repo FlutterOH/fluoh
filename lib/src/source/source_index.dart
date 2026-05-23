@@ -171,6 +171,3 @@ class SourcePackageRouteManifest {
   final String name;
   final Map<String, List<String>> packages;
 }
-
-@Deprecated('Use SourceIndex instead.')
-typedef PubSource = SourceIndex;

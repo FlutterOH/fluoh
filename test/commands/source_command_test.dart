@@ -520,9 +520,8 @@ repository:
     final lock = File('${environment.homeDirectory.path}/sources.lock.json');
     expect(lock.existsSync(), isTrue);
     final lockJson = _readJsonObject(lock);
-    final packages = lockJson['packages'] as Map<String, Object?>;
-    final manifests = packages['manifests'] as Map<String, Object?>;
-    final fixtureManifests = manifests['fixture'] as Map<String, Object?>;
+    final routes = lockJson['routes'] as Map<String, Object?>;
+    final fixtureManifests = routes['fixture'] as Map<String, Object?>;
     final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
     expect(cameraManifest, contains('camera'));
     expect(Directory('${cachedSource.path}/packages').existsSync(), isFalse);
@@ -567,7 +566,7 @@ environment:
 # Uncomment to document where this source is published.
 # repository:
 #   git:
-#     url: "https://github.com/FlutterOH/pub.git"
+#     url: "https://github.com/FlutterOH/source.git"
 
 # Uncomment to publish Flutter OHOS SDK versions from this source.
 # sdk:
@@ -607,6 +606,41 @@ environment:
     expect(stderr, isEmpty);
   });
 
+  test(
+    'source init resolves relative paths from the working directory',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = Directory(
+        '${environment.workingDirectory.path}/local_source',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['source', 'init', 'local_source'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(File('${source.path}/fluoh.yaml').existsSync(), isTrue);
+      expect(
+        File('${source.path}/README.md').readAsStringSync(),
+        contains(
+          'A source repository can add scheduled validation or ingestion workflows',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Created local source template at ${source.path}.'),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
   test('writes compact source locks and source snapshot state', () async {
     final environment = await createTestEnvironment();
     final source = await createPubSourceFixture(environment.homeDirectory);
@@ -627,7 +661,9 @@ environment:
       '${environment.homeDirectory.path}/sources/fixture/.fluoh-source-state.json',
     );
     expect(state.existsSync(), isTrue);
-    expect(state.readAsStringSync(), contains('"contentHash"'));
+    final stateContent = state.readAsStringSync();
+    expect(stateContent, contains('"snapshotHash"'));
+    expect(stateContent, isNot(contains('"contentHash"')));
 
     final lockFile = File(
       '${environment.homeDirectory.path}/sources.lock.json',
@@ -643,11 +679,12 @@ environment:
     expect(sdkRelease, isNot(contains('flutterVersion')));
     expect(sdkRelease, isNot(contains('channel')));
     expect(sdkRelease, isNot(contains('tag')));
-    final packages = lock['packages'] as Map<String, Object?>;
-    final manifests = packages['manifests'] as Map<String, Object?>;
-    final fixtureManifests = manifests['fixture'] as Map<String, Object?>;
+    final routes = lock['routes'] as Map<String, Object?>;
+    final fixtureManifests = routes['fixture'] as Map<String, Object?>;
     final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
     expect(cameraManifest, containsPair('camera', ['3.35']));
+    expect(lockContent, isNot(contains('"packages"')));
+    expect(lockContent, isNot(contains('"manifests"')));
     expect(lockContent, isNot(contains('packages/camera/camera')));
     expect(lockContent, isNot(contains('"upstreamVersion"')));
     expect(stderr, isEmpty);
@@ -701,8 +738,17 @@ environment:
   });
 
   test('source init creates an editable empty source scaffold', () async {
-    final environment = await createTestEnvironment();
-    final source = Directory('${environment.homeDirectory.path}/local_source');
+    final baseEnvironment = await createTestEnvironment();
+    final source = Directory(
+      '${baseEnvironment.homeDirectory.path}/local_source',
+    );
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': Uri.file(source.path).toString(),
+      },
+    );
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -740,8 +786,7 @@ environment:
     final sdk = lock['sdk'] as Map<String, Object?>;
     final versions = sdk['versions'] as Map<String, Object?>;
     expect(versions, isEmpty);
-    final packages = lock['packages'] as Map<String, Object?>;
-    expect(packages['manifests'], isEmpty);
+    expect(lock['routes'], isEmpty);
 
     expect(
       stdout,
@@ -859,6 +904,54 @@ environment:
       ).readAsStringSync();
       expect(manifest, contains('url: ../packages_implementation'));
       expect(manifest, contains('upstreamVersion: 0.11.0'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'source sync resolves relative source paths from the working directory',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = Directory(
+        '${environment.workingDirectory.path}/local_source',
+      );
+      final pubRepository = Directory(
+        '${environment.workingDirectory.path}/packages_implementation',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'init', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await _writePubRepositoryManifest(pubRepository);
+      await _writeSourceSyncManifest(source, pubRepository);
+      await initializeGitRepository(pubRepository);
+      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+
+      expect(
+        await runFluoh(
+          ['source', 'sync', 'local_source'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        File('${source.path}/manifests/packages/fluoh.yaml').readAsStringSync(),
+        contains('upstreamVersion: 0.11.0'),
+      );
+      expect(
+        stdout,
+        contains(
+          'Synced source metadata for camera from ${pubRepository.path}.',
+        ),
+      );
       expect(stderr, isEmpty);
     },
   );
@@ -2054,8 +2147,8 @@ Map<String, Object?> _readJsonObject(File file) {
 
 String _lockSourceSnapshotHash(File lockFile, String sourceName) {
   final lock = _readJsonObject(lockFile);
-  final inputs = lock['inputs'] as Map<String, Object?>;
-  final sources = inputs['sources'] as List<Object?>;
+  final fingerprint = lock['fingerprint'] as Map<String, Object?>;
+  final sources = fingerprint['sources'] as List<Object?>;
   final source = sources.cast<Map<String, Object?>>().singleWhere(
     (source) => source['name'] == sourceName,
   );

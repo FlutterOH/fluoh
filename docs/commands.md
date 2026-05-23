@@ -60,8 +60,8 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
   then commits the new local Source state.
 - Commands that consume Source data access it only through the Source runtime's
   load-index API. That API bootstraps the first default Source configuration and
-  returns a fresh `sources.lock.json` when recorded inputs still match. When the
-  lock is missing, stale, or uses an older package-lock shape, the runtime
+  returns a fresh `sources.lock.json` when its recorded fingerprint still
+  matches. When the lock is missing, stale, or incompatible, the runtime
   verifies or repairs configured source snapshots and regenerates the lock
   before returning data.
 - `fluoh source` without a subcommand and `fluoh source list` use the same

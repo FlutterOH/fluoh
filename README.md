@@ -127,7 +127,7 @@ workflows.
 `fluoh` uses the official FlutterOH source by default:
 
 ```text
-https://github.com/FlutterOH/pub.git
+https://github.com/FlutterOH/source.git
 ```
 
 Source metadata and compatibility schema details are documented in

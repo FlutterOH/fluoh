@@ -16,7 +16,15 @@ Future<FluohEnvironment> createTestEnvironment() async {
   await home.create(recursive: true);
   await project.create(recursive: true);
 
-  return FluohEnvironment(homeDirectory: home, workingDirectory: project);
+  return FluohEnvironment(
+    homeDirectory: home,
+    workingDirectory: project,
+    processEnvironment: {
+      'FLUOH_DEFAULT_SOURCE_URL': Uri.file(
+        '${root.path}/missing_default_source',
+      ).toString(),
+    },
+  );
 }
 
 Future<Directory> createPubSourceFixture(Directory parent) async {

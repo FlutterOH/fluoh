@@ -135,7 +135,7 @@ void main() {
       'fluoh pub check',
       'fluoh pub fix',
       'fluohf build hap',
-      'https://github.com/FlutterOH/pub.git',
+      'https://github.com/FlutterOH/source.git',
       '[docs/commands.md](docs/commands.md)',
       '[docs/schema.md](docs/schema.md)',
       '[CONTRIBUTING.md](CONTRIBUTING.md)',
@@ -157,7 +157,7 @@ void main() {
       'fluoh pub check',
       'fluoh pub fix',
       'fluohf build hap',
-      'https://github.com/FlutterOH/pub.git',
+      'https://github.com/FlutterOH/source.git',
       '[docs/commands.zh-CN.md](docs/commands.zh-CN.md)',
       '[docs/schema.zh-CN.md](docs/schema.zh-CN.md)',
       '[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)',
@@ -240,7 +240,9 @@ void main() {
       'sdks.<sdkLine>.releases',
       '`config.json`',
       '`sources.lock.json`',
-      'FlutterOH/pub',
+      '"fingerprint"',
+      '"routes"',
+      'FlutterOH/source',
     ]);
     expectContainsNone(schema, [
       'repository.git.ref',
@@ -267,7 +269,9 @@ void main() {
       'sdks.<sdkLine>.releases',
       '`config.json`',
       '`sources.lock.json`',
-      'FlutterOH/pub',
+      '"fingerprint"',
+      '"routes"',
+      'FlutterOH/source',
     ]);
     expectContainsNone(chineseSchema, [
       'repository.git.ref',

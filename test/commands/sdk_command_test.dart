@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -54,7 +53,7 @@ void main() {
       expect(configFile.existsSync(), isTrue);
       expect(
         configFile.readAsStringSync(),
-        contains('https://github.com/FlutterOH/pub.git'),
+        contains(environment.processEnvironment['FLUOH_DEFAULT_SOURCE_URL']),
       );
       expect(
         stderr.join('\n'),
@@ -99,44 +98,6 @@ void main() {
       expect(stderr, isEmpty);
     },
   );
-
-  test('lists SDKs without parsing package lock entries', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    final lockFile = File(
-      '${environment.homeDirectory.path}/sources.lock.json',
-    );
-    final lock =
-        jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-    lock['packages'] = 'not a packages object';
-    await lockFile.writeAsString(
-      '${const JsonEncoder.withIndent('  ').convert(lock)}\n',
-    );
-    stdout.clear();
-    stderr.clear();
-
-    expect(
-      await runFluoh(
-        ['sdk', 'list'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-
-    expect(stdout, anyElement(contains('3.35.8-ohos-0.0.3')));
-    expect(stderr, isEmpty);
-  });
 
   test('lists, installs, reports current, and removes SDKs', () async {
     final environment = await createTestEnvironment();

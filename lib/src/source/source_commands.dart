@@ -33,7 +33,13 @@ class SourceCommand extends Command<int> {
         output: _output,
       ),
     );
-    addSubcommand(SourceInitCommand(stdout: stdout, output: _output));
+    addSubcommand(
+      SourceInitCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
     addSubcommand(
       SourceSyncCommand(
         environment: environment,
@@ -218,9 +224,13 @@ class SourceValidateCommand extends Command<int> {
 }
 
 class SourceInitCommand extends Command<int> {
-  SourceInitCommand({required OutputWriter stdout, TerminalOutput? output})
-    : _output = output ?? TerminalOutput(stdout: stdout);
+  SourceInitCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout);
 
+  final FluohEnvironment environment;
   final TerminalOutput _output;
 
   @override
@@ -240,7 +250,10 @@ class SourceInitCommand extends Command<int> {
       'Expected a local source path.',
       usageException,
     );
-    final source = Directory(rest.single);
+    final source = _resolveUserSourceDirectory(
+      environment.workingDirectory,
+      Directory(rest.single),
+    );
     final metadata = File('${source.path}/fluoh.yaml');
     final exampleManifest = File('${source.path}/manifests/example/fluoh.yaml');
     final readme = File('${source.path}/README.md');
@@ -313,7 +326,10 @@ class SourceSyncCommand extends Command<int> {
 
     final source = rest.isEmpty
         ? environment.workingDirectory
-        : Directory(rest.single);
+        : _resolveUserSourceDirectory(
+            environment.workingDirectory,
+            Directory(rest.single),
+          );
     if (!await source.exists()) {
       usageException('Source path does not exist: ${source.path}');
     }
@@ -1263,7 +1279,7 @@ Copy or rename it when adding package routing, or let `fluoh source sync`
 create released package metadata from Manifest repository URLs.
 Edit Manifest files directly for advisory and maintenance notes.
 
-The `pub` repository can be maintained as a source and add scheduled workflows on top of these files.
+A source repository can add scheduled validation or ingestion workflows on top of these files.
 ''';
 }
 
@@ -1280,7 +1296,7 @@ String _localSourceMetadata() {
     '# Uncomment to document where this source is published.',
     '# repository:',
     '#   git:',
-    '#     url: "https://github.com/FlutterOH/pub.git"',
+    '#     url: "https://github.com/FlutterOH/source.git"',
     '',
     '# Uncomment to publish Flutter OHOS SDK versions from this source.',
     '# sdk:',

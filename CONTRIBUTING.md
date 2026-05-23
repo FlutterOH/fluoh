@@ -205,4 +205,4 @@ Use `fluoh_test/test` for automated platform adaptation checks that must pass be
 - Package Flutter tests and `fluoh_test` pass through `fluoh test run` for Flutter packages.
 - The release tag matches the package, upstream version, SDK line, and `version` recorded in Package `fluoh.yaml`.
 
-FlutterOH pub repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released pub repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. FlutterOH/pub pull requests and scheduled package ingestion workflows should call the same source command path.
+FlutterOH pub repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released pub repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. FlutterOH/source pull requests and scheduled package ingestion workflows should call the same source command path.

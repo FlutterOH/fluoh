@@ -102,7 +102,7 @@ void main() {
       );
       final lock =
           jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-      lock['packages'] = {'camera': 'not a package object'};
+      lock['routes'] = {'fixture': 'not a source manifest object'};
       await lockFile.writeAsString(
         '${const JsonEncoder.withIndent('  ').convert(lock)}\n',
       );
@@ -122,9 +122,8 @@ void main() {
       expect(stdout, anyElement(contains('camera 0.11.0')));
       final repairedLock =
           jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-      final packages = repairedLock['packages'] as Map<String, Object?>;
-      final manifests = packages['manifests'] as Map<String, Object?>;
-      final fixtureManifests = manifests['fixture'] as Map<String, Object?>;
+      final routes = repairedLock['routes'] as Map<String, Object?>;
+      final fixtureManifests = routes['fixture'] as Map<String, Object?>;
       final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
       expect(cameraManifest, containsPair('camera', ['3.35']));
       expect(stderr, isEmpty);
@@ -170,7 +169,7 @@ void main() {
       );
       await _writeSnapshotStateForCurrentFingerprint(
         cachedSource,
-        contentHash: snapshotHash,
+        snapshotHash: snapshotHash,
       );
       stdout.clear();
       stderr.clear();
@@ -1091,8 +1090,8 @@ sdks:
 
 String _lockSourceSnapshotHash(File lockFile, String sourceName) {
   final lock = jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-  final inputs = lock['inputs'] as Map<String, Object?>;
-  final sources = inputs['sources'] as List<Object?>;
+  final fingerprint = lock['fingerprint'] as Map<String, Object?>;
+  final sources = fingerprint['sources'] as List<Object?>;
   final source = sources.cast<Map<String, Object?>>().singleWhere(
     (source) => source['name'] == sourceName,
   );
@@ -1101,14 +1100,14 @@ String _lockSourceSnapshotHash(File lockFile, String sourceName) {
 
 Future<void> _writeSnapshotStateForCurrentFingerprint(
   Directory root, {
-  required String contentHash,
+  required String snapshotHash,
 }) async {
   final state = {
     'stateVersion': 1,
     'generatedBy': 'fluoh test',
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
     'fingerprint': await _snapshotFingerprint(root),
-    'contentHash': contentHash,
+    'snapshotHash': snapshotHash,
   };
   await File(
     '${root.path}/.fluoh-source-state.json',

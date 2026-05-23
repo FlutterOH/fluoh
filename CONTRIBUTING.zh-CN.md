@@ -196,4 +196,4 @@ git commit -m "feat(pub): initialize FlutterOH package"
 - Flutter package 自身测试和 `fluoh_test` 通过 `fluoh test run`。
 - release tag 和 Package `fluoh.yaml` 中的 package、上游版本、SDK 版本线、`version` 一致。
 
-FlutterOH pub 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 pub 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/pub PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。
+FlutterOH pub 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 pub 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/source PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。

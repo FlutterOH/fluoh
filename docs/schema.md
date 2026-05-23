@@ -199,7 +199,7 @@ description: Flutter OHOS SDK and package adaptation source.
 
 repository:
   git:
-    url: https://github.com/FlutterOH/pub.git
+    url: https://github.com/FlutterOH/source.git
 
 environment:
   fluoh: '>=0.1.0'
@@ -425,8 +425,8 @@ change must increment `version`.
 metadata through the Source runtime. A fresh `sources.lock.json` provides the
 package route index used to narrow Manifest reads; full package metadata still
 comes from Source Manifest YAML on demand. The lock is regenerated from Source
-root and Manifest YAML when source inputs change, when it is missing, or when it
-uses an older package-lock shape. Generated matrix files are not committed.
+root and Manifest YAML when source inputs change or when it is missing.
+Generated matrix files are not committed.
 
 Consumer status is based only on release records:
 
@@ -449,12 +449,12 @@ Tool config remains JSON because it is machine-owned runtime state:
 {
   "sources": {
     "flutteroh": {
-      "url": "https://github.com/FlutterOH/pub.git",
+      "url": "https://github.com/FlutterOH/source.git",
       "path": "/home/user/.fluoh/sources/flutteroh",
       "priority": 0
     },
     "local": {
-      "url": "file:///Users/user/source/pub",
+      "url": "file:///Users/user/local/source",
       "path": "/home/user/.fluoh/sources/local",
       "priority": 10
     }
@@ -489,23 +489,20 @@ Example shape:
 
 ```json
 {
-  "generatedBy": "fluoh 0.1.0",
-  "generatedAt": "2026-05-13T12:00:00Z",
-  "inputs": {
+  "fingerprint": {
     "toolVersion": "0.1.0",
-    "configHash": "hash64:...",
     "sources": [
       {
         "name": "flutteroh",
         "path": "/home/user/.fluoh/sources/flutteroh",
-        "url": "https://github.com/FlutterOH/pub.git",
+        "url": "https://github.com/FlutterOH/source.git",
         "priority": 0,
         "snapshotHash": "hash64:..."
       },
       {
         "name": "local",
         "path": "/home/user/.fluoh/sources/local",
-        "url": "/Users/user/source/pub",
+        "url": "/Users/user/local/source",
         "priority": 10,
         "snapshotHash": "hash64:..."
       }
@@ -521,26 +518,21 @@ Example shape:
       }
     }
   },
-  "packages": {
-    "manifests": {
-      "flutteroh": {
-        "flutter_packages": {
-          "camera": ["3.35", "3.36"],
-          "path_provider": ["3.35"]
-        }
-      },
-      "local": {
-        "flutter_packages": {
-          "camera": ["3.35"]
-        }
+  "routes": {
+    "flutteroh": {
+      "flutter_packages": {
+        "camera": ["3.35", "3.36"],
+        "path_provider": ["3.35"]
+      }
+    },
+    "local": {
+      "flutter_packages": {
+        "camera": ["3.35"]
       }
     }
   }
 }
 ```
-
-Legacy locks without `packages.manifests`, or with older full package-entry
-data, are rebuilt before they are treated as fresh.
 
 Rules:
 
@@ -553,7 +545,7 @@ Rules:
   `config.json`, any configured Source snapshot, SDK merge rules, or the
   `fluoh` tool version changes.
 - Each configured Source snapshot contains a generated
-  `.fluoh-source-state.json` with the snapshot content hash. Normal lock
+  `.fluoh-source-state.json` with the snapshot hash. Normal lock
   freshness checks read that state file instead of recursively hashing the
   snapshot on every command. If the state file is missing, the runtime
   recalculates the snapshot hash and writes a fresh state file.
@@ -566,11 +558,11 @@ Rules:
   SDK metadata.
 - The lock stores resolved SDK releases with the winning Source alias and final
   repository URL. Fields that can be derived from object keys, defaults, or
-  `inputs.sources` are omitted: source priority is stored only in
-  `inputs.sources`, SDK `versionSeries` and `flutterVersion` derive from the SDK
-  version key, SDK `tag` defaults to the version key, and SDK `channel` defaults
-  to `stable`.
-- The package routing index stores only Source/Manifest/package routing and the
+  `fingerprint.sources` are omitted: source priority is stored only in
+  `fingerprint.sources`, SDK `versionSeries` and `flutterVersion` derive from
+  the SDK version key, SDK `tag` defaults to the version key, and SDK `channel`
+  defaults to `stable`.
+- The `routes` index stores only Source/Manifest/package routing and the
   compatible SDK lines seen for each package at that route. It does not store
   package repositories, paths, upstream versions, release versions, tags,
   advisories, maintenance notes, or selected implementations.
@@ -583,4 +575,5 @@ Rules:
   commands. Package priority and conflict rules run when package metadata is
   loaded for dependency workflows.
 - Writes use a temporary file plus atomic replacement. If generation fails, the
-  previous lock is not treated as fresh unless its recorded inputs still match.
+  previous lock is not treated as fresh unless its recorded fingerprint still
+  matches.

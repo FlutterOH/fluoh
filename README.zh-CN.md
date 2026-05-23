@@ -123,7 +123,7 @@ fluoh source sync
 `fluoh` 默认使用 FlutterOH 官方 source：
 
 ```text
-https://github.com/FlutterOH/pub.git
+https://github.com/FlutterOH/source.git
 ```
 
 Source 元数据和兼容性 schema 的细节见

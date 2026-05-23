@@ -53,7 +53,7 @@ description: Flutter OHOS SDK and package implementation source.
 
 # repository:
 #   git:
-#     url: https://github.com/FlutterOH/pub.git
+#     url: https://github.com/FlutterOH/source.git
 
 environment:
   fluoh: '>=0.1.0'
@@ -100,7 +100,7 @@ const toolConfigJsonTemplate = '''
   "sources": {
     "flutteroh": {
       "path": ".fluoh/sources/flutteroh",
-      "url": "https://github.com/FlutterOH/pub.git",
+      "url": "https://github.com/FlutterOH/source.git",
       "priority": 0
     }
   }

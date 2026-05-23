@@ -173,7 +173,7 @@ description: Flutter OHOS SDK and package adaptation source.
 
 repository:
   git:
-    url: https://github.com/FlutterOH/pub.git
+    url: https://github.com/FlutterOH/source.git
 
 environment:
   fluoh: '>=0.1.0'
@@ -215,7 +215,7 @@ Manifest 记录已发布、可被项目消费的 FlutterOH package 适配记录�
 `fluoh source sync` 从 Package release tags 汇总生成，也可以由维护者手动补充
 `advisory` 和 `maintenance`。
 
-单包示例：
+单 package 示例：
 
 ```yaml
 schema: 1
@@ -376,7 +376,7 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 `fluoh pub check` 读取项目 SDK 和 pub lockfile，然后通过 Source 运行时加载 package
 metadata。fresh `sources.lock.json` 提供 package 路由索引，用来缩小需要读取的 Manifest
 范围；完整 package metadata 仍然按需来自 Source Manifest YAML。source 输入变化、lock
-缺失或仍是旧 package-lock 结构时，lock 会从 Source root 和 Manifest YAML 重新生成。
+缺失时，lock 会从 Source root 和 Manifest YAML 重新生成。
 不需要提交生成的 matrix 文件。
 
 消费侧状态只由发布记录决定：
@@ -397,12 +397,12 @@ metadata。fresh `sources.lock.json` 提供 package 路由索引，用来缩小�
 {
   "sources": {
     "flutteroh": {
-      "url": "https://github.com/FlutterOH/pub.git",
+      "url": "https://github.com/FlutterOH/source.git",
       "path": "/home/user/.fluoh/sources/flutteroh",
       "priority": 0
     },
     "local": {
-      "url": "file:///Users/user/source/pub",
+      "url": "file:///Users/user/local/source",
       "path": "/home/user/.fluoh/sources/local",
       "priority": 10
     }
@@ -432,23 +432,20 @@ package metadata。
 
 ```json
 {
-  "generatedBy": "fluoh 0.1.0",
-  "generatedAt": "2026-05-13T12:00:00Z",
-  "inputs": {
+  "fingerprint": {
     "toolVersion": "0.1.0",
-    "configHash": "hash64:...",
     "sources": [
       {
         "name": "flutteroh",
         "path": "/home/user/.fluoh/sources/flutteroh",
-        "url": "https://github.com/FlutterOH/pub.git",
+        "url": "https://github.com/FlutterOH/source.git",
         "priority": 0,
         "snapshotHash": "hash64:..."
       },
       {
         "name": "local",
         "path": "/home/user/.fluoh/sources/local",
-        "url": "/Users/user/source/pub",
+        "url": "/Users/user/local/source",
         "priority": 10,
         "snapshotHash": "hash64:..."
       }
@@ -464,26 +461,21 @@ package metadata。
       }
     }
   },
-  "packages": {
-    "manifests": {
-      "flutteroh": {
-        "flutter_packages": {
-          "camera": ["3.35", "3.36"],
-          "path_provider": ["3.35"]
-        }
-      },
-      "local": {
-        "flutter_packages": {
-          "camera": ["3.35"]
-        }
+  "routes": {
+    "flutteroh": {
+      "flutter_packages": {
+        "camera": ["3.35", "3.36"],
+        "path_provider": ["3.35"]
+      }
+    },
+    "local": {
+      "flutter_packages": {
+        "camera": ["3.35"]
       }
     }
   }
 }
 ```
-
-没有 `packages.manifests` 的旧 lock，或者包含旧版完整 package-entry 数据的 lock，会先重建，
-再被当成 fresh lock 使用。
 
 规则：
 
@@ -493,7 +485,7 @@ package metadata。
   或局部更新 lock。
 - `config.json`、任一已配置 Source 快照、SDK 合并规则或 `fluoh` 工具版本变化时，
   Source 运行时都会整体重新生成 lock。
-- 每个已配置 Source 快照包含生成的 `.fluoh-source-state.json`，记录快照内容 hash。
+- 每个已配置 Source 快照包含生成的 `.fluoh-source-state.json`，记录快照 hash。
   常规 lock 新鲜度检查读取这个 state 文件，而不是每次命令都递归 hash 整个快照。
   state 文件缺失时，运行时会重新计算快照 hash 并补写 state 文件。
 - Source 状态变更入口，包括 `fluoh source add`、`fluoh source remove`、
@@ -502,16 +494,16 @@ package metadata。
   同一个 load-index API；发现 lock 缺失或过期时，或者已选择 SDK 缺失且需要 SDK 元数据来安装
   已选择的 SDK 时，会按需重新生成。
 - lock 保存已解析的 SDK release、胜出的 Source alias 以及最终 repository URL。能从对象
-  key、默认值或 `inputs.sources` 推导的数据会省略：source priority 只保存在
-  `inputs.sources`，SDK `versionSeries` 和 `flutterVersion` 由 SDK version key 推导，
-  SDK `tag` 默认等于 version key，SDK `channel` 默认为 `stable`。
-- package 路由索引只保存 Source/Manifest/package 路由，以及该 route 下 package 出现过的
-  compatible SDK line。它不保存 package repository、path、upstream version、release version、
-  tag、advisory、maintenance 或已选 implementation。
+  key、默认值或 `fingerprint.sources` 推导的数据会省略：source priority 只保存在
+  `fingerprint.sources`，SDK `versionSeries` 和 `flutterVersion` 由 SDK version key
+  推导，SDK `tag` 默认等于 version key，SDK `channel` 默认为 `stable`。
+- `routes` 索引只保存 Source/Manifest/package 路由，以及该 route 下 package 出现过的
+  compatible SDK line。它不保存 package repository、path、upstream version、release
+  version、tag、advisory、maintenance 或已选 implementation。
 - 生成的 lock 文件使用 compact-pretty JSON：根区段和大对象保持多行，短的叶子对象和数组压成单行。
 - SDK 命令读取 SDK lock。Package 命令使用 package 路由索引，只解析可能包含当前项目
   package 的 Manifest 文件，然后在内存中执行 package priority 和冲突规则。
 - lock 生成使用 Source 命令文档中的 SDK priority 和冲突规则。Package priority 和冲突规则
   在依赖工作流加载 package metadata 时执行。
-- 写入使用临时文件加原子替换。生成失败时，除非旧 lock 记录的输入仍然匹配，否则旧 lock
-  不会被当成新状态使用。
+- 写入使用临时文件加原子替换。生成失败时，除非原 lock 记录的 fingerprint 仍然匹配，
+  否则原 lock 不会被当成新状态使用。

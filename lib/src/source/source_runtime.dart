@@ -93,24 +93,21 @@ class SourceRuntime {
 
   Future<_ResolvedSourceLock> _loadResolvedLock({FluohConfig? config}) async {
     final resolvedConfig = config ?? await FluohConfigStore(environment).load();
-    final inputs = await _lockInputs(resolvedConfig);
+    final fingerprint = await _lockFingerprint(resolvedConfig);
     final current = await _readLock();
-    if (current != null &&
-        current.packageRoutes != null &&
-        _jsonEqual(current.inputs, inputs)) {
+    if (current != null && _jsonEqual(current.fingerprint, fingerprint)) {
       return current;
     }
     await ensureSourceSnapshots(resolvedConfig);
-    final refreshedInputs = await _lockInputs(resolvedConfig);
+    final refreshedFingerprint = await _lockFingerprint(resolvedConfig);
     final refreshed = await _readLock();
     if (refreshed != null &&
-        refreshed.packageRoutes != null &&
-        _jsonEqual(refreshed.inputs, refreshedInputs)) {
+        _jsonEqual(refreshed.fingerprint, refreshedFingerprint)) {
       return refreshed;
     }
     final lock = await _buildLock(
       resolvedConfig,
-      inputs: refreshedInputs,
+      fingerprint: refreshedFingerprint,
       ensureSnapshots: false,
     );
     await _writeLock(lock);
@@ -120,7 +117,7 @@ class SourceRuntime {
   Future<_ResolvedSourceLock> _buildLock(
     FluohConfig config, {
     TerminalOutput? output,
-    Map<String, Object?>? inputs,
+    Map<String, Object?>? fingerprint,
     bool ensureSnapshots = true,
   }) async {
     if (ensureSnapshots) {
@@ -129,9 +126,7 @@ class SourceRuntime {
     final sdkIndex = await _buildSdkIndex(config);
     final packageRoutes = await _buildPackageRoutes(config);
     return _ResolvedSourceLock(
-      generatedBy: 'fluoh $packageVersion',
-      generatedAt: DateTime.now().toUtc().toIso8601String(),
-      inputs: inputs ?? await _lockInputs(config),
+      fingerprint: fingerprint ?? await _lockFingerprint(config),
       sdkIndex: sdkIndex,
       packageRoutes: packageRoutes,
     );
@@ -418,12 +413,11 @@ class SourceRuntime {
     }
   }
 
-  Future<Map<String, Object?>> _lockInputs(FluohConfig config) async {
+  Future<Map<String, Object?>> _lockFingerprint(FluohConfig config) async {
     final sourceEntries = config.sources.entries.toList(growable: false)
       ..sort((a, b) => a.key.compareTo(b.key));
     return {
       'toolVersion': packageVersion,
-      'configHash': _stableHash(_normalizedConfig(config)),
       'sources': [
         for (final entry in sourceEntries)
           {
@@ -594,51 +588,42 @@ const _sourceSnapshotStateVersion = 1;
 
 class _ResolvedSourceLock {
   const _ResolvedSourceLock({
-    required this.generatedBy,
-    required this.generatedAt,
-    required this.inputs,
+    required this.fingerprint,
     required this.sdkIndex,
     required this.packageRoutes,
   });
 
-  final String generatedBy;
-  final String generatedAt;
-  final Map<String, Object?> inputs;
+  final Map<String, Object?> fingerprint;
   final SdkIndex sdkIndex;
-  final _PackageRouteLock? packageRoutes;
+  final _PackageRouteLock packageRoutes;
 
   Map<String, Object?> toJson() {
     return {
-      'generatedBy': generatedBy,
-      'generatedAt': generatedAt,
-      'inputs': inputs,
+      'fingerprint': fingerprint,
       'sdk': {
         'versions': {
           for (final release in _sortedSdkReleases(sdkIndex.releases))
             release.version: _sdkReleaseToJson(release),
         },
       },
-      'packages': packageRoutes?.toJson() ?? _PackageRouteLock.empty.toJson(),
+      'routes': packageRoutes.toJson(),
     };
   }
 }
 
 _ResolvedSourceLock _resolvedSourceLockFromJson(Map<String, Object?> json) {
   return _ResolvedSourceLock(
-    generatedBy: _optionalString(json['generatedBy']) ?? '',
-    generatedAt: _optionalString(json['generatedAt']) ?? '',
-    inputs: _jsonObject(json['inputs'], 'sources.lock.json inputs'),
+    fingerprint: _jsonObject(
+      json['fingerprint'],
+      'sources.lock.json fingerprint',
+    ),
     sdkIndex: _sdkIndexFromLock(json),
-    packageRoutes: _packageRouteLockFromJson(json['packages']),
+    packageRoutes: _packageRouteLockFromJson(json['routes']),
   );
 }
 
 class _PackageRouteLock {
   const _PackageRouteLock({required this.manifests});
-
-  static const empty = _PackageRouteLock(
-    manifests: <String, Map<String, Map<String, List<String>>>>{},
-  );
 
   final Map<String, Map<String, Map<String, List<String>>>> manifests;
 
@@ -661,32 +646,23 @@ class _PackageRouteLock {
 
   Map<String, Object?> toJson() {
     return {
-      'manifests': {
-        for (final sourceEntry in manifests.entries)
-          sourceEntry.key: {
-            for (final manifestEntry in sourceEntry.value.entries)
-              manifestEntry.key: manifestEntry.value,
-          },
-      },
+      for (final sourceEntry in manifests.entries)
+        sourceEntry.key: {
+          for (final manifestEntry in sourceEntry.value.entries)
+            manifestEntry.key: manifestEntry.value,
+        },
     };
   }
 }
 
-_PackageRouteLock? _packageRouteLockFromJson(Object? value) {
-  if (value == null) {
-    return null;
-  }
-  final json = _jsonObject(value, 'sources.lock.json packages');
-  final manifests = _jsonObject(
-    json['manifests'],
-    'sources.lock.json packages.manifests',
-  );
+_PackageRouteLock _packageRouteLockFromJson(Object? value) {
+  final manifests = _jsonObject(value, 'sources.lock.json routes');
   return _PackageRouteLock(
     manifests: {
       for (final sourceEntry in manifests.entries)
         sourceEntry.key: _packageManifestRoutesFromJson(
           sourceEntry.value,
-          'sources.lock.json packages.manifests.${sourceEntry.key}',
+          'sources.lock.json routes.${sourceEntry.key}',
         ),
     },
   );
@@ -821,21 +797,6 @@ List<String> _sortedStrings(Iterable<String> values) {
   return values.toSet().toList(growable: false)..sort();
 }
 
-Map<String, Object?> _normalizedConfig(FluohConfig config) {
-  final entries = config.sources.entries.toList(growable: false)
-    ..sort((a, b) => a.key.compareTo(b.key));
-  return {
-    'sources': {
-      for (final entry in entries)
-        entry.key: {
-          'path': entry.value.path,
-          if (entry.value.url != null) 'url': entry.value.url,
-          'priority': entry.value.priority,
-        },
-    },
-  };
-}
-
 Future<String> _snapshotHash(Directory root) async {
   if (!await root.exists()) {
     return _stableHash({'missing': root.path});
@@ -907,7 +868,7 @@ Future<String?> _readSnapshotStateHash(
     if (!_jsonEqual(decoded['fingerprint'], fingerprint)) {
       return null;
     }
-    final hash = _optionalString(decoded['contentHash']);
+    final hash = _optionalString(decoded['snapshotHash']);
     return hash == null || !hash.startsWith('hash64:') ? null : hash;
   } on FormatException {
     return null;
@@ -918,7 +879,7 @@ Future<String?> _readSnapshotStateHash(
 
 Future<void> _writeSnapshotState(
   Directory root,
-  String contentHash,
+  String snapshotHash,
   Map<String, Object?> fingerprint,
 ) async {
   final file = File('${root.path}/$_sourceSnapshotStateFileName');
@@ -927,7 +888,7 @@ Future<void> _writeSnapshotState(
     'generatedBy': 'fluoh $packageVersion',
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
     'fingerprint': fingerprint,
-    'contentHash': contentHash,
+    'snapshotHash': snapshotHash,
   });
   await file.writeAsString('$content\n');
 }

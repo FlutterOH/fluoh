@@ -55,8 +55,8 @@
 - 会修改 Source 配置或已配置快照的命令，把变更交给 Source 运行时。运行时会校验所有
   已配置 source 快照，尽可能修复快照，重建合并后的 lock，然后再提交新的本地 Source 状态。
 - 消费 Source 数据的命令只能通过 Source 运行时的 load-index API 读取。这个 API 负责
-  首次默认 Source bootstrap；当 `sources.lock.json` 记录的输入仍然匹配时会直接返回。
-  lock 缺失、过期或仍是旧 package-lock 结构时，运行时会先校验或修复已配置 source 快照，
+  首次默认 Source bootstrap；当 `sources.lock.json` 记录的 fingerprint 仍然匹配时会直接返回。
+  lock 缺失、过期或结构不兼容时，运行时会先校验或修复已配置 source 快照，
   再重新生成 lock 并返回数据。
 - `fluoh source` 不带子命令和 `fluoh source list` 在打印配置前也会走同一套 Source
   运行时重建路径，所以用户会先看到无效或缺失的 source 状态，再依赖列表结果。
