@@ -64,6 +64,9 @@ void main() {
     final testReadme = File(
       '${environment.workingDirectory.path}/fluoh_test/camera/README.md',
     ).readAsStringSync();
+    expect(testReadme, contains('## Baseline Before OHOS Work'));
+    expect(testReadme, contains('fluoh flutter analyze'));
+    expect(testReadme, contains('non-OHOS platform regressions first'));
     expect(testReadme, contains('## What To Edit'));
     expect(testReadme, contains('fluoh_test/camera/test'));
     expect(testReadme, contains('fluoh_test/camera/example/lib/main.dart'));

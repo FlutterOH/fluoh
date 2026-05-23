@@ -114,6 +114,9 @@ void main() {
       expect(guideContent, contains('fluoh_test/camera/test'));
       expect(guideContent, contains('fluoh_test/camera/example'));
       expect(guideContent, contains('fluoh pub get'));
+      expect(guideContent, contains('selected-SDK baseline'));
+      expect(guideContent, contains('fluoh flutter analyze'));
+      expect(guideContent, contains('non-OHOS platform regressions'));
       expect(guideContent, contains('iOS team/profile signing values'));
       expect(
         guideContent,
@@ -157,6 +160,9 @@ void main() {
         ),
       );
       expect(agentsContent, contains('fluoh pub get'));
+      expect(agentsContent, contains('selected-SDK baseline'));
+      expect(agentsContent, contains('fluoh flutter analyze'));
+      expect(agentsContent, contains('non-OHOS regressions first'));
       expect(agentsContent, contains('fluoh_test/camera/example'));
       expect(
         agentsContent,
@@ -913,6 +919,8 @@ Prefer the upstream release workflow.
       );
       expect(guide, contains('`fluoh pub release --package share_plus`'));
       expect(guide, contains('## Adaptation Workflow'));
+      expect(guide, contains('selected-SDK baseline'));
+      expect(guide, contains('non-OHOS platform regressions'));
       expect(guide, contains('Keep `packages.<name>.status: experimental`'));
       expect(guide, contains('`fluoh pub release --all` for release tagging'));
       final agents = File('${pubRepository.path}/AGENTS.md').readAsStringSync();
@@ -921,6 +929,8 @@ Prefer the upstream release workflow.
         contains('provides OHOS implementations for multiple packages'),
       );
       expect(agents, contains('## Adaptation Workflow'));
+      expect(agents, contains('fluoh flutter analyze'));
+      expect(agents, contains('non-OHOS regressions first'));
       expect(agents, contains('assert stable commands, files, schema keys'));
       expect(agents, contains('`fluoh test run --package <name>`'));
       expect(agents, contains('fluoh_test/<package>/README.md'));

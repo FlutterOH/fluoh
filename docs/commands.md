@@ -279,18 +279,23 @@ Recommended flow:
 3. Create or switch to `ohos/<sdkLine>`.
 4. Record the currently adapted upstream package version and FlutterOH
    adaptation package version in Package `fluoh.yaml`.
-5. Use `status: experimental` while adaptation is in progress. Omit `status`
+5. Before adding OHOS code, run baseline checks with the selected SDK, including
+   `fluoh pub get`, `fluoh flutter analyze`, and existing package tests or
+   example builds. Fix non-OHOS platform regressions first.
+6. Use `status: experimental` while adaptation is in progress. Omit `status`
    when the release is complete and recommended; omitted means `compatible`.
-6. `fluoh pub release` creates the release tag, freezing the code, tests, and
+7. `fluoh pub release` creates the release tag, freezing the code, tests, and
    Package `fluoh.yaml`.
-7. `fluoh source sync` aggregates Source Manifests from release tags.
+8. `fluoh source sync` aggregates Source Manifests from release tags.
 
 `fluoh pub create <upstream>` clones the upstream repository, selects one or
 more packages, configures `upstream` and `origin`, creates a Flutter OHOS
 SDK line branch such as `ohos/3.35`, configures the Flutter OHOS SDK, writes
 `fluoh.yaml`, `FLUOH.md`,
 `FLUOH_CHANGELOG.md`, agent instructions, and package-scoped `fluoh_test`
-workspaces, then stages generated files.
+workspaces, then stages generated files. The generated guidance tells
+maintainers to establish a selected-SDK baseline and fix non-OHOS platform
+regressions before implementing OHOS code.
 With no `--package-path`, the command selects only the upstream repository root
 package. If the upstream repository has a root package plus package subprojects,
 pass `--package-path .` and repeat `--package-path <subdir>` for each package

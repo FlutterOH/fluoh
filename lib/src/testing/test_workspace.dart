@@ -822,6 +822,10 @@ $runCommand
 
 The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the tests in this `$testWorkspacePath` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
 
+## Baseline Before OHOS Work
+
+Before adding OHOS implementation code, run `fluoh pub get`, `fluoh flutter analyze`, and the package's existing tests or example builds with the selected SDK. Fix non-OHOS platform regressions first so later failures are attributable to OHOS changes.
+
 ## What To Edit
 
 - Add deterministic automated checks under `$testWorkspacePath/test`; replace or extend the generated `contract_test.dart` with package-specific OHOS behavior checks.

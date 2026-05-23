@@ -227,17 +227,21 @@ transitive 和 advisory。fresh Source lock 会提供 package 路由提示；命
 3. 创建或切换 `ohos/<sdkLine>` 分支。
 4. 在 Package `fluoh.yaml` 中记录当前适配的 upstream package 版本和 FlutterOH
    适配 package 版本。
-5. 适配中使用 `status: experimental`；完成并可推荐时省略 `status`，默认就是
+5. 开始写 OHOS 代码前，先用已选择 SDK 做基线检查，包括 `fluoh pub get`、
+   `fluoh flutter analyze`、已有 package 测试或 example 构建；先修复非 OHOS 平台
+   因 SDK 切换暴露的问题。
+6. 适配中使用 `status: experimental`；完成并可推荐时省略 `status`，默认就是
    `compatible`。
-6. `fluoh pub release` 打 release tag，tag 固化当前代码、测试和 Package
+7. `fluoh pub release` 打 release tag，tag 固化当前代码、测试和 Package
    `fluoh.yaml`。
-7. `fluoh source sync` 从 release tags 汇总 Source Manifest。
+8. `fluoh source sync` 从 release tags 汇总 Source Manifest。
 
 `fluoh pub create <upstream>` clone upstream 仓库，选择一个或多个 package，配置
 `upstream` 和 `origin`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，配置
 Flutter OHOS SDK，写入
 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、agent 指令和 package 级
-`fluoh_test` 工作区，然后暂存生成文件。
+`fluoh_test` 工作区，然后暂存生成文件。生成的引导会要求维护者先建立已选择 SDK
+基线并修复非 OHOS 平台回归，再实现 OHOS 代码。
 不传 `--package-path` 时，命令只选择 upstream 仓库根目录 package。若 upstream
 仓库同时有根目录 package 和子目录 package，需要传 `--package-path .`，并为每个要注册的
 子 package 重复传 `--package-path <subdir>`。

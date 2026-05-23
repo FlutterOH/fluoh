@@ -407,15 +407,18 @@ change must increment `version`.
    branches are maintained by major SDK line, not SDK patch version.
 4. Package `fluoh.yaml` records only the upstream package version and FlutterOH
    adaptation package version currently maintained or prepared on the branch.
-5. During adaptation, write `packages.<name>.status` or `releases[].status` as
+5. Before adding OHOS code, run baseline checks with the selected SDK, including
+   `fluoh pub get`, `fluoh flutter analyze`, and existing package tests or
+   example builds. Fix non-OHOS platform regressions first.
+6. During adaptation, write `packages.<name>.status` or `releases[].status` as
    `experimental`. When the adaptation is complete and recommended for
    projects, omit `status`; the default is `compatible`.
-6. `fluoh pub release` derives a release tag from Package `fluoh.yaml`. The tag
+7. `fluoh pub release` derives a release tag from Package `fluoh.yaml`. The tag
    freezes the code, tests, and config snapshot at release time.
-7. `fluoh source sync` uses Manifest `repository.git.url` values as Package
+8. `fluoh source sync` uses Manifest `repository.git.url` values as Package
    repositories, scans released tags, reads Package `fluoh.yaml` from each tag,
    and aggregates historical release records into Manifest files.
-8. Consumer projects read Project `sdk.version`, derive the SDK line, and look
+9. Consumer projects read Project `sdk.version`, derive the SDK line, and look
    for matching `compatible` release records under Manifest
    `sdks.<sdkLine>.releases`.
 

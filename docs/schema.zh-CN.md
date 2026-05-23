@@ -361,14 +361,17 @@ path_provider-2.1.5-ohos-3.35-0.2.0
    不按 SDK patch 版本维护。
 4. Package `fluoh.yaml` 只记录当前分支正在维护或准备发布的 upstream package 版本
    和 FlutterOH 适配 package 版本。
-5. 适配中可以把 `packages.<name>.status` 或 `releases[].status` 写成 `experimental`；
+5. 开始写 OHOS 代码前，先用已选择 SDK 做基线检查，包括 `fluoh pub get`、
+   `fluoh flutter analyze`、已有 package 测试或 example 构建；先修复非 OHOS 平台
+   因 SDK 切换暴露的问题。
+6. 适配中可以把 `packages.<name>.status` 或 `releases[].status` 写成 `experimental`；
    完成并可推荐给项目使用时省略 `status`，默认就是 `compatible`。
-6. `fluoh pub release` 使用 Package `fluoh.yaml` 派生 release tag。tag 固化当时的代码、
+7. `fluoh pub release` 使用 Package `fluoh.yaml` 派生 release tag。tag 固化当时的代码、
    测试和配置快照。
-7. `fluoh source sync` 使用 Manifest `repository.git.url` 作为 Package 仓库，
+8. `fluoh source sync` 使用 Manifest `repository.git.url` 作为 Package 仓库，
    扫描已发布 release tags，读取每个 tag 下的 Package `fluoh.yaml`，把历史发布记录汇总进
    Manifest。
-8. 项目消费时先读取 Project `sdk.version`，推导 SDK 版本线，再在 Manifest 的
+9. 项目消费时先读取 Project `sdk.version`，推导 SDK 版本线，再在 Manifest 的
    `sdks.<sdkLine>.releases` 下寻找匹配的 `compatible` 发布记录。
 
 ## 依赖报告和计划
