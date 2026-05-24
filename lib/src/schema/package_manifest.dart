@@ -470,7 +470,10 @@ bool _shouldQuoteYamlScalar(String value) {
   if (value.startsWith(RegExp(r'''[-?:,[\]{}#&*!|>@`"']'''))) {
     return true;
   }
-  if (value.contains(RegExp(r'[\s:]'))) {
+  if (value.contains(RegExp(r'\s'))) {
+    return true;
+  }
+  if (value.endsWith(':') || value.contains(': ')) {
     return true;
   }
   if (const {'true', 'false', 'null', '~'}.contains(value.toLowerCase())) {

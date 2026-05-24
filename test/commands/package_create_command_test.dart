@@ -68,7 +68,7 @@ void main() {
       expect(branch.stdout.toString().trim(), 'ohos/3.35');
       expect(
         origin.stdout.toString().trim(),
-        'git@github.com:FlutterOH/camera.git',
+        'https://github.com/FlutterOH/camera.git',
       );
       expect(upstreamRemote.stdout.toString().trim(), upstream.path);
       final manifest = File(
@@ -98,7 +98,11 @@ void main() {
       expect(manifest, isNot(contains('fluoh:')));
       expect(manifest, isNot(contains('flutteroh:')));
       expect(manifest, isNot(contains('replacement:')));
-      expect(manifest, contains('url: "git@github.com:FlutterOH/camera.git"'));
+      expect(
+        manifest,
+        contains('url: https://github.com/FlutterOH/camera.git'),
+      );
+      expect(manifest, isNot(contains('"https://github.com/FlutterOH')));
       expect(manifest, contains('branch: ohos/3.35'));
       expect(manifest, isNot(contains('ref: ohos/3.35')));
       expect(manifest, isNot(contains('sdkVersion:')));
@@ -795,7 +799,7 @@ Prefer the upstream release workflow.
       expect(manifest, contains('name: flutter-widgets-root'));
       expect(
         manifest,
-        contains('url: "git@github.com:FlutterOH/flutter-widgets-root.git"'),
+        contains('url: https://github.com/FlutterOH/flutter-widgets-root.git'),
       );
       expect(manifest, contains('packages:\n  camera:'));
       expect(manifest, isNot(contains('  share_plus:')));
@@ -1222,7 +1226,7 @@ Prefer the upstream release workflow.
         origin.stdout.toString().trim(),
         'git@github.com:FlutterOH/camera.git',
       );
-      expect(manifest, contains('url: "git@github.com:FlutterOH/camera.git"'));
+      expect(manifest, contains('url: git@github.com:FlutterOH/camera.git'));
       expect(stderr, isEmpty);
     },
   );

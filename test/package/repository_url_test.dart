@@ -2,21 +2,18 @@ import 'package:fluoh/src/package/repository_url.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('builds default package repository URLs for SSH and HTTPS bases', () {
+  test('builds default package repository URLs for HTTPS and SSH bases', () {
     expect(
       defaultPackageRepositoryUrl('camera'),
-      'git@github.com:FlutterOH/camera.git',
+      'https://github.com/FlutterOH/camera.git',
     );
     expect(
       defaultPackageRepositoryUrl('camera.git'),
-      'git@github.com:FlutterOH/camera.git',
+      'https://github.com/FlutterOH/camera.git',
     );
     expect(
-      defaultPackageRepositoryUrl(
-        'camera',
-        base: 'https://github.com/FlutterOH/',
-      ),
-      'https://github.com/FlutterOH/camera.git',
+      defaultPackageRepositoryUrl('camera', base: 'git@github.com:FlutterOH'),
+      'git@github.com:FlutterOH/camera.git',
     );
   });
 

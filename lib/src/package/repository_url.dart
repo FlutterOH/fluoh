@@ -1,6 +1,6 @@
 String defaultPackageRepositoryUrl(
   String packageName, {
-  String base = 'git@github.com:FlutterOH',
+  String base = 'https://github.com/FlutterOH',
 }) {
   final normalized = packageName.trim();
   if (normalized.isEmpty) {

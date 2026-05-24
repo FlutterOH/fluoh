@@ -26,7 +26,7 @@ sdk:
 
 repository:
   git:
-    url: git@github.com:FlutterOH/camera.git
+    url: https://github.com/FlutterOH/camera.git
     branch: ohos/3.35
 
 upstream:

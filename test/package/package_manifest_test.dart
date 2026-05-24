@@ -76,7 +76,7 @@ void main() {
       packagePath: '.',
       sdkVersion: '3.35.8-ohos-0.0.3',
       branch: 'ohos/3.35',
-      repositoryUrl: 'git@github.com:FlutterOH/image_gallery_saver.git',
+      repositoryUrl: 'https://github.com/FlutterOH/image_gallery_saver.git',
     );
 
     final content = File('${root.path}/fluoh.yaml').readAsStringSync();
@@ -120,8 +120,9 @@ void main() {
     expect(content, isNot(contains('    path:')));
     expect(
       content,
-      contains('url: "git@github.com:FlutterOH/image_gallery_saver.git"'),
+      contains('url: https://github.com/FlutterOH/image_gallery_saver.git'),
     );
+    expect(content, isNot(contains('"https://github.com/FlutterOH')));
     expect(content, isNot(contains('tag: 0.1.0')));
     expect(content, isNot(contains('tag: 2.0.3')));
     expect(content, isNot(contains('tag: image_gallery_saver')));
@@ -129,7 +130,7 @@ void main() {
     final manifest = await readPackageManifest(root);
     expect(
       manifest.repositoryUrl,
-      'git@github.com:FlutterOH/image_gallery_saver.git',
+      'https://github.com/FlutterOH/image_gallery_saver.git',
     );
     expect(
       manifest.dependencyUrl,
@@ -159,7 +160,7 @@ void main() {
         packagePath: 'packages/share_plus/share_plus',
         sdkVersion: '3.35.8-ohos-0.0.3',
         branch: 'ohos/3.35',
-        repositoryUrl: 'git@github.com:FlutterOH/share_plus.git',
+        repositoryUrl: 'https://github.com/FlutterOH/share_plus.git',
       );
 
       final content = File('${root.path}/fluoh.yaml').readAsStringSync();

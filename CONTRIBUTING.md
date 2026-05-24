@@ -172,7 +172,7 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 `fluoh package create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a Flutter OHOS SDK line branch such as `ohos/3.35`, sets `origin` to the final package repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
 
 ```sh
-git@github.com:FlutterOH/<package>.git
+https://github.com/FlutterOH/<package>.git
 ```
 
 If a package needs to be pushed to a dedicated FlutterOH package repository, pass `--repository` when creating it:
@@ -180,7 +180,7 @@ If a package needs to be pushed to a dedicated FlutterOH package repository, pas
 ```sh
 fluoh package create https://github.com/upstream/package.git \
   --sdk 3.35.8-ohos-0.0.3 \
-  --repository git@github.com:FlutterOH/package.git
+  --repository https://github.com/FlutterOH/package.git
 ```
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.

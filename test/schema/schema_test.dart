@@ -49,7 +49,7 @@ sdk:
         packagePath: '.',
         sdkVersion: '3.35.8-ohos-0.0.3',
         branch: flutterOhosBranchForSdk('3.35.8-ohos-0.0.3'),
-        repositoryUrl: 'git@github.com:FlutterOH/image_gallery_saver.git',
+        repositoryUrl: 'https://github.com/FlutterOH/image_gallery_saver.git',
       );
 
       final content = packageManifestContent(manifest);

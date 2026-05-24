@@ -163,7 +163,7 @@ fluoh --version
 `fluoh package create` 会保持上游分支干净，把克隆来源保留为 `upstream`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，把 `origin` 设置为 package 仓库最终推送位置，并配置所选 Flutter OHOS SDK 环境。默认仓库 URL 会根据 package 名称推导：
 
 ```sh
-git@github.com:FlutterOH/<package>.git
+https://github.com/FlutterOH/<package>.git
 ```
 
 如果某个 package 需要推送到独立 FlutterOH package 仓库，创建时使用 `--repository` 指定：
@@ -171,7 +171,7 @@ git@github.com:FlutterOH/<package>.git
 ```sh
 fluoh package create https://github.com/upstream/package.git \
   --sdk 3.35.8-ohos-0.0.3 \
-  --repository git@github.com:FlutterOH/package.git
+  --repository https://github.com/FlutterOH/package.git
 ```
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
