@@ -26,22 +26,23 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh source update [name]` | `lib/src/source/source_commands.dart` | Refresh and validate configured source snapshots. |
 | `fluoh source validate [path]` | `lib/src/source/source_commands.dart` | Validate a local source repository without registering it. |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | Create a local source repository template. |
-| `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import released FlutterOH pub repository metadata into a source repository. |
+| `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import released FlutterOH package repository metadata into a source repository. |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | Command group for local Flutter OHOS SDK caches. |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | List remote SDK versions and installed SDK caches. |
 | `fluoh sdk install <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | Install an SDK version into `$FLUOH_HOME/sdks`. |
 | `fluoh sdk current` | `lib/src/sdk/sdk_commands.dart` | Print the SDK selected for the current project. |
 | `fluoh sdk remove <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | Remove an installed SDK cache. |
 | `fluoh sdk use <version-or-series>` | `lib/src/sdk/sdk_use_command.dart` | Select an SDK for the current Flutter project. |
-| `fluoh pub` | `lib/src/pub/commands/pub_command.dart` | Command group for project dependencies and FlutterOH pub repositories. |
-| `fluoh pub get` | `lib/src/pub/commands/pub_get_command.dart` | Run `flutter pub get` for project and `fluoh_test` workspaces. |
-| `fluoh pub check` | `lib/src/pub/commands/pub_dependency_commands.dart` | Report dependency FlutterOH adaptation status. |
-| `fluoh pub fix` | `lib/src/pub/commands/pub_dependency_commands.dart` | Apply recommended FlutterOH dependency changes. |
-| `fluoh pub upgrade` | `lib/src/pub/commands/pub_upgrade_command.dart` | Upgrade existing FlutterOH dependency replacements only. |
-| `fluoh pub create <upstream>` | `lib/src/pub/commands/pub_create_command.dart` | Initialize a FlutterOH pub repository. |
-| `fluoh pub add <package-path>` | `lib/src/pub/commands/pub_add_command.dart` | Register another package in a FlutterOH pub repository. |
-| `fluoh pub sync` | `lib/src/pub/commands/pub_sync_command.dart` | Merge upstream into the current OHOS pub branch. |
-| `fluoh pub release` | `lib/src/pub/commands/pub_release_command.dart` | Validate, test, tag, and optionally push FlutterOH package releases. |
+| `fluoh deps` | `lib/src/deps/commands/deps_command.dart` | Command group for project dependencies. |
+| `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | Run `flutter pub get` for project and `fluoh_test` workspaces. |
+| `fluoh deps check` | `lib/src/deps/commands/deps_dependency_commands.dart` | Report dependency FlutterOH adaptation status. |
+| `fluoh deps fix` | `lib/src/deps/commands/deps_dependency_commands.dart` | Apply recommended FlutterOH dependency changes. |
+| `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | Upgrade existing FlutterOH dependency replacements only. |
+| `fluoh package` | `lib/src/package/commands/package_command.dart` | Command group for FlutterOH package repositories. |
+| `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
+| `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Register another package in a FlutterOH package repository. |
+| `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
+| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Validate, test, tag, and optionally push FlutterOH package releases. |
 | `fluoh test` | `lib/src/testing/test_commands.dart` | Command group for package verification workspaces. |
 | `fluoh test init` | `lib/src/testing/test_commands.dart` | Create a `fluoh_test` verification workspace. |
 | `fluoh test run` | `lib/src/testing/test_commands.dart` | Run package tests and `fluoh_test` tests. |
@@ -67,15 +68,15 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 - `fluoh source` without a subcommand and `fluoh source list` use the same
   Source runtime rebuild path before printing configuration, so users see
   invalid or missing source state before relying on listed sources.
-- `fluoh pub get` skips package Source data so dependency resolution remains
+- `fluoh deps get` skips package Source data so dependency resolution remains
   available when source snapshots need repair. `fluoh flutter`, `fluohf`,
-  `fluoh clean`, and `fluoh pub get` may still load the Source index through the
+  `fluoh clean`, and `fluoh deps get` may still load the Source index through the
   SDK resolver when the selected SDK is missing and selected-SDK installation
   needs SDK metadata.
 - Usage errors and schema format errors return exit code `64`.
 - Command classes should own argument parsing and user-visible output. Reusable
-  behavior belongs in domain helpers such as `lib/src/sdk/`,
-  `lib/src/pub/`, `lib/src/source/`, and `lib/src/testing/`.
+  behavior belongs in domain helpers such as `lib/src/sdk/`, `lib/src/deps/`,
+  `lib/src/package/`, `lib/src/source/`, and `lib/src/testing/`.
 - Mutating commands must validate early, preserve unrelated files, and report
   what changed or what the user should do next.
 
@@ -99,7 +100,7 @@ Design constraints:
 ### `fluoh clean`
 
 `clean` runs selected-SDK `flutter clean` for each primary package directory.
-In FlutterOH pub repositories, package directories come from Package
+In FlutterOH package repositories, package directories come from Package
 `fluoh.yaml`; otherwise the current working directory is used.
 
 After Flutter cleaning, the command deletes generated `fluoh_test` artifacts
@@ -183,8 +184,9 @@ reading or writing `$FLUOH_HOME/config.json`, source snapshots, or
 `sources.lock.json`. When `path` is omitted, the current directory is used. The
 command checks the Source root schema, `environment.fluoh`, SDK metadata,
 Manifest routes, Manifest names, duplicate packages, package release records,
-and whether the package index can be built. It does not fetch SDK tags or pub
-repositories; release metadata updates remain the job of `fluoh source sync`.
+and whether the package index can be built. It does not fetch SDK tags or
+package repositories; release metadata updates remain the job of
+`fluoh source sync`.
 
 `fluoh source init <path>` creates a source root `fluoh.yaml`, a
 `manifests/example/fluoh.yaml` commented Manifest template, and a README. It is
@@ -196,7 +198,7 @@ Maintainers edit Manifest files directly for advisory and maintenance notes;
 release records are generated by `fluoh source sync`.
 
 `fluoh source sync [path]` reads Manifest routes from the Source root,
-uses each Manifest `repository.git.url` as the FlutterOH pub repository, scans
+uses each Manifest `repository.git.url` as the FlutterOH package repository, scans
 release tags, reads the Package `fluoh.yaml` frozen under each tag, and
 aggregates historical release records into Manifest files. When `path` is
 omitted, the current directory is used. Source metadata must come from released
@@ -228,42 +230,42 @@ local cache version and deletes only the matching SDK directory under
 
 `fluoh sdk use <version-or-series>` is a project mutation command. It requires
 the current directory to be a Flutter project, refuses to overwrite FlutterOH
-pub repository metadata, resolves or installs the SDK, writes the project
+package repository metadata, resolves or installs the SDK, writes the project
 `fluoh.yaml`, and updates `.fluoh/flutter_sdk` as a stable IDE SDK path.
 `--pub-get` runs `flutter pub get` after the switch.
 
-## Pub Project Commands
+## Dependency Commands
 
 These commands operate on ordinary FlutterOH projects and preserve unrelated
 `pubspec.yaml` content.
 
-`fluoh pub get` forwards to selected-SDK `flutter pub get` and accepts extra
+`fluoh deps get` forwards to selected-SDK `flutter pub get` and accepts extra
 arguments. It runs in all primary package directories and discovered
 `fluoh_test` workspaces that contain a `pubspec.yaml`. It intentionally skips
 package Source data so dependency resolution remains available even when source
 snapshots need repair. If the selected SDK is missing, the SDK resolver loads
 the Source index only for the lookup needed to install that SDK.
 
-`fluoh pub check` reads dependency policy from project `fluoh.yaml`, builds a
+`fluoh deps check` reads dependency policy from project `fluoh.yaml`, builds a
 dependency plan from configured sources, and groups dependencies into ready,
 needs decision, manual action, unavailable, already OK, transitive, and
 advisory sections. A fresh Source lock provides package route hints; the command
 then reads only the Manifest files that can contain packages from the project
 lockfile. `--json` prints the same plan as machine-readable JSON.
 
-`fluoh pub fix` applies recommended FlutterOH adaptation changes from the
+`fluoh deps fix` applies recommended FlutterOH adaptation changes from the
 dependency plan. It writes to either `dependency_overrides` or direct dependency
 declarations according to `dependencyPolicy.pubspecSection`. Version mismatches
 are skipped unless `dependencyPolicy.versionChanges` is `any`. `--dry-run` or
 `-n` prints the plan without modifying `pubspec.yaml`.
 
-`fluoh pub upgrade` is narrower than `pub fix`: it upgrades existing FlutterOH
+`fluoh deps upgrade` is narrower than `deps fix`: it upgrades existing FlutterOH
 dependency replacements and does not add new replacements. It uses the same
 version-change policy and dry-run behavior.
 
-## Pub Repository Commands
+## Package Repository Commands
 
-These commands maintain FlutterOH pub repositories. They assume Git
+These commands maintain FlutterOH package repositories. They assume Git
 repositories and are intentionally strict about branch and working tree state.
 
 ### Adaptation Workflow
@@ -280,15 +282,15 @@ Recommended flow:
 4. Record the currently adapted upstream package version and FlutterOH
    adaptation package version in Package `fluoh.yaml`.
 5. Before adding OHOS code, run baseline checks with the selected SDK, including
-   `fluoh pub get`, `fluoh flutter analyze`, and existing package tests or
+   `fluoh deps get`, `fluoh flutter analyze`, and existing package tests or
    example builds. Fix non-OHOS platform regressions first.
 6. Use `status: experimental` while adaptation is in progress. Omit `status`
    when the release is complete and recommended; omitted means `compatible`.
-7. `fluoh pub release` creates the release tag, freezing the code, tests, and
+7. `fluoh package release` creates the release tag, freezing the code, tests, and
    Package `fluoh.yaml`.
 8. `fluoh source sync` aggregates Source Manifests from release tags.
 
-`fluoh pub create <upstream>` clones the upstream repository, selects one or
+`fluoh package create <upstream>` clones the upstream repository, selects one or
 more packages, configures `upstream` and `origin`, creates a Flutter OHOS
 SDK line branch such as `ohos/3.35`, configures the Flutter OHOS SDK, writes
 `fluoh.yaml`, `FLUOH.md`,
@@ -305,23 +307,23 @@ The generated `fluoh.yaml` includes comments beside the `repository`,
 commonly edit before release. It never commits. Options include repeated
 `--package-path`, `--output`, `--sdk`, and `--repository`.
 
-`fluoh pub add <package-path>` registers another package in an existing
-FlutterOH pub repository. It requires a clean working tree and the maintenance
+`fluoh package add <package-path>` registers another package in an existing
+FlutterOH package repository. It requires a clean working tree and the maintenance
 branch recorded by Package `repository.git.branch`, validates `<package-path>`,
 optionally verifies `--expected-package`, appends Package `fluoh.yaml`, docs,
 and package-scoped test workspace state, and stages generated files. File
 snapshots and workspace rollback protect local state when the command fails.
 
-`fluoh pub sync` fetches upstream, fast-forwards the upstream branch recorded
+`fluoh package sync` fetches upstream, fast-forwards the upstream branch recorded
 in Package `upstream.git.branch`, returns to the `repository.git.branch` branch
 recorded in `fluoh.yaml`, merges the upstream branch without committing first,
 updates upstream metadata in `fluoh.yaml`, stages it, and
 commits `Sync upstream packages` when changes are present. Merge conflicts are
-left for the user to resolve, then `fluoh pub sync --continue` validates staged
+left for the user to resolve, then `fluoh package sync --continue` validates staged
 resolution and finishes. `--abort` runs `git merge --abort` for an in-progress
 sync.
 
-`fluoh pub release` validates release metadata, checks that the configured SDK
+`fluoh package release` validates release metadata, checks that the configured SDK
 version exists in sources, runs package and `fluoh_test` verification, ensures the
 working tree remains clean, creates release tags at HEAD, and optionally pushes
 them. Use `--package <name>` for one package or `--all` for every registered
@@ -350,9 +352,9 @@ validate.
 | `$FLUOH_HOME/sources/<name>` | `source add`, `source update` |
 | `$FLUOH_HOME/sources.lock.json` | Source runtime in `lib/src/source/`; rebuilt after Source mutations, first default Source bootstrap, and load-index checks when stale or when selected-SDK installation needs SDK metadata |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
-| Project `fluoh.yaml` | `sdk use`, `pub check`, `pub fix`, `pub upgrade` |
-| Project `pubspec.yaml` | `pub fix`, `pub upgrade` |
-| FlutterOH adaptation repository `fluoh.yaml` | `pub create`, `pub add`, `pub sync`, `pub release` validation |
+| Project `fluoh.yaml` | `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
+| Project `pubspec.yaml` | `deps fix`, `deps upgrade` |
+| FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package release` validation |
 | Source root and Manifest files | `source init`, `source sync` |
-| `.fluoh/flutter_sdk` | `sdk use`, `pub create` SDK setup |
-| `fluoh_test/` | `test init`, `test run`, `pub create`, `pub add`, `pub get`, `clean`, `pub release` |
+| `.fluoh/flutter_sdk` | `sdk use`, `package create` SDK setup |
+| `fluoh_test/` | `test init`, `test run`, `package create`, `package add`, `deps get`, `clean`, `package release` |

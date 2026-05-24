@@ -6,8 +6,8 @@ import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
-import '../pub/manifest/pub_manifest.dart';
-import '../pub/manifest/pubspec_package.dart';
+import '../package/manifest/package_manifest.dart';
+import '../package/manifest/pubspec_package.dart';
 import '../sdk/flutter_runner.dart';
 import '../testing/test_workspace.dart';
 
@@ -86,7 +86,7 @@ class CleanCommand extends Command<int> {
 
   Future<List<Directory>> _primaryPackageDirectories() async {
     try {
-      final manifest = await readPubManifest(environment.workingDirectory);
+      final manifest = await readPackageManifest(environment.workingDirectory);
       return [
         for (final package in manifest.packages)
           packageDirectory(

@@ -38,9 +38,9 @@ sdk:
     });
   });
 
-  group('pub repository manifest', () {
+  group('package repository manifest', () {
     test('generates, parses, and derives release rules', () {
-      final manifest = createPubRepositoryManifest(
+      final manifest = createPackageManifest(
         package: const PubspecPackage(
           name: 'image_gallery_saver',
           version: '2.0.3',
@@ -52,8 +52,8 @@ sdk:
         repositoryUrl: 'git@github.com:FlutterOH/image_gallery_saver.git',
       );
 
-      final content = pubRepositoryManifestContent(manifest);
-      final parsed = PubRepositoryManifest.parse(content);
+      final content = packageManifestContent(manifest);
+      final parsed = PackageManifest.parse(content);
 
       expect(content, contains('name: image_gallery_saver'));
       expect(content, contains('branch: ohos/3.35'));
@@ -71,7 +71,7 @@ sdk:
 
     test('rejects invalid release status and version values', () {
       expect(
-        () => PubRepositoryManifest.parse('''
+        () => PackageManifest.parse('''
 schema: 1
 name: camera
 sdk:
@@ -95,7 +95,7 @@ packages:
 
     test('rejects incomplete SDK versions', () {
       expect(
-        () => PubRepositoryManifest.parse('''
+        () => PackageManifest.parse('''
 schema: 1
 name: camera
 sdk:
@@ -422,8 +422,8 @@ dependencies:
         tag: 'camera-1.0.0-ohos-3.35-1',
         version: '1',
       );
-      final plan = buildPubDependencyPlanFromReport(
-        report: const PubDependencyReport(
+      final plan = buildDependencyPlanFromReport(
+        report: const DependencyReport(
           sdkVersion: '3.35.8-ohos-0.0.3',
           dependencies: [
             DependencyCompatibility(
@@ -436,8 +436,8 @@ dependencies:
           ],
         ),
         state: parsePubspecDependencyState('dependencies:\n  camera: ^1.0.0\n'),
-        policy: const PubDependencyPolicy(),
-        purpose: PubDependencyPlanPurpose.fix,
+        policy: const DependencyPolicy(),
+        purpose: DependencyPlanPurpose.fix,
       );
 
       expect(

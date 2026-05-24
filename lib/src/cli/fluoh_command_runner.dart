@@ -5,8 +5,9 @@ import 'package:args/command_runner.dart';
 
 import '../clean/clean_command.dart';
 import '../context/fluoh_environment.dart';
+import '../deps/commands/deps_command.dart';
 import '../doctor/doctor_command.dart';
-import '../pub/commands/pub_command.dart';
+import '../package/commands/package_command.dart';
 import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
@@ -72,7 +73,15 @@ class FluohCommandRunner extends CommandRunner<int> {
     );
     addCommand(SdkCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
-      PubCommand(
+      DepsCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
+    );
+    addCommand(
+      PackageCommand(
         environment: env,
         stdout: _stdout,
         stderr: _stderr,
@@ -245,7 +254,8 @@ const _topLevelCommandSections = [
     'flutter',
     'source',
     'sdk',
-    'pub',
+    'deps',
+    'package',
     'test',
     'clean',
     'doctor',
@@ -257,13 +267,20 @@ bool _usesSourceConfiguration(ArgResults results) {
   if (_hasHelpFlag(results)) {
     return false;
   }
-  if (results.command?.name == 'pub' &&
+  if (results.command?.name == 'deps' &&
       results.command?.command?.name == 'get') {
     return false;
   }
   final commandName = results.command?.name;
   return commandName != null &&
-      const {'source', 'sdk', 'doctor', 'pub', 'test'}.contains(commandName);
+      const {
+        'source',
+        'sdk',
+        'doctor',
+        'deps',
+        'package',
+        'test',
+      }.contains(commandName);
 }
 
 bool _hasHelpFlag(ArgResults results) {

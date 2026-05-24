@@ -45,8 +45,8 @@
       <path d="M611 127H627M611 137H623M611 147H627" stroke="#D97706" stroke-width="3" stroke-linecap="round"/>
       <text x="654" y="128" class="kicker">DEPENDENCIES</text>
       <text x="654" y="158" class="titleText" fill="#B45309">Check + fix</text>
-      <text x="654" y="179" class="mono" fill="#475569" font-size="13">pub check</text>
-      <text x="654" y="193" class="mono" fill="#475569" font-size="13">pub fix</text>
+      <text x="654" y="179" class="mono" fill="#475569" font-size="13">deps check</text>
+      <text x="654" y="193" class="mono" fill="#475569" font-size="13">deps fix</text>
     </g>
 
     <g>
@@ -72,7 +72,7 @@
       <path d="M329 326L337 334L350 316" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       <text x="374" y="320" class="kicker">REPOSITORY</text>
       <text x="374" y="350" class="titleText" fill="#047857">Create</text>
-      <text x="374" y="376" class="mono" fill="#475569" font-size="15">pub create</text>
+      <text x="374" y="376" class="mono" fill="#475569" font-size="15">package create</text>
     </g>
 
     <g>
@@ -82,7 +82,7 @@
       <text x="654" y="320" class="kicker">QUALITY</text>
       <text x="654" y="350" class="titleText" fill="#6D28D9">Test + tag</text>
       <text x="654" y="371" class="mono" fill="#475569" font-size="13">test run</text>
-      <text x="654" y="385" class="mono" fill="#475569" font-size="13">pub release</text>
+      <text x="654" y="385" class="mono" fill="#475569" font-size="13">package release</text>
     </g>
 
     <g>

@@ -27,8 +27,8 @@ Future<FluohEnvironment> createTestEnvironment() async {
   );
 }
 
-Future<Directory> createPubSourceFixture(Directory parent) async {
-  final source = Directory('${parent.path}/pub_source');
+Future<Directory> createPackageSourceFixture(Directory parent) async {
+  final source = Directory('${parent.path}/package_source');
   await Directory('${source.path}/manifests/camera').create(recursive: true);
   await Directory(
     '${source.path}/manifests/share_plus',

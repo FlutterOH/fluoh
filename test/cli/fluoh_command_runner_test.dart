@@ -87,7 +87,7 @@ void main() {
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['pub', 'chek'],
+      ['deps', 'chek'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -97,11 +97,11 @@ void main() {
     final output = stderr.join('\n');
     expect(
       output,
-      contains('Could not find a subcommand named "chek" for "fluoh pub".'),
+      contains('Could not find a subcommand named "chek" for "fluoh deps".'),
     );
     expect(output, contains('Did you mean one of these?'));
-    expect(output, contains('  fluoh pub check'));
-    expect(output, contains('  fluoh pub check\n\nUsage:'));
+    expect(output, contains('  fluoh deps check'));
+    expect(output, contains('  fluoh deps check\n\nUsage:'));
   });
 
   test(
@@ -111,18 +111,15 @@ void main() {
       final stderr = <String>[];
 
       final exitCode = await runFluoh(
-        ['pub', '--help', 'udpate'],
+        ['deps', '--help', 'udpate'],
         stdout: stdout.add,
         stderr: stderr.add,
       );
 
       expect(exitCode, 0);
       final output = stdout.join('\n');
-      expect(
-        output,
-        contains('Manage FlutterOH package dependencies and pub repositories.'),
-      );
-      expect(output, contains('Usage: fluoh pub <subcommand> [arguments]'));
+      expect(output, contains('Manage FlutterOH project dependencies.'));
+      expect(output, contains('Usage: fluoh deps <subcommand> [arguments]'));
       expect(output, isNot(contains('Did you mean one of these?')));
       expect(stderr, isEmpty);
     },
@@ -150,7 +147,7 @@ void main() {
 
     stderr.clear();
     final subcommandExitCode = await runFluoh(
-      ['pub', 'udpate'],
+      ['deps', 'udpate'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -160,10 +157,10 @@ void main() {
     expect(stdout, isEmpty);
     expect(
       subcommandOutput,
-      contains('Could not find a subcommand named "udpate" for "fluoh pub".'),
+      contains('Could not find a subcommand named "udpate" for "fluoh deps".'),
     );
     expect(subcommandOutput, contains('Did you mean one of these?'));
-    expect(subcommandOutput, contains('  fluoh pub upgrade'));
+    expect(subcommandOutput, contains('  fluoh deps upgrade'));
   });
 
   test('suggests commands from short prefixes', () async {
@@ -188,21 +185,21 @@ void main() {
     final stdout = <String>[];
     final stderr = <String>[];
 
-    final pubExitCode = await runFluoh(
-      ['pub', 'install'],
+    final depsExitCode = await runFluoh(
+      ['deps', 'install'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    final pubOutput = stderr.join('\n');
+    final depsOutput = stderr.join('\n');
 
-    expect(pubExitCode, 64);
+    expect(depsExitCode, 64);
     expect(stdout, isEmpty);
     expect(
-      pubOutput,
-      contains('Could not find a subcommand named "install" for "fluoh pub".'),
+      depsOutput,
+      contains('Could not find a subcommand named "install" for "fluoh deps".'),
     );
-    expect(pubOutput, contains('Did you mean one of these?'));
-    expect(pubOutput, contains('  fluoh pub get'));
+    expect(depsOutput, contains('Did you mean one of these?'));
+    expect(depsOutput, contains('  fluoh deps get'));
 
     stderr.clear();
     final sdkExitCode = await runFluoh(
@@ -263,7 +260,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('registers pub command group', () async {
+  test('registers deps command group', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -274,7 +271,8 @@ void main() {
     );
 
     expect(exitCode, 0);
-    expect(stdout.join('\n'), contains('pub'));
+    expect(stdout.join('\n'), contains('deps'));
+    expect(stdout.join('\n'), contains('package'));
     expect(stderr, isEmpty);
   });
 
@@ -309,7 +307,8 @@ void main() {
       '  flutter',
       '  source',
       '  sdk',
-      '  pub',
+      '  deps',
+      '  package',
       '  test',
       '  clean',
       '  doctor',
@@ -318,7 +317,8 @@ void main() {
     expect(help, isNot(contains('\nConfig:')));
     expect(help, isNot(contains('\nSDK:')));
     expect(help, isNot(contains('\nProject:')));
-    expect(help, isNot(contains('\nPub:')));
+    expect(help, isNot(contains('\nDeps:')));
+    expect(help, isNot(contains('\nPackage:')));
     expect(help, isNot(contains('\nTool:')));
     expect(help, isNot(contains('  use')));
     expect(help, isNot(contains('  update')));
@@ -363,57 +363,54 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('prints pub command help', () async {
+  test('prints deps command help', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['pub', '--help'],
+      ['deps', '--help'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    expect(
-      help,
-      contains('Manage FlutterOH package dependencies and pub repositories.'),
-    );
+    expect(help, contains('Manage FlutterOH project dependencies.'));
     expect(help, contains('get'));
     expect(help, contains('check'));
     expect(help, contains('fix'));
     expect(help, contains('upgrade'));
-    expect(help, contains('create'));
-    expect(help, contains('sync'));
-    expect(help, contains('release'));
+    expect(help, isNot(contains('create')));
+    expect(help, isNot(contains('sync')));
+    expect(help, isNot(contains('release')));
     expect(stderr, isEmpty);
   });
 
-  test('prints pub create upstream help', () async {
+  test('prints package create upstream help', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['pub', 'create', '--help'],
+      ['package', 'create', '--help'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    expect(help, contains('Usage: fluoh pub create <upstream>'));
+    expect(help, contains('Usage: fluoh package create <upstream>'));
     expect(help, contains('Upstream: Git URL or local Git repo path.'));
     expect(help, contains('--package-path'));
     expect(help, contains('--repository'));
     expect(stderr, isEmpty);
   });
 
-  test('prints pub create upstream argument guidance', () async {
+  test('prints package create upstream argument guidance', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['pub', 'create'],
+      ['package', 'create'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -425,30 +422,27 @@ void main() {
       error,
       contains('Expected <upstream>: Git URL or local Git repo path.'),
     );
-    expect(error, contains('Usage: fluoh pub create <upstream>'));
+    expect(error, contains('Usage: fluoh package create <upstream>'));
     expect(error, contains('Upstream: Git URL or local Git repo path.'));
   });
 
-  test('prints pub subcommands in lifecycle order', () async {
+  test('prints package subcommands in lifecycle order', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['pub', '--help'],
+      ['package', '--help'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
+    expect(help, contains('Maintain FlutterOH package repositories.'));
     _expectInOrder(help, [
-      'Project dependencies:',
-      '  get',
-      '  check',
-      '  fix',
-      '  upgrade',
-      'FlutterOH pub repositories:',
+      'Package repositories:',
       '  create',
+      '  add',
       '  sync',
       '  release',
     ]);

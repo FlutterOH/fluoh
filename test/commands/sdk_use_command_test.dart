@@ -8,7 +8,7 @@ import '../helpers/fluoh_test_context.dart';
 void main() {
   test('uses an SDK version and writes fluoh project config', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
@@ -52,7 +52,7 @@ sdk:
   version: 3.35.8-ohos-0.0.3
 
 dependencyPolicy:
-  # pubspecSection controls where fluoh pub fix writes OHOS implementations:
+  # pubspecSection controls where fluoh deps fix writes OHOS implementations:
   # - dependency_overrides: add dependency_overrides without changing dependencies.
   # - dependencies: replace matching entries in dependencies directly.
   pubspecSection: dependency_overrides
@@ -105,7 +105,7 @@ dependencyPolicy:
 
   test('updates an existing IDE SDK link automatically', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final legacySdk = Directory('${environment.homeDirectory.path}/legacy_sdk');
     await legacySdk.create(recursive: true);
@@ -154,7 +154,7 @@ dependencyPolicy:
 
   test('refuses to replace a non-symlink IDE SDK path', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final existingSdkPath = Directory(
       '${environment.workingDirectory.path}/.fluoh/flutter_sdk',
@@ -194,7 +194,7 @@ dependencyPolicy:
 
   test('refuses to write config when the IDE link root is a file', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final linkRoot = File('${environment.workingDirectory.path}/.fluoh');
     await linkRoot.writeAsString('not a directory');
@@ -231,7 +231,7 @@ dependencyPolicy:
 
   test('leaves pre-existing FVM files untouched', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final fvmrc = File('${environment.workingDirectory.path}/.fvmrc');
     await fvmrc.writeAsString('{"flutter":"legacy"}');
@@ -273,7 +273,9 @@ dependencyPolicy:
     'updates existing project fluoh config without removing user fields',
     () async {
       final environment = await createTestEnvironment();
-      final source = await createPubSourceFixture(environment.homeDirectory);
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final manifest = File('${environment.workingDirectory.path}/fluoh.yaml');
       await manifest.writeAsString('''
@@ -317,7 +319,7 @@ custom:
 
   test('runs flutter pub get from the selected SDK when requested', () async {
     final environment = await createTestEnvironment();
-    final source = await _createPubGetSdkSourceFixture(
+    final source = await _createSdkUsePubGetSourceFixture(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -344,7 +346,7 @@ custom:
 
     expect(
       File(
-        '${environment.workingDirectory.path}/pub_get_args.txt',
+        '${environment.workingDirectory.path}/flutter_dependency_get_args.txt',
       ).readAsStringSync(),
       'pub get',
     );
@@ -354,7 +356,7 @@ custom:
 
   test('refuses to write SDK files outside a Flutter project', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -384,9 +386,9 @@ custom:
     );
   });
 
-  test('refuses to replace pub repository metadata', () async {
+  test('refuses to replace package repository metadata', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final manifest = File('${environment.workingDirectory.path}/fluoh.yaml');
     await manifest.writeAsString('''
@@ -426,17 +428,19 @@ upstream:
 
     expect(
       stderr.join('\n'),
-      contains('Refusing to replace pub repository metadata in fluoh.yaml.'),
+      contains(
+        'Refusing to replace package repository metadata in fluoh.yaml.',
+      ),
     );
     expect(manifest.readAsStringSync(), contains('package:\n  name: camera'));
   });
 }
 
-Future<Directory> _createPubGetSdkSourceFixture(
+Future<Directory> _createSdkUsePubGetSourceFixture(
   Directory parent,
   Directory project,
 ) async {
-  final source = Directory('${parent.path}/pub_get_source');
+  final source = Directory('${parent.path}/sdk_use_source');
   final sdkRepository = Directory('${parent.path}/flutter_with_pub_get');
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
@@ -450,7 +454,7 @@ Future<Directory> _createPubGetSdkSourceFixture(
   await flutter.parent.create(recursive: true);
   await flutter.writeAsString('''
 #!/bin/sh
-printf "%s %s" "\$1" "\$2" > "${project.path}/pub_get_args.txt"
+printf "%s %s" "\$1" "\$2" > "${project.path}/flutter_dependency_get_args.txt"
 exit 0
 ''');
   await _runProcess('chmod', ['+x', flutter.path], sdkRepository);

@@ -6,7 +6,7 @@ import 'package:yaml/yaml.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
-import '../pub/manifest/pubspec_package.dart';
+import '../package/manifest/pubspec_package.dart';
 import '../sdk/sdk_manager.dart';
 import '../sdk/sdk_project_config.dart';
 
@@ -225,7 +225,7 @@ Future<List<Directory>> fluohTestWorkspaceDirectories(
     if (name is! String || value is! YamlMap) {
       continue;
     }
-    final workspace = _looksLikePubRepositoryManifest(yaml)
+    final workspace = _looksLikePackageManifest(yaml)
         ? Directory('${repository.path}/fluoh_test/$name')
         : Directory('${repository.path}/fluoh_test');
     directories.addAll(_testWorkspacePair(workspace));
@@ -233,7 +233,7 @@ Future<List<Directory>> fluohTestWorkspaceDirectories(
   return _dedupeDirectories(directories);
 }
 
-bool _looksLikePubRepositoryManifest(YamlMap yaml) {
+bool _looksLikePackageManifest(YamlMap yaml) {
   return yaml['kind'] == null &&
       yaml['sdk'] is YamlMap &&
       yaml['packages'] is YamlMap;
@@ -438,7 +438,7 @@ Future<bool> _usesScopedTestWorkspace(
   final manifest = File('${repository.path}/fluoh.yaml');
   if (await manifest.exists()) {
     final yaml = loadYaml(await manifest.readAsString());
-    if (yaml is YamlMap && _looksLikePubRepositoryManifest(yaml)) {
+    if (yaml is YamlMap && _looksLikePackageManifest(yaml)) {
       return true;
     }
   }
@@ -814,7 +814,7 @@ Package: `${package.name}`
 
 ## Automated Verification
 
-Run from the FlutterOH pub repository root:
+Run from the FlutterOH package repository root:
 
 ```sh
 $runCommand
@@ -824,13 +824,13 @@ The command first runs package Flutter tests when `test/**/*_test.dart` exists, 
 
 ## Baseline Before OHOS Work
 
-Before adding OHOS implementation code, run `fluoh pub get`, `fluoh flutter analyze`, and the package's existing tests or example builds with the selected SDK. Fix non-OHOS platform regressions first so later failures are attributable to OHOS changes.
+Before adding OHOS implementation code, run `fluoh deps get`, `fluoh flutter analyze`, and the package's existing tests or example builds with the selected SDK. Fix non-OHOS platform regressions first so later failures are attributable to OHOS changes.
 
 ## What To Edit
 
 - Add deterministic automated checks under `$testWorkspacePath/test`; replace or extend the generated `contract_test.dart` with package-specific OHOS behavior checks.
 - Add focused manual verification actions to `$testWorkspacePath/example/lib/main.dart` when behavior needs a device or visual confirmation.
-- Run `fluoh pub get` after dependency or metadata changes, then run `$runCommand`.
+- Run `fluoh deps get` after dependency or metadata changes, then run `$runCommand`.
 
 ## Manual Verification
 

@@ -517,7 +517,7 @@ List<SourcePackageManifest> sourcePackageManifestsFromManifest(
             repository: manifest.repositoryGitUrl,
             tag:
                 release.tag ??
-                pubReleaseTagForPackage(
+                packageReleaseTagForPackage(
                   packageName: package.name,
                   upstreamVersion: release.upstreamVersion,
                   sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
@@ -689,7 +689,7 @@ String sourceManifestToContent(SourceManifest manifest) {
       lines.addAll(['      "${sdk.sdkLine}":', '        releases:']);
       for (final release in sdk.releases) {
         validateReleaseVersion(release.version, label: 'release version');
-        final canonicalTag = pubReleaseTagForPackage(
+        final canonicalTag = packageReleaseTagForPackage(
           packageName: package.name,
           upstreamVersion: release.upstreamVersion,
           sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',

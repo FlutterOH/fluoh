@@ -6,7 +6,9 @@ import 'package:test/test.dart';
 
 void main() {
   test('loads the fixture pub source indexes', () async {
-    final source = SourceIndex.directory(Directory('test/fixtures/pub_source'));
+    final source = SourceIndex.directory(
+      Directory('test/fixtures/package_source'),
+    );
 
     final sdkIndex = await source.loadSdkIndex();
     final packageIndex = await source.loadPackageIndex();
@@ -189,18 +191,18 @@ void main() {
   test('parses relative file source URLs as relative paths', () {
     expect(localSourceDirectoryFromUrl('file:.')!.path, '.');
     expect(
-      localSourceDirectoryFromUrl('file:test/fixtures/pub_source')!.path,
-      'test/fixtures/pub_source',
+      localSourceDirectoryFromUrl('file:test/fixtures/package_source')!.path,
+      'test/fixtures/package_source',
     );
     expect(
-      localSourceDirectoryFromUrl('file:///tmp/pub_source')!.path,
-      '/tmp/pub_source',
+      localSourceDirectoryFromUrl('file:///tmp/package_source')!.path,
+      '/tmp/package_source',
     );
   });
 }
 
 Future<Directory> _createSourceRoot() async {
-  final root = await Directory.systemTemp.createTemp('fluoh_pub_source_');
+  final root = await Directory.systemTemp.createTemp('fluoh_package_source_');
   addTearDown(() async {
     if (await root.exists()) {
       await root.delete(recursive: true);

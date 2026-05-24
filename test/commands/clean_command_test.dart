@@ -87,7 +87,7 @@ void main() {
     expect(stderr, contains('flutter stderr'));
   });
 
-  test('runs flutter clean from pub repository package path', () async {
+  test('runs flutter clean from package repository package path', () async {
     final environment = await createTestEnvironment();
     final source = await _createCleanCommandSdkSource(
       environment.homeDirectory,

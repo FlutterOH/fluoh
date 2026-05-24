@@ -47,7 +47,7 @@ class SdkUseCommand extends Command<int> {
     );
 
     await _ensureFlutterProject();
-    await _ensureProjectConfigIsNotPubManifest();
+    await _ensureProjectConfigIsNotPackageManifest();
     final manager = SdkManager(environment);
     final release = await manager.resolveRelease(rest.single);
     _output.step(
@@ -95,7 +95,7 @@ class SdkUseCommand extends Command<int> {
     }
   }
 
-  Future<void> _ensureProjectConfigIsNotPubManifest() async {
+  Future<void> _ensureProjectConfigIsNotPackageManifest() async {
     final fluohYaml = File('${environment.workingDirectory.path}/fluoh.yaml');
     if (!await fluohYaml.exists()) {
       return;
@@ -109,8 +109,8 @@ class SdkUseCommand extends Command<int> {
         (yaml['package'] is YamlMap || yaml['packages'] is YamlMap) &&
         yaml['upstream'] is YamlMap) {
       throw UsageException(
-        'Current directory is a FlutterOH pub repository. '
-            'Refusing to replace pub repository metadata in fluoh.yaml.',
+        'Current directory is a FlutterOH package repository. '
+            'Refusing to replace package repository metadata in fluoh.yaml.',
         '',
       );
     }

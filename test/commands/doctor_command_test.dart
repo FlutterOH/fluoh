@@ -14,7 +14,7 @@ const _newerVersion = '99.0.0';
 void main() {
   test('reports project, SDK, source, and platform status', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];

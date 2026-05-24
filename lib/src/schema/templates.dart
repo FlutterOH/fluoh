@@ -1,6 +1,6 @@
 const fluohSchemaTemplates = <String, String>{
   'project': projectFluohYamlTemplate,
-  'pub-repository': pubRepositoryFluohYamlTemplate,
+  'package-repository': packageRepositoryFluohYamlTemplate,
   'source-root': sourceRootYamlTemplate,
   'source-package': sourcePackageManifestYamlTemplate,
   'tool-config': toolConfigJsonTemplate,
@@ -17,7 +17,7 @@ dependencyPolicy:
   versionChanges: compatible
 ''';
 
-const pubRepositoryFluohYamlTemplate = '''
+const packageRepositoryFluohYamlTemplate = '''
 schema: 1
 name: camera
 

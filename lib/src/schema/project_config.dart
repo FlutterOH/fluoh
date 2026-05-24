@@ -1,4 +1,4 @@
-import 'pub_dependency_policy.dart';
+import 'dependency_policy.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
@@ -6,7 +6,7 @@ class ProjectFluohConfig {
   const ProjectFluohConfig({
     required this.schemaVersion,
     this.sdkVersion,
-    this.dependencyPolicy = const PubDependencyPolicy(),
+    this.dependencyPolicy = const DependencyPolicy(),
   });
 
   factory ProjectFluohConfig.parse(String content) {
@@ -22,13 +22,13 @@ class ProjectFluohConfig {
     return ProjectFluohConfig(
       schemaVersion: yaml['schema'] as int? ?? supportedFluohYamlSchema,
       sdkVersion: sdkVersion,
-      dependencyPolicy: parsePubDependencyPolicy(yaml),
+      dependencyPolicy: parseDependencyPolicy(yaml),
     );
   }
 
   final int schemaVersion;
   final String? sdkVersion;
-  final PubDependencyPolicy dependencyPolicy;
+  final DependencyPolicy dependencyPolicy;
 }
 
 String newProjectFluohConfigContent(String sdkVersion) {
@@ -39,7 +39,7 @@ String newProjectFluohConfigContent(String sdkVersion) {
     '  version: $sdkVersion',
     '',
     'dependencyPolicy:',
-    '  # pubspecSection controls where fluoh pub fix writes OHOS implementations:',
+    '  # pubspecSection controls where fluoh deps fix writes OHOS implementations:',
     '  # - dependency_overrides: add dependency_overrides without changing dependencies.',
     '  # - dependencies: replace matching entries in dependencies directly.',
     '  pubspecSection: dependency_overrides',

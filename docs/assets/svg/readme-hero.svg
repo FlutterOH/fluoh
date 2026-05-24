@@ -56,8 +56,8 @@
     <g class="mono" font-size="18">
       <text x="150" y="266" fill="#EAF2FF">$ fluoh source update</text>
       <text x="150" y="320" fill="#E2E8F0">$ fluoh sdk use 3.35 --pub-get</text>
-      <text x="150" y="374" fill="#E2E8F0">$ fluoh pub check</text>
-      <text x="150" y="428" fill="#E2E8F0">$ fluoh pub fix</text>
+      <text x="150" y="374" fill="#E2E8F0">$ fluoh deps check</text>
+      <text x="150" y="428" fill="#E2E8F0">$ fluoh deps fix</text>
       <text x="150" y="482" fill="#E2E8F0">$ fluohf build hap</text>
     </g>
 
@@ -77,7 +77,7 @@
       <text x="746" y="302" class="mono" fill="#334155" font-size="20">Exact version written to fluoh.yaml</text>
       <text x="746" y="338" class="mono" fill="#334155" font-size="20">IDE SDK link refreshed</text>
       <rect x="746" y="374" width="356" height="54" rx="14" fill="#ECFDF3" stroke="#A7F3D0"/>
-      <text x="768" y="407" class="ui" fill="#047857" font-size="19" font-weight="800">pub get completed</text>
+      <text x="768" y="407" class="ui" fill="#047857" font-size="19" font-weight="800">deps get completed</text>
     </g>
 
     <g class="panel3" opacity="0" visibility="hidden">
@@ -110,6 +110,6 @@
     </g>
     <rect x="104" y="534" width="1072" height="2" rx="1" fill="#E2E8F0"/>
     <text x="104" y="559" class="caption">Repeatable CLI workflow</text>
-    <text x="1176" y="559" text-anchor="end" class="mono" fill="#475569" font-size="15">source -> sdk -> pub -> fix -> build</text>
+    <text x="1176" y="559" text-anchor="end" class="mono" fill="#475569" font-size="15">source -> sdk -> deps -> fix -> build</text>
   </g>
 </svg>

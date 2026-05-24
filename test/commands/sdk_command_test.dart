@@ -101,7 +101,7 @@ void main() {
 
   test('lists, installs, reports current, and removes SDKs', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
@@ -173,7 +173,7 @@ void main() {
 
   test('lists installed SDKs that are missing from source indexes', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final localSdk = Directory(
       '${environment.homeDirectory.path}/sdks/3.34.0-ohos-0.0.1',
     );
@@ -209,7 +209,7 @@ void main() {
 
   test('removes installed SDKs that are missing from source indexes', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final localSdk = Directory(
       '${environment.homeDirectory.path}/sdks/3.34.0-ohos-0.0.1',
     );
@@ -241,7 +241,7 @@ void main() {
 
   test('reports no current SDK without project fluoh.yaml', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -303,7 +303,7 @@ sdk:
 
   test('resolves SDK version series to the latest release', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final sdkRepository = Directory(
       '${environment.homeDirectory.path}/flutter-ohos-sdk',
     );
@@ -348,10 +348,10 @@ sdk:
     'stops when equal-priority sources disagree on an SDK version',
     () async {
       final environment = await createTestEnvironment();
-      final firstSource = await createPubSourceFixture(
+      final firstSource = await createPackageSourceFixture(
         Directory('${environment.homeDirectory.path}/first'),
       );
-      final secondSource = await createPubSourceFixture(
+      final secondSource = await createPackageSourceFixture(
         Directory('${environment.homeDirectory.path}/second'),
       );
       final stdout = <String>[];
@@ -379,7 +379,7 @@ sdk:
 
   test('cleans up a partial SDK install when checkout fails', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final sdkRepository = await createTaggedGitRepository(
       Directory('${environment.homeDirectory.path}/broken-sdk'),
       tag: '3.35.8-ohos-0.0.3',

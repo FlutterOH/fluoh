@@ -42,7 +42,7 @@ dependencyPolicy:
 - `schema` 必填，目前必须为 `1`。
 - Project 不使用 `kind`；命令在项目上下文中解析这套 schema。
 - `sdk.version` 是当前项目选择的完整 Flutter OHOS SDK 版本。
-- `dependencyPolicy.pubspecSection` 是 `fluoh pub fix` 写入的 pubspec section；
+- `dependencyPolicy.pubspecSection` 是 `fluoh deps fix` 写入的 pubspec section；
   支持 `dependency_overrides` 和 `dependencies`，默认 `dependency_overrides`。
 - `dependencyPolicy.versionChanges` 控制 upstream package 版本变化范围；
   `compatible` 只允许精确匹配和 pub 语义化版本兼容升级，`any` 也允许不兼容变化和降级。
@@ -121,7 +121,7 @@ packages:
 规则：
 
 - `schema` 必填，目前必须为 `1`。
-- Package 不使用 `kind`；命令在 `fluoh pub ...` 上下文中解析这套 schema。
+- Package 不使用 `kind`；命令在 `fluoh package ...` 上下文中解析这套 schema。
 - `name` 必填，表示适配仓库的逻辑名，不一定是 Dart package 名。只跟踪根 package
   的仓库通常使用 package 名；跟踪多个 package 的仓库通常使用稳定的仓库别名，例如
   `flutter_packages`。
@@ -129,7 +129,7 @@ packages:
   默认选择它；注册多个 package 时需要 `--package <name>` 明确选择。
 - package path 默认是 `.`。单包仓库可以省略 `repository.path` 和 `upstream.path`；
   嵌套 package 仓库可以在 package 级设置 path，或使用顶层 git `path` 默认值。
-- Package 仓库的验证工作区统一放在 package 级 `fluoh_test/<name>` 下。`fluoh pub add`
+- Package 仓库的验证工作区统一放在 package 级 `fluoh_test/<name>` 下。`fluoh package add`
   可以向任意 Package 仓库追加 package entry。
 - `sdk.version` 必填，是适配、测试和发布当前 package 使用的完整 Flutter OHOS SDK 版本。
 - `repository.git.url` 必填，是 FlutterOH 适配仓库 URL 或本地路径。
@@ -138,7 +138,7 @@ packages:
   `ohos/3.35`。
 - `repository.git.path` 可选，作为所有 package 在适配仓库内的默认路径，默认 `.`。
 - `upstream.git.url` 必填，是原始 upstream 仓库 URL 或本地路径。
-- `upstream.git.branch` 可选，是 `fluoh pub sync` 拉取 upstream 变更时使用的分支，默认
+- `upstream.git.branch` 可选，是 `fluoh package sync` 拉取 upstream 变更时使用的分支，默认
   `main`。
 - `upstream.git.path` 可选，作为所有 package 在 upstream 仓库内的默认路径，默认 `.`。
 - `packages.<name>.repository.path` 可选，覆盖 `repository.git.path`。
@@ -310,7 +310,7 @@ packages:
 - `packages.<name>.upstream.path` 可选，覆盖 `upstream.git.path`。
 - `maintenance.status` 可选，默认 `active`；支持 `active` 和 `frozen`。
   `frozen` 只影响 Source 维护命令，消费侧仍可使用已有发布记录。
-- `advisory` 可选，是 package 级用户提示，会用于 `fluoh pub check`，但不改变机器
+- `advisory` 可选，是 package 级用户提示，会用于 `fluoh deps check`，但不改变机器
   判定状态。
 - `sdks.<sdkLine>` 使用派生的 Flutter OHOS 大版本线，例如 `3.35`。项目选择完整 SDK
   版本后，消费侧从中推导 SDK 版本线，再查 Manifest。
@@ -322,7 +322,7 @@ packages:
   只会在需要保留已有非 canonical release tag 时写入。
 - `releases[].status` 可选；不写表示 `compatible`。只有适配中或已知不可用时才写
   `experimental` 或 `broken`。
-- `fluoh pub check/fix/upgrade` 默认只推荐 `compatible` 发布记录。
+- `fluoh deps check/fix/upgrade` 默认只推荐 `compatible` 发布记录。
 - Manifest 不记录 `native`、`blocked` 或 `support` 机器状态。上游已原生支持时用
   `advisory` 提示；不支持或不再适配时，没有可推荐发布记录即自然不可用。
 
@@ -361,12 +361,12 @@ path_provider-2.1.5-ohos-3.35-0.2.0
    不按 SDK patch 版本维护。
 4. Package `fluoh.yaml` 只记录当前分支正在维护或准备发布的 upstream package 版本
    和 FlutterOH 适配 package 版本。
-5. 开始写 OHOS 代码前，先用已选择 SDK 做基线检查，包括 `fluoh pub get`、
+5. 开始写 OHOS 代码前，先用已选择 SDK 做基线检查，包括 `fluoh deps get`、
    `fluoh flutter analyze`、已有 package 测试或 example 构建；先修复非 OHOS 平台
    因 SDK 切换暴露的问题。
 6. 适配中可以把 `packages.<name>.status` 或 `releases[].status` 写成 `experimental`；
    完成并可推荐给项目使用时省略 `status`，默认就是 `compatible`。
-7. `fluoh pub release` 使用 Package `fluoh.yaml` 派生 release tag。tag 固化当时的代码、
+7. `fluoh package release` 使用 Package `fluoh.yaml` 派生 release tag。tag 固化当时的代码、
    测试和配置快照。
 8. `fluoh source sync` 使用 Manifest `repository.git.url` 作为 Package 仓库，
    扫描已发布 release tags，读取每个 tag 下的 Package `fluoh.yaml`，把历史发布记录汇总进
@@ -376,7 +376,7 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 
 ## 依赖报告和计划
 
-`fluoh pub check` 读取项目 SDK 和 pub lockfile，然后通过 Source 运行时加载 package
+`fluoh deps check` 读取项目 SDK 和 pub lockfile，然后通过 Source 运行时加载 package
 metadata。fresh `sources.lock.json` 提供 package 路由索引，用来缩小需要读取的 Manifest
 范围；完整 package metadata 仍然按需来自 Source Manifest YAML。source 输入变化、lock
 缺失时，lock 会从 Source root 和 Manifest YAML 重新生成。

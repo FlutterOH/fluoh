@@ -9,7 +9,7 @@ import '../helpers/fluoh_test_context.dart';
 void main() {
   test('does not repair sources when showing nested command help', () async {
     final baseEnvironment = await createTestEnvironment();
-    final defaultSource = await createPubSourceFixture(
+    final defaultSource = await createPackageSourceFixture(
       baseEnvironment.homeDirectory.parent,
     );
     await initializeGitRepository(defaultSource);
@@ -52,13 +52,15 @@ void main() {
 
   test('validates a local source path without registering it', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.workingDirectory);
+    final source = await createPackageSourceFixture(
+      environment.workingDirectory,
+    );
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        ['source', 'validate', 'pub_source'],
+        ['source', 'validate', 'package_source'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -122,7 +124,7 @@ repository:
 
   test('does not repair sources when list has unexpected arguments', () async {
     final baseEnvironment = await createTestEnvironment();
-    final defaultSource = await createPubSourceFixture(
+    final defaultSource = await createPackageSourceFixture(
       baseEnvironment.homeDirectory.parent,
     );
     await initializeGitRepository(defaultSource);
@@ -162,7 +164,7 @@ repository:
     'lists the default FlutterOH source before user configuration',
     () async {
       final baseEnvironment = await createTestEnvironment();
-      final defaultSource = await createPubSourceFixture(
+      final defaultSource = await createPackageSourceFixture(
         baseEnvironment.homeDirectory.parent,
       );
       await initializeGitRepository(defaultSource);
@@ -212,7 +214,7 @@ repository:
     'validates source configuration when source has no subcommand',
     () async {
       final baseEnvironment = await createTestEnvironment();
-      final defaultSource = await createPubSourceFixture(
+      final defaultSource = await createPackageSourceFixture(
         baseEnvironment.homeDirectory.parent,
       );
       await initializeGitRepository(defaultSource);
@@ -256,7 +258,7 @@ repository:
 
   test('repairs missing private git source snapshots when listing', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await initializeGitRepository(source);
     final cachePath = '${environment.homeDirectory.path}/sources/private';
     await File('${environment.homeDirectory.path}/config.json').writeAsString(
@@ -292,7 +294,7 @@ repository:
 
   test('repairs invalid private git source snapshots when listing', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await initializeGitRepository(source);
     final cachePath = '${environment.homeDirectory.path}/sources/private';
     await Directory(cachePath).create(recursive: true);
@@ -455,7 +457,7 @@ repository:
 
   test('adds, lists, and updates a named pub source', () async {
     final baseEnvironment = await createTestEnvironment();
-    final defaultSource = await createPubSourceFixture(
+    final defaultSource = await createPackageSourceFixture(
       baseEnvironment.homeDirectory.parent,
     );
     await initializeGitRepository(defaultSource);
@@ -466,7 +468,7 @@ repository:
         'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
       },
     );
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await Directory('${source.path}/docs').create(recursive: true);
     await File('${source.path}/docs/notes.md').writeAsString('# Notes\n');
     await Directory(
@@ -643,7 +645,7 @@ environment:
 
   test('writes compact source locks and source snapshot state', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -692,7 +694,7 @@ environment:
 
   test('refreshes source lock when cached snapshot changes', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -796,10 +798,10 @@ environment:
     expect(stderr, isEmpty);
   });
 
-  test('source sync imports released pub repository manifests', () async {
+  test('source sync imports released package repository manifests', () async {
     final environment = await createTestEnvironment();
     final source = Directory('${environment.homeDirectory.path}/local_source');
-    final pubRepository = Directory(
+    final packageRepository = Directory(
       '${environment.homeDirectory.path}/packages_implementation',
     );
     final stdout = <String>[];
@@ -811,13 +813,13 @@ environment:
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await _writePubRepositoryManifest(pubRepository);
-    await _writeSourceSyncManifest(source, pubRepository);
-    await initializeGitRepository(pubRepository);
-    await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
-    final pubManifest = File('${pubRepository.path}/fluoh.yaml');
-    await pubManifest.writeAsString(
-      pubManifest
+    await _writePackageManifest(packageRepository);
+    await _writeSourceSyncManifest(source, packageRepository);
+    await initializeGitRepository(packageRepository);
+    await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+    final packageManifest = File('${packageRepository.path}/fluoh.yaml');
+    await packageManifest.writeAsString(
+      packageManifest
           .readAsStringSync()
           .replaceFirst('version: 0.2.0', 'version: 0.3.0')
           .replaceFirst('upstreamVersion: 0.11.0', 'upstreamVersion: 0.12.0'),
@@ -844,7 +846,7 @@ environment:
       '${source.path}/manifests/packages/fluoh.yaml',
     ).readAsStringSync();
     expect(manifest, contains('name: packages'));
-    expect(manifest, contains('url: "file:${pubRepository.path}"'));
+    expect(manifest, contains('url: "file:${packageRepository.path}"'));
     expect(manifest, contains('upstreamVersion: 0.11.0'));
     expect(manifest, contains('- version: 0.2.0'));
     expect(manifest, isNot(contains('upstreamVersion: 0.12.0')));
@@ -852,7 +854,9 @@ environment:
     expect(manifest, isNot(contains('status: experimental')));
     expect(
       stdout,
-      contains('Synced source metadata for camera from ${pubRepository.path}.'),
+      contains(
+        'Synced source metadata for camera from ${packageRepository.path}.',
+      ),
     );
     expect(stderr, isEmpty);
   });
@@ -864,7 +868,7 @@ environment:
       final source = Directory(
         '${environment.homeDirectory.path}/local_source',
       );
-      final pubRepository = Directory(
+      final packageRepository = Directory(
         '${environment.homeDirectory.path}/packages_implementation',
       );
       const repositoryUrl = '../packages_implementation';
@@ -877,17 +881,20 @@ environment:
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await _writePubRepositoryManifest(
-        pubRepository,
+      await _writePackageManifest(
+        packageRepository,
         repositoryUrl: repositoryUrl,
       );
       await _writeSourceSyncManifest(
         source,
-        pubRepository,
+        packageRepository,
         repositoryUrl: repositoryUrl,
       );
-      await initializeGitRepository(pubRepository);
-      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.2.0',
+      ]);
 
       expect(
         await runFluoh(
@@ -915,7 +922,7 @@ environment:
       final source = Directory(
         '${environment.workingDirectory.path}/local_source',
       );
-      final pubRepository = Directory(
+      final packageRepository = Directory(
         '${environment.workingDirectory.path}/packages_implementation',
       );
       final stdout = <String>[];
@@ -927,10 +934,13 @@ environment:
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await _writePubRepositoryManifest(pubRepository);
-      await _writeSourceSyncManifest(source, pubRepository);
-      await initializeGitRepository(pubRepository);
-      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+      await _writePackageManifest(packageRepository);
+      await _writeSourceSyncManifest(source, packageRepository);
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.2.0',
+      ]);
 
       expect(
         await runFluoh(
@@ -949,7 +959,7 @@ environment:
       expect(
         stdout,
         contains(
-          'Synced source metadata for camera from ${pubRepository.path}.',
+          'Synced source metadata for camera from ${packageRepository.path}.',
         ),
       );
       expect(stderr, isEmpty);
@@ -959,7 +969,7 @@ environment:
   test('source sync writes releases to routed source manifests', () async {
     final environment = await createTestEnvironment();
     final source = Directory('${environment.homeDirectory.path}/local_source');
-    final pubRepository = Directory(
+    final packageRepository = Directory(
       '${environment.homeDirectory.path}/packages_implementation',
     );
     final stdout = <String>[];
@@ -971,14 +981,14 @@ environment:
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await _writePubRepositoryManifest(pubRepository);
+    await _writePackageManifest(packageRepository);
     await _writeSourceSyncManifest(
       source,
-      pubRepository,
+      packageRepository,
       manifestName: 'camera',
     );
-    await initializeGitRepository(pubRepository);
-    await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+    await initializeGitRepository(packageRepository);
+    await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
 
     expect(
       await runFluoh(
@@ -1013,7 +1023,7 @@ environment:
       final source = Directory(
         '${environment.homeDirectory.path}/local_source',
       );
-      final pubRepository = Directory(
+      final packageRepository = Directory(
         '${environment.homeDirectory.path}/packages_implementation',
       );
       final stdout = <String>[];
@@ -1025,10 +1035,13 @@ environment:
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await _writePubRepositoryManifest(pubRepository);
-      await _writeSourceSyncManifest(source, pubRepository);
-      await initializeGitRepository(pubRepository);
-      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+      await _writePackageManifest(packageRepository);
+      await _writeSourceSyncManifest(source, packageRepository);
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.2.0',
+      ]);
       await runFluoh(
         ['source', 'sync', source.path],
         environment: environment,
@@ -1036,18 +1049,21 @@ environment:
         stderr: stderr.add,
       );
 
-      final pubManifest = File('${pubRepository.path}/fluoh.yaml');
-      await pubManifest.writeAsString(
-        pubManifest
+      final packageManifest = File('${packageRepository.path}/fluoh.yaml');
+      await packageManifest.writeAsString(
+        packageManifest
             .readAsStringSync()
             .replaceFirst('branch: main', 'branch: develop')
             .replaceFirst('version: 0.2.0', 'version: 0.3.0'),
       );
       await commitAll(
-        pubRepository,
+        packageRepository,
         message: 'Release develop branch metadata',
       );
-      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.3.0']);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.3.0',
+      ]);
 
       expect(
         await runFluoh(
@@ -1076,7 +1092,7 @@ environment:
       final source = Directory(
         '${environment.homeDirectory.path}/local_source',
       );
-      final pubRepository = Directory(
+      final packageRepository = Directory(
         '${environment.homeDirectory.path}/packages_implementation',
       );
       final configFile = File('${environment.homeDirectory.path}/config.json');
@@ -1092,10 +1108,13 @@ environment:
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await _writePubRepositoryManifest(pubRepository);
-      await _writeSourceSyncManifest(source, pubRepository);
-      await initializeGitRepository(pubRepository);
-      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+      await _writePackageManifest(packageRepository);
+      await _writeSourceSyncManifest(source, packageRepository);
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.2.0',
+      ]);
 
       expect(configFile.existsSync(), isFalse);
       expect(lockFile.existsSync(), isFalse);
@@ -1123,7 +1142,7 @@ environment:
   test('source sync requires released tags', () async {
     final environment = await createTestEnvironment();
     final source = Directory('${environment.homeDirectory.path}/local_source');
-    final pubRepository = Directory(
+    final packageRepository = Directory(
       '${environment.homeDirectory.path}/packages_implementation',
     );
     final stdout = <String>[];
@@ -1135,9 +1154,9 @@ environment:
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await _writePubRepositoryManifest(pubRepository);
-    await _writeSourceSyncManifest(source, pubRepository);
-    await initializeGitRepository(pubRepository);
+    await _writePackageManifest(packageRepository);
+    await _writeSourceSyncManifest(source, packageRepository);
+    await initializeGitRepository(packageRepository);
 
     expect(
       await runFluoh(
@@ -1162,7 +1181,7 @@ environment:
       final source = Directory(
         '${environment.homeDirectory.path}/local_source',
       );
-      final pubRepository = Directory(
+      final packageRepository = Directory(
         '${environment.homeDirectory.path}/packages_implementation',
       );
       final stdout = <String>[];
@@ -1174,10 +1193,13 @@ environment:
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await _writePubRepositoryManifest(pubRepository);
-      await _writeSourceSyncManifest(source, pubRepository);
-      await initializeGitRepository(pubRepository);
-      await _runGit(pubRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+      await _writePackageManifest(packageRepository);
+      await _writeSourceSyncManifest(source, packageRepository);
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-0.2.0',
+      ]);
       await runFluoh(
         ['source', 'sync', source.path],
         environment: environment,
@@ -1196,9 +1218,9 @@ environment:
     sdks:'''),
       );
       final before = sourceRepository.readAsStringSync();
-      final pubManifest = File('${pubRepository.path}/fluoh.yaml');
-      await pubManifest.writeAsString(
-        pubManifest
+      final packageManifest = File('${packageRepository.path}/fluoh.yaml');
+      await packageManifest.writeAsString(
+        packageManifest
             .readAsStringSync()
             .replaceFirst('upstreamVersion: 0.11.0', 'upstreamVersion: 0.12.0')
             .replaceFirst('version: 0.2.0', 'version: 0.3.0'),
@@ -1289,7 +1311,9 @@ manifests:
 
   test('updates local path sources from their original directories', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.workingDirectory);
+    final source = await createPackageSourceFixture(
+      environment.workingDirectory,
+    );
     final cachedSource = Directory(
       '${environment.homeDirectory.path}/sources/local',
     );
@@ -1298,7 +1322,7 @@ manifests:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'local', 'pub_source'],
+        ['source', 'add', 'local', 'package_source'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1402,7 +1426,7 @@ sdk:
     'keeps existing cache when adding an invalid local path source',
     () async {
       final environment = await createTestEnvironment();
-      final validSource = await createPubSourceFixture(
+      final validSource = await createPackageSourceFixture(
         environment.homeDirectory,
       );
       final invalidSource = Directory(
@@ -1457,7 +1481,7 @@ manifests:
 
   test('does not allow replacing the official source', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -1475,7 +1499,7 @@ manifests:
 
   test('removes non-default sources but keeps the official source', () async {
     final baseEnvironment = await createTestEnvironment();
-    final defaultSource = await createPubSourceFixture(
+    final defaultSource = await createPackageSourceFixture(
       baseEnvironment.homeDirectory.parent,
     );
     await initializeGitRepository(defaultSource);
@@ -1486,7 +1510,7 @@ manifests:
         'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
       },
     );
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -1564,7 +1588,7 @@ manifests:
 
   test('updates a file URL source into the local source cache', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await Directory('${source.path}/docs').create(recursive: true);
     await File('${source.path}/docs/notes.md').writeAsString('# Notes\n');
     await Directory(
@@ -1635,7 +1659,9 @@ manifests:
     'keeps the previous git source snapshot when update validation fails',
     () async {
       final environment = await createTestEnvironment();
-      final source = await createPubSourceFixture(environment.homeDirectory);
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
       await initializeGitRepository(source);
       final cachedSdkIndex = File(
         '${environment.homeDirectory.path}/sources/remote/fluoh.yaml',
@@ -1706,8 +1732,8 @@ manifests:
       final remoteParent = Directory(
         '${environment.homeDirectory.path}/remote',
       );
-      final firstSource = await createPubSourceFixture(firstParent);
-      final remoteSource = await createPubSourceFixture(remoteParent);
+      final firstSource = await createPackageSourceFixture(firstParent);
+      final remoteSource = await createPackageSourceFixture(remoteParent);
       await File('${remoteSource.path}/fluoh.yaml').writeAsString(
         File('${remoteSource.path}/fluoh.yaml').readAsStringSync().replaceAll(
           '${remoteParent.path}/flutter-ohos-sdk',
@@ -2002,7 +2028,9 @@ repository: file:${source.path}
     'reports missing repository manifests when adding local sources',
     () async {
       final environment = await createTestEnvironment();
-      final source = await createPubSourceFixture(environment.homeDirectory);
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
       await File('${source.path}/manifests/camera/fluoh.yaml').delete();
       final stdout = <String>[];
       final stderr = <String>[];
@@ -2024,7 +2052,7 @@ repository: file:${source.path}
 
   test('reports invalid local source indexes as usage errors', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
@@ -2058,7 +2086,7 @@ sdk:
   });
 }
 
-Future<void> _writePubRepositoryManifest(
+Future<void> _writePackageManifest(
   Directory repository, {
   String? repositoryUrl,
 }) async {

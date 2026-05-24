@@ -1,6 +1,6 @@
 import 'package:pub_semver/pub_semver.dart';
 
-import 'pub_dependency_policy.dart';
+import 'dependency_policy.dart';
 import 'pubspec.dart';
 import 'source_index.dart';
 
@@ -18,8 +18,8 @@ enum DependencyStatus {
   final String label;
 }
 
-class PubDependencyReport {
-  const PubDependencyReport({
+class DependencyReport {
+  const DependencyReport({
     required this.sdkVersion,
     required this.dependencies,
   });
@@ -199,9 +199,9 @@ List<int> numericParts(String version) {
       .toList(growable: false);
 }
 
-enum PubDependencyPlanPurpose { fix, upgrade }
+enum DependencyPlanPurpose { fix, upgrade }
 
-enum PubDependencyPlanStatus {
+enum DependencyPlanStatus {
   ready,
   alreadyCurrent,
   incompatibleVersion,
@@ -213,8 +213,8 @@ enum PubDependencyPlanStatus {
   transitive,
 }
 
-class PubDependencyPlan {
-  const PubDependencyPlan({
+class DependencyPlan {
+  const DependencyPlan({
     required this.sdkVersion,
     required this.policy,
     required this.purpose,
@@ -222,9 +222,9 @@ class PubDependencyPlan {
   });
 
   final String sdkVersion;
-  final PubDependencyPolicy policy;
-  final PubDependencyPlanPurpose purpose;
-  final List<PubDependencyPlanEntry> entries;
+  final DependencyPolicy policy;
+  final DependencyPlanPurpose purpose;
+  final List<DependencyPlanEntry> entries;
 
   List<PubspecDependencyChange> get changes {
     return [
@@ -233,7 +233,7 @@ class PubDependencyPlan {
     ];
   }
 
-  List<PubDependencyPlanEntry> get actionableEntries {
+  List<DependencyPlanEntry> get actionableEntries {
     return entries.where((entry) => entry.changes.isNotEmpty).toList();
   }
 
@@ -247,8 +247,8 @@ class PubDependencyPlan {
   }
 }
 
-class PubDependencyPlanEntry {
-  const PubDependencyPlanEntry({
+class DependencyPlanEntry {
+  const DependencyPlanEntry({
     required this.dependency,
     required this.status,
     required this.reason,
@@ -257,7 +257,7 @@ class PubDependencyPlanEntry {
   });
 
   final DependencyCompatibility dependency;
-  final PubDependencyPlanStatus status;
+  final DependencyPlanStatus status;
   final String reason;
   final String? recommendedAction;
   final List<PubspecDependencyChange> changes;
@@ -280,13 +280,13 @@ class PubDependencyPlanEntry {
   }
 }
 
-PubDependencyPlan buildPubDependencyPlanFromReport({
-  required PubDependencyReport report,
+DependencyPlan buildDependencyPlanFromReport({
+  required DependencyReport report,
   required PubspecDependencyState state,
-  required PubDependencyPolicy policy,
-  required PubDependencyPlanPurpose purpose,
+  required DependencyPolicy policy,
+  required DependencyPlanPurpose purpose,
 }) {
-  return PubDependencyPlan(
+  return DependencyPlan(
     sdkVersion: report.sdkVersion,
     policy: policy,
     purpose: purpose,
@@ -297,14 +297,14 @@ PubDependencyPlan buildPubDependencyPlanFromReport({
   );
 }
 
-PubDependencyPlanEntry _entryFor(
+DependencyPlanEntry _entryFor(
   DependencyCompatibility dependency, {
   required PubspecDependencyState state,
-  required PubDependencyPolicy policy,
-  required PubDependencyPlanPurpose purpose,
+  required DependencyPolicy policy,
+  required DependencyPlanPurpose purpose,
 }) {
   final existingOhosRefs = state.ohosRefsFor(dependency.name);
-  if (purpose == PubDependencyPlanPurpose.upgrade) {
+  if (purpose == DependencyPlanPurpose.upgrade) {
     return _upgradeEntry(dependency, existingOhosRefs, policy);
   }
 
@@ -313,9 +313,9 @@ PubDependencyPlanEntry _entryFor(
   }
 
   if (!dependency.direct) {
-    return PubDependencyPlanEntry(
+    return DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.transitive,
+      status: DependencyPlanStatus.transitive,
       reason: 'Transitive dependency; fluoh only rewrites direct dependencies.',
     );
   }
@@ -335,54 +335,54 @@ PubDependencyPlanEntry _entryFor(
       policy.allowAnyVersionChanges
           ? _addImplementationEntry(dependency, state, policy)
           : _incompatibleVersionEntry(dependency),
-    DependencyStatus.native => PubDependencyPlanEntry(
+    DependencyStatus.native => DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.native,
+      status: DependencyPlanStatus.native,
       reason: 'Native OHOS support is available.',
     ),
-    DependencyStatus.blocked => PubDependencyPlanEntry(
+    DependencyStatus.blocked => DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.blocked,
+      status: DependencyPlanStatus.blocked,
       reason: 'Configured sources mark this package as blocked for OHOS.',
     ),
-    DependencyStatus.sdkMismatch => PubDependencyPlanEntry(
+    DependencyStatus.sdkMismatch => DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.sdkMismatch,
+      status: DependencyPlanStatus.sdkMismatch,
       reason:
           'OHOS implementations exist, but not for the selected Flutter OHOS SDK.',
     ),
-    DependencyStatus.unknown => PubDependencyPlanEntry(
+    DependencyStatus.unknown => DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.unknown,
+      status: DependencyPlanStatus.unknown,
       reason: 'No known OHOS implementation is available.',
     ),
   };
 }
 
-PubDependencyPlanEntry _upgradeEntry(
+DependencyPlanEntry _upgradeEntry(
   DependencyCompatibility dependency,
   List<PubspecDependencyRef> existingOhosRefs,
-  PubDependencyPolicy policy,
+  DependencyPolicy policy,
 ) {
   if (existingOhosRefs.isEmpty) {
-    return PubDependencyPlanEntry(
+    return DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.transitive,
+      status: DependencyPlanStatus.transitive,
       reason: 'No existing FlutterOH dependency replacement found.',
     );
   }
   return _updateExistingEntry(dependency, existingOhosRefs, policy);
 }
 
-PubDependencyPlanEntry _updateExistingEntry(
+DependencyPlanEntry _updateExistingEntry(
   DependencyCompatibility dependency,
   List<PubspecDependencyRef> existingOhosRefs,
-  PubDependencyPolicy policy,
+  DependencyPolicy policy,
 ) {
   if (dependency.status != DependencyStatus.implemented &&
       dependency.status != DependencyStatus.versionUpgrade &&
       dependency.status != DependencyStatus.incompatibleVersion) {
-    return PubDependencyPlanEntry(
+    return DependencyPlanEntry(
       dependency: dependency,
       status: _statusForDependency(dependency.status),
       reason: _reasonForDependencyStatus(dependency.status),
@@ -391,9 +391,9 @@ PubDependencyPlanEntry _updateExistingEntry(
 
   final implementation = dependency.implementation;
   if (implementation == null) {
-    return PubDependencyPlanEntry(
+    return DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.unknown,
+      status: DependencyPlanStatus.unknown,
       reason:
           'No compatible OHOS implementation is available for the selected SDK.',
     );
@@ -415,41 +415,40 @@ PubDependencyPlanEntry _updateExistingEntry(
         ),
   ];
   if (changes.isEmpty) {
-    return PubDependencyPlanEntry(
+    return DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.alreadyCurrent,
+      status: DependencyPlanStatus.alreadyCurrent,
       reason:
           'Existing FlutterOH dependency replacements already match the recommended replacement.',
     );
   }
 
-  return PubDependencyPlanEntry(
+  return DependencyPlanEntry(
     dependency: dependency,
-    status: PubDependencyPlanStatus.ready,
+    status: DependencyPlanStatus.ready,
     reason: 'Existing FlutterOH dependency replacements can be upgraded.',
     recommendedAction: 'upgrade-existing-ref',
     changes: changes,
   );
 }
 
-PubDependencyPlanEntry _addImplementationEntry(
+DependencyPlanEntry _addImplementationEntry(
   DependencyCompatibility dependency,
   PubspecDependencyState state,
-  PubDependencyPolicy policy,
+  DependencyPolicy policy,
 ) {
   final implementation = dependency.implementation!;
-  if (policy.pubspecSection ==
-      PubDependencyPubspecSection.dependencyOverrides) {
+  if (policy.pubspecSection == DependencyPubspecSection.dependencyOverrides) {
     if (state.overrideNames.contains(dependency.name)) {
-      return PubDependencyPlanEntry(
+      return DependencyPlanEntry(
         dependency: dependency,
-        status: PubDependencyPlanStatus.overrideExists,
+        status: DependencyPlanStatus.overrideExists,
         reason: 'dependency_overrides already contains this package.',
       );
     }
-    return PubDependencyPlanEntry(
+    return DependencyPlanEntry(
       dependency: dependency,
-      status: PubDependencyPlanStatus.ready,
+      status: DependencyPlanStatus.ready,
       reason: 'A matching OHOS implementation is available.',
       recommendedAction: 'write-override',
       changes: [
@@ -461,9 +460,9 @@ PubDependencyPlanEntry _addImplementationEntry(
     );
   }
 
-  return PubDependencyPlanEntry(
+  return DependencyPlanEntry(
     dependency: dependency,
-    status: PubDependencyPlanStatus.ready,
+    status: DependencyPlanStatus.ready,
     reason: 'A matching OHOS implementation is available.',
     recommendedAction: 'rewrite-dependency',
     changes: [
@@ -475,29 +474,29 @@ PubDependencyPlanEntry _addImplementationEntry(
   );
 }
 
-PubDependencyPlanEntry _incompatibleVersionEntry(
+DependencyPlanEntry _incompatibleVersionEntry(
   DependencyCompatibility dependency,
 ) {
   final implementation = dependency.implementation!;
-  return PubDependencyPlanEntry(
+  return DependencyPlanEntry(
     dependency: dependency,
-    status: PubDependencyPlanStatus.incompatibleVersion,
+    status: DependencyPlanStatus.incompatibleVersion,
     reason:
         'OHOS implementation targets upstream ${implementation.upstreamVersion}, but pubspec.lock '
         'uses ${dependency.version}.',
   );
 }
 
-PubDependencyPlanStatus _statusForDependency(DependencyStatus status) {
+DependencyPlanStatus _statusForDependency(DependencyStatus status) {
   return switch (status) {
-    DependencyStatus.native => PubDependencyPlanStatus.native,
-    DependencyStatus.implemented => PubDependencyPlanStatus.ready,
-    DependencyStatus.versionUpgrade => PubDependencyPlanStatus.ready,
+    DependencyStatus.native => DependencyPlanStatus.native,
+    DependencyStatus.implemented => DependencyPlanStatus.ready,
+    DependencyStatus.versionUpgrade => DependencyPlanStatus.ready,
     DependencyStatus.incompatibleVersion =>
-      PubDependencyPlanStatus.incompatibleVersion,
-    DependencyStatus.sdkMismatch => PubDependencyPlanStatus.sdkMismatch,
-    DependencyStatus.unknown => PubDependencyPlanStatus.unknown,
-    DependencyStatus.blocked => PubDependencyPlanStatus.blocked,
+      DependencyPlanStatus.incompatibleVersion,
+    DependencyStatus.sdkMismatch => DependencyPlanStatus.sdkMismatch,
+    DependencyStatus.unknown => DependencyPlanStatus.unknown,
+    DependencyStatus.blocked => DependencyPlanStatus.blocked,
   };
 }
 

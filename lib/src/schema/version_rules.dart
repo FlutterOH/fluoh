@@ -3,7 +3,7 @@ import 'yaml_utils.dart';
 String flutterOhosBranchForSdk(String sdkVersion) =>
     'ohos/${sdkLineFromSdkVersion(sdkVersion)}';
 
-String pubReleaseTagForPackage({
+String packageReleaseTagForPackage({
   required String packageName,
   required String upstreamVersion,
   required String sdkVersion,

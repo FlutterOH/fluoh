@@ -49,7 +49,7 @@ Rules:
 - `sdk.version` is the complete Flutter OHOS SDK version selected for the
   current project.
 - `dependencyPolicy.pubspecSection` is the pubspec section written by
-  `fluoh pub fix`; supported values are `dependency_overrides` and
+  `fluoh deps fix`; supported values are `dependency_overrides` and
   `dependencies`, defaulting to `dependency_overrides`.
 - `dependencyPolicy.versionChanges` controls the allowed upstream package
   version changes. `compatible` allows exact matches and pub-semver compatible
@@ -133,7 +133,7 @@ Rules:
 
 - `schema` is required and currently must be `1`.
 - Package config does not use `kind`; commands parse this schema in
-  `fluoh pub ...` context.
+  `fluoh package ...` context.
 - `name` is required. It is the logical name of the adaptation repository, not
   necessarily the Dart package name. Repositories with one root package usually
   use that package name; repositories tracking multiple packages usually use a
@@ -145,7 +145,7 @@ Rules:
   `repository.path` and `upstream.path`; nested package repositories set them per
   package or through the top-level git `path` defaults.
 - Package repository verification workspaces are package-scoped under
-  `fluoh_test/<name>`. `fluoh pub add` appends another package entry to any
+  `fluoh_test/<name>`. `fluoh package add` appends another package entry to any
   Package repository.
 - `sdk.version` is required. It is the complete Flutter OHOS SDK version used to
   adapt, test, and release the current package.
@@ -158,7 +158,7 @@ Rules:
   packages inside the adaptation repository, defaulting to `.`.
 - `upstream.git.url` is required and is the original upstream repository URL or
   local path.
-- `upstream.git.branch` is optional and is the branch used by `fluoh pub sync`
+- `upstream.git.branch` is optional and is the branch used by `fluoh package sync`
   when pulling upstream changes, defaulting to `main`.
 - `upstream.git.path` is optional and provides the default path for all packages
   inside the upstream repository, defaulting to `.`.
@@ -348,7 +348,7 @@ Rules:
 - `maintenance.status` is optional and defaults to `active`; supported values
   are `active` and `frozen`. `frozen` affects Source maintenance commands only;
   consumer commands can still use existing release records.
-- `advisory` is optional package-level user guidance for `fluoh pub check`. It
+- `advisory` is optional package-level user guidance for `fluoh deps check`. It
   does not change machine status.
 - `sdks.<sdkLine>` uses the derived Flutter OHOS SDK line, for example `3.35`.
   Consumer commands derive it from the complete project SDK version before
@@ -364,7 +364,7 @@ Rules:
   tag.
 - `releases[].status` is optional. Omitted means `compatible`; write
   `experimental` or `broken` only for in-progress or known-bad records.
-- `fluoh pub check/fix/upgrade` recommends only `compatible` release records by
+- `fluoh deps check/fix/upgrade` recommends only `compatible` release records by
   default.
 - Manifest does not record `native`, `blocked`, or `support` machine statuses.
   Use `advisory` when upstream native support should be explained. If no
@@ -408,12 +408,12 @@ change must increment `version`.
 4. Package `fluoh.yaml` records only the upstream package version and FlutterOH
    adaptation package version currently maintained or prepared on the branch.
 5. Before adding OHOS code, run baseline checks with the selected SDK, including
-   `fluoh pub get`, `fluoh flutter analyze`, and existing package tests or
+   `fluoh deps get`, `fluoh flutter analyze`, and existing package tests or
    example builds. Fix non-OHOS platform regressions first.
 6. During adaptation, write `packages.<name>.status` or `releases[].status` as
    `experimental`. When the adaptation is complete and recommended for
    projects, omit `status`; the default is `compatible`.
-7. `fluoh pub release` derives a release tag from Package `fluoh.yaml`. The tag
+7. `fluoh package release` derives a release tag from Package `fluoh.yaml`. The tag
    freezes the code, tests, and config snapshot at release time.
 8. `fluoh source sync` uses Manifest `repository.git.url` values as Package
    repositories, scans released tags, reads Package `fluoh.yaml` from each tag,
@@ -424,7 +424,7 @@ change must increment `version`.
 
 ## Dependency Report And Plan
 
-`fluoh pub check` reads the project SDK and pub lockfile, then loads package
+`fluoh deps check` reads the project SDK and pub lockfile, then loads package
 metadata through the Source runtime. A fresh `sources.lock.json` provides the
 package route index used to narrow Manifest reads; full package metadata still
 comes from Source Manifest YAML on demand. The lock is regenerated from Source

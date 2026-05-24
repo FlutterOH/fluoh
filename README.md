@@ -42,8 +42,9 @@ dart pub global activate fluoh
 cd your_flutter_project
 fluoh source update
 fluoh sdk use 3.35 --pub-get
-fluoh pub check
-fluoh pub fix
+fluoh deps check
+fluoh deps fix
+fluoh deps get
 fluohf build hap
 ```
 
@@ -77,9 +78,9 @@ brew install fluoh
 | --- | --- |
 | Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
 | Run Flutter from the selected SDK | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
-| Check FlutterOH dependency support | `fluoh pub check` |
-| Rewrite dependencies safely | `fluoh pub fix --dry-run`, `fluoh pub fix` |
-| Update existing FlutterOH dependency replacements | `fluoh pub upgrade` |
+| Check FlutterOH dependency support | `fluoh deps check` |
+| Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
+| Update existing FlutterOH dependency replacements | `fluoh deps upgrade` |
 | Clean generated project output | `fluoh clean` |
 | Diagnose project setup | `fluoh doctor` |
 | Upgrade the CLI | `fluoh upgrade` |
@@ -94,12 +95,11 @@ brew install fluoh
 fluoh sdk list
 fluoh sdk use 3.35 --pub-get
 
-fluoh pub check
-fluoh pub fix --dry-run
-fluoh pub fix
-fluoh pub get
+fluoh deps check
+fluoh deps fix --dry-run
+fluoh deps fix
+fluoh deps get
 
-fluohf pub get
 fluohf run
 fluohf build hap
 ```
@@ -107,14 +107,14 @@ fluohf build hap
 ## Maintainer Workflows
 
 Most app projects only need the commands above. FlutterOH package maintainers
-can also create, sync, test, and release third-party FlutterOH pub repositories:
+can also create, sync, test, and release third-party FlutterOH package repositories:
 
 ```sh
-fluoh pub create <upstream-git-url>
-fluoh pub sync
+fluoh package create <upstream-git-url>
+fluoh package sync
 fluoh test init
 fluoh test run
-fluoh pub release
+fluoh package release
 fluoh source sync
 ```
 
@@ -129,6 +129,9 @@ workflows.
 ```text
 https://github.com/FlutterOH/source.git
 ```
+
+A Source is fluoh's metadata feed for Flutter OHOS SDK releases and package
+compatibility records. Most app projects only need `fluoh source update`.
 
 Source metadata and compatibility schema details are documented in
 [docs/schema.md](docs/schema.md).

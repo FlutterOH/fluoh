@@ -4,7 +4,7 @@ import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_test_context.dart';
-import '../helpers/pub_test_context.dart';
+import '../helpers/package_test_context.dart';
 
 void main() {
   test('test init creates automated tests and a manual example app', () async {
@@ -14,7 +14,7 @@ void main() {
       logName: 'flutter_args.log',
     );
     await _writeFlutterPluginPackage(environment.workingDirectory);
-    await _writePubRepositoryManifest(environment.workingDirectory);
+    await _writePackageManifest(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -70,7 +70,7 @@ void main() {
     expect(testReadme, contains('## What To Edit'));
     expect(testReadme, contains('fluoh_test/camera/test'));
     expect(testReadme, contains('fluoh_test/camera/example/lib/main.dart'));
-    expect(testReadme, contains('fluoh pub get'));
+    expect(testReadme, contains('fluoh deps get'));
     expect(testReadme, contains('then run `fluoh test run --package camera`'));
     final examplePubspec = File(
       '${environment.workingDirectory.path}/fluoh_test/camera/example/pubspec.yaml',
@@ -100,7 +100,7 @@ void main() {
         logName: 'workspace_root_flutter_args.log',
       );
       await _writeFlutterPluginPackage(environment.workingDirectory);
-      await _writePubRepositoryManifest(environment.workingDirectory);
+      await _writePackageManifest(environment.workingDirectory);
       final stdout = <String>[];
       final stderr = <String>[];
 
@@ -404,7 +404,7 @@ packages:
       logName: 'flutter_run_args.log',
     );
     await _writeFlutterPluginPackage(environment.workingDirectory);
-    await _writePubRepositoryManifest(environment.workingDirectory);
+    await _writePackageManifest(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -459,7 +459,7 @@ packages:
     await File(
       '${environment.workingDirectory.path}/test/camera_test.dart',
     ).delete();
-    await _writePubRepositoryManifest(environment.workingDirectory);
+    await _writePackageManifest(environment.workingDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -518,7 +518,7 @@ packages:
       '${environment.workingDirectory.path}/packages/camera/camera',
     );
     await _writeFlutterPluginPackage(packageDirectory);
-    await _writePubRepositoryManifest(
+    await _writePackageManifest(
       environment.workingDirectory,
       packagePath: 'packages/camera/camera',
     );
@@ -615,18 +615,18 @@ environment:
   });
 
   test(
-    'pub create initializes and stages fluoh_test for Flutter implementations',
+    'package create initializes and stages fluoh_test for Flutter implementations',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
         environment.homeDirectory,
-        logName: 'pub_create_flutter_args.log',
+        logName: 'package_create_flutter_args.log',
       );
       final upstream = await _createUpstreamFlutterPluginRepository(
         Directory('${environment.homeDirectory.path}/upstream_flutter_camera'),
       );
-      final pubRepository = Directory(
-        '${environment.homeDirectory.path}/pub_flutter_camera',
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_flutter_camera',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -641,11 +641,11 @@ environment:
       expect(
         await runFluoh(
           [
-            'pub',
+            'package',
             'create',
             upstream.path,
             '--output',
-            pubRepository.path,
+            packageRepository.path,
             '--sdk',
             '3.35.8-ohos-0.0.3',
           ],
@@ -658,17 +658,17 @@ environment:
 
       expect(
         File(
-          '${pubRepository.path}/fluoh_test/camera/pubspec.yaml',
+          '${packageRepository.path}/fluoh_test/camera/pubspec.yaml',
         ).existsSync(),
         isTrue,
       );
       expect(
         File(
-          '${pubRepository.path}/fluoh_test/camera/example/lib/main.dart',
+          '${packageRepository.path}/fluoh_test/camera/example/lib/main.dart',
         ).existsSync(),
         isTrue,
       );
-      final staged = await runGit(pubRepository, [
+      final staged = await runGit(packageRepository, [
         'diff',
         '--cached',
         '--name-only',
@@ -703,12 +703,12 @@ environment:
   );
 
   test(
-    'pub create initializes root and nested Flutter packages when selected',
+    'package create initializes root and nested Flutter packages when selected',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
         environment.homeDirectory,
-        logName: 'pub_create_root_nested_flutter_args.log',
+        logName: 'package_create_root_nested_flutter_args.log',
       );
       final upstream = await _createUpstreamFlutterPluginRepository(
         Directory('${environment.homeDirectory.path}/upstream_root_nested'),
@@ -723,8 +723,8 @@ environment:
         '-m',
         'Add nested Flutter package',
       ], upstream);
-      final pubRepository = Directory(
-        '${environment.homeDirectory.path}/pub_root_nested',
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_root_nested',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -739,7 +739,7 @@ environment:
       expect(
         await runFluoh(
           [
-            'pub',
+            'package',
             'create',
             upstream.path,
             '--package-path',
@@ -747,7 +747,7 @@ environment:
             '--package-path',
             'packages/share_plus/share_plus',
             '--output',
-            pubRepository.path,
+            packageRepository.path,
             '--sdk',
             '3.35.8-ohos-0.0.3',
           ],
@@ -759,20 +759,20 @@ environment:
       );
 
       final manifest = File(
-        '${pubRepository.path}/fluoh.yaml',
+        '${packageRepository.path}/fluoh.yaml',
       ).readAsStringSync();
       expect(manifest, contains('packages:\n  camera:'));
       expect(manifest, contains('  share_plus:'));
       expect(manifest, contains('path: packages/share_plus/share_plus'));
       expect(
         File(
-          '${pubRepository.path}/fluoh_test/camera/pubspec.yaml',
+          '${packageRepository.path}/fluoh_test/camera/pubspec.yaml',
         ).existsSync(),
         isTrue,
       );
       expect(
         File(
-          '${pubRepository.path}/fluoh_test/share_plus/pubspec.yaml',
+          '${packageRepository.path}/fluoh_test/share_plus/pubspec.yaml',
         ).existsSync(),
         isTrue,
       );
@@ -789,19 +789,19 @@ environment:
   );
 
   test(
-    'pub create replays flutter create output when example creation fails',
+    'package create replays flutter create output when example creation fails',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
         environment.homeDirectory,
-        logName: 'pub_create_flutter_create_failure.log',
+        logName: 'package_create_flutter_create_failure.log',
         failCreate: true,
       );
       final upstream = await _createUpstreamFlutterPluginRepository(
         Directory('${environment.homeDirectory.path}/upstream_failed_camera'),
       );
-      final pubRepository = Directory(
-        '${environment.homeDirectory.path}/pub_failed_camera',
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_failed_camera',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -816,11 +816,11 @@ environment:
       expect(
         await runFluoh(
           [
-            'pub',
+            'package',
             'create',
             upstream.path,
             '--output',
-            pubRepository.path,
+            packageRepository.path,
             '--sdk',
             '3.35.8-ohos-0.0.3',
           ],
@@ -840,16 +840,16 @@ environment:
     },
   );
 
-  test('pub add creates a package-scoped fluoh_test workspace', () async {
+  test('package add creates a package-scoped fluoh_test workspace', () async {
     final environment = await createTestEnvironment();
     final source = await _createFlutterSdkSource(
       environment.homeDirectory,
-      logName: 'pub_add_flutter_args.log',
+      logName: 'package_add_flutter_args.log',
     );
     await _writeFlutterPluginPackage(
       Directory('${environment.workingDirectory.path}/packages/camera/camera'),
     );
-    await _writePubRepositoryManifest(
+    await _writePackageManifest(
       environment.workingDirectory,
       packagePath: 'packages/camera/camera',
     );
@@ -882,7 +882,7 @@ environment:
     expect(
       await runFluoh(
         [
-          'pub',
+          'package',
           'add',
           'packages/share_plus/share_plus',
           '--expected-package',
@@ -935,19 +935,19 @@ environment:
   });
 
   test(
-    'pub add rolls back added fluoh_test workspace when test init fails',
+    'package add rolls back added fluoh_test workspace when test init fails',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
         environment.homeDirectory,
-        logName: 'pub_add_rollback_flutter_args.log',
+        logName: 'package_add_rollback_flutter_args.log',
       );
       await _writeFlutterPluginPackage(
         Directory(
           '${environment.workingDirectory.path}/packages/camera/camera',
         ),
       );
-      await _writePubRepositoryManifest(
+      await _writePackageManifest(
         environment.workingDirectory,
         packagePath: 'packages/camera/camera',
       );
@@ -987,7 +987,7 @@ environment:
       expect(
         await runFluoh(
           [
-            'pub',
+            'package',
             'add',
             'packages/share_plus/share_plus',
             '--expected-package',
@@ -1020,14 +1020,14 @@ environment:
     },
   );
 
-  test('pub add extends a single-package manifest', () async {
+  test('package add extends a single-package manifest', () async {
     final environment = await createTestEnvironment();
     final source = await _createFlutterSdkSource(
       environment.homeDirectory,
-      logName: 'pub_add_single_package_args.log',
+      logName: 'package_add_single_package_args.log',
     );
     await _writeFlutterPluginPackage(environment.workingDirectory);
-    await _writePubRepositoryManifest(environment.workingDirectory);
+    await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPluginPackage(
       Directory(
         '${environment.workingDirectory.path}/packages/share_plus/share_plus',
@@ -1051,7 +1051,7 @@ environment:
     expect(
       await runFluoh(
         [
-          'pub',
+          'package',
           'add',
           'packages/share_plus/share_plus',
           '--expected-package',
@@ -1084,18 +1084,18 @@ environment:
   });
 
   test(
-    'pub release runs package tests and fluoh_test before tagging',
+    'package release runs package tests and fluoh_test before tagging',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
         environment.homeDirectory,
-        logName: 'pub_release_flutter_args.log',
+        logName: 'package_release_flutter_args.log',
       );
       final upstream = await _createUpstreamFlutterPluginRepository(
         Directory('${environment.homeDirectory.path}/upstream_release_camera'),
       );
-      final pubRepository = Directory(
-        '${environment.homeDirectory.path}/pub_release_camera',
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_release_camera',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -1108,11 +1108,11 @@ environment:
       );
       await runFluoh(
         [
-          'pub',
+          'package',
           'create',
           upstream.path,
           '--output',
-          pubRepository.path,
+          packageRepository.path,
           '--sdk',
           '3.35.8-ohos-0.0.3',
         ],
@@ -1120,18 +1120,18 @@ environment:
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await commitGeneratedPubRepository(pubRepository);
+      await commitGeneratedPackageRepository(packageRepository);
       await File(
-        '${environment.homeDirectory.path}/pub_release_flutter_args.log',
+        '${environment.homeDirectory.path}/package_release_flutter_args.log',
       ).writeAsString('');
       final releaseEnvironment = FluohEnvironment(
         homeDirectory: environment.homeDirectory,
-        workingDirectory: pubRepository,
+        workingDirectory: packageRepository,
       );
 
       expect(
         await runFluoh(
-          ['pub', 'release'],
+          ['package', 'release'],
           environment: releaseEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -1140,15 +1140,15 @@ environment:
       );
 
       final flutterLog = File(
-        '${environment.homeDirectory.path}/pub_release_flutter_args.log',
+        '${environment.homeDirectory.path}/package_release_flutter_args.log',
       ).readAsStringSync();
       _expectInOrder(flutterLog, [
-        '${pubRepository.path}::pub get',
-        '${pubRepository.path}::test',
-        '${pubRepository.path}/fluoh_test/camera::pub get',
-        '${pubRepository.path}/fluoh_test/camera::test',
+        '${packageRepository.path}::pub get',
+        '${packageRepository.path}::test',
+        '${packageRepository.path}/fluoh_test/camera::pub get',
+        '${packageRepository.path}/fluoh_test/camera::test',
       ]);
-      final tags = await runGit(pubRepository, ['tag', '--list']);
+      final tags = await runGit(packageRepository, ['tag', '--list']);
       expect(
         tags.stdout.toString().split('\n'),
         contains('camera-0.11.0-ohos-3.35-0.1.0'),
@@ -1259,7 +1259,7 @@ void main() {
   await File('${directory.path}/LICENSE').writeAsString(_testLicenseContent);
 }
 
-Future<void> _writePubRepositoryManifest(
+Future<void> _writePackageManifest(
   Directory directory, {
   String packagePath = '.',
 }) async {

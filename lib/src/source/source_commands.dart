@@ -8,7 +8,7 @@ import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
-import '../pub/git/pub_git.dart';
+import '../package/git/package_git.dart';
 import '../schema/schema.dart';
 import 'source_runtime.dart';
 import 'source_sync.dart';
@@ -310,7 +310,7 @@ class SourceSyncCommand extends Command<int> {
 
   @override
   String get description =>
-      'Sync released FlutterOH pub repositories into a source repository.';
+      'Sync released FlutterOH package repositories into a source repository.';
 
   @override
   String get invocation => 'fluoh source sync [path]';
@@ -469,23 +469,23 @@ class SourceSyncCommand extends Command<int> {
       final directory = local.isAbsolute
           ? local
           : Directory('${source.path}/${local.path}');
-      await _ensureLocalPubRepository(directory, url);
+      await _ensureLocalPackageRepository(directory, url);
       return _SourceManifestRepository(name: name, path: directory);
     }
 
     final directory = Directory(url);
     if (directory.isAbsolute) {
-      await _ensureLocalPubRepository(directory, url);
+      await _ensureLocalPackageRepository(directory, url);
       return _SourceManifestRepository(name: name, path: directory);
     }
 
     if (!_looksLikeRemoteGitUrl(url)) {
       final sourceRelative = Directory('${source.path}/$url');
-      await _ensureLocalPubRepository(sourceRelative, url);
+      await _ensureLocalPackageRepository(sourceRelative, url);
       return _SourceManifestRepository(name: name, path: sourceRelative);
     }
 
-    final temp = await Directory.systemTemp.createTemp('fluoh_pub_repo_');
+    final temp = await Directory.systemTemp.createTemp('fluoh_package_repo_');
     try {
       await git(['clone', '--quiet', url, temp.path]);
       return _SourceManifestRepository(name: name, path: temp, temporary: true);
@@ -501,7 +501,7 @@ class SourceSyncCommand extends Command<int> {
     final tags = await _releaseTags(repository.path);
     final packages = <_SourceSyncPackage>[];
     for (final tag in tags) {
-      final manifest = await _readTaggedPubManifest(repository.path, tag);
+      final manifest = await _readTaggedPackageManifest(repository.path, tag);
       if (manifest == null) {
         continue;
       }
@@ -511,7 +511,7 @@ class SourceSyncCommand extends Command<int> {
           matchesTag = package.matchesReleaseTag(manifest.sdkVersion, tag);
         } on FormatException catch (error) {
           usageException(
-            'Could not read pub repository ${repository.path.path} at tag $tag: '
+            'Could not read package repository ${repository.path.path} at tag $tag: '
             '${error.message}',
           );
         }
@@ -532,7 +532,7 @@ class SourceSyncCommand extends Command<int> {
     if (packages.isEmpty) {
       usageException(
         'No released Package fluoh.yaml records found in ${repository.path.path}. '
-        'Run "fluoh pub release" first or fetch tags before syncing.',
+        'Run "fluoh package release" first or fetch tags before syncing.',
       );
     }
     return packages;
@@ -560,7 +560,7 @@ class SourceSyncCommand extends Command<int> {
     return tags;
   }
 
-  Future<PubManifest?> _readTaggedPubManifest(
+  Future<PackageManifest?> _readTaggedPackageManifest(
     Directory repository,
     String tag,
   ) async {
@@ -573,10 +573,10 @@ class SourceSyncCommand extends Command<int> {
       return null;
     }
     try {
-      return PubRepositoryManifest.parse(result.stdout.toString());
+      return PackageManifest.parse(result.stdout.toString());
     } on FormatException catch (error) {
       usageException(
-        'Could not read pub repository ${repository.path} at tag $tag: '
+        'Could not read package repository ${repository.path} at tag $tag: '
         '${error.message}',
       );
     }
@@ -602,15 +602,17 @@ class SourceSyncCommand extends Command<int> {
     }
   }
 
-  Future<void> _ensureLocalPubRepository(
+  Future<void> _ensureLocalPackageRepository(
     Directory directory,
     String url,
   ) async {
     if (!await directory.exists()) {
-      usageException('Pub repository path does not exist for $url.');
+      usageException('Package repository path does not exist for $url.');
     }
     if (!await File('${directory.path}/fluoh.yaml').exists()) {
-      usageException('Pub repository ${directory.path} is missing fluoh.yaml.');
+      usageException(
+        'Package repository ${directory.path} is missing fluoh.yaml.',
+      );
     }
   }
 }
@@ -651,8 +653,8 @@ class _SourceSyncPackage {
 
   final String sourceManifestName;
   final Directory repository;
-  final PubManifest manifest;
-  final PubManifestPackage package;
+  final PackageManifest manifest;
+  final PackageManifestPackage package;
   final String releaseTag;
 }
 
@@ -1267,7 +1269,7 @@ Maintain SDK versions and package adaptation metadata in this directory, then re
 fluoh source add <name> .
 ```
 
-Sync released pub repositories with:
+Sync released package repositories with:
 
 ```sh
 fluoh source sync .

@@ -40,8 +40,9 @@ dart pub global activate fluoh
 cd your_flutter_project
 fluoh source update
 fluoh sdk use 3.35 --pub-get
-fluoh pub check
-fluoh pub fix
+fluoh deps check
+fluoh deps fix
+fluoh deps get
 fluohf build hap
 ```
 
@@ -74,9 +75,9 @@ brew install fluoh
 | --- | --- |
 | 选择并固定 Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
 | 通过已选择的 SDK 运行 Flutter | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
-| 检查 FlutterOH 依赖支持 | `fluoh pub check` |
-| 安全改写依赖 | `fluoh pub fix --dry-run`, `fluoh pub fix` |
-| 更新已有的 FlutterOH 依赖替换 | `fluoh pub upgrade` |
+| 检查 FlutterOH 依赖支持 | `fluoh deps check` |
+| 安全改写依赖 | `fluoh deps fix --dry-run`, `fluoh deps fix` |
+| 更新已有的 FlutterOH 依赖替换 | `fluoh deps upgrade` |
 | 清理生成的项目输出 | `fluoh clean` |
 | 诊断项目配置 | `fluoh doctor` |
 | 升级 CLI | `fluoh upgrade` |
@@ -91,12 +92,11 @@ brew install fluoh
 fluoh sdk list
 fluoh sdk use 3.35 --pub-get
 
-fluoh pub check
-fluoh pub fix --dry-run
-fluoh pub fix
-fluoh pub get
+fluoh deps check
+fluoh deps fix --dry-run
+fluoh deps fix
+fluoh deps get
 
-fluohf pub get
 fluohf run
 fluohf build hap
 ```
@@ -104,14 +104,14 @@ fluohf build hap
 ## 维护者工作流
 
 大多数应用项目只需要上面的命令。FlutterOH package 的维护者还可以使用下面的命令创建、
-同步、测试和发布第三方库 FlutterOH pub 仓库：
+同步、测试和发布第三方库 FlutterOH package 仓库：
 
 ```sh
-fluoh pub create <upstream-git-url>
-fluoh pub sync
+fluoh package create <upstream-git-url>
+fluoh package sync
 fluoh test init
 fluoh test run
-fluoh pub release
+fluoh package release
 fluoh source sync
 ```
 
@@ -125,6 +125,9 @@ fluoh source sync
 ```text
 https://github.com/FlutterOH/source.git
 ```
+
+Source 是 fluoh 用来发现 Flutter OHOS SDK 版本和 package 兼容性记录的数据源。
+大多数应用项目只需要运行 `fluoh source update`。
 
 Source 元数据和兼容性 schema 的细节见
 [docs/schema.zh-CN.md](docs/schema.zh-CN.md)。

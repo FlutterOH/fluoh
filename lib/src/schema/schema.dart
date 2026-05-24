@@ -1,7 +1,7 @@
 export 'dependency_analysis.dart';
 export 'project_config.dart';
-export 'pub_dependency_policy.dart';
-export 'pub_repository_manifest.dart';
+export 'dependency_policy.dart';
+export 'package_manifest.dart';
 export 'pubspec.dart';
 export 'source_index.dart';
 export 'templates.dart';

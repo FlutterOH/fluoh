@@ -301,7 +301,7 @@ sdk:
 
   test('fails when no SDK has been selected', () async {
     final environment = await createTestEnvironment();
-    final source = await createPubSourceFixture(environment.homeDirectory);
+    final source = await createPackageSourceFixture(environment.homeDirectory);
     final stdout = <String>[];
     final stderr = <String>[];
 

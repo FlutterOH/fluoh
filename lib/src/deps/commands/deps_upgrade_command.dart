@@ -1,0 +1,106 @@
+import 'dart:io';
+
+import 'package:args/command_runner.dart';
+
+import '../../cli/argument_validation.dart';
+import '../../cli/fluoh_command_runner.dart';
+import '../../cli/terminal_output.dart';
+import '../../context/fluoh_environment.dart';
+import '../dependency_plan.dart';
+import '../dependency_policy.dart';
+import '../pubspec_dependency_editor.dart';
+
+class DepsUpgradeCommand extends Command<int> {
+  DepsUpgradeCommand({
+    required this.environment,
+    required OutputWriter stdout,
+    TerminalOutput? output,
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'dry-run',
+      abbr: 'n',
+      negatable: false,
+      help:
+          'Show planned FlutterOH dependency replacement upgrades without writing pubspec.yaml.',
+    );
+  }
+
+  final FluohEnvironment environment;
+  final TerminalOutput _output;
+
+  @override
+  String get name => 'upgrade';
+
+  @override
+  String get description =>
+      'Upgrade existing FlutterOH dependency replacements.';
+
+  @override
+  Future<int> run() async {
+    expectNoArguments(argResults!, usageException);
+    final dryRun = argResults!.flag('dry-run');
+    final policy = await readDependencyPolicy(environment.workingDirectory);
+    final plan = await buildDependencyPlan(
+      environment: environment,
+      policy: policy,
+      purpose: DependencyPlanPurpose.upgrade,
+    );
+    final changes = plan.changes;
+    final skippedIncompatibleVersion = plan.entries
+        .where(
+          (entry) => entry.status == DependencyPlanStatus.incompatibleVersion,
+        )
+        .toList(growable: false);
+    if (changes.isEmpty) {
+      if (skippedIncompatibleVersion.isEmpty) {
+        _output.skipped(
+          'No existing FlutterOH dependency replacements need upgrades.',
+        );
+      }
+      _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
+      return 0;
+    }
+
+    for (final entry in plan.actionableEntries) {
+      for (final change in entry.changes) {
+        _output.step(
+          '${dryRun ? 'Would ' : ''}update ${change.packageName} '
+          '${change.currentRef} -> ${change.nextRef}'
+          '${implementationUpstreamVersionChange(change, entry.dependency)}',
+        );
+      }
+    }
+    _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
+    if (dryRun) {
+      _output.warning('Dry run only; pubspec.yaml was not modified.');
+      _output.next(
+        'Run ${_output.style.code('fluoh deps upgrade')} to apply these changes.',
+      );
+      return 0;
+    }
+
+    final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
+    final applied = await applyPubspecDependencyChanges(
+      pubspec: pubspec,
+      changes: changes,
+    );
+    _output.success(
+      'Updated $applied FlutterOH dependency '
+      'replacement${applied == 1 ? '' : 's'}.',
+    );
+    _output.next('Next: run ${_output.style.code('fluoh deps get')}.');
+    return 0;
+  }
+
+  void _printSkippedIncompatibleVersion(List<DependencyPlanEntry> entries) {
+    for (final entry in entries) {
+      _output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
+    }
+    if (entries.isNotEmpty) {
+      _output.warning(
+        'Set dependencyPolicy.versionChanges to any in fluoh.yaml to include '
+        'incompatible version changes and downgrades.',
+      );
+    }
+  }
+}
