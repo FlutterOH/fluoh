@@ -152,12 +152,36 @@ void main() {
       expect(
         agentsContent,
         contains(
-          'This repository provides an OHOS implementation for `camera` 0.11.0 on Flutter OHOS SDK '
-          '`3.35.8-ohos-0.0.3`.',
+          'This repository contains the OHOS implementation for `camera`. '
+          'Treat `fluoh.yaml` as the source of truth',
         ),
       );
-      expect(agentsContent, contains('- Package path: `.`'));
-      expect(agentsContent, contains('- FlutterOH branch: `ohos/3.35`'));
+      expect(
+        agentsContent,
+        contains('- Package metadata: `packages.camera` in `fluoh.yaml`.'),
+      );
+      expect(
+        agentsContent,
+        contains(
+          '- Package path: `packages.camera.repository.path` in `fluoh.yaml`.',
+        ),
+      );
+      expect(
+        agentsContent,
+        contains(
+          '- Repository branch: `repository.git.branch` in `fluoh.yaml`.',
+        ),
+      );
+      expect(
+        agentsContent,
+        contains('- Upstream repository: `upstream.git` in `fluoh.yaml`.'),
+      );
+      expect(
+        agentsContent,
+        contains('fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get'),
+      );
+      expect(agentsContent, isNot(contains('Upstream branch at creation')));
+      expect(agentsContent, isNot(contains('- FlutterOH branch: `ohos/3.35`')));
       expect(agentsContent, contains('fluoh.yaml'));
       expect(agentsContent, contains('FLUOH_CHANGELOG.md'));
       expect(agentsContent, contains('## Working Rules'));
@@ -943,7 +967,7 @@ Prefer the upstream release workflow.
       ).readAsStringSync();
       expect(
         guide,
-        contains('provides OHOS implementations for multiple packages'),
+        contains('contains OHOS implementations for multiple Flutter packages'),
       );
       expect(
         guide,
@@ -973,7 +997,7 @@ Prefer the upstream release workflow.
       ).readAsStringSync();
       expect(
         agents,
-        contains('provides OHOS implementations for multiple packages'),
+        contains('contains OHOS implementations for multiple Flutter packages'),
       );
       expect(agents, contains('## Adaptation Workflow'));
       expect(agents, contains('fluoh flutter analyze'));
@@ -1060,7 +1084,7 @@ Prefer the upstream release workflow.
       expect(
         guide,
         contains(
-          'This repository provides OHOS implementations for multiple packages',
+          'This repository contains OHOS implementations for multiple Flutter packages',
         ),
       );
       expect(
@@ -1090,9 +1114,16 @@ Prefer the upstream release workflow.
       expect(
         agents,
         contains(
-          'This repository provides OHOS implementations for multiple packages',
+          'This repository contains OHOS implementations for multiple Flutter packages',
         ),
       );
+      expect(
+        agents,
+        contains(
+          'Treat `fluoh.yaml` as the source of truth for the current SDK',
+        ),
+      );
+      expect(agents, isNot(contains('Upstream branch at creation')));
       expect(agents, contains('## Adaptation Workflow'));
       expect(
         agents,
