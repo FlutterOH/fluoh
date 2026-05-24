@@ -201,9 +201,6 @@ class PackageCreateCommand extends Command<int> {
       await writeOrReplacePackageImplementationGuide(
         destination: destination,
         packages: docPackages,
-        upstreamBranch: upstreamBranch,
-        sdkVersion: release.tag,
-        branch: branch,
       );
       await File('${destination.path}/FLUOH_CHANGELOG.md').writeAsString(
         packageFluohChangelogContent(
@@ -215,9 +212,6 @@ class PackageCreateCommand extends Command<int> {
       await writeOrReplacePackageAgentsInstructions(
         destination: destination,
         packages: docPackages,
-        upstreamBranch: upstreamBranch,
-        sdkVersion: release.tag,
-        branch: branch,
       );
       await _writeClaudeInstructions(destination);
       final testInitResults = <FluohTestInitResult>[];

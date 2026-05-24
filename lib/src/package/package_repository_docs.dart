@@ -27,17 +27,11 @@ class PackageRepositoryDocPackage {
 Future<void> writeOrReplacePackageImplementationGuide({
   required Directory destination,
   required List<PackageRepositoryDocPackage> packages,
-  required String upstreamBranch,
-  required String sdkVersion,
-  required String branch,
 }) async {
   final file = File('${destination.path}/FLUOH.md');
   final existing = await file.exists() ? await file.readAsString() : null;
   final generated = packageImplementationGuideContent(
     packages: packages,
-    upstreamBranch: upstreamBranch,
-    sdkVersion: sdkVersion,
-    branch: branch,
     includeTitle: true,
   );
   await _writeOrReplaceGeneratedSection(file, generated, existing: existing);
@@ -46,17 +40,11 @@ Future<void> writeOrReplacePackageImplementationGuide({
 Future<void> writeOrReplacePackageAgentsInstructions({
   required Directory destination,
   required List<PackageRepositoryDocPackage> packages,
-  required String upstreamBranch,
-  required String sdkVersion,
-  required String branch,
 }) async {
   final file = File('${destination.path}/AGENTS.md');
   final existing = await file.exists() ? await file.readAsString() : null;
   final generated = packageAgentsInstructionsContent(
     packages: packages,
-    upstreamBranch: upstreamBranch,
-    sdkVersion: sdkVersion,
-    branch: branch,
     includeTitle: _generatedSectionOwnsFile(existing),
   );
 
@@ -65,17 +53,11 @@ Future<void> writeOrReplacePackageAgentsInstructions({
 
 String packageAgentsInstructionsContent({
   required List<PackageRepositoryDocPackage> packages,
-  required String upstreamBranch,
-  required String sdkVersion,
-  required String branch,
   required bool includeTitle,
 }) {
   if (packages.length == 1) {
     return _singlePackageAgentsInstructionsContent(
       package: packages.single,
-      upstreamBranch: upstreamBranch,
-      sdkVersion: sdkVersion,
-      branch: branch,
       includeTitle: includeTitle,
     );
   }
@@ -134,9 +116,6 @@ String packageAgentsInstructionsContent({
 
 String _singlePackageAgentsInstructionsContent({
   required PackageRepositoryDocPackage package,
-  required String upstreamBranch,
-  required String sdkVersion,
-  required String branch,
   required bool includeTitle,
 }) {
   return [
@@ -147,7 +126,7 @@ String _singlePackageAgentsInstructionsContent({
     'This repository contains the OHOS implementation for `${package.name}`. Treat `fluoh.yaml` as the source of truth for the current SDK, repository URL, branch, package path, upstream version, release version, and status.',
     '',
     '- Package metadata: `packages.${package.name}` in `fluoh.yaml`.',
-    '- Package path: `packages.${package.name}.repository.path` in `fluoh.yaml`.',
+    '- Package path: `packages.${package.name}.repository.path` when present; otherwise `repository.git.path` or `.` in `fluoh.yaml`.',
     '- Repository branch: `repository.git.branch` in `fluoh.yaml`.',
     '- Upstream repository: `upstream.git` in `fluoh.yaml`.',
     '- Release notes: `FLUOH_CHANGELOG.md`.',
@@ -156,7 +135,7 @@ String _singlePackageAgentsInstructionsContent({
     '',
     '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh deps get` when dependencies may be stale.',
     '- Before adding OHOS code, establish a selected-SDK baseline with `fluoh flutter analyze` and existing package tests or example builds. Fix non-OHOS platform regressions first.',
-    '- Keep OHOS implementation changes focused near `${package.packagePath}`; preserve upstream APIs and non-OHOS behavior.',
+    '- Keep OHOS implementation changes focused near the package path recorded in `fluoh.yaml`; preserve upstream APIs and non-OHOS behavior.',
     '- Keep `${package.testWorkspacePath}/test` and `${package.testWorkspacePath}/example/test` for automated verification. Use `${package.testWorkspacePath}/example` for manual platform verification when behavior needs a device.',
     '- Treat generated fluoh_test content as a scaffold, not the finish line: replace import smoke checks with package-specific contract tests, visible example actions, expected results, pass/fail status, and failure hints.',
     '- Keep `fluoh.yaml` aligned with SDK, repository URL, branch, package path, release version, upstream version, and status changes.',
@@ -166,7 +145,7 @@ String _singlePackageAgentsInstructionsContent({
     '',
     '## Adaptation Workflow',
     '',
-    '1. Read `fluoh.yaml`, `FLUOH.md`, `${package.testWorkspacePath}/README.md`, and the package code under `${package.packagePath}` before editing.',
+    '1. Read `fluoh.yaml`, `FLUOH.md`, `${package.testWorkspacePath}/README.md`, and the package code path recorded in `fluoh.yaml` before editing.',
     '2. Before changing OHOS code, run `fluoh deps get`, `fluoh flutter analyze`, and existing package tests or example builds with the selected SDK; fix non-OHOS regressions first.',
     '3. Inspect the upstream Dart API and platform code, then implement OHOS behavior without changing public APIs unless upstream requires it.',
     '4. Run `fluoh deps get` after dependency, SDK, or package metadata changes.',
@@ -189,17 +168,11 @@ String _singlePackageAgentsInstructionsContent({
 
 String packageImplementationGuideContent({
   required List<PackageRepositoryDocPackage> packages,
-  required String upstreamBranch,
-  required String sdkVersion,
-  required String branch,
   required bool includeTitle,
 }) {
   if (packages.length == 1) {
     return _singlePackageImplementationGuideContent(
       package: packages.single,
-      upstreamBranch: upstreamBranch,
-      sdkVersion: sdkVersion,
-      branch: branch,
       includeTitle: includeTitle,
     );
   }
@@ -257,9 +230,6 @@ String packageImplementationGuideContent({
 
 String _singlePackageImplementationGuideContent({
   required PackageRepositoryDocPackage package,
-  required String upstreamBranch,
-  required String sdkVersion,
-  required String branch,
   required bool includeTitle,
 }) {
   return [
@@ -271,7 +241,7 @@ String _singlePackageImplementationGuideContent({
     '',
     '- `fluoh.yaml` records the upstream package, FlutterOH repository, SDK target, and release metadata.',
     '- Package metadata: `packages.${package.name}` in `fluoh.yaml`',
-    '- Package path: `packages.${package.name}.repository.path` in `fluoh.yaml`',
+    '- Package path: `packages.${package.name}.repository.path` when present; otherwise `repository.git.path` or `.` in `fluoh.yaml`',
     '- Repository branch: `repository.git.branch` in `fluoh.yaml`',
     '- Upstream repository: `upstream.git` in `fluoh.yaml`',
     '- Release notes: `FLUOH_CHANGELOG.md`',
@@ -291,7 +261,7 @@ String _singlePackageImplementationGuideContent({
     '',
     '1. Read `fluoh.yaml` to confirm SDK version, package path, upstream version, and current release status.',
     '2. Run `fluoh deps get`, `fluoh flutter analyze`, and existing package tests or example builds with the selected SDK before changing OHOS code; fix non-OHOS regressions first.',
-    '3. Inspect the upstream Dart API and platform implementations before changing OHOS code under `${package.packagePath}`.',
+    '3. Inspect the upstream Dart API and platform implementations before changing OHOS code under the package path recorded in `fluoh.yaml`.',
     '4. Add deterministic automated checks under `${package.testWorkspacePath}/test` and `${package.testWorkspacePath}/example/test`. Cover arguments, return shape, errors, and platform-channel names when applicable.',
     '5. From `${package.testWorkspacePath}/example`, run `fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get` when the IDE link is missing or stale.',
     '6. Extend `${package.testWorkspacePath}/example` from the package\'s existing platforms plus OHOS. Each important workflow should provide an operation, expected result, pass/fail status, and failure hint.',

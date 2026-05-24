@@ -163,7 +163,8 @@ void main() {
       expect(
         agentsContent,
         contains(
-          '- Package path: `packages.camera.repository.path` in `fluoh.yaml`.',
+          '- Package path: `packages.camera.repository.path` when present; '
+          'otherwise `repository.git.path` or `.` in `fluoh.yaml`.',
         ),
       );
       expect(

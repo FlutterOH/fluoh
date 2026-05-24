@@ -144,9 +144,6 @@ class PackageAddCommand extends Command<int> {
     await writeOrReplacePackageImplementationGuide(
       destination: repository,
       packages: packages,
-      upstreamBranch: manifest.upstreamBranch,
-      sdkVersion: manifest.sdkVersion,
-      branch: manifest.branch,
     );
 
     final addedManifestPackage = manifest.packages.firstWhere(
@@ -181,9 +178,6 @@ class PackageAddCommand extends Command<int> {
     await writeOrReplacePackageAgentsInstructions(
       destination: repository,
       packages: packages,
-      upstreamBranch: manifest.upstreamBranch,
-      sdkVersion: manifest.sdkVersion,
-      branch: manifest.branch,
     );
   }
 
