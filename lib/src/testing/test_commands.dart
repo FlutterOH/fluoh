@@ -144,7 +144,8 @@ class TestRunCommand extends Command<int> {
   String get name => 'run';
 
   @override
-  String get description => 'Run package tests and fluoh_test automated tests.';
+  String get description =>
+      'Run package tests, fluoh_test tests, and example tests.';
 
   @override
   Future<int> run() {

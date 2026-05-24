@@ -7,7 +7,7 @@ import '../helpers/fluoh_test_context.dart';
 import '../helpers/package_test_context.dart';
 
 void main() {
-  test('test init creates automated tests and a manual example app', () async {
+  test('test init creates automated tests and an example app', () async {
     final environment = await createTestEnvironment();
     final source = await _createFlutterSdkSource(
       environment.homeDirectory,
@@ -61,6 +61,10 @@ void main() {
       '${environment.workingDirectory.path}/fluoh_test/camera/test/contract_test.dart',
     ).readAsStringSync();
     expect(contractTest, contains("package:camera/camera.dart"));
+    expect(
+      contractTest,
+      contains('camera public API imports with the FlutterOH SDK'),
+    );
     final testReadme = File(
       '${environment.workingDirectory.path}/fluoh_test/camera/README.md',
     ).readAsStringSync();
@@ -76,6 +80,14 @@ void main() {
       '${environment.workingDirectory.path}/fluoh_test/camera/example/pubspec.yaml',
     ).readAsStringSync();
     expect(examplePubspec, contains('camera:\n    path: ../../..'));
+    final exampleMain = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/example/lib/main.dart',
+    ).readAsStringSync();
+    expect(exampleMain, contains('Platforms: android, ios, ohos'));
+    final exampleTest = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/example/test/widget_test.dart',
+    ).readAsStringSync();
+    expect(exampleTest, contains("find.text('Platforms: android, ios, ohos')"));
     expect(
       Directory(
         '${environment.workingDirectory.path}/fluoh_test/camera/example/ohos',
@@ -150,8 +162,11 @@ void main() {
         '${environment.workingDirectory.path}::test',
         '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
         '${environment.workingDirectory.path}/fluoh_test/camera::test',
+        '${environment.workingDirectory.path}/fluoh_test/camera/example::pub get',
+        '${environment.workingDirectory.path}/fluoh_test/camera/example::test',
       ]);
       expect(stdout, contains('fluoh_test/camera passed.'));
+      expect(stdout, contains('fluoh_test/camera/example passed.'));
       expect(stderr, isEmpty);
     },
   );
@@ -391,9 +406,12 @@ packages:
       '${packageDirectory.path}::test',
       '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
       '${environment.workingDirectory.path}/fluoh_test/camera::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::test',
     ]);
     expect(stdout, contains('Created fluoh_test/camera for camera.'));
     expect(stdout, contains('fluoh_test/camera passed.'));
+    expect(stdout, contains('fluoh_test/camera/example passed.'));
     expect(stderr, isEmpty);
   });
 
@@ -442,10 +460,13 @@ packages:
       '${environment.workingDirectory.path}::test',
       '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
       '${environment.workingDirectory.path}/fluoh_test/camera::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::test',
     ]);
     expect(stdout, contains('Running camera package Flutter tests.'));
     expect(stdout, contains('camera package tests passed.'));
     expect(stdout, contains('fluoh_test/camera passed.'));
+    expect(stdout, contains('fluoh_test/camera/example passed.'));
     expect(stderr, isEmpty);
   });
 
@@ -499,12 +520,15 @@ packages:
     _expectInOrder(flutterLog, [
       '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
       '${environment.workingDirectory.path}/fluoh_test/camera::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::test',
     ]);
     expect(
       stdout,
       contains('Skipping camera package tests: no test files found.'),
     );
     expect(stdout, contains('fluoh_test/camera passed.'));
+    expect(stdout, contains('fluoh_test/camera/example passed.'));
     expect(stderr, isEmpty);
   });
 
@@ -571,11 +595,14 @@ packages:
       '${packageDirectory.path}::test',
       '${environment.workingDirectory.path}/fluoh_test/camera::pub get',
       '${environment.workingDirectory.path}/fluoh_test/camera::test',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::pub get',
+      '${environment.workingDirectory.path}/fluoh_test/camera/example::test',
     ]);
     expect(stdout, contains('Created fluoh_test/camera for camera.'));
     expect(stdout, contains('Running camera package Flutter tests.'));
     expect(stdout, contains('camera package tests passed.'));
     expect(stdout, contains('fluoh_test/camera passed.'));
+    expect(stdout, contains('fluoh_test/camera/example passed.'));
     expect(stderr, isEmpty);
   });
 
@@ -683,6 +710,7 @@ environment:
           'fluoh.yaml',
           'fluoh_test/camera/pubspec.yaml',
           'fluoh_test/camera/test/contract_test.dart',
+          'fluoh_test/camera/example/test/widget_test.dart',
         ]),
       );
       expect(staged.stdout.toString(), isNot(contains('local.properties')));
@@ -1084,7 +1112,7 @@ environment:
   });
 
   test(
-    'package release runs package tests and fluoh_test before tagging',
+    'package release runs package tests, fluoh_test, and example tests before tagging',
     () async {
       final environment = await createTestEnvironment();
       final source = await _createFlutterSdkSource(
@@ -1147,6 +1175,8 @@ environment:
         '${packageRepository.path}::test',
         '${packageRepository.path}/fluoh_test/camera::pub get',
         '${packageRepository.path}/fluoh_test/camera::test',
+        '${packageRepository.path}/fluoh_test/camera/example::pub get',
+        '${packageRepository.path}/fluoh_test/camera/example::test',
       ]);
       final tags = await runGit(packageRepository, ['tag', '--list']);
       expect(
@@ -1157,6 +1187,7 @@ environment:
       expect(stdout, contains('Running camera package Flutter tests.'));
       expect(stdout, contains('camera package tests passed.'));
       expect(stdout, contains('fluoh_test/camera passed.'));
+      expect(stdout, contains('fluoh_test/camera/example passed.'));
       expect(stderr, isEmpty);
     },
   );

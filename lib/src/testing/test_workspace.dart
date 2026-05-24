@@ -106,7 +106,9 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
       ? 'fluoh test run'
       : 'fluoh test run --package ${package.name}';
   terminal.next('Run "$runCommand" before publishing the FlutterOH package.');
-  terminal.next('Use $testPath/example for manual platform verification.');
+  terminal.next(
+    'Extend $testPath/example for automated and manual platform verification.',
+  );
   return FluohTestInitResult.created(package);
 }
 
@@ -201,6 +203,18 @@ Future<int> runFluohTestWorkspace({
   }
 
   terminal.success('$testPath passed.');
+  final exampleTest = await _runExampleTests(
+    environment: environment,
+    flutter: flutter,
+    testDirectory: testDirectory,
+    testPath: testPath,
+    stdout: stdout,
+    stderr: stderr,
+    output: terminal,
+  );
+  if (exampleTest != 0) {
+    return exampleTest;
+  }
   return 0;
 }
 
@@ -309,6 +323,64 @@ Future<bool> _hasFlutterTests(Directory packageDirectory) async {
     }
   }
   return false;
+}
+
+Future<int> _runExampleTests({
+  required FluohEnvironment environment,
+  required File flutter,
+  required Directory testDirectory,
+  required String testPath,
+  required OutputWriter stdout,
+  required OutputWriter stderr,
+  required TerminalOutput output,
+}) async {
+  final example = Directory('${testDirectory.path}/example');
+  if (!await example.exists()) {
+    output.skipped(
+      'Skipping $testPath/example tests: no example project found.',
+    );
+    return 0;
+  }
+  final pubspec = File('${example.path}/pubspec.yaml');
+  if (!await pubspec.exists()) {
+    output.skipped('Skipping $testPath/example tests: missing pubspec.yaml.');
+    return 0;
+  }
+  if (!await _hasFlutterTests(example)) {
+    output.skipped('Skipping $testPath/example tests: no test files found.');
+    return 0;
+  }
+
+  output.step('Running $testPath/example pub get.');
+  final pubGet = await _runProcess(
+    flutter.path,
+    ['pub', 'get'],
+    workingDirectory: example,
+    environment: environment,
+    stdout: stdout,
+    stderr: stderr,
+  );
+  if (pubGet != 0) {
+    output.failure('$testPath/example pub get failed.');
+    return pubGet;
+  }
+
+  output.step('Running $testPath/example tests.');
+  final test = await _runProcess(
+    flutter.path,
+    ['test'],
+    workingDirectory: example,
+    environment: environment,
+    stdout: stdout,
+    stderr: stderr,
+  );
+  if (test != 0) {
+    output.failure('$testPath/example failed.');
+    return test;
+  }
+
+  output.success('$testPath/example passed.');
+  return 0;
 }
 
 Future<FlutterImplementationPackage?> findFlutterImplementationPackage(
@@ -649,6 +721,11 @@ Future<void> _createExampleProject({
   await File(
     '${example.path}/lib/main.dart',
   ).writeAsString(_exampleMainContent(package));
+  final tests = Directory('${example.path}/test');
+  await tests.create(recursive: true);
+  await File(
+    '${tests.path}/widget_test.dart',
+  ).writeAsString(_exampleWidgetTestContent(package));
 }
 
 Future<int> _runProcess(
@@ -721,7 +798,7 @@ import 'package:flutter_test/flutter_test.dart';
 ${import ?? ''}
 
 void main() {
-  test('${package.name} FlutterOH implementation test harness is ready', () {
+  test('${package.name} public API imports with the FlutterOH SDK', () {
     expect(true, isTrue);
   });
 }
@@ -755,6 +832,7 @@ flutter:
 }
 
 String _exampleMainContent(FlutterImplementationPackage package) {
+  final platforms = package.platforms.join(', ');
   return '''
 import 'package:flutter/material.dart';
 
@@ -790,12 +868,32 @@ class _VerifyPage extends StatelessWidget {
       children: const [
         Text('Package: ${package.name}'),
         SizedBox(height: 12),
-        Text('Use this page for manual OHOS, Android, and iOS checks.'),
+        Text('Platforms: $platforms'),
         SizedBox(height: 24),
-        Text('Add package-specific buttons for the OHOS implementation here.'),
+        Text('Extend this example with package-specific checks for each platform.'),
       ],
     );
   }
+}
+''';
+}
+
+String _exampleWidgetTestContent(FlutterImplementationPackage package) {
+  final platforms = package.platforms.join(', ');
+  return '''
+import 'package:flutter_test/flutter_test.dart';
+import 'package:fluoh_test_example/main.dart';
+
+void main() {
+  testWidgets('${package.name} example renders the verification surface', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const FluohTestExampleApp());
+
+    expect(find.text('FlutterOH Verify'), findsOneWidget);
+    expect(find.text('Package: ${package.name}'), findsOneWidget);
+    expect(find.text('Platforms: $platforms'), findsOneWidget);
+  });
 }
 ''';
 }
@@ -820,16 +918,16 @@ Run from the FlutterOH package repository root:
 $runCommand
 ```
 
-The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then runs the tests in this `$testWorkspacePath` package with the Flutter OHOS SDK selected by `fluoh.yaml`.
+The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path. It then runs the tests in this `$testWorkspacePath` package and the tests in `$testWorkspacePath/example`, all with the Flutter OHOS SDK selected by `fluoh.yaml`.
 
 ## Baseline Before OHOS Work
 
-Before adding OHOS implementation code, run `fluoh deps get`, `fluoh flutter analyze`, and the package's existing tests or example builds with the selected SDK. Fix non-OHOS platform regressions first so later failures are attributable to OHOS changes.
+Before adding OHOS implementation code, run `fluoh deps get`, `fluoh flutter analyze`, and the package's existing tests or example builds with the selected SDK. If upstream has weak or missing tests, add baseline checks here first. Fix non-OHOS platform regressions first so later failures are attributable to OHOS changes.
 
 ## What To Edit
 
-- Add deterministic automated checks under `$testWorkspacePath/test`; replace or extend the generated `contract_test.dart` with package-specific OHOS behavior checks.
-- Add focused manual verification actions to `$testWorkspacePath/example/lib/main.dart` when behavior needs a device or visual confirmation.
+- Add deterministic automated checks under `$testWorkspacePath/test`; make this suite stricter than upstream when upstream coverage is missing or shallow.
+- Extend `$testWorkspacePath/example/lib/main.dart` and `$testWorkspacePath/example/test` from the package's existing platforms plus OHOS. Keep automated widget checks for the example and focused manual actions when behavior needs a device or visual confirmation.
 - Run `fluoh deps get` after dependency or metadata changes, then run `$runCommand`.
 
 ## Manual Verification

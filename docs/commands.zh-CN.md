@@ -44,7 +44,7 @@
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 校验、测试、打 tag，并可选择推送 FlutterOH package release。 |
 | `fluoh test` | `lib/src/testing/test_commands.dart` | package 验证工作区的命令组。 |
 | `fluoh test init` | `lib/src/testing/test_commands.dart` | 创建 `fluoh_test` 验证工作区。 |
-| `fluoh test run` | `lib/src/testing/test_commands.dart` | 运行 package 测试和 `fluoh_test` 测试。 |
+| `fluoh test run` | `lib/src/testing/test_commands.dart` | 运行 package、`fluoh_test` 和 example 测试。 |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断本地项目、source、SDK 和工具状态。 |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | 升级已安装的 `fluoh` CLI。 |
 
@@ -277,7 +277,9 @@ package 级 `fluoh_test/<name>` 工作区；注册多个 package 时用 `--packa
 
 `fluoh test run` 定位 package 和已有测试工作区。如果 package 存在
 `test/**/*_test.dart`，会先运行 package 的 `pub get` 和 Flutter 测试；然后在 `fluoh_test`
-中运行 `pub get` 和测试。非 Flutter package 会被跳过，因为没有需要验证的 FlutterOH
+中运行 `pub get` 和测试；如果 `fluoh_test/<package>/example` 里有测试，也会运行 example
+的 `pub get` 和测试。`fluoh_test` 应该补足 upstream 缺失或偏弱的覆盖，example 则基于原
+package 已有平台再扩展 OHOS。非 Flutter package 会被跳过，因为没有需要验证的 FlutterOH
 平台行为。
 
 ## 状态归属

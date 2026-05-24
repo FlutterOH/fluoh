@@ -45,7 +45,7 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Validate, test, tag, and optionally push FlutterOH package releases. |
 | `fluoh test` | `lib/src/testing/test_commands.dart` | Command group for package verification workspaces. |
 | `fluoh test init` | `lib/src/testing/test_commands.dart` | Create a `fluoh_test` verification workspace. |
-| `fluoh test run` | `lib/src/testing/test_commands.dart` | Run package tests and `fluoh_test` tests. |
+| `fluoh test run` | `lib/src/testing/test_commands.dart` | Run package, `fluoh_test`, and example tests. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose local project, source, SDK, and tool state. |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | Upgrade the installed `fluoh` CLI. |
 
@@ -340,9 +340,12 @@ target `fluoh_test` workspace.
 
 `fluoh test run` locates the package and existing test workspace. If the
 package has `test/**/*_test.dart`, it runs package `pub get` and Flutter tests
-first. It then runs `pub get` and tests inside `fluoh_test`. Non-Flutter
-packages are skipped because there is no FlutterOH platform behavior to
-validate.
+first. It then runs `pub get` and tests inside `fluoh_test`; when
+`fluoh_test/<package>/example` has tests, it runs the example `pub get` and
+tests too. `fluoh_test` should fill gaps when upstream coverage is weak or
+missing, and the example extends the package's existing platforms with OHOS.
+Non-Flutter packages are skipped because there is no FlutterOH platform behavior
+to validate.
 
 ## State Ownership
 
