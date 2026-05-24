@@ -68,6 +68,14 @@ void main() {
     final testReadme = File(
       '${environment.workingDirectory.path}/fluoh_test/camera/README.md',
     ).readAsStringSync();
+    expect(testReadme, contains('## Definition Of Done'));
+    expect(
+      testReadme,
+      contains('one visible action per important package workflow'),
+    );
+    expect(testReadme, contains('pass/fail status'));
+    expect(testReadme, contains('fluoh flutter build hap --debug'));
+    expect(testReadme, contains('reason`, and `usedScene`'));
     expect(testReadme, contains('## Baseline Before OHOS Work'));
     expect(testReadme, contains('fluoh flutter analyze'));
     expect(testReadme, contains('non-OHOS platform regressions first'));
@@ -80,14 +88,35 @@ void main() {
       '${environment.workingDirectory.path}/fluoh_test/camera/example/pubspec.yaml',
     ).readAsStringSync();
     expect(examplePubspec, contains('camera:\n    path: ../../..'));
+    expect(examplePubspec, contains('flutter_lints: ^6.0.0'));
+    final exampleFluohYaml = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/example/fluoh.yaml',
+    ).readAsStringSync();
+    expect(exampleFluohYaml, contains('version: 3.35.8-ohos-0.0.3'));
+    final exampleGitignore = File(
+      '${environment.workingDirectory.path}/fluoh_test/camera/example/.gitignore',
+    ).readAsStringSync();
+    expect(exampleGitignore, contains('.fluoh/'));
     final exampleMain = File(
       '${environment.workingDirectory.path}/fluoh_test/camera/example/lib/main.dart',
     ).readAsStringSync();
+    expect(exampleMain, contains('Run package import smoke check'));
+    expect(exampleMain, contains('Add package-specific OHOS behavior check'));
+    expect(exampleMain, contains('expected'));
+    expect(exampleMain, contains('VerificationStatus'));
+    expect(exampleMain, contains('failure hint'));
     expect(exampleMain, contains('Platforms: android, ios, ohos'));
     final exampleTest = File(
       '${environment.workingDirectory.path}/fluoh_test/camera/example/test/widget_test.dart',
     ).readAsStringSync();
     expect(exampleTest, contains("find.text('Platforms: android, ios, ohos')"));
+    expect(exampleTest, contains('reports import smoke success'));
+    expect(
+      exampleTest,
+      contains(
+        "find.widgetWithText(FilledButton, 'Run package import smoke check')",
+      ),
+    );
     expect(
       Directory(
         '${environment.workingDirectory.path}/fluoh_test/camera/example/ohos',
@@ -709,6 +738,7 @@ environment:
           'FLUOH_CHANGELOG.md',
           'fluoh.yaml',
           'fluoh_test/camera/pubspec.yaml',
+          'fluoh_test/camera/example/fluoh.yaml',
           'fluoh_test/camera/test/contract_test.dart',
           'fluoh_test/camera/example/test/widget_test.dart',
         ]),

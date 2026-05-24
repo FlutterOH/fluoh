@@ -9,6 +9,7 @@ import '../context/fluoh_environment.dart';
 import '../package/manifest/pubspec_package.dart';
 import '../sdk/sdk_manager.dart';
 import '../sdk/sdk_project_config.dart';
+import '../schema/project_config.dart';
 
 class FluohTestInitResult {
   const FluohTestInitResult.created(this.package) : skippedReason = null;
@@ -84,6 +85,13 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
     environment,
     output: terminal,
   );
+  final sdkVersion = await readProjectSdkVersion(environment.workingDirectory);
+  if (sdkVersion == null || sdkVersion.isEmpty) {
+    throw UsageException(
+      'No SDK selected. Run "fluoh sdk use <version-or-series>".',
+      '',
+    );
+  }
   await testDirectory.create(recursive: true);
   await _writeTestWorkspace(
     testDirectory,
@@ -96,6 +104,7 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
     testDirectory: testDirectory,
     testWorkspacePath: testPath,
     package: package,
+    sdkVersion: sdkVersion,
     stdout: stdout,
     stderr: stderr,
     output: terminal,
@@ -108,6 +117,9 @@ Future<FluohTestInitResult> initializeFluohTestWorkspace({
   terminal.next('Run "$runCommand" before publishing the FlutterOH package.');
   terminal.next(
     'Extend $testPath/example for automated and manual platform verification.',
+  );
+  terminal.next(
+    'The example has its own fluoh.yaml; rerun "fluoh sdk use $sdkVersion --pub-get" there if the IDE link is missing.',
   );
   return FluohTestInitResult.created(package);
 }
@@ -677,6 +689,7 @@ Future<void> _createExampleProject({
   required Directory testDirectory,
   required String testWorkspacePath,
   required FlutterImplementationPackage package,
+  required String sdkVersion,
   required OutputWriter stdout,
   required OutputWriter stderr,
   required TerminalOutput output,
@@ -719,6 +732,10 @@ Future<void> _createExampleProject({
     ),
   );
   await File(
+    '${example.path}/fluoh.yaml',
+  ).writeAsString(newProjectFluohConfigContent(sdkVersion));
+  await _ensureGitIgnoreEntryIn(example, '.fluoh/');
+  await File(
     '${example.path}/lib/main.dart',
   ).writeAsString(_exampleMainContent(package));
   final tests = Directory('${example.path}/test');
@@ -726,6 +743,24 @@ Future<void> _createExampleProject({
   await File(
     '${tests.path}/widget_test.dart',
   ).writeAsString(_exampleWidgetTestContent(package));
+}
+
+Future<void> _ensureGitIgnoreEntryIn(Directory directory, String entry) async {
+  final gitignore = File('${directory.path}/.gitignore');
+  if (!await gitignore.exists()) {
+    await gitignore.writeAsString('$entry\n');
+    return;
+  }
+  final content = await gitignore.readAsString();
+  final exists = content
+      .split(RegExp(r'\r?\n'))
+      .map((line) => line.trim())
+      .contains(entry);
+  if (exists) {
+    return;
+  }
+  final separator = content.isEmpty || content.endsWith('\n') ? '' : '\n';
+  await gitignore.writeAsString('$content$separator$entry\n');
 }
 
 Future<int> _runProcess(
@@ -825,6 +860,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
@@ -834,7 +870,10 @@ flutter:
 String _exampleMainContent(FlutterImplementationPackage package) {
   final platforms = package.platforms.join(', ');
   return '''
+// ignore_for_file: unused_import
+
 import 'package:flutter/material.dart';
+import 'package:${package.name}/${package.name}.dart' as package_under_test;
 
 void main() {
   runApp(const FluohTestExampleApp());
@@ -845,42 +884,147 @@ class FluohTestExampleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('FlutterOH Verify')),
-        body: const SafeArea(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: _VerifyPage(),
-          ),
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: VerificationPage(),
+    );
+  }
+}
+
+class VerificationPage extends StatefulWidget {
+  const VerificationPage({super.key});
+
+  @override
+  State<VerificationPage> createState() => _VerificationPageState();
+}
+
+class _VerificationPageState extends State<VerificationPage> {
+  VerificationStatus _importStatus = VerificationStatus.idle;
+  String _importMessage = 'Not run yet.';
+
+  void _runImportSmokeCheck() {
+    setState(() {
+      _importStatus = VerificationStatus.passed;
+      _importMessage =
+          'The ${package.name} library imports and the verification app renders. '
+          'Replace this smoke check with package-specific API checks before release.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('${package.name} FlutterOH verification')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text('Package: ${package.name}'),
+            const SizedBox(height: 8),
+            const Text('Platforms: $platforms'),
+            const SizedBox(height: 16),
+            VerificationCard(
+              title: 'Run package import smoke check',
+              expected:
+                  'Expected: the example starts and imports ${package.name} without FlutterOH SDK errors.',
+              status: _importStatus,
+              message: _importMessage,
+              onPressed: _runImportSmokeCheck,
+            ),
+            const SizedBox(height: 12),
+            const VerificationCard(
+              title: 'Add package-specific OHOS behavior check',
+              expected:
+                  'Expected: each public workflow has an action, a pass condition, and a failure hint.',
+              status: VerificationStatus.idle,
+              message:
+                  'Replace or extend this card with real operations such as permission requests, MethodChannel calls, file IO, sensor access, or UI state checks.',
+              onPressed: null,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'If a device check fails: confirm OHOS permissions and reason/usedScene declarations, verify debug signing, inspect native logs, then rerun the same action.',
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _VerifyPage extends StatelessWidget {
-  const _VerifyPage();
+class VerificationCard extends StatelessWidget {
+  const VerificationCard({
+    required this.title,
+    required this.expected,
+    required this.status,
+    required this.message,
+    required this.onPressed,
+    super.key,
+  });
+
+  final String title;
+  final String expected;
+  final VerificationStatus status;
+  final String message;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: const [
-        Text('Package: ${package.name}'),
-        SizedBox(height: 12),
-        Text('Platforms: $platforms'),
-        SizedBox(height: 24),
-        Text('Extend this example with package-specific checks for each platform.'),
-      ],
+    final color = switch (status) {
+      VerificationStatus.idle => Colors.blueGrey,
+      VerificationStatus.running => Colors.orange,
+      VerificationStatus.passed => Colors.green,
+      VerificationStatus.failed => Colors.red,
+    };
+    final label = switch (status) {
+      VerificationStatus.idle => 'Not run',
+      VerificationStatus.running => 'Running',
+      VerificationStatus.passed => 'Passed',
+      VerificationStatus.failed => 'Failed',
+    };
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Chip(
+                  label: Text(label),
+                  side: BorderSide(color: color),
+                  labelStyle: TextStyle(color: color),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(expected),
+            const SizedBox(height: 8),
+            Text(message),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: onPressed, child: Text(title)),
+          ],
+        ),
+      ),
     );
   }
 }
+
+enum VerificationStatus { idle, running, passed, failed }
 ''';
 }
 
 String _exampleWidgetTestContent(FlutterImplementationPackage package) {
   final platforms = package.platforms.join(', ');
   return '''
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluoh_test_example/main.dart';
 
@@ -890,9 +1034,28 @@ void main() {
   ) async {
     await tester.pumpWidget(const FluohTestExampleApp());
 
-    expect(find.text('FlutterOH Verify'), findsOneWidget);
+    expect(find.text('${package.name} FlutterOH verification'), findsOneWidget);
     expect(find.text('Package: ${package.name}'), findsOneWidget);
     expect(find.text('Platforms: $platforms'), findsOneWidget);
+    expect(find.text('Run package import smoke check'), findsNWidgets(2));
+    expect(
+      find.textContaining('Add package-specific OHOS behavior check'),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('${package.name} example reports import smoke success', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const FluohTestExampleApp());
+
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Run package import smoke check'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Passed'), findsOneWidget);
+    expect(find.textContaining('library imports'), findsOneWidget);
   });
 }
 ''';
@@ -920,6 +1083,14 @@ $runCommand
 
 The command first runs package Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path. It then runs the tests in this `$testWorkspacePath` package and the tests in `$testWorkspacePath/example`, all with the Flutter OHOS SDK selected by `fluoh.yaml`.
 
+## Definition Of Done
+
+- `$testWorkspacePath/test` covers the public Dart contract that this OHOS implementation must preserve: arguments, return shape, error cases, and platform-channel names when applicable.
+- `$testWorkspacePath/example` contains one visible action per important package workflow. Each action states the operation, expected result, pass/fail status, and a failure hint that points to likely fixes.
+- `$testWorkspacePath/example/test` exercises the example actions without requiring a device whenever possible.
+- `fluoh flutter build hap --debug` reaches signing or produces a HAP after permissions, `reason`, and `usedScene` declarations are complete.
+- Manual device checks confirm the visible result that automated tests cannot prove, such as files appearing in Gallery, permissions being granted, sensors returning data, or native UI opening.
+
 ## Baseline Before OHOS Work
 
 Before adding OHOS implementation code, run `fluoh deps get`, `fluoh flutter analyze`, and the package's existing tests or example builds with the selected SDK. If upstream has weak or missing tests, add baseline checks here first. Fix non-OHOS platform regressions first so later failures are attributable to OHOS changes.
@@ -927,12 +1098,20 @@ Before adding OHOS implementation code, run `fluoh deps get`, `fluoh flutter ana
 ## What To Edit
 
 - Add deterministic automated checks under `$testWorkspacePath/test`; make this suite stricter than upstream when upstream coverage is missing or shallow.
-- Extend `$testWorkspacePath/example/lib/main.dart` and `$testWorkspacePath/example/test` from the package's existing platforms plus OHOS. Keep automated widget checks for the example and focused manual actions when behavior needs a device or visual confirmation.
+- Replace the generated import smoke check in `$testWorkspacePath/example/lib/main.dart` with package-specific actions. Keep automated widget checks for the example and focused manual actions when behavior needs a device or visual confirmation.
 - Run `fluoh deps get` after dependency or metadata changes, then run `$runCommand`.
 
 ## Manual Verification
 
-Use `$testWorkspacePath/example` as the small app for checking platform behavior manually. Add package-specific UI actions when the implementation needs real device validation.
+Use `$testWorkspacePath/example` as the small app for checking platform behavior manually. It has its own `fluoh.yaml`; from that directory, run:
+
+```sh
+fluoh sdk use <sdk-version> --pub-get
+fluoh flutter build hap --debug
+fluoh flutter run -d <device-id>
+```
+
+If `build hap` stops at debug signing, configure signing in DevEco Studio and rerun. If a runtime check fails, inspect the card's failure hint first, then check OHOS permissions, `reason`/`usedScene`, native logs, and package-specific setup.
 ''';
 }
 

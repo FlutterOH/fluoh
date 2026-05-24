@@ -297,7 +297,10 @@ SDK line branch such as `ohos/3.35`, configures the Flutter OHOS SDK, writes
 `FLUOH_CHANGELOG.md`, agent instructions, and package-scoped `fluoh_test`
 workspaces, then stages generated files. The generated guidance tells
 maintainers to establish a selected-SDK baseline and fix non-OHOS platform
-regressions before implementing OHOS code.
+regressions before implementing OHOS code. Generated `fluoh_test` content is a
+scaffold: maintainers are expected to replace import smoke checks with
+package-specific contract tests, example UI actions, expected results,
+pass/fail status, failure hints, and HAP build checks before release.
 With no `--package-path`, the command selects only the upstream repository root
 package. If the upstream repository has a root package plus package subprojects,
 pass `--package-path .` and repeat `--package-path <subdir>` for each package
@@ -335,6 +338,10 @@ package. Existing tags are accepted only when they already point at HEAD.
 repositories, it creates package-scoped `fluoh_test/<name>` workspaces; with
 multiple registered packages, `--package <name>` selects the package. The
 command writes a test package and creates an example app with the selected SDK.
+The example receives its own `fluoh.yaml`, a `.fluoh/` ignore rule, a
+verification surface with reusable pass/fail cards, and widget tests that
+exercise the generated smoke action. This gives maintainers a concrete place to
+add one visible operation per public workflow.
 `--force` treats the flag as explicit user confirmation to replace the existing
 target `fluoh_test` workspace.
 
@@ -344,6 +351,12 @@ first. It then runs `pub get` and tests inside `fluoh_test`; when
 `fluoh_test/<package>/example` has tests, it runs the example `pub get` and
 tests too. `fluoh_test` should fill gaps when upstream coverage is weak or
 missing, and the example extends the package's existing platforms with OHOS.
+Before a package is considered complete, the generated smoke checks should be
+replaced by package-specific assertions for arguments, return shapes, error
+cases, platform-channel names when applicable, and manual device checks. The
+example should build with `fluoh flutter build hap --debug`; signing-only
+failures are local setup, but permission, `reason`, `usedScene`, ArkTS, or
+package setup failures must be fixed.
 Non-Flutter packages are skipped because there is no FlutterOH platform behavior
 to validate.
 

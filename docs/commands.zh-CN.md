@@ -242,7 +242,9 @@ transitive 和 advisory。fresh Source lock 会提供 package 路由提示；命
 Flutter OHOS SDK，写入
 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、agent 指令和 package 级
 `fluoh_test` 工作区，然后暂存生成文件。生成的引导会要求维护者先建立已选择 SDK
-基线并修复非 OHOS 平台回归，再实现 OHOS 代码。
+基线并修复非 OHOS 平台回归，再实现 OHOS 代码。生成的 `fluoh_test` 只是脚手架：
+发布前维护者需要把 import smoke check 替换成 package 专属的契约测试、example UI
+操作、预期结果、通过/失败状态、失败提示，以及 HAP 构建检查。
 不传 `--package-path` 时，命令只选择 upstream 仓库根目录 package。若 upstream
 仓库同时有根目录 package 和子目录 package，需要传 `--package-path .`，并为每个要注册的
 子 package 重复传 `--package-path <subdir>`。
@@ -272,14 +274,19 @@ package 级测试工作区状态，并暂存生成文件。命令失败时会通
 
 `fluoh test init` 为 Flutter package 创建 `fluoh_test`。在 Package 仓库中，它创建
 package 级 `fluoh_test/<name>` 工作区；注册多个 package 时用 `--package <name>` 明确
-选择。命令会写入测试 package，使用已选择 SDK 创建 example app；`--force` 表示用户明确
-确认替换已有目标 `fluoh_test` 工作区。
+选择。命令会写入测试 package，使用已选择 SDK 创建 example app。example 会带自己的
+`fluoh.yaml`、`.fluoh/` 忽略规则、可复用的通过/失败验证卡片，以及覆盖生成 smoke
+action 的 widget test，为每个 public workflow 增加可见操作提供固定入口。`--force`
+表示用户明确确认替换已有目标 `fluoh_test` 工作区。
 
 `fluoh test run` 定位 package 和已有测试工作区。如果 package 存在
 `test/**/*_test.dart`，会先运行 package 的 `pub get` 和 Flutter 测试；然后在 `fluoh_test`
 中运行 `pub get` 和测试；如果 `fluoh_test/<package>/example` 里有测试，也会运行 example
 的 `pub get` 和测试。`fluoh_test` 应该补足 upstream 缺失或偏弱的覆盖，example 则基于原
-package 已有平台再扩展 OHOS。非 Flutter package 会被跳过，因为没有需要验证的 FlutterOH
+package 已有平台再扩展 OHOS。在认为 package 完成前，应把生成的 smoke check 替换成
+package 专属断言，覆盖参数、返回结构、错误分支、适用时的平台 channel 名称，以及手动设备
+检查。example 应能运行到 `fluoh flutter build hap --debug`；只剩签名属于本机配置问题，
+权限、`reason`、`usedScene`、ArkTS 或 package 设置错误必须在发布前修复。非 Flutter package 会被跳过，因为没有需要验证的 FlutterOH
 平台行为。
 
 ## 状态归属
