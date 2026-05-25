@@ -234,12 +234,16 @@ Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 a
 指令，然后暂存生成文件。如果选中的 package 已有 Flutter example，命令会给该 example
 新增 OHOS 平台、写入 example SDK 配置，并暂存 example 变更。生成的引导会要求维护者先
 建立已选择 SDK 基线并修复非 OHOS 平台回归，再实现 OHOS 代码。
+生成的 agent 指令也会要求 AI 在维护者要求本地提交时，按已完成且已验证的 checkpoint
+拆分小的本地 commit。
 不传 `--package-path` 时，命令只选择 upstream 仓库根目录 package。若 upstream
 仓库同时有根目录 package 和子目录 package，需要传 `--package-path .`，并为每个要注册的
 子 package 重复传 `--package-path <subdir>`。
 生成的 `fluoh.yaml` 会在 `repository`、`upstream`、package path、`version` 和
 `status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括可重复的
-`--package-path`、`--output`、`--sdk` 和 `--repository`。
+`--package-path`、`--output`、`--sdk`、`--repository`、`--git-author-name` 和
+`--git-author-email`。Git 作者参数只配置新仓库本地 Git `user.name` 和 `user.email`，
+供后续适配 commit 使用，不写入被跟踪文件。
 
 `fluoh package add <package-path>` 在现有 FlutterOH package 仓库中注册另一个 package。它要求
 工作树干净且位于 Package `repository.git.branch` 记录的维护分支，校验

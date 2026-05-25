@@ -384,6 +384,8 @@ void main() {
     expect(help, contains('Upstream: Git URL or local Git repo path.'));
     expect(help, contains('--package-path'));
     expect(help, contains('--repository'));
+    expect(help, contains('--git-author-name'));
+    expect(help, contains('--git-author-email'));
     expect(stderr, isEmpty);
   });
 

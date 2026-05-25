@@ -2,6 +2,13 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+class PackageGitAuthor {
+  const PackageGitAuthor({required this.name, required this.email});
+
+  final String name;
+  final String email;
+}
+
 Future<ProcessResult> runGit(
   List<String> arguments, {
   Directory? workingDirectory,
@@ -68,6 +75,24 @@ Future<void> configurePackageRemotes(
     'add',
     'origin',
     repositoryUrl,
+  ], workingDirectory: repository);
+}
+
+Future<void> configurePackageGitAuthor(
+  Directory repository,
+  PackageGitAuthor author,
+) async {
+  await runGit([
+    'config',
+    '--local',
+    'user.name',
+    author.name,
+  ], workingDirectory: repository);
+  await runGit([
+    'config',
+    '--local',
+    'user.email',
+    author.email,
   ], workingDirectory: repository);
 }
 

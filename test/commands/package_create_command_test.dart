@@ -43,6 +43,10 @@ void main() {
             packageRepository.path,
             '--sdk',
             '3.35.8-ohos-0.0.3',
+            '--git-author-name',
+            'FlutterOH Adapter',
+            '--git-author-email',
+            'adapter@example.com',
           ],
           environment: environment,
           stdout: stdout.add,
@@ -71,6 +75,20 @@ void main() {
         'https://github.com/FlutterOH/camera.git',
       );
       expect(upstreamRemote.stdout.toString().trim(), upstream.path);
+      final authorName = await runGit(packageRepository, [
+        'config',
+        '--local',
+        '--get',
+        'user.name',
+      ]);
+      final authorEmail = await runGit(packageRepository, [
+        'config',
+        '--local',
+        '--get',
+        'user.email',
+      ]);
+      expect(authorName.stdout.toString().trim(), 'FlutterOH Adapter');
+      expect(authorEmail.stdout.toString().trim(), 'adapter@example.com');
       final manifest = File(
         '${packageRepository.path}/fluoh.yaml',
       ).readAsStringSync();
@@ -187,6 +205,7 @@ void main() {
       expect(agentsContent, contains('FLUOH_CHANGELOG.md'));
       expect(agentsContent, contains('## Working Rules'));
       expect(agentsContent, contains('## Adaptation Workflow'));
+      expect(agentsContent, contains('## Local Commit Checkpoints'));
       expect(agentsContent, contains('## Before Commit'));
       expect(
         agentsContent,
@@ -223,6 +242,13 @@ void main() {
         ),
       );
       expect(agentsContent, contains('git status --short --ignored=matching'));
+      expect(agentsContent, contains('git config --local --get user.name'));
+      expect(agentsContent, contains('--git-author-name'));
+      expect(agentsContent, contains('small local commits'));
+      expect(
+        agentsContent,
+        contains('feat(camera): add OHOS platform scaffold'),
+      );
       expect(agentsContent, contains('DEVELOPMENT_TEAM'));
       expect(agentsContent, contains('PROVISIONING_PROFILE_SPECIFIER'));
       expect(
@@ -322,6 +348,12 @@ void main() {
       expect(
         stdout,
         contains('Created package repository at ${packageRepository.path}.'),
+      );
+      expect(
+        stdout,
+        contains(
+          'Configured local Git author: FlutterOH Adapter <adapter@example.com>.',
+        ),
       );
       expect(stdout, contains('Resolving Flutter OHOS SDK.'));
       expect(
@@ -1717,6 +1749,39 @@ Prefer the upstream release workflow.
       'existing',
     );
     expect(stderr.join('\n'), contains('Destination already exists'));
+  });
+
+  test('requires Git author name and email together', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_missing_author_email',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          'https://github.com/example/camera.git',
+          '--output',
+          packageRepository.path,
+          '--git-author-name',
+          'FlutterOH Adapter',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(
+      stderr.join('\n'),
+      contains('Pass both --git-author-name and --git-author-email'),
+    );
+    expect(packageRepository.existsSync(), isFalse);
   });
 
   test('does not accept --package for package create', () async {

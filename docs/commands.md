@@ -287,7 +287,9 @@ stages generated files. When a selected package has an existing Flutter example,
 the command adds the OHOS platform to that example, writes example SDK config,
 and stages the example changes. The generated guidance tells maintainers to
 establish a selected-SDK baseline and fix non-OHOS platform regressions before
-implementing OHOS code.
+implementing OHOS code. Generated agent instructions also ask AI agents to make
+small local commits at completed verification checkpoints when maintainers ask
+for local commits.
 With no `--package-path`, the command selects only the upstream repository root
 package. If the upstream repository has a root package plus package subprojects,
 pass `--package-path .` and repeat `--package-path <subdir>` for each package
@@ -295,7 +297,9 @@ that should be registered.
 The generated `fluoh.yaml` includes comments beside the `repository`,
 `upstream`, package path, `version`, and `status` fields that maintainers
 commonly edit before release. It never commits. Options include repeated
-`--package-path`, `--output`, `--sdk`, and `--repository`.
+`--package-path`, `--output`, `--sdk`, `--repository`, `--git-author-name`, and
+`--git-author-email`. The Git author options configure only the new repository's
+local Git `user.name` and `user.email` values for later adaptation commits.
 
 `fluoh package add <package-path>` registers another package in an existing
 FlutterOH package repository. It requires a clean working tree and the

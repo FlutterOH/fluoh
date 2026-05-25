@@ -47,6 +47,16 @@ class PackageCreateCommand extends FluohCommand<int> {
         abbr: 'r',
         valueHelp: 'url',
         help: 'Final FlutterOH package repository URL for origin and manifest.',
+      )
+      ..addOption(
+        'git-author-name',
+        valueHelp: 'name',
+        help: 'Configure local Git user.name for adaptation commits.',
+      )
+      ..addOption(
+        'git-author-email',
+        valueHelp: 'email',
+        help: 'Configure local Git user.email for adaptation commits.',
       );
   }
 
@@ -87,6 +97,7 @@ class PackageCreateCommand extends FluohCommand<int> {
     );
 
     final upstream = rest.single;
+    final gitAuthor = _gitAuthorConfigFromOptions();
     _output.step('Resolving Flutter OHOS SDK.');
     final release = await _resolveSdkRelease();
     final packagePaths = argResults!.multiOption('package-path');
@@ -137,6 +148,12 @@ class PackageCreateCommand extends FluohCommand<int> {
             ),
           );
       await configurePackageRemotes(destination, repositoryUrl);
+      if (gitAuthor != null) {
+        await configurePackageGitAuthor(destination, gitAuthor);
+        _output.info(
+          'Configured local Git author: ${gitAuthor.name} <${gitAuthor.email}>.',
+        );
+      }
 
       final upstreamBranch = await upstreamDefaultBranch(destination);
       final branch = flutterOhosBranchForSdk(release.tag);
@@ -309,6 +326,22 @@ class PackageCreateCommand extends FluohCommand<int> {
       usageException('No SDK versions found in configured sources.');
     }
     return SdkManager.latestRelease(releases, preferStable: true);
+  }
+
+  PackageGitAuthor? _gitAuthorConfigFromOptions() {
+    final name = argResults!.option('git-author-name')?.trim();
+    final email = argResults!.option('git-author-email')?.trim();
+    final hasName = name != null && name.isNotEmpty;
+    final hasEmail = email != null && email.isNotEmpty;
+    if (!hasName && !hasEmail) {
+      return null;
+    }
+    if (!hasName || !hasEmail) {
+      usageException(
+        'Pass both --git-author-name and --git-author-email, or omit both.',
+      );
+    }
+    return PackageGitAuthor(name: name, email: email);
   }
 
   String get _usageWithoutDescription {

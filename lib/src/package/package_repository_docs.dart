@@ -105,6 +105,7 @@ String packageAgentsInstructionsContent({
     '9. Keep `packages.<name>.status: experimental` until that package is implemented, tested, and ready to be recommended. Remove the status only for a release-ready package.',
     '10. Update `FLUOH_CHANGELOG.md` for each package, run the matching `fluoh package check --package <name>`, review `git status --short --ignored=matching`, then commit before `fluoh package release --package <name>` or `fluoh package release --all`.',
     '',
+    ..._localCommitCheckpointLines(packageScope: '<name>'),
     '## Before Commit',
     '',
     '- Review `git status --short --ignored=matching` and staged files before committing.',
@@ -157,6 +158,7 @@ String _singlePackageAgentsInstructionsContent({
     '9. Keep `packages.${package.name}.status: experimental` until the implementation is complete, tested, and ready to be recommended. Remove the status only for a release-ready package.',
     '10. Update `FLUOH_CHANGELOG.md`, run `${package.checkCommand}`, review `git status --short --ignored=matching`, then commit before `${package.releaseCommand}`.',
     '',
+    ..._localCommitCheckpointLines(packageScope: package.name),
     '## Before Commit',
     '',
     '- Review `git status --short --ignored=matching` and staged files before committing.',
@@ -165,6 +167,22 @@ String _singlePackageAgentsInstructionsContent({
     '- OHOS `signingConfigs` may exist for local testing, but tracked files must not contain real certificate paths, passwords, or private signing material. Commit empty or placeholder signing settings only.',
     '',
   ].join('\n');
+}
+
+List<String> _localCommitCheckpointLines({required String packageScope}) {
+  return [
+    '## Local Commit Checkpoints',
+    '',
+    '- When the maintainer asks for local commits, create small local commits at completed checkpoints instead of one large final commit.',
+    '- Keep commits local unless the maintainer explicitly asks you to push.',
+    '- Before the first commit, run `git config --local --get user.name` and `git config --local --get user.email`; if either is missing, ask for author info, then set `git config --local user.name <name>` and `git config --local user.email <email>`. New package repositories can also be created with `fluoh package create --git-author-name <name> --git-author-email <email>`.',
+    '- Stage explicit paths for each checkpoint and review `git diff --cached` before committing.',
+    '- Suggested checkpoints: generated baseline, selected-SDK baseline fixes, OHOS scaffold, each implemented feature, tests and example verification, then release metadata.',
+    '- Commit only after the checkpoint\'s relevant command succeeds; note skipped device-only checks in the commit body.',
+    '- Use Conventional Commits with a package scope such as `feat($packageScope): add OHOS platform scaffold` or `test($packageScope): cover OHOS channel calls`.',
+    '- Do not commit failing work unless the maintainer explicitly requests a local WIP checkpoint.',
+    '',
+  ];
 }
 
 String packageImplementationGuideContent({
