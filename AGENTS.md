@@ -57,11 +57,11 @@ Commands that modify a project or package repository must be conservative:
 
 Use `package:test`. Name test files `*_test.dart` and write behavior-oriented test names. Prefer command tests for CLI behavior and focused domain tests for parsers or selection logic.
 
-Use `test/helpers/fluoh_test_context.dart` for isolated temporary homes, projects, and repositories. Put static source indexes and mock repositories under `test/fixtures/`. Do not read or write real user configuration such as `$HOME/.fluoh`.
+Use `test/helpers/fluoh_command_context.dart` for isolated temporary homes, projects, and repositories. Put static source indexes and mock repositories under `test/fixtures/`. Do not read or write real user configuration such as `$HOME/.fluoh`.
 
 Every command behavior change, pubspec rewrite, source index rule, SDK selection rule, package workflow, release validation, or publishing artifact change should include a regression test. For documentation or packaging changes, update `test/release/release_artifacts_test.dart` when the expected release surface changes.
 
-Documentation and generated-guidance tests should protect stable release contracts and structure, not exact prose. Assert key commands, files, schema keys, links, and deprecated terms that must not reappear; avoid broad `contains(...)` checks for full sentences or translated wording so documentation can be edited for clarity without brittle test failures.
+Documentation and generated-guidance tests should protect stable release contracts and structure, not exact prose. Assert key commands, files, schema keys, and links; avoid broad `contains(...)` checks for full sentences or translated wording so documentation can be edited for clarity without brittle test failures.
 
 ## Documentation Standards
 

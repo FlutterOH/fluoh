@@ -78,7 +78,6 @@ brew install fluoh
 | 检查 FlutterOH 依赖支持 | `fluoh deps check` |
 | 安全改写依赖 | `fluoh deps fix --dry-run`, `fluoh deps fix` |
 | 更新已有的 FlutterOH 依赖替换 | `fluoh deps upgrade` |
-| 清理生成的项目输出 | `fluoh clean` |
 | 诊断项目配置 | `fluoh doctor` |
 | 升级 CLI | `fluoh upgrade` |
 
@@ -104,13 +103,12 @@ fluohf build hap
 ## 维护者工作流
 
 大多数应用项目只需要上面的命令。FlutterOH package 的维护者还可以使用下面的命令创建、
-同步、测试和发布第三方库 FlutterOH package 仓库：
+同步、检查和发布第三方库 FlutterOH package 仓库：
 
 ```sh
 fluoh package create <upstream-git-url>
 fluoh package sync
-fluoh test init
-fluoh test run
+fluoh package check
 fluoh package release
 fluoh source sync
 ```

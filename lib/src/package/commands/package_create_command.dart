@@ -9,11 +9,11 @@ import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../../sdk/sdk_project_environment.dart';
 import '../../sdk/sdk_release.dart';
-import '../../testing/test_workspace.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
 import '../license_checker.dart';
+import '../package_examples.dart';
 import '../package_repository_docs.dart';
 import '../repository_url.dart';
 
@@ -90,9 +90,10 @@ class PackageCreateCommand extends Command<int> {
     _output.step('Resolving Flutter OHOS SDK.');
     final release = await _resolveSdkRelease();
     final packagePaths = argResults!.multiOption('package-path');
-    final destination = Directory(
-      argResults!.option('output') ??
-          '${environment.workingDirectory.path}/${repositoryNameFromUpstream(upstream)}',
+    final destination = _packageCreateDestination(
+      environment: environment,
+      upstream: upstream,
+      output: argResults!.option('output'),
     );
 
     if (await destination.exists()) {
@@ -214,21 +215,33 @@ class PackageCreateCommand extends Command<int> {
         packages: docPackages,
       );
       await _writeClaudeInstructions(destination);
-      final testInitResults = <FluohTestInitResult>[];
+      final preparedExamples = <PackageExampleSetupResult>[];
       for (final selected in selectedPackages) {
-        testInitResults.add(
-          await initializeFluohTestWorkspace(
-            environment: packageEnvironment,
-            stdout: _stdout,
-            stderr: _stderr,
-            output: _output,
-            packageName: selected.package.name,
+        final result = await preparePackageExample(
+          environment: packageEnvironment,
+          repository: destination,
+          package: PackageManifestPackage(
+            name: selected.package.name,
+            upstreamVersion: selected.package.version,
+            version: initialPackageReleaseVersion,
+            repositoryPath: selected.path,
+            upstreamPath: selected.path,
+            status: 'experimental',
           ),
+          sdkVersion: release.tag,
+          sdkDirectory: configuredSdkDirectory,
+          stdout: _stdout,
+          stderr: _stderr,
+          output: _output,
         );
+        preparedExamples.add(result);
+        if (!result.prepared && result.reason != null) {
+          _output.skipped(
+            'Skipping example OHOS setup for ${result.packageName}: '
+            '${result.reason}.',
+          );
+        }
       }
-      final createdTestWorkspaces = testInitResults.any(
-        (result) => result.created,
-      );
       await runGit([
         'add',
         '-f',
@@ -239,8 +252,14 @@ class PackageCreateCommand extends Command<int> {
         '.gitignore',
         'fluoh.yaml',
       ], workingDirectory: destination);
-      if (createdTestWorkspaces) {
-        await runGit(['add', 'fluoh_test'], workingDirectory: destination);
+      for (final result in preparedExamples.where(
+        (result) => result.prepared,
+      )) {
+        await runGit([
+          'add',
+          '-A',
+          packageRelativePath(destination, result.example),
+        ], workingDirectory: destination);
       }
 
       final licenseWarnings = <String>[];
@@ -267,13 +286,7 @@ class PackageCreateCommand extends Command<int> {
       _output.info('Package branch: $branch.');
       _output.info('Origin: ${_output.style.url(repositoryUrl)}.');
       _output.success('Configured Flutter OHOS SDK ${release.tag}.');
-      if (createdTestWorkspaces) {
-        _output.next(
-          'See FLUOH.md, AGENTS.md, and fluoh_test/ for implementation steps.',
-        );
-      } else {
-        _output.next('See FLUOH.md and AGENTS.md for implementation steps.');
-      }
+      _output.next('See FLUOH.md and AGENTS.md for implementation steps.');
       shouldRollbackDestination = false;
       return 0;
     } catch (_) {
@@ -308,6 +321,55 @@ class PackageCreateCommand extends Command<int> {
       'Run "${runner!.executableName} help" to see global options.',
     ].join('\n');
   }
+}
+
+Directory _packageCreateDestination({
+  required FluohEnvironment environment,
+  required String upstream,
+  required String? output,
+}) {
+  final trimmedOutput = output?.trim();
+  if (trimmedOutput != null && trimmedOutput.isNotEmpty) {
+    final outputDirectory = Directory(trimmedOutput);
+    final path = outputDirectory.isAbsolute
+        ? trimmedOutput
+        : '${environment.workingDirectory.path}/$trimmedOutput';
+    return Directory(_normalizeDirectoryPath(path));
+  }
+  return Directory(
+    _normalizeDirectoryPath(
+      '${environment.workingDirectory.path}/${repositoryNameFromUpstream(upstream)}',
+    ),
+  );
+}
+
+String _normalizeDirectoryPath(String path) {
+  final normalizedSeparators = path.replaceAll('\\', '/');
+  final absolutePrefix = normalizedSeparators.startsWith('/') ? '/' : '';
+  final segments = <String>[];
+  for (final segment in normalizedSeparators.split('/')) {
+    if (segment.isEmpty || segment == '.') {
+      continue;
+    }
+    if (segment == '..') {
+      if (segments.isNotEmpty && segments.last != '..') {
+        segments.removeLast();
+      } else if (absolutePrefix.isEmpty) {
+        segments.add(segment);
+      }
+      continue;
+    }
+    segments.add(segment);
+  }
+
+  final normalized = '$absolutePrefix${segments.join('/')}';
+  final nativePath = Platform.pathSeparator == '/'
+      ? normalized
+      : normalized.replaceAll('/', Platform.pathSeparator);
+  if (nativePath.isNotEmpty) {
+    return nativePath;
+  }
+  return absolutePrefix.isEmpty ? '.' : Platform.pathSeparator;
 }
 
 class _SelectedPackage {
@@ -353,12 +415,6 @@ String _defaultImplementationRepositoryName(
   return repositoryNameFromUpstream(upstream);
 }
 
-String _testWorkspacePathForSelection({
-  required _SelectedPackage selectedPackage,
-}) {
-  return 'fluoh_test/${selectedPackage.package.name}';
-}
-
 PackageRepositoryDocPackage _docPackageForSelection({
   required _SelectedPackage selectedPackage,
 }) {
@@ -366,9 +422,6 @@ PackageRepositoryDocPackage _docPackageForSelection({
     name: selectedPackage.package.name,
     version: selectedPackage.package.version,
     packagePath: selectedPackage.path,
-    testWorkspacePath: _testWorkspacePathForSelection(
-      selectedPackage: selectedPackage,
-    ),
   );
 }
 

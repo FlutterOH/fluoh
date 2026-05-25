@@ -81,7 +81,7 @@
       <path d="M611 326H627M619 318V334" stroke="#7C3AED" stroke-width="3" stroke-linecap="round"/>
       <text x="654" y="320" class="kicker">QUALITY</text>
       <text x="654" y="350" class="titleText" fill="#6D28D9">Test + tag</text>
-      <text x="654" y="371" class="mono" fill="#475569" font-size="13">test run</text>
+      <text x="654" y="371" class="mono" fill="#475569" font-size="13">package check</text>
       <text x="654" y="385" class="mono" fill="#475569" font-size="13">package release</text>
     </g>
 

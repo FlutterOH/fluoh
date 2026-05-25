@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
-import '../helpers/fluoh_test_context.dart';
+import '../helpers/fluoh_command_context.dart';
 
 void main() {
   test('does not repair sources when showing nested command help', () async {

@@ -5,6 +5,7 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import 'package_add_command.dart';
+import 'package_check_command.dart';
 import 'package_create_command.dart';
 import 'package_release_command.dart';
 import 'package_sync_command.dart';
@@ -36,6 +37,14 @@ class PackageCommand extends Command<int> {
       PackageSyncCommand(
         environment: environment,
         stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      PackageCheckCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
         output: _output,
       ),
     );
@@ -93,6 +102,7 @@ const _packageCommandSections = [
     'create',
     'add',
     'sync',
+    'check',
     'release',
   ]),
 ];

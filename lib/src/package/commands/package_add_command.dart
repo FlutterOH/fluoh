@@ -6,10 +6,10 @@ import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
-import '../../testing/test_workspace.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
+import '../package_examples.dart';
 import '../package_repository_docs.dart';
 
 class PackageAddCommand extends Command<int> {
@@ -84,10 +84,17 @@ class PackageAddCommand extends Command<int> {
       'FLUOH_CHANGELOG.md',
       'AGENTS.md',
     ]);
-    final packageTestWorkspace = Directory(
-      '${repository.path}/fluoh_test/${package.name}',
-    );
-    final packageTestWorkspaceExisted = await packageTestWorkspace.exists();
+    PackageExampleSetupResult? exampleSetupResult;
+    Future<void> rollbackPackageAdd() async {
+      await exampleSetupResult?.rollbackSnapshot?.restore();
+      await _restoreFiles(repository, originalFiles);
+      await _restoreStagedPaths(repository, [
+        ...originalFiles.keys,
+        if (exampleSetupResult?.prepared ?? false)
+          packageRelativePath(repository, exampleSetupResult!.example),
+      ]);
+    }
+
     try {
       await addPackageManifestPackage(
         destination: repository,
@@ -95,13 +102,22 @@ class PackageAddCommand extends Command<int> {
         packagePath: packagePath,
       );
       final updatedManifest = await readPackageManifest(repository);
-      final testInitResult = await initializeFluohTestWorkspace(
+      final addedManifestPackage = updatedManifest.packageForName(package.name);
+      exampleSetupResult = await preparePackageExample(
         environment: environment,
+        repository: repository,
+        package: addedManifestPackage,
+        sdkVersion: updatedManifest.sdkVersion,
         stdout: _stdout,
         stderr: _stderr,
         output: _output,
-        packageName: package.name,
       );
+      if (!exampleSetupResult.prepared && exampleSetupResult.reason != null) {
+        _output.skipped(
+          'Skipping example OHOS setup for ${exampleSetupResult.packageName}: '
+          '${exampleSetupResult.reason}.',
+        );
+      }
       await _writePackageDocs(
         repository: repository,
         manifest: updatedManifest,
@@ -115,16 +131,21 @@ class PackageAddCommand extends Command<int> {
         'FLUOH_CHANGELOG.md',
         'AGENTS.md',
       ], workingDirectory: repository);
-      if (testInitResult.created) {
-        await runGit(['add', '-A', 'fluoh_test'], workingDirectory: repository);
+      if (exampleSetupResult.prepared) {
+        await runGit([
+          'add',
+          '-A',
+          packageRelativePath(repository, exampleSetupResult.example),
+        ], workingDirectory: repository);
       }
-    } catch (_) {
-      await _restoreFiles(repository, originalFiles);
-      await _rollbackTestWorkspaceChanges(
-        repository: repository,
-        addedPackage: package.name,
-        addedWorkspaceExisted: packageTestWorkspaceExisted,
+    } on FileSystemException catch (error) {
+      await rollbackPackageAdd();
+      throw UsageException(
+        'Failed to update package repository files: ${error.message}',
+        '',
       );
+    } catch (_) {
+      await rollbackPackageAdd();
       rethrow;
     }
     _output.success('Registered package ${package.name} at $packagePath.');
@@ -190,13 +211,8 @@ class PackageAddCommand extends Command<int> {
           name: package.name,
           version: package.upstreamVersion,
           packagePath: package.repositoryPath,
-          testWorkspacePath: _testWorkspacePathForPackage(package),
         ),
     ];
-  }
-
-  String _testWorkspacePathForPackage(PackageManifestPackage package) {
-    return 'fluoh_test/${package.name}';
   }
 
   Future<Map<String, String?>> _snapshotFiles(
@@ -228,15 +244,14 @@ class PackageAddCommand extends Command<int> {
     }
   }
 
-  Future<void> _rollbackTestWorkspaceChanges({
-    required Directory repository,
-    required String addedPackage,
-    required bool addedWorkspaceExisted,
-  }) async {
-    final root = Directory('${repository.path}/fluoh_test');
-    final addedWorkspace = Directory('${root.path}/$addedPackage');
-    if (!addedWorkspaceExisted && await addedWorkspace.exists()) {
-      await addedWorkspace.delete(recursive: true);
-    }
+  Future<void> _restoreStagedPaths(
+    Directory repository,
+    List<String> paths,
+  ) async {
+    await runGit(
+      ['reset', '--', ...paths],
+      workingDirectory: repository,
+      allowFailure: true,
+    );
   }
 }

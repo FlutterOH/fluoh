@@ -185,7 +185,7 @@ fluoh package create https://github.com/upstream/package.git \
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh package create` stages the generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, `fluoh.yaml`, and `fluoh_test/` when the selected package is a Flutter package or plugin, but intentionally does not create the initial commit. Maintainers can keep building the FlutterOH adaptation and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh package create` stages the generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, and `fluoh.yaml`. When the selected package has an existing Flutter example, it also adds the OHOS platform to that example and pins the example to the selected SDK. It intentionally does not create the initial commit. Maintainers can keep building the FlutterOH adaptation and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
 git commit -m "feat(package): initialize FlutterOH package"
@@ -193,7 +193,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 
 Use `fluoh package sync` to fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge that branch into the current `ohos/<sdkLine>` branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep the upstream package version unchanged until the new FlutterOH adaptation is complete.
 
-Use `fluoh_test/test` for automated platform adaptation checks that must pass before release, and `fluoh_test/example` as the small manual verification app. `fluoh test run` runs the package's own Flutter tests when `test/**/*_test.dart` exists, equivalent to `fluoh flutter test` in the package path, then executes the `fluoh_test` automated checks from the selected Flutter OHOS SDK.
+Use upstream package tests and existing example tests as the automated baseline. `fluoh package check` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
 
 `fluoh package release` must continue to guarantee:
 
@@ -202,7 +202,7 @@ Use `fluoh_test/test` for automated platform adaptation checks that must pass be
 - The SDK version comes from configured sources.
 - The Package `version` is newer than previous release tags for the same package, upstream version, and SDK line.
 - Missing or incomplete `FLUOH_CHANGELOG.md` release notes are reported as warnings, not release blockers.
-- Package Flutter tests and `fluoh_test` pass through `fluoh test run` for Flutter packages.
+- Package analysis and existing package/example tests pass through `fluoh package check`.
 - The release tag matches the package, upstream version, SDK line, and `version` recorded in Package `fluoh.yaml`.
 
 FlutterOH package repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released package repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. FlutterOH/source pull requests and scheduled package ingestion workflows should call the same source command path.

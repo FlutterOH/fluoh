@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
-import '../helpers/fluoh_test_context.dart';
+import '../helpers/fluoh_command_context.dart';
 
 void main() {
   test('prints wrapper help without running flutter pub get', () async {
@@ -23,20 +23,14 @@ void main() {
 
     expect(
       stdout.join('\n'),
-      contains(
-        'Run flutter pub get for the project and fluoh_test workspaces.',
-      ),
+      contains('Run flutter pub get for the project and package examples.'),
     );
     expect(stdout.join('\n'), contains('Usage: fluoh deps get'));
-    expect(
-      stdout.join('\n'),
-      contains('All other arguments are passed to flutter pub get.'),
-    );
     expect(stdout.join('\n'), isNot(contains('Running flutter pub get')));
     expect(stderr, isEmpty);
   });
 
-  test('runs pub get for project, fluoh_test, and example', () async {
+  test('runs pub get for project and existing example', () async {
     final environment = await createTestEnvironment();
     final source = await _createDepsGetSdkSource(
       environment.homeDirectory,
@@ -44,12 +38,8 @@ void main() {
     );
     await writeFlutterProjectFixture(environment.workingDirectory);
     await _writePubWorkspace(
-      Directory('${environment.workingDirectory.path}/fluoh_test'),
-      'camera_fluoh_test',
-    );
-    await _writePubWorkspace(
-      Directory('${environment.workingDirectory.path}/fluoh_test/example'),
-      'fluoh_test_example',
+      Directory('${environment.workingDirectory.path}/example'),
+      'fixture_app_example',
     );
     final stdout = <String>[];
     final stderr = <String>[];
@@ -86,25 +76,17 @@ void main() {
       ).readAsStringSync(),
       [
         '$root::pub get --offline',
-        '$root/fluoh_test::pub get --offline',
-        '$root/fluoh_test/example::pub get --offline',
+        '$root/example::pub get --offline',
         '',
       ].join('\n'),
     );
     expect(stdout.join('\n'), contains('Running flutter pub get in .'));
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test'),
-    );
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/example'),
-    );
+    expect(stdout.join('\n'), contains('Running flutter pub get in example'));
     expect(stdout, contains('Dependencies are up to date.'));
     expect(stderr, contains('flutter stderr'));
   });
 
-  test('uses the package path from package repository manifests', () async {
+  test('uses package paths and examples from package manifests', () async {
     final environment = await createTestEnvironment();
     final source = await _createDepsGetSdkSource(
       environment.homeDirectory,
@@ -115,14 +97,8 @@ void main() {
     );
     await _writePubWorkspace(packageDirectory, 'camera');
     await _writePubWorkspace(
-      Directory('${environment.workingDirectory.path}/fluoh_test/camera'),
-      'camera_fluoh_test',
-    );
-    await _writePubWorkspace(
-      Directory(
-        '${environment.workingDirectory.path}/fluoh_test/camera/example',
-      ),
-      'camera_fluoh_test_example',
+      Directory('${packageDirectory.path}/example'),
+      'camera_example',
     );
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
@@ -174,18 +150,12 @@ packages:
       0,
     );
 
-    final root = await environment.workingDirectory.resolveSymbolicLinks();
     final packagePath = await packageDirectory.resolveSymbolicLinks();
     expect(
       File(
         '${environment.workingDirectory.path}/deps_get_invocations.txt',
       ).readAsStringSync(),
-      [
-        '$packagePath::pub get',
-        '$root/fluoh_test/camera::pub get',
-        '$root/fluoh_test/camera/example::pub get',
-        '',
-      ].join('\n'),
+      ['$packagePath::pub get', '$packagePath/example::pub get', ''].join('\n'),
     );
     expect(
       stdout.join('\n'),
@@ -193,194 +163,7 @@ packages:
     );
     expect(
       stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/camera'),
-    );
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/camera/example'),
-    );
-  });
-
-  test('uses scoped fluoh_test for package path manifests', () async {
-    final environment = await createTestEnvironment();
-    final source = await _createDepsGetSdkSource(
-      environment.homeDirectory,
-      environment.workingDirectory,
-    );
-    final packageDirectory = Directory(
-      '${environment.workingDirectory.path}/packages/camera',
-    );
-    await _writePubWorkspace(packageDirectory, 'camera');
-    await _writePubWorkspace(
-      Directory('${environment.workingDirectory.path}/fluoh_test/camera'),
-      'camera_fluoh_test',
-    );
-    await _writePubWorkspace(
-      Directory(
-        '${environment.workingDirectory.path}/fluoh_test/camera/example',
-      ),
-      'camera_fluoh_test_example',
-    );
-    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
-      '''
-schema: 1
-name: camera
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: git@github.com:FlutterOH/camera.git
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages.git
-    branch: main
-
-packages:
-  camera:
-    repository:
-      path: packages/camera
-    upstream:
-      path: packages/camera
-    version: 0.1.0
-    upstreamVersion: 0.11.0
-    status: experimental
-''',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    stdout.clear();
-
-    expect(
-      await runFluoh(
-        ['deps', 'get'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-
-    final root = await environment.workingDirectory.resolveSymbolicLinks();
-    final packagePath = await packageDirectory.resolveSymbolicLinks();
-    expect(
-      File(
-        '${environment.workingDirectory.path}/deps_get_invocations.txt',
-      ).readAsStringSync(),
-      [
-        '$packagePath::pub get',
-        '$root/fluoh_test/camera::pub get',
-        '$root/fluoh_test/camera/example::pub get',
-        '',
-      ].join('\n'),
-    );
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in packages/camera'),
-    );
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/camera'),
-    );
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/camera/example'),
-    );
-  });
-
-  test('uses scoped fluoh_test for root package manifests', () async {
-    final environment = await createTestEnvironment();
-    final source = await _createDepsGetSdkSource(
-      environment.homeDirectory,
-      environment.workingDirectory,
-    );
-    await _writePubWorkspace(environment.workingDirectory, 'camera');
-    await _writePubWorkspace(
-      Directory('${environment.workingDirectory.path}/fluoh_test/camera'),
-      'camera_fluoh_test',
-    );
-    await _writePubWorkspace(
-      Directory(
-        '${environment.workingDirectory.path}/fluoh_test/camera/example',
-      ),
-      'camera_fluoh_test_example',
-    );
-    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
-      '''
-schema: 1
-name: flutter-widgets-root
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: git@github.com:FlutterOH/flutter-widgets-root.git
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages.git
-    branch: main
-
-packages:
-  camera:
-    version: 0.1.0
-    upstreamVersion: 0.11.0
-    status: experimental
-''',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    stdout.clear();
-
-    expect(
-      await runFluoh(
-        ['deps', 'get'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-
-    final root = await environment.workingDirectory.resolveSymbolicLinks();
-    expect(
-      File(
-        '${environment.workingDirectory.path}/deps_get_invocations.txt',
-      ).readAsStringSync(),
-      [
-        '$root::pub get',
-        '$root/fluoh_test/camera::pub get',
-        '$root/fluoh_test/camera/example::pub get',
-        '',
-      ].join('\n'),
-    );
-    expect(stdout.join('\n'), contains('Running flutter pub get in .'));
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/camera'),
-    );
-    expect(
-      stdout.join('\n'),
-      contains('Running flutter pub get in fluoh_test/camera/example'),
+      contains('Running flutter pub get in packages/camera/camera/example'),
     );
   });
 

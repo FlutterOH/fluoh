@@ -81,7 +81,6 @@ brew install fluoh
 | Check FlutterOH dependency support | `fluoh deps check` |
 | Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
 | Update existing FlutterOH dependency replacements | `fluoh deps upgrade` |
-| Clean generated project output | `fluoh clean` |
 | Diagnose project setup | `fluoh doctor` |
 | Upgrade the CLI | `fluoh upgrade` |
 
@@ -107,13 +106,12 @@ fluohf build hap
 ## Maintainer Workflows
 
 Most app projects only need the commands above. FlutterOH package maintainers
-can also create, sync, test, and release third-party FlutterOH package repositories:
+can also create, sync, check, and release third-party FlutterOH package repositories:
 
 ```sh
 fluoh package create <upstream-git-url>
 fluoh package sync
-fluoh test init
-fluoh test run
+fluoh package check
 fluoh package release
 fluoh source sync
 ```

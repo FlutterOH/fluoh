@@ -7,7 +7,7 @@ void main() {
   test('reads the SDK version from the nearest parent fluoh.yaml', () async {
     final root = await _createTempDirectory();
     final project = Directory('${root.path}/project');
-    final testDirectory = Directory('${project.path}/fluoh_test');
+    final testDirectory = Directory('${project.path}/nested');
     await testDirectory.create(recursive: true);
     await File('${project.path}/fluoh.yaml').writeAsString('''
 schema: 1

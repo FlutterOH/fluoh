@@ -17,7 +17,6 @@
 | `fluoh help [command]` | `package:args` command runner | 输出全局或指定命令的用法。 |
 | `fluoh flutter <args>` | `lib/src/sdk/flutter_command.dart` | 使用最近的项目 `fluoh.yaml` 里选择的 SDK 运行 `flutter`。 |
 | `fluohf <args>` | `bin/fluohf.dart` | `fluoh flutter <args>` 的快捷入口。 |
-| `fluoh clean` | `lib/src/clean/clean_command.dart` | 执行 `flutter clean` 并清理生成的 `fluoh_test` 产物。 |
 | `fluoh source` | `lib/src/source/source_commands.dart` | 数据源使用和维护的命令组。 |
 | `fluoh source list` | `lib/src/source/source_commands.dart` | 列出已配置的 FlutterOH 数据源。 |
 | `fluoh source add <name> <url-or-path>` | `lib/src/source/source_commands.dart` | 把本地或 Git 数据源加入工具配置。 |
@@ -33,7 +32,7 @@
 | `fluoh sdk remove <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | 删除一个已安装的 SDK 缓存。 |
 | `fluoh sdk use <version-or-series>` | `lib/src/sdk/sdk_use_command.dart` | 为当前 Flutter 项目选择 SDK。 |
 | `fluoh deps` | `lib/src/deps/commands/deps_command.dart` | 项目依赖命令组。 |
-| `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | 为项目和 `fluoh_test` 工作区执行 `flutter pub get`。 |
+| `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | 为项目和 package example 执行 `flutter pub get`。 |
 | `fluoh deps check` | `lib/src/deps/commands/deps_dependency_commands.dart` | 输出依赖 FlutterOH 适配状态。 |
 | `fluoh deps fix` | `lib/src/deps/commands/deps_dependency_commands.dart` | 应用推荐的 FlutterOH 依赖变更。 |
 | `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | 只升级已有 FlutterOH 依赖替换。 |
@@ -41,10 +40,8 @@
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH package 仓库。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH package 仓库中注册另一个 package。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS package 分支。 |
-| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 校验、测试、打 tag，并可选择推送 FlutterOH package release。 |
-| `fluoh test` | `lib/src/testing/test_commands.dart` | package 验证工作区的命令组。 |
-| `fluoh test init` | `lib/src/testing/test_commands.dart` | 创建 `fluoh_test` 验证工作区。 |
-| `fluoh test run` | `lib/src/testing/test_commands.dart` | 运行 package、`fluoh_test` 和 example 测试。 |
+| `fluoh package check` | `lib/src/package/commands/package_check_command.dart` | 运行 pub get、分析和已有测试。 |
+| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 检查、打 tag，并可选择推送 FlutterOH package release。 |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断本地项目、source、SDK 和工具状态。 |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | 升级已安装的 `fluoh` CLI。 |
 
@@ -62,12 +59,12 @@
 - `fluoh source` 不带子命令和 `fluoh source list` 在打印配置前也会走同一套 Source
   运行时重建路径，所以用户会先看到无效或缺失的 source 状态，再依赖列表结果。
 - `fluoh deps get` 会跳过 package Source 数据，让依赖解析在 source 快照需要修复时仍然可用。
-  `fluoh flutter`、`fluohf`、`fluoh clean` 和 `fluoh deps get` 在已选择 SDK 缺失时，
-  仍可能通过 SDK resolver 加载 Source index，因为安装已选择的 SDK 需要 SDK 元数据。
+  `fluoh flutter`、`fluohf` 和 `fluoh deps get` 在已选择 SDK 缺失时，仍可能通过 SDK
+  resolver 加载 Source index，因为安装已选择的 SDK 需要 SDK 元数据。
 - 用法错误和 schema 格式错误返回退出码 `64`。
 - 命令类只负责参数解析和用户可见输出；可复用行为放到
-  `lib/src/sdk/`、`lib/src/deps/`、`lib/src/package/`、`lib/src/source/`、
-  `lib/src/testing/` 等领域 helper 中。
+  `lib/src/sdk/`、`lib/src/deps/`、`lib/src/package/` 和 `lib/src/source/`
+  等领域 helper 中。
 - 会修改文件的命令必须尽早校验、保留无关文件，并报告实际变更或下一步动作。
 
 ## 顶层命令
@@ -85,15 +82,6 @@
 - 未选择 SDK 时给出明确操作提示。
 - SDK 缓存缺失时按需安装已选择的 SDK。
 - 透传 Flutter stdout 和 stderr，不追加命令自身语义。
-
-### `fluoh clean`
-
-`clean` 会对每个主 package 目录执行已选择 SDK 的 `flutter clean`。在
-FlutterOH package 仓库中，package 目录来自 Package `fluoh.yaml`；否则使用当前目录。
-
-`flutter clean` 完成后，命令会删除根级和 package 级 `fluoh_test` 工作区中的生成产物，
-例如 `.dart_tool`、`.pub-cache`、`build`、`coverage` 和 `local.properties`。
-删除前会检查 Git 跟踪文件，包含已跟踪内容的产物目录会被跳过。
 
 ### `fluoh doctor`
 
@@ -192,8 +180,8 @@ sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合�
 
 这些命令面向普通 FlutterOH 项目，并保留 `pubspec.yaml` 中的无关内容。
 
-`fluoh deps get` 会通过已选择 SDK 执行 `flutter pub get`，并允许透传额外参数。它会在
-所有主 package 目录和已发现且包含 `pubspec.yaml` 的 `fluoh_test` 工作区中运行。
+`fluoh deps get` 会通过已选择 SDK 执行 `flutter pub get`，并允许透传额外参数。
+它会在所有主 package 目录和已有且包含 `pubspec.yaml` 的 package example 中运行。
 它刻意跳过 package Source 数据，让依赖解析在 source 快照需要修复时仍然可用。如果已选择
 SDK 缺失，SDK resolver 只会为查询并安装该 SDK 而加载 Source index。
 
@@ -239,12 +227,10 @@ transitive 和 advisory。fresh Source lock 会提供 package 路由提示；命
 
 `fluoh package create <upstream>` clone upstream 仓库，选择一个或多个 package，配置
 `upstream` 和 `origin`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，配置
-Flutter OHOS SDK，写入
-`fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、agent 指令和 package 级
-`fluoh_test` 工作区，然后暂存生成文件。生成的引导会要求维护者先建立已选择 SDK
-基线并修复非 OHOS 平台回归，再实现 OHOS 代码。生成的 `fluoh_test` 只是脚手架：
-发布前维护者需要把 import smoke check 替换成 package 专属的契约测试、example UI
-操作、预期结果、通过/失败状态、失败提示，以及 HAP 构建检查。
+Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 agent
+指令，然后暂存生成文件。如果选中的 package 已有 Flutter example，命令会给该 example
+新增 OHOS 平台、写入 example SDK 配置，并暂存 example 变更。生成的引导会要求维护者先
+建立已选择 SDK 基线并修复非 OHOS 平台回归，再实现 OHOS 代码。
 不传 `--package-path` 时，命令只选择 upstream 仓库根目录 package。若 upstream
 仓库同时有根目录 package 和子目录 package，需要传 `--package-path .`，并为每个要注册的
 子 package 重复传 `--package-path <subdir>`。
@@ -254,8 +240,8 @@ Flutter OHOS SDK，写入
 
 `fluoh package add <package-path>` 在现有 FlutterOH package 仓库中注册另一个 package。它要求
 工作树干净且位于 Package `repository.git.branch` 记录的维护分支，校验
-`<package-path>`，可选校验 `--expected-package`，追加 Package `fluoh.yaml`、文档和
-package 级测试工作区状态，并暂存生成文件。命令失败时会通过文件快照和工作区回滚保护
+`<package-path>`，可选校验 `--expected-package`，追加 Package `fluoh.yaml` 和文档，
+在已有 Flutter example 时准备 example，并暂存生成文件。命令失败时会通过文件快照保护
 本地状态。
 
 `fluoh package sync` 会拉取 upstream，快进 Package `upstream.git.branch` 记录的 upstream
@@ -265,29 +251,17 @@ package 级测试工作区状态，并暂存生成文件。命令失败时会通
 `fluoh package sync --continue` 校验已暂存的解决结果并完成流程。`--abort` 对进行中的 sync
 执行 `git merge --abort`。
 
-`fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行 package
-和 `fluoh_test` 验证，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
+`fluoh package check` 会运行 Package `fluoh.yaml` 中已注册 package 的现有自动化检查。
+它会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用
+`flutter`，非 Flutter package 使用 `dart`；如果 package 存在 `test/**/*_test.dart`，
+继续运行 package 测试。如果存在顶层 Flutter example（`example/pubspec.yaml`），也会在
+example 中运行 `flutter pub get`、`flutter analyze` 和已有测试。使用 `--package <name>`
+检查单个 package，或用 `--all` 检查所有已注册 package。
+
+`fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
+`fluoh package check`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
 `--package <name>` 发布单个 package，或用 `--all` 发布所有已注册 package。已有 tag 只有在
 已经指向 HEAD 时才会被接受。
-
-## Test 命令
-
-`fluoh test init` 为 Flutter package 创建 `fluoh_test`。在 Package 仓库中，它创建
-package 级 `fluoh_test/<name>` 工作区；注册多个 package 时用 `--package <name>` 明确
-选择。命令会写入测试 package，使用已选择 SDK 创建 example app。example 会带自己的
-`fluoh.yaml`、`.fluoh/` 忽略规则、可复用的通过/失败验证卡片，以及覆盖生成 smoke
-action 的 widget test，为每个 public workflow 增加可见操作提供固定入口。`--force`
-表示用户明确确认替换已有目标 `fluoh_test` 工作区。
-
-`fluoh test run` 定位 package 和已有测试工作区。如果 package 存在
-`test/**/*_test.dart`，会先运行 package 的 `pub get` 和 Flutter 测试；然后在 `fluoh_test`
-中运行 `pub get` 和测试；如果 `fluoh_test/<package>/example` 里有测试，也会运行 example
-的 `pub get` 和测试。`fluoh_test` 应该补足 upstream 缺失或偏弱的覆盖，example 则基于原
-package 已有平台再扩展 OHOS。在认为 package 完成前，应把生成的 smoke check 替换成
-package 专属断言，覆盖参数、返回结构、错误分支、适用时的平台 channel 名称，以及手动设备
-检查。example 应能运行到 `fluoh flutter build hap --debug`；只剩签名属于本机配置问题，
-权限、`reason`、`usedScene`、ArkTS 或 package 设置错误必须在发布前修复。非 Flutter package 会被跳过，因为没有需要验证的 FlutterOH
-平台行为。
 
 ## 状态归属
 
@@ -302,4 +276,4 @@ package 专属断言，覆盖参数、返回结构、错误分支、适用时的
 | FlutterOH package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package release` 校验 |
 | Source root 和 Manifest 文件 | `source init`、`source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`、`package create` 的 SDK 设置 |
-| `fluoh_test/` | `test init`、`test run`、`package create`、`package add`、`deps get`、`clean`、`package release` |
+| Package examples | `package create`、`package add`、`deps get`、`package check`、`package release` |

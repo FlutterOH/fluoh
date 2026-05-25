@@ -18,7 +18,6 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh help [command]` | `package:args` command runner | Print global or command-specific usage. |
 | `fluoh flutter <args>` | `lib/src/sdk/flutter_command.dart` | Run `flutter` from the SDK selected by the nearest project `fluoh.yaml`. |
 | `fluohf <args>` | `bin/fluohf.dart` | Shortcut for `fluoh flutter <args>`. |
-| `fluoh clean` | `lib/src/clean/clean_command.dart` | Run `flutter clean` and remove generated `fluoh_test` artifacts. |
 | `fluoh source` | `lib/src/source/source_commands.dart` | Command group for data source use and maintenance. |
 | `fluoh source list` | `lib/src/source/source_commands.dart` | List configured FlutterOH data sources. |
 | `fluoh source add <name> <url-or-path>` | `lib/src/source/source_commands.dart` | Add a local or Git data source to tool config. |
@@ -34,7 +33,7 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh sdk remove <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | Remove an installed SDK cache. |
 | `fluoh sdk use <version-or-series>` | `lib/src/sdk/sdk_use_command.dart` | Select an SDK for the current Flutter project. |
 | `fluoh deps` | `lib/src/deps/commands/deps_command.dart` | Command group for project dependencies. |
-| `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | Run `flutter pub get` for project and `fluoh_test` workspaces. |
+| `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | Run `flutter pub get` for projects and package examples. |
 | `fluoh deps check` | `lib/src/deps/commands/deps_dependency_commands.dart` | Report dependency FlutterOH adaptation status. |
 | `fluoh deps fix` | `lib/src/deps/commands/deps_dependency_commands.dart` | Apply recommended FlutterOH dependency changes. |
 | `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | Upgrade existing FlutterOH dependency replacements only. |
@@ -42,10 +41,8 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Register another package in a FlutterOH package repository. |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
-| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Validate, test, tag, and optionally push FlutterOH package releases. |
-| `fluoh test` | `lib/src/testing/test_commands.dart` | Command group for package verification workspaces. |
-| `fluoh test init` | `lib/src/testing/test_commands.dart` | Create a `fluoh_test` verification workspace. |
-| `fluoh test run` | `lib/src/testing/test_commands.dart` | Run package, `fluoh_test`, and example tests. |
+| `fluoh package check` | `lib/src/package/commands/package_check_command.dart` | Run pub get, analysis, and existing tests. |
+| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Check, tag, and optionally push FlutterOH package releases. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose local project, source, SDK, and tool state. |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | Upgrade the installed `fluoh` CLI. |
 
@@ -69,14 +66,13 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
   Source runtime rebuild path before printing configuration, so users see
   invalid or missing source state before relying on listed sources.
 - `fluoh deps get` skips package Source data so dependency resolution remains
-  available when source snapshots need repair. `fluoh flutter`, `fluohf`,
-  `fluoh clean`, and `fluoh deps get` may still load the Source index through the
-  SDK resolver when the selected SDK is missing and selected-SDK installation
-  needs SDK metadata.
+  available when source snapshots need repair. `fluoh flutter`, `fluohf`, and
+  `fluoh deps get` may still load the Source index through the SDK resolver when
+  the selected SDK is missing and selected-SDK installation needs SDK metadata.
 - Usage errors and schema format errors return exit code `64`.
 - Command classes should own argument parsing and user-visible output. Reusable
   behavior belongs in domain helpers such as `lib/src/sdk/`, `lib/src/deps/`,
-  `lib/src/package/`, `lib/src/source/`, and `lib/src/testing/`.
+  `lib/src/package/`, and `lib/src/source/`.
 - Mutating commands must validate early, preserve unrelated files, and report
   what changed or what the user should do next.
 
@@ -96,17 +92,6 @@ Design constraints:
 - Fail with guidance when no SDK is selected.
 - Install the selected SDK on demand if the cache is missing.
 - Stream Flutter stdout and stderr without adding command-specific semantics.
-
-### `fluoh clean`
-
-`clean` runs selected-SDK `flutter clean` for each primary package directory.
-In FlutterOH package repositories, package directories come from Package
-`fluoh.yaml`; otherwise the current working directory is used.
-
-After Flutter cleaning, the command deletes generated `fluoh_test` artifacts
-such as `.dart_tool`, `.pub-cache`, `build`, `coverage`, and `local.properties`
-from root and package-scoped test workspaces. It checks Git tracked files first
-and skips artifact directories that contain tracked content.
 
 ### `fluoh doctor`
 
@@ -240,11 +225,11 @@ These commands operate on ordinary FlutterOH projects and preserve unrelated
 `pubspec.yaml` content.
 
 `fluoh deps get` forwards to selected-SDK `flutter pub get` and accepts extra
-arguments. It runs in all primary package directories and discovered
-`fluoh_test` workspaces that contain a `pubspec.yaml`. It intentionally skips
-package Source data so dependency resolution remains available even when source
-snapshots need repair. If the selected SDK is missing, the SDK resolver loads
-the Source index only for the lookup needed to install that SDK.
+arguments. It runs in all primary package directories and existing package
+examples that contain a `pubspec.yaml`. It intentionally skips package Source
+data so dependency resolution remains available even when source snapshots need
+repair. If the selected SDK is missing, the SDK resolver loads the Source index
+only for the lookup needed to install that SDK.
 
 `fluoh deps check` reads dependency policy from project `fluoh.yaml`, builds a
 dependency plan from configured sources, and groups dependencies into ready,
@@ -293,14 +278,12 @@ Recommended flow:
 `fluoh package create <upstream>` clones the upstream repository, selects one or
 more packages, configures `upstream` and `origin`, creates a Flutter OHOS
 SDK line branch such as `ohos/3.35`, configures the Flutter OHOS SDK, writes
-`fluoh.yaml`, `FLUOH.md`,
-`FLUOH_CHANGELOG.md`, agent instructions, and package-scoped `fluoh_test`
-workspaces, then stages generated files. The generated guidance tells
-maintainers to establish a selected-SDK baseline and fix non-OHOS platform
-regressions before implementing OHOS code. Generated `fluoh_test` content is a
-scaffold: maintainers are expected to replace import smoke checks with
-package-specific contract tests, example UI actions, expected results,
-pass/fail status, failure hints, and HAP build checks before release.
+`fluoh.yaml`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, and agent instructions, then
+stages generated files. When a selected package has an existing Flutter example,
+the command adds the OHOS platform to that example, writes example SDK config,
+and stages the example changes. The generated guidance tells maintainers to
+establish a selected-SDK baseline and fix non-OHOS platform regressions before
+implementing OHOS code.
 With no `--package-path`, the command selects only the upstream repository root
 package. If the upstream repository has a root package plus package subprojects,
 pass `--package-path .` and repeat `--package-path <subdir>` for each package
@@ -311,11 +294,12 @@ commonly edit before release. It never commits. Options include repeated
 `--package-path`, `--output`, `--sdk`, and `--repository`.
 
 `fluoh package add <package-path>` registers another package in an existing
-FlutterOH package repository. It requires a clean working tree and the maintenance
-branch recorded by Package `repository.git.branch`, validates `<package-path>`,
-optionally verifies `--expected-package`, appends Package `fluoh.yaml`, docs,
-and package-scoped test workspace state, and stages generated files. File
-snapshots and workspace rollback protect local state when the command fails.
+FlutterOH package repository. It requires a clean working tree and the
+maintenance branch recorded by Package `repository.git.branch`, validates
+`<package-path>`, optionally verifies `--expected-package`, appends Package
+`fluoh.yaml` and docs, prepares an existing Flutter example when present, and
+stages generated files. File snapshots protect local state when the command
+fails.
 
 `fluoh package sync` fetches upstream, fast-forwards the upstream branch recorded
 in Package `upstream.git.branch`, returns to the `repository.git.branch` branch
@@ -326,39 +310,19 @@ left for the user to resolve, then `fluoh package sync --continue` validates sta
 resolution and finishes. `--abort` runs `git merge --abort` for an in-progress
 sync.
 
-`fluoh package release` validates release metadata, checks that the configured SDK
-version exists in sources, runs package and `fluoh_test` verification, ensures the
-working tree remains clean, creates release tags at HEAD, and optionally pushes
-them. Use `--package <name>` for one package or `--all` for every registered
-package. Existing tags are accepted only when they already point at HEAD.
+`fluoh package check` runs existing automated checks for packages registered in
+Package `fluoh.yaml`. It runs selected-SDK `pub get` and `analyze` for the
+package, using `flutter` for Flutter packages and `dart` for non-Flutter
+packages, then runs package tests when `test/**/*_test.dart` exists. It also
+runs `flutter pub get`, `flutter analyze`, and existing tests in a top-level
+Flutter example when `example/pubspec.yaml` is present. Use `--package <name>`
+for one package or `--all` for every registered package.
 
-## Test Commands
-
-`fluoh test init` creates `fluoh_test` for a Flutter package. In Package
-repositories, it creates package-scoped `fluoh_test/<name>` workspaces; with
-multiple registered packages, `--package <name>` selects the package. The
-command writes a test package and creates an example app with the selected SDK.
-The example receives its own `fluoh.yaml`, a `.fluoh/` ignore rule, a
-verification surface with reusable pass/fail cards, and widget tests that
-exercise the generated smoke action. This gives maintainers a concrete place to
-add one visible operation per public workflow.
-`--force` treats the flag as explicit user confirmation to replace the existing
-target `fluoh_test` workspace.
-
-`fluoh test run` locates the package and existing test workspace. If the
-package has `test/**/*_test.dart`, it runs package `pub get` and Flutter tests
-first. It then runs `pub get` and tests inside `fluoh_test`; when
-`fluoh_test/<package>/example` has tests, it runs the example `pub get` and
-tests too. `fluoh_test` should fill gaps when upstream coverage is weak or
-missing, and the example extends the package's existing platforms with OHOS.
-Before a package is considered complete, the generated smoke checks should be
-replaced by package-specific assertions for arguments, return shapes, error
-cases, platform-channel names when applicable, and manual device checks. The
-example should build with `fluoh flutter build hap --debug`; signing-only
-failures are local setup, but permission, `reason`, `usedScene`, ArkTS, or
-package setup failures must be fixed.
-Non-Flutter packages are skipped because there is no FlutterOH platform behavior
-to validate.
+`fluoh package release` validates release metadata, checks that the configured
+SDK version exists in sources, runs `fluoh package check`, ensures the working
+tree remains clean, creates release tags at HEAD, and optionally pushes them.
+Use `--package <name>` for one package or `--all` for every registered package.
+Existing tags are accepted only when they already point at HEAD.
 
 ## State Ownership
 
@@ -373,4 +337,4 @@ to validate.
 | FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package release` validation |
 | Source root and Manifest files | `source init`, `source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`, `package create` SDK setup |
-| `fluoh_test/` | `test init`, `test run`, `package create`, `package add`, `deps get`, `clean`, `package release` |
+| Package examples | `package create`, `package add`, `deps get`, `package check`, `package release` |

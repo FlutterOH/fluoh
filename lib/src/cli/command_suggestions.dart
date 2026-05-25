@@ -76,7 +76,6 @@ Iterable<String> _candidateNames<T>(Command<T> command) sync* {
 }
 
 const _semanticSuggestionAliases = <String, List<String>>{
-  'clean': ['clear'],
   'current': ['selected', 'active'],
   'get': ['install', 'fetch'],
   'list': ['ls'],

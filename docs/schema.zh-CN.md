@@ -46,8 +46,8 @@ dependencyPolicy:
   支持 `dependency_overrides` 和 `dependencies`，默认 `dependency_overrides`。
 - `dependencyPolicy.versionChanges` 控制 upstream package 版本变化范围；
   `compatible` 只允许精确匹配和 pub 语义化版本兼容升级，`any` 也允许不兼容变化和降级。
-- `fluoh_test/` 不拥有独立 `fluoh.yaml`。测试工作区运行时向上查找最近的
-  `fluoh.yaml`，通常使用项目根目录或 Package 仓库根目录的 SDK 配置。
+- Package example 在通过 `sdk use` 或 `package create` 固定到 Flutter OHOS SDK 时，
+  可以拥有 project 风格的 `fluoh.yaml`。
 
 ### Package
 
@@ -129,8 +129,8 @@ packages:
   默认选择它；注册多个 package 时需要 `--package <name>` 明确选择。
 - package path 默认是 `.`。单包仓库可以省略 `repository.path` 和 `upstream.path`；
   嵌套 package 仓库可以在 package 级设置 path，或使用顶层 git `path` 默认值。
-- Package 仓库的验证工作区统一放在 package 级 `fluoh_test/<name>` 下。`fluoh package add`
-  可以向任意 Package 仓库追加 package entry。
+- Package example 保持在 upstream 原路径。`fluoh package create` 和 `fluoh package add`
+  会在已有顶层 Flutter example 时为其新增 OHOS 平台，而不是生成独立验证工作区。
 - `sdk.version` 必填，是适配、测试和发布当前 package 使用的完整 Flutter OHOS SDK 版本。
 - `repository.git.url` 必填，是 FlutterOH 适配仓库 URL 或本地路径。
 - `repository.git.branch` 必填，是维护分支。适配分支按 Flutter OHOS 大版本线创建，

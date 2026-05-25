@@ -3,7 +3,6 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
-import '../clean/clean_command.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/commands/deps_command.dart';
 import '../doctor/doctor_command.dart';
@@ -12,7 +11,6 @@ import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
 import '../source/source_runtime.dart';
-import '../testing/test_commands.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
 import 'command_suggestions.dart';
@@ -62,15 +60,6 @@ class FluohCommandRunner extends CommandRunner<int> {
         globalHelpInvocation: flutterGlobalHelpInvocation,
       ),
     );
-    addCommand(
-      CleanCommand(
-        environment: env,
-        stdout: _stdout,
-        stderr: _stderr,
-        output: _output,
-        inheritStdio: stdout == null && stderr == null,
-      ),
-    );
     addCommand(SdkCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
       DepsCommand(
@@ -82,14 +71,6 @@ class FluohCommandRunner extends CommandRunner<int> {
     );
     addCommand(
       PackageCommand(
-        environment: env,
-        stdout: _stdout,
-        stderr: _stderr,
-        output: _output,
-      ),
-    );
-    addCommand(
-      TestCommand(
         environment: env,
         stdout: _stdout,
         stderr: _stderr,
@@ -256,8 +237,6 @@ const _topLevelCommandSections = [
     'sdk',
     'deps',
     'package',
-    'test',
-    'clean',
     'doctor',
     'upgrade',
   ]),
@@ -279,7 +258,6 @@ bool _usesSourceConfiguration(ArgResults results) {
         'doctor',
         'deps',
         'package',
-        'test',
       }.contains(commandName);
 }
 

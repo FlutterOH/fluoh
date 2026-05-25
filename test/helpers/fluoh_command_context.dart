@@ -4,7 +4,7 @@ import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
 Future<FluohEnvironment> createTestEnvironment() async {
-  final root = await Directory.systemTemp.createTemp('fluoh_test_');
+  final root = await Directory.systemTemp.createTemp('fluoh_cmd_');
   addTearDown(() async {
     if (await root.exists()) {
       await root.delete(recursive: true);
@@ -223,11 +223,25 @@ Future<Directory> createTaggedGitRepository(
   await _git(repo, ['config', 'user.email', 'fixture@example.com']);
   await _git(repo, ['config', 'user.name', 'Fixture']);
   await File('${repo.path}/README.md').writeAsString(readme);
-  await _git(repo, ['add', 'README.md']);
+  await Directory('${repo.path}/bin').create(recursive: true);
+  await _writeSdkTool(File('${repo.path}/bin/flutter'));
+  await _writeSdkTool(File('${repo.path}/bin/dart'));
+  await _git(repo, ['add', '.']);
   await _git(repo, ['commit', '-m', 'Initial fixture']);
   await _git(repo, ['tag', tag]);
 
   return repo;
+}
+
+Future<void> _writeSdkTool(File tool) async {
+  await tool.writeAsString('''
+#!/bin/sh
+exit 0
+''');
+  final result = await Process.run('chmod', ['+x', tool.path]);
+  if (result.exitCode != 0) {
+    fail('chmod +x ${tool.path} failed:\n${result.stderr}');
+  }
 }
 
 Future<Directory> createUpstreamPackageRepository(

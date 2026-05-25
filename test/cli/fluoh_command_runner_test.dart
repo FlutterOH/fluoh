@@ -41,34 +41,12 @@ void main() {
     expect(stderr.join('\n'), contains('Could not find a command named'));
   });
 
-  test('does not register workflow commands as top-level aliases', () async {
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    expect(
-      await runFluoh(['create'], stdout: stdout.add, stderr: stderr.add),
-      64,
-    );
-    expect(
-      await runFluoh(['release'], stdout: stdout.add, stderr: stderr.add),
-      64,
-    );
-    expect(await runFluoh(['use'], stdout: stdout.add, stderr: stderr.add), 64);
-    expect(
-      await runFluoh(['update'], stdout: stdout.add, stderr: stderr.add),
-      64,
-    );
-
-    expect(stdout, isEmpty);
-    expect(stderr.join('\n'), contains('Could not find a command named'));
-  });
-
   test('suggests similar top-level command names', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['clena'],
+      ['docter'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -76,10 +54,10 @@ void main() {
     expect(exitCode, 64);
     expect(stdout, isEmpty);
     final output = stderr.join('\n');
-    expect(output, contains('Could not find a command named "clena".'));
+    expect(output, contains('Could not find a command named "docter".'));
     expect(output, contains('Did you mean one of these?'));
-    expect(output, contains('  fluoh clean'));
-    expect(output, contains('  fluoh clean\n\nUsage:'));
+    expect(output, contains('  fluoh doctor'));
+    expect(output, contains('  fluoh doctor\n\nUsage:'));
   });
 
   test('suggests similar subcommand names', () async {
@@ -309,8 +287,6 @@ void main() {
       '  sdk',
       '  deps',
       '  package',
-      '  test',
-      '  clean',
       '  doctor',
       '  upgrade',
     ]);
@@ -352,14 +328,20 @@ void main() {
     stdout.clear();
     expect(
       await runFluoh(
-        ['test', '--help'],
+        ['package', '--help'],
         stdout: stdout.add,
         stderr: stderr.add,
       ),
       0,
     );
     help = stdout.join('\n');
-    _expectInOrder(help, ['  init', '  run']);
+    _expectInOrder(help, [
+      '  create',
+      '  add',
+      '  sync',
+      '  check',
+      '  release',
+    ]);
     expect(stderr, isEmpty);
   });
 
@@ -444,6 +426,7 @@ void main() {
       '  create',
       '  add',
       '  sync',
+      '  check',
       '  release',
     ]);
     expect(stderr, isEmpty);

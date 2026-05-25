@@ -54,9 +54,8 @@ Rules:
 - `dependencyPolicy.versionChanges` controls the allowed upstream package
   version changes. `compatible` allows exact matches and pub-semver compatible
   upgrades; `any` also allows incompatible changes and downgrades.
-- `fluoh_test/` does not own a separate `fluoh.yaml`. Test workspaces search
-  upward for the nearest `fluoh.yaml`, usually the project root or Package
-  repository root config.
+- Package examples may own a project-style `fluoh.yaml` when they are pinned to
+  a Flutter OHOS SDK by `sdk use` or `package create`.
 
 ### Package
 
@@ -144,9 +143,9 @@ Rules:
 - Package paths default to `.`. Single-package repositories can omit
   `repository.path` and `upstream.path`; nested package repositories set them per
   package or through the top-level git `path` defaults.
-- Package repository verification workspaces are package-scoped under
-  `fluoh_test/<name>`. `fluoh package add` appends another package entry to any
-  Package repository.
+- Package examples stay at their upstream paths. `fluoh package create` and
+  `fluoh package add` add OHOS to an existing top-level Flutter example when
+  present instead of generating a separate verification workspace.
 - `sdk.version` is required. It is the complete Flutter OHOS SDK version used to
   adapt, test, and release the current package.
 - `repository.git.url` is required and is the FlutterOH adaptation repository

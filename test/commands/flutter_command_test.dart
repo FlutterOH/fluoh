@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
-import '../helpers/fluoh_test_context.dart';
+import '../helpers/fluoh_command_context.dart';
 
 void main() {
   test('runs flutter from the SDK selected in fluoh.yaml', () async {
@@ -299,6 +299,189 @@ sdk:
     );
   });
 
+  test('adds signing guidance when HAP build fails at signing', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createFlutterCommandSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterScript:
+          '''
+#!/bin/sh
+printf "%s\\n" "\$@" > "${environment.workingDirectory.path}/flutter_args.txt"
+printf "hvigor ERROR: Failed :entry:default@SignHap\\n" >&2
+printf "signingConfigs missing certificate profile\\n" >&2
+exit 1
+''',
+    );
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['flutter', 'build', 'hap', '--debug'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    expect(
+      File(
+        '${environment.workingDirectory.path}/flutter_args.txt',
+      ).readAsStringSync(),
+      'build\nhap\n--debug\n',
+    );
+    expect(stderr, contains('hvigor ERROR: Failed :entry:default@SignHap'));
+    expect(
+      stderr,
+      contains(
+        'OHOS HAP build reached signing and failed on local signing configuration.',
+      ),
+    );
+    expect(
+      stderr.join('\n'),
+      contains('Configure DevEco Studio debug signing'),
+    );
+    expect(stderr.join('\n'), contains('Do not commit certificate paths'));
+  });
+
+  test(
+    'adds signing guidance when default CLI HAP build inherits stdio',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterCommandSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterScript:
+            '''
+#!/bin/sh
+printf "%s\\n" "\$@" > "${environment.workingDirectory.path}/flutter_args.txt"
+printf "hvigor ERROR: Failed :entry:default@SignHap\\n" >&2
+printf "debug signing certificate is missing\\n" >&2
+exit 1
+''',
+      );
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      final result = await Process.run(
+        Platform.resolvedExecutable,
+        [
+          '${Directory.current.path}/bin/fluoh.dart',
+          'flutter',
+          'build',
+          'hap',
+          '--debug',
+        ],
+        workingDirectory: environment.workingDirectory.path,
+        environment: {
+          ...Platform.environment,
+          'FLUOH_HOME': environment.homeDirectory.path,
+          ...environment.processEnvironment,
+        },
+      );
+
+      expect(result.exitCode, 1);
+      expect(
+        File(
+          '${environment.workingDirectory.path}/flutter_args.txt',
+        ).readAsStringSync(),
+        'build\nhap\n--debug\n',
+      );
+      expect(
+        result.stderr.toString(),
+        contains('hvigor ERROR: Failed :entry:default@SignHap'),
+      );
+      final output = '${result.stdout}\n${result.stderr}';
+      expect(
+        output,
+        contains(
+          'OHOS HAP build reached signing and failed on local signing configuration.',
+        ),
+      );
+      expect(output, contains('Configure DevEco Studio debug signing'));
+    },
+  );
+
+  test('adds generic guidance when HAP build fails before signing', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createFlutterCommandSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterScript:
+          '''
+#!/bin/sh
+printf "%s\\n" "\$@" > "${environment.workingDirectory.path}/flutter_args.txt"
+printf "ArkTS compile failed before packaging\\n" >&2
+exit 2
+''',
+    );
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['flutter', 'build', 'hap', '--debug'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      2,
+    );
+
+    expect(stderr, contains('ArkTS compile failed before packaging'));
+    expect(stderr, contains('OHOS HAP build failed.'));
+    expect(stderr.join('\n'), contains('No signing-only failure was detected'));
+    expect(stderr.join('\n'), isNot(contains('reached signing')));
+  });
+
   test('fails when no SDK has been selected', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -330,8 +513,9 @@ sdk:
 
 Future<Directory> _createFlutterCommandSdkSource(
   Directory parent,
-  Directory project,
-) async {
+  Directory project, {
+  String? flutterScript,
+}) async {
   final source = Directory('${parent.path}/flutter_command_source');
   final sdkRepository = Directory('${parent.path}/flutter_command_sdk');
   await sdkRepository.create(recursive: true);
@@ -344,13 +528,16 @@ Future<Directory> _createFlutterCommandSdkSource(
   await _runProcess('git', ['config', 'user.name', 'Fixture'], sdkRepository);
   final flutter = File('${sdkRepository.path}/bin/flutter');
   await flutter.parent.create(recursive: true);
-  await flutter.writeAsString('''
+  await flutter.writeAsString(
+    flutterScript ??
+        '''
 #!/bin/sh
 printf "%s\\n" "\$@" > "${project.path}/flutter_args.txt"
 printf "flutter stdout\\n"
 printf "flutter stderr\\n" >&2
 exit 0
-''');
+''',
+  );
   await _runProcess('chmod', ['+x', flutter.path], sdkRepository);
   await File('${sdkRepository.path}/README.md').writeAsString('# SDK\n');
   await _runProcess('git', ['add', '.'], sdkRepository);

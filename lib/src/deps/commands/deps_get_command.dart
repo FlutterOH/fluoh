@@ -6,8 +6,8 @@ import 'package:args/command_runner.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../../package/package_examples.dart';
 import '../../sdk/flutter_runner.dart';
-import '../../testing/test_workspace.dart';
 import '../../package/manifest/package_manifest.dart';
 import '../../package/manifest/pubspec_package.dart';
 
@@ -34,7 +34,7 @@ class DepsGetCommand extends Command<int> {
 
   @override
   String get description =>
-      'Run flutter pub get for the project and fluoh_test workspaces.';
+      'Run flutter pub get for the project and package examples.';
 
   @override
   String get invocation => 'fluoh deps get [arguments]';
@@ -90,10 +90,7 @@ class DepsGetCommand extends Command<int> {
   }
 
   Future<List<Directory>> _pubGetDirectories() async {
-    final directories = <Directory>[
-      ...await _primaryPackageDirectories(),
-      ...await fluohTestWorkspaceDirectories(environment.workingDirectory),
-    ];
+    final directories = await _candidatePubGetDirectories();
     final existing = <Directory>[];
     final seen = <String>{};
     for (final directory in directories) {
@@ -112,7 +109,7 @@ class DepsGetCommand extends Command<int> {
     return existing;
   }
 
-  Future<List<Directory>> _primaryPackageDirectories() async {
+  Future<List<Directory>> _candidatePubGetDirectories() async {
     try {
       final manifest = await readPackageManifest(environment.workingDirectory);
       return [
@@ -121,13 +118,23 @@ class DepsGetCommand extends Command<int> {
             environment.workingDirectory,
             package.dependencyPath,
           ),
+        ...await packageExampleDirectories(
+          repository: environment.workingDirectory,
+          packages: manifest.packages,
+        ),
       ];
     } on UsageException catch (error) {
       if (!_isProjectFluohConfig(error)) {
         rethrow;
       }
     }
-    return [environment.workingDirectory];
+    return [
+      environment.workingDirectory,
+      if (await File(
+        '${environment.workingDirectory.path}/example/pubspec.yaml',
+      ).exists())
+        Directory('${environment.workingDirectory.path}/example'),
+    ];
   }
 
   bool _isProjectFluohConfig(UsageException error) {

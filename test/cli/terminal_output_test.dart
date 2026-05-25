@@ -8,13 +8,13 @@ void main() {
     final output = TerminalOutput(stdout: stdout.add, stderr: stderr.add);
 
     output.success('Installed SDK 3.35.');
-    output.failure('fluoh_test failed.');
+    output.failure('SDK install failed.');
     output.error('No SDK selected.');
     output.next('Next: run `fluoh flutter pub get`.');
 
     expect(stdout, [
       'Installed SDK 3.35.',
-      'fluoh_test failed.',
+      'SDK install failed.',
       'Next: run `fluoh flutter pub get`.',
     ]);
     expect(stderr, ['No SDK selected.']);

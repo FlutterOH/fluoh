@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
-import '../helpers/fluoh_test_context.dart';
+import '../helpers/fluoh_command_context.dart';
 
 void main() {
   test('checks dependency compatibility and emits json', () async {
@@ -1112,7 +1112,7 @@ Future<void> _writeSnapshotStateForCurrentFingerprint(
 }) async {
   final state = {
     'stateVersion': 1,
-    'generatedBy': 'fluoh test',
+    'generatedBy': 'fixture',
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
     'fingerprint': await _snapshotFingerprint(root),
     'snapshotHash': snapshotHash,

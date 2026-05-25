@@ -176,7 +176,7 @@ fluoh package create https://github.com/upstream/package.git \
 
 该命令只配置本地 remote，不创建远端仓库，也不依赖 GitHub CLI，因为上游 package 不一定托管在 GitHub。维护者需要先确保目标远端仓库存在，再手动 push 分支或 release tag。
 
-`fluoh package create` 会暂存生成的 `AGENTS.md`、`FLUOH.md`、`FLUOH_CHANGELOG.md`、`fluoh.yaml`，以及 Flutter package/plugin 的 `fluoh_test/`，但不会创建初始提交。维护者可以继续完成 FlutterOH 适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
+`fluoh package create` 会暂存生成的 `AGENTS.md`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 `fluoh.yaml`。如果选中的 package 已有 Flutter example，它还会为该 example 新增 OHOS 平台并固定到选中的 SDK，但不会创建初始提交。维护者可以继续完成 FlutterOH 适配，最后用维护者自己的 Git 身份一起提交。运行任何要求干净工作区的命令前需要先提交：
 
 ```sh
 git commit -m "feat(package): initialize FlutterOH package"
@@ -184,7 +184,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 
 使用 `fluoh package sync` 从 `upstream` 快进同步 Package `fluoh.yaml` 记录的上游分支，把该分支合入当前 `ohos/<sdkLine>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 upstream package 版本不变。
 
-`fluoh_test/test` 用于发布前必须通过的自动化平台适配检查，`fluoh_test/example` 是小型人工验证 app。`fluoh test run` 会在存在 `test/**/*_test.dart` 时先运行 package 自身的 Flutter 测试，等价于在 package 路径执行 `fluoh flutter test`，再使用当前选择的 Flutter OHOS SDK 执行 `fluoh_test` 自动化检查。
+沿用上游 package 测试和已有 example 测试作为自动化基线。`fluoh package check` 会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用 `flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行 package 自身测试。存在顶层 Flutter example（`example/pubspec.yaml`）时也会检查 example。
 
 `fluoh package release` 必须继续保证：
 
@@ -193,7 +193,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 - SDK 版本来自已配置的数据源。
 - Package `version` 大于同 package、上游版本、SDK 版本线下已有 release tag 的版本。
 - 缺失或未填写当前版本的 `FLUOH_CHANGELOG.md` 发布说明会提示 warning，但不阻塞 release。
-- Flutter package 自身测试和 `fluoh_test` 通过 `fluoh test run`。
+- Package 分析和现有 package/example 测试通过 `fluoh package check`。
 - release tag 和 Package `fluoh.yaml` 中的 package、上游版本、SDK 版本线、`version` 一致。
 
 FlutterOH package 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 package 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/source PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。

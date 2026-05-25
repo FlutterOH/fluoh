@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
-import '../helpers/fluoh_test_context.dart';
+import '../helpers/fluoh_command_context.dart';
 
 void main() {
   test('uses an SDK version and writes fluoh project config', () async {
@@ -89,6 +89,12 @@ dependencyPolicy:
       contains('.fluoh/'),
     );
     expect(
+      File(
+        '${environment.workingDirectory.path}/.gitignore',
+      ).readAsStringSync(),
+      contains('flutter_*.log'),
+    );
+    expect(
       stdout,
       contains(
         'IDE Flutter SDK link: '
@@ -147,7 +153,7 @@ dependencyPolicy:
       File(
         '${environment.workingDirectory.path}/.gitignore',
       ).readAsStringSync(),
-      'build/\n.fluoh/\n',
+      'build/\n.fluoh/\nflutter_*.log\n',
     );
     expect(stderr, isEmpty);
   });

@@ -6,7 +6,7 @@ import 'package:fluoh/fluoh.dart';
 import 'package:fluoh/src/doctor/doctor_command.dart';
 import 'package:test/test.dart';
 
-import '../helpers/fluoh_test_context.dart';
+import '../helpers/fluoh_command_context.dart';
 
 const _currentVersionPublished = '2026-05-01';
 const _newerVersion = '99.0.0';

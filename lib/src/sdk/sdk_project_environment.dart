@@ -25,8 +25,15 @@ class SdkProjectEnvironment {
     SdkRelease release, {
     bool writeFluohConfig = true,
   }) async {
+    await writeSdkVersion(release.tag, writeFluohConfig: writeFluohConfig);
+  }
+
+  Future<void> writeSdkVersion(
+    String sdkVersion, {
+    bool writeFluohConfig = true,
+  }) async {
     if (writeFluohConfig) {
-      await _writeProjectFluohConfig(release);
+      await _writeProjectFluohConfig(sdkVersion);
     }
   }
 
@@ -37,6 +44,7 @@ class SdkProjectEnvironment {
     final link = Link('${linkRoot.path}/flutter_sdk');
     await _replaceWithLink(link, sdkDirectory);
     await _ensureGitIgnoreEntry('.fluoh/');
+    await _ensureGitIgnoreEntry('flutter_*.log');
     return Directory(link.path);
   }
 
@@ -69,20 +77,20 @@ class SdkProjectEnvironment {
     );
   }
 
-  Future<void> _writeProjectFluohConfig(SdkRelease release) async {
+  Future<void> _writeProjectFluohConfig(String sdkVersion) async {
     final config = File('${environment.workingDirectory.path}/fluoh.yaml');
     if (!await config.exists()) {
-      await config.writeAsString(newProjectFluohConfigContent(release.tag));
+      await config.writeAsString(newProjectFluohConfigContent(sdkVersion));
       return;
     }
 
     final content = await config.readAsString();
     if (content.trim().isEmpty) {
-      await config.writeAsString(newProjectFluohConfigContent(release.tag));
+      await config.writeAsString(newProjectFluohConfigContent(sdkVersion));
       return;
     }
 
-    await config.writeAsString(upsertProjectSdkVersion(content, release.tag));
+    await config.writeAsString(upsertProjectSdkVersion(content, sdkVersion));
   }
 
   Future<void> _replaceWithLink(Link link, Directory target) async {

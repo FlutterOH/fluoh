@@ -5,9 +5,9 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
-import '../../testing/test_workspace.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
+import '../package_checker.dart';
 import '../release_validator.dart';
 
 class PackageReleaseCommand extends Command<int> {
@@ -46,7 +46,7 @@ class PackageReleaseCommand extends Command<int> {
   String get name => 'release';
 
   @override
-  String get description => 'Create a FlutterOH package release tag.';
+  String get description => 'Check and tag FlutterOH package releases.';
 
   @override
   Future<int> run() async {
@@ -115,19 +115,21 @@ class PackageReleaseCommand extends Command<int> {
     }
     await _ensureReleaseTagIsUsable(tag: tag, package: package);
 
-    final testCommand = manifest.packages.length == 1
-        ? 'fluoh test run'
-        : 'fluoh test run --package ${package.name}';
-    _output.step('Running $testCommand before release.');
-    final testResult = await runFluohTestWorkspace(
+    final checkCommand = manifest.packages.length == 1
+        ? 'fluoh package check'
+        : 'fluoh package check --package ${package.name}';
+    _output.step('Running $checkCommand before release.');
+    final checkResult = await checkPackage(
       environment: environment,
+      manifest: manifest,
+      package: package,
       stdout: _stdout,
       stderr: _stderr,
       output: _output,
-      packageName: package.name,
+      usage: usage,
     );
-    if (testResult != 0) {
-      return testResult;
+    if (!checkResult.passed) {
+      return checkResult.exitCode;
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
     return 0;

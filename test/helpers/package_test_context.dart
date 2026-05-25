@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
 
-import 'fluoh_test_context.dart';
+import 'fluoh_command_context.dart';
 
 Future<Directory> createPackageRepositoryFixture(
   FluohEnvironment environment,
