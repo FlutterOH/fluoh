@@ -247,7 +247,16 @@ void main() {
       expect(agentsContent, contains('small local commits'));
       expect(
         agentsContent,
-        contains('feat(camera): add OHOS platform scaffold'),
+        contains('Commit generated baseline files separately'),
+      );
+      expect(agentsContent, contains('feat: add OHOS platform scaffold'));
+      expect(
+        agentsContent,
+        contains('Use a scope only when it adds real context'),
+      );
+      expect(
+        agentsContent,
+        isNot(contains('feat(camera): add OHOS platform scaffold')),
       );
       expect(agentsContent, contains('DEVELOPMENT_TEAM'));
       expect(agentsContent, contains('PROVISIONING_PROFILE_SPECIFIER'));
@@ -1316,6 +1325,13 @@ Prefer the upstream release workflow.
       );
       expect(agents, isNot(contains('Upstream branch at creation')));
       expect(agents, contains('## Adaptation Workflow'));
+      expect(agents, contains('feat(<name>): add OHOS platform scaffold'));
+      expect(
+        agents,
+        contains(
+          'Use repository-level scopes such as `docs`, `ci`, or `release`',
+        ),
+      );
       expect(
         agents,
         contains('release command `fluoh package release --package camera`'),

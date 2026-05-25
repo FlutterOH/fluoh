@@ -105,7 +105,7 @@ String packageAgentsInstructionsContent({
     '9. Keep `packages.<name>.status: experimental` until that package is implemented, tested, and ready to be recommended. Remove the status only for a release-ready package.',
     '10. Update `FLUOH_CHANGELOG.md` for each package, run the matching `fluoh package check --package <name>`, review `git status --short --ignored=matching`, then commit before `fluoh package release --package <name>` or `fluoh package release --all`.',
     '',
-    ..._localCommitCheckpointLines(packageScope: '<name>'),
+    ..._localCommitCheckpointLines(multiPackage: true, packageScope: '<name>'),
     '## Before Commit',
     '',
     '- Review `git status --short --ignored=matching` and staged files before committing.',
@@ -158,7 +158,7 @@ String _singlePackageAgentsInstructionsContent({
     '9. Keep `packages.${package.name}.status: experimental` until the implementation is complete, tested, and ready to be recommended. Remove the status only for a release-ready package.',
     '10. Update `FLUOH_CHANGELOG.md`, run `${package.checkCommand}`, review `git status --short --ignored=matching`, then commit before `${package.releaseCommand}`.',
     '',
-    ..._localCommitCheckpointLines(packageScope: package.name),
+    ..._localCommitCheckpointLines(multiPackage: false),
     '## Before Commit',
     '',
     '- Review `git status --short --ignored=matching` and staged files before committing.',
@@ -169,7 +169,14 @@ String _singlePackageAgentsInstructionsContent({
   ].join('\n');
 }
 
-List<String> _localCommitCheckpointLines({required String packageScope}) {
+List<String> _localCommitCheckpointLines({
+  required bool multiPackage,
+  String? packageScope,
+}) {
+  final packageCommitScope = packageScope ?? '<name>';
+  final commitScopeGuidance = multiPackage
+      ? '- Use Conventional Commits with the package name as the scope for package-specific changes, such as `feat($packageCommitScope): add OHOS platform scaffold` or `test($packageCommitScope): cover OHOS channel calls`. Use repository-level scopes such as `docs`, `ci`, or `release` only for changes that are not specific to one package.'
+      : '- Use Conventional Commits without a package-name scope when the repository contains only this package, such as `feat: add OHOS platform scaffold` or `test: cover OHOS channel calls`. Use a scope only when it adds real context, such as `docs`, `ci`, `example`, or `release`.';
   return [
     '## Local Commit Checkpoints',
     '',
@@ -177,9 +184,10 @@ List<String> _localCommitCheckpointLines({required String packageScope}) {
     '- Keep commits local unless the maintainer explicitly asks you to push.',
     '- Before the first commit, run `git config --local --get user.name` and `git config --local --get user.email`; if either is missing, ask for author info, then set `git config --local user.name <name>` and `git config --local user.email <email>`. New package repositories can also be created with `fluoh package create --git-author-name <name> --git-author-email <email>`.',
     '- Stage explicit paths for each checkpoint and review `git diff --cached` before committing.',
+    '- Commit generated baseline files separately before implementation changes when `fluoh package create` or `fluoh package add` creates the repository or registers a package.',
     '- Suggested checkpoints: generated baseline, selected-SDK baseline fixes, OHOS scaffold, each implemented feature, tests and example verification, then release metadata.',
     '- Commit only after the checkpoint\'s relevant command succeeds; note skipped device-only checks in the commit body.',
-    '- Use Conventional Commits with a package scope such as `feat($packageScope): add OHOS platform scaffold` or `test($packageScope): cover OHOS channel calls`.',
+    commitScopeGuidance,
     '- Do not commit failing work unless the maintainer explicitly requests a local WIP checkpoint.',
     '',
   ];
