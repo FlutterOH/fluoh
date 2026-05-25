@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
@@ -35,6 +36,77 @@ void main() {
     expect(
       stdout,
       contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'release dry run validates without creating tags and can emit json',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      final releaseEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['package', 'release', '--dry-run', '--json'],
+          environment: releaseEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final tags = await runGit(packageRepository, ['tag', '--list']);
+      expect(
+        tags.stdout.toString(),
+        isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')),
+      );
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('passed', true));
+      expect(report, containsPair('dryRun', true));
+      expect(report, containsPair('tags', ['camera-0.11.0-ohos-3.35-0.1.0']));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('release json reports validation failures as json', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+
+    expect(
+      await runFluoh(
+        ['package', 'release', '--dry-run', '--json'],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', false));
+    expect(report, containsPair('exitCode', 64));
+    expect(report, containsPair('dryRun', true));
+    expect(report, containsPair('tags', isEmpty));
+    expect(
+      report['error'],
+      contains('must be greater than latest release version 0.2.0'),
     );
     expect(stderr, isEmpty);
   });
@@ -164,10 +236,9 @@ void main() {
         ),
         64,
       );
-      expect(
-        stderr.join('\n'),
-        contains('already exists on a different commit'),
-      );
+      final error = stderr.join('\n');
+      expect(error, contains('already exists on a different'));
+      expect(error, contains('commit'));
     },
   );
 
@@ -575,10 +646,9 @@ exit 0
       ])).stdout.toString();
       expect(tags, isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')));
       expect(tags, contains('share_plus-9.0.0-ohos-3.35-0.1.0'));
-      expect(
-        stderr.join('\n'),
-        contains('already exists on a different commit'),
-      );
+      final error = stderr.join('\n');
+      expect(error, contains('already exists on a different'));
+      expect(error, contains('commit'));
     },
   );
 

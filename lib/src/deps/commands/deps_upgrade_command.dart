@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
-
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
@@ -10,7 +8,7 @@ import '../dependency_plan.dart';
 import '../dependency_policy.dart';
 import '../pubspec_dependency_editor.dart';
 
-class DepsUpgradeCommand extends Command<int> {
+class DepsUpgradeCommand extends FluohCommand<int> {
   DepsUpgradeCommand({
     required this.environment,
     required OutputWriter stdout,

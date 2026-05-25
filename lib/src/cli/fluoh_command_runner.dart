@@ -19,6 +19,42 @@ import 'terminal_output.dart';
 
 typedef OutputWriter = void Function(String message);
 
+const _defaultUsageLineLength = 80;
+
+int fluohUsageLineLength() {
+  try {
+    if (io.stdout.hasTerminal) {
+      final columns = io.stdout.terminalColumns;
+      return columns < 40 ? 40 : columns;
+    }
+  } on Object {
+    // Fall through to a deterministic default for tests and non-TTY output.
+  }
+  return _defaultUsageLineLength;
+}
+
+abstract class FluohCommand<T> extends Command<T> {
+  FluohCommand({int? usageLineLength})
+    : _argParser = ArgParser(
+        usageLineLength: usageLineLength ?? fluohUsageLineLength(),
+      );
+
+  final ArgParser _argParser;
+
+  @override
+  ArgParser get argParser => _argParser;
+
+  @override
+  void printUsage() {
+    final resolvedRunner = runner;
+    if (resolvedRunner is FluohCommandRunner) {
+      (resolvedRunner as FluohCommandRunner).writeCommandUsage(usage);
+      return;
+    }
+    io.stdout.writeln(usage);
+  }
+}
+
 class FluohCommandRunner extends CommandRunner<int> {
   FluohCommandRunner({
     String executableName = 'fluoh',
@@ -46,6 +82,7 @@ class FluohCommandRunner extends CommandRunner<int> {
        super(
          executableName,
          'CLI for Flutter OHOS SDKs and package workflows.',
+         usageLineLength: fluohUsageLineLength(),
          suggestionDistanceLimit: 0,
        ) {
     final env = _environment;
@@ -108,6 +145,10 @@ class FluohCommandRunner extends CommandRunner<int> {
 
   @override
   void printUsage() {
+    _output.write(usage);
+  }
+
+  void writeCommandUsage(String usage) {
     _output.write(usage);
   }
 

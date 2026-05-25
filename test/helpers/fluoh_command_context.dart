@@ -236,6 +236,10 @@ Future<Directory> createTaggedGitRepository(
 Future<void> _writeSdkTool(File tool) async {
   await tool.writeAsString('''
 #!/bin/sh
+if [ "\$1" = "create" ]; then
+  mkdir -p ohos
+  exit 0
+fi
 exit 0
 ''');
   final result = await Process.run('chmod', ['+x', tool.path]);

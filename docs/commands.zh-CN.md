@@ -42,6 +42,7 @@
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS package 分支。 |
 | `fluoh package check` | `lib/src/package/commands/package_check_command.dart` | 运行 pub get、分析和已有测试。 |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 检查、打 tag，并可选择推送 FlutterOH package release。 |
+| `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 package 发布就绪状态。 |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断本地项目、source、SDK 和工具状态。 |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | 升级已安装的 `fluoh` CLI。 |
 
@@ -85,9 +86,10 @@
 
 ### `fluoh doctor`
 
-`doctor` 是诊断命令，打印结果后返回成功。它会检查安装方式和 pub.dev 最新版本、
-已配置 source 快照、Flutter 项目结构、项目 SDK，以及 `ohos` 平台目录。缺失或
-过期状态会作为 warning 输出，不会自动修复。
+`doctor` 是诊断命令，除非使用 `--strict`，否则打印结果后返回成功。它会检查安装方式和
+pub.dev 最新版本、已配置 source 快照、Flutter 项目结构、项目 SDK，以及 `ohos`
+平台目录。缺失或过期状态会作为 warning 输出，不会自动修复。`--json` 会输出机器可读的
+同一组检查结果。
 
 ### `fluoh upgrade`
 
@@ -154,7 +156,7 @@ tag 下固化的 Package `fluoh.yaml`，然后把历史发布记录汇总到 Man
 状态。当 `<path>` 是 `$FLUOH_HOME/sources/<name>` 下的某个已配置 source 快照时，
 sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合并后的 lock。当
 `<path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到已配置快照后，
-再运行 `fluoh source update <name>`。
+再运行 `fluoh source update <name>`。`--json` 会以 JSON 输出已同步和跳过的 package 记录。
 
 ## SDK 命令
 
@@ -173,8 +175,9 @@ sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合�
 
 `fluoh sdk use <version-or-series>` 是项目修改命令。它要求当前目录是 Flutter 项目，
 拒绝覆盖 FlutterOH package 仓库元数据，解析或安装 SDK，写入项目 `fluoh.yaml`，并更新
-`.fluoh/flutter_sdk` 作为稳定的 IDE SDK 路径。`--pub-get` 会在切换后执行
-`flutter pub get`。
+`.fluoh/flutter_sdk` 作为稳定的 IDE SDK 路径。`--init-ohos` 会在项目缺少 `ohos/`
+目录时使用已选择 SDK 执行 `flutter create --no-pub --platforms=ohos .`。
+`--pub-get` 会在切换和可选 OHOS 初始化后执行 `flutter pub get`。
 
 ## 依赖命令
 
@@ -249,19 +252,28 @@ Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 a
 不立即提交，然后更新 `fluoh.yaml` 中的 upstream 元数据并暂存；
 存在变更时提交 `Sync upstream packages`。合并冲突会留给用户解决，之后
 `fluoh package sync --continue` 校验已暂存的解决结果并完成流程。`--abort` 对进行中的 sync
-执行 `git merge --abort`。
+执行 `git merge --abort`。`--json` 会输出完成的 sync 动作列表和提交状态。
 
 `fluoh package check` 会运行 Package `fluoh.yaml` 中已注册 package 的现有自动化检查。
 它会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用
 `flutter`，非 Flutter package 使用 `dart`；如果 package 存在 `test/**/*_test.dart`，
 继续运行 package 测试。如果存在顶层 Flutter example（`example/pubspec.yaml`），也会在
 example 中运行 `flutter pub get`、`flutter analyze` 和已有测试。使用 `--package <name>`
-检查单个 package，或用 `--all` 检查所有已注册 package。
+检查单个 package，或用 `--all` 检查所有已注册 package。`--build-example hap` 会在分析和
+测试之后构建每个 Flutter example；配合 `--debug` 会把 `--debug` 传给
+`flutter build hap`。`--json` 会输出结构化检查结果。
 
 `fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh package check`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
 `--package <name>` 发布单个 package，或用 `--all` 发布所有已注册 package。已有 tag 只有在
-已经指向 HEAD 时才会被接受。
+已经指向 HEAD 时才会被接受。`--dry-run` 会执行校验和 package check，但不会创建或推送
+tag。`--json` 会输出 tag、warning 和 package check 结果。
+
+`fluoh package status` 读取 Package `fluoh.yaml` 并汇总发布就绪状态，不修改仓库。它会检查
+当前分支、工作树是否干净、package status、release notes、license warning、package 测试、
+Flutter example、example OHOS 平台、example 测试，以及 tracked 文件是否包含本机 fluoh home
+路径。使用 `--package <name>` 检查单个 package，`--all` 检查全部 package，`--json`
+输出机器可读结果。
 
 ## 状态归属
 
@@ -273,7 +285,7 @@ example 中运行 `flutter pub get`、`flutter analyze` 和已有测试。使用
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`、`sdk remove`、按需执行的 Flutter wrapper |
 | 项目 `fluoh.yaml` | `sdk use`、`deps check`、`deps fix`、`deps upgrade` |
 | 项目 `pubspec.yaml` | `deps fix`、`deps upgrade` |
-| FlutterOH package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package release` 校验 |
+| FlutterOH package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package status`、`package release` 校验 |
 | Source root 和 Manifest 文件 | `source init`、`source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`、`package create` 的 SDK 设置 |
 | Package examples | `package create`、`package add`、`deps get`、`package check`、`package release` |

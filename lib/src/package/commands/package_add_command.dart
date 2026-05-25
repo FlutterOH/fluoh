@@ -12,7 +12,7 @@ import '../manifest/pubspec_package.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
 
-class PackageAddCommand extends Command<int> {
+class PackageAddCommand extends FluohCommand<int> {
   PackageAddCommand({
     required this.environment,
     required OutputWriter stdout,

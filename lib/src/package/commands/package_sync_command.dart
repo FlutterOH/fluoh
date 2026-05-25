@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -10,10 +11,10 @@ import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
 
-class PackageSyncCommand extends Command<int> {
+class PackageSyncCommand extends FluohCommand<int> {
   PackageSyncCommand({
     required this.environment,
-    required OutputWriter stdout,
+    required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser
@@ -26,10 +27,16 @@ class PackageSyncCommand extends Command<int> {
         'abort',
         negatable: false,
         help: 'Abort an in-progress sync merge.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the sync result as JSON.',
       );
   }
 
   final FluohEnvironment environment;
+  final OutputWriter stdout;
   final TerminalOutput _output;
 
   @override
@@ -45,6 +52,8 @@ class PackageSyncCommand extends Command<int> {
     final repository = environment.workingDirectory;
     final shouldContinue = argResults!.flag('continue');
     final shouldAbort = argResults!.flag('abort');
+    final json = argResults!.flag('json');
+    final actions = <String>[];
     if (shouldContinue && shouldAbort) {
       usageException('Use only one of --continue or --abort.');
     }
@@ -56,25 +65,37 @@ class PackageSyncCommand extends Command<int> {
       final branch = await currentBranch(repository);
       _ensurePackageBranch(branch, manifest);
       await runGit(['merge', '--abort'], workingDirectory: repository);
-      _output.warning('Aborted package sync merge.');
+      actions.add('aborted merge');
+      if (json) {
+        _writeJson({'status': 'aborted', 'actions': actions});
+      } else {
+        _output.warning('Aborted package sync merge.');
+      }
       return 0;
     }
     if (shouldContinue) {
-      return _continueSync(repository);
+      return _continueSync(repository, json: json, actions: actions);
     }
 
     await ensureCleanWorkingTree(repository, 'Sync');
     final manifest = await readPackageManifest(repository);
     final startingBranch = await currentBranch(repository);
     _ensurePackageBranch(startingBranch, manifest);
-    await _output.withProgress(
-      'Fetching upstream.',
-      () => runGit(['fetch', 'upstream'], workingDirectory: repository),
-    );
+    if (json) {
+      await runGit(['fetch', 'upstream'], workingDirectory: repository);
+    } else {
+      await _output.withProgress(
+        'Fetching upstream.',
+        () => runGit(['fetch', 'upstream'], workingDirectory: repository),
+      );
+    }
+    actions.add('fetched upstream');
     final defaultBranch = manifest.upstreamBranch;
     var switchedBranches = false;
     try {
-      _output.step('Checking out $defaultBranch.');
+      if (!json) {
+        _output.step('Checking out $defaultBranch.');
+      }
       await runGit(['checkout', defaultBranch], workingDirectory: repository);
       switchedBranches = true;
       await runGit([
@@ -82,18 +103,24 @@ class PackageSyncCommand extends Command<int> {
         '--ff-only',
         'upstream/$defaultBranch',
       ], workingDirectory: repository);
-      _output.success(
-        'Synchronized $defaultBranch from upstream/$defaultBranch.',
-      );
+      actions.add('synchronized $defaultBranch from upstream/$defaultBranch');
+      if (!json) {
+        _output.success(
+          'Synchronized $defaultBranch from upstream/$defaultBranch.',
+        );
+      }
     } finally {
       if (switchedBranches &&
           startingBranch.isNotEmpty &&
           startingBranch != defaultBranch) {
-        _output.step('Checking out $startingBranch.');
+        if (!json) {
+          _output.step('Checking out $startingBranch.');
+        }
         await runGit([
           'checkout',
           startingBranch,
         ], workingDirectory: repository);
+        actions.add('checked out $startingBranch');
       }
     }
     return _mergeUpstreamBranch(
@@ -101,10 +128,16 @@ class PackageSyncCommand extends Command<int> {
       manifest: manifest,
       defaultBranch: defaultBranch,
       packageBranch: startingBranch,
+      json: json,
+      actions: actions,
     );
   }
 
-  Future<int> _continueSync(Directory repository) async {
+  Future<int> _continueSync(
+    Directory repository, {
+    required bool json,
+    required List<String> actions,
+  }) async {
     if (!await _isMergeInProgress(repository)) {
       throw UsageException('No package sync merge is in progress.', '');
     }
@@ -130,6 +163,8 @@ class PackageSyncCommand extends Command<int> {
       manifest: manifest,
       defaultBranch: defaultBranch,
       packageBranch: branch,
+      json: json,
+      actions: actions,
     );
   }
 
@@ -138,6 +173,8 @@ class PackageSyncCommand extends Command<int> {
     required PackageManifest manifest,
     required String defaultBranch,
     required String packageBranch,
+    required bool json,
+    required List<String> actions,
   }) async {
     final merge = await runGit(
       ['merge', '--no-ff', '--no-commit', defaultBranch],
@@ -154,11 +191,17 @@ class PackageSyncCommand extends Command<int> {
       );
     }
     if (await _isMergeInProgress(repository)) {
-      _output.success('Merged $defaultBranch into $packageBranch.');
+      actions.add('merged $defaultBranch into $packageBranch');
+      if (!json) {
+        _output.success('Merged $defaultBranch into $packageBranch.');
+      }
     } else {
-      _output.skipped(
-        'Package branch $packageBranch already contains $defaultBranch.',
-      );
+      actions.add('$packageBranch already contains $defaultBranch');
+      if (!json) {
+        _output.skipped(
+          'Package branch $packageBranch already contains $defaultBranch.',
+        );
+      }
     }
 
     return _updateManifestAndCommit(
@@ -166,6 +209,8 @@ class PackageSyncCommand extends Command<int> {
       manifest: manifest,
       defaultBranch: defaultBranch,
       packageBranch: packageBranch,
+      json: json,
+      actions: actions,
     );
   }
 
@@ -174,6 +219,8 @@ class PackageSyncCommand extends Command<int> {
     required PackageManifest manifest,
     required String defaultBranch,
     required String packageBranch,
+    required bool json,
+    required List<String> actions,
   }) async {
     final packageVersions = <String, String>{};
     for (final packageManifest in manifest.packages) {
@@ -202,9 +249,20 @@ class PackageSyncCommand extends Command<int> {
       allowFailure: true,
     );
     if (!mergeInProgress && changed.exitCode == 0) {
-      _output.skipped(
-        'Package branch $packageBranch already matches upstream metadata.',
-      );
+      actions.add('$packageBranch already matches upstream metadata');
+      if (json) {
+        _writeJson({
+          'status': 'unchanged',
+          'packageBranch': packageBranch,
+          'upstreamBranch': defaultBranch,
+          'actions': actions,
+          'committed': false,
+        });
+      } else {
+        _output.skipped(
+          'Package branch $packageBranch already matches upstream metadata.',
+        );
+      }
       return 0;
     }
 
@@ -213,12 +271,27 @@ class PackageSyncCommand extends Command<int> {
       '-m',
       'Sync upstream packages',
     ], workingDirectory: repository);
-    _output.success('Updated upstream metadata for registered packages.');
-    _output.next(
-      'Complete the OHOS implementation, then update package.version and '
-      'FLUOH_CHANGELOG.md before release.',
-    );
+    actions.add('committed Sync upstream packages');
+    if (json) {
+      _writeJson({
+        'status': 'synced',
+        'packageBranch': packageBranch,
+        'upstreamBranch': defaultBranch,
+        'actions': actions,
+        'committed': true,
+      });
+    } else {
+      _output.success('Updated upstream metadata for registered packages.');
+      _output.next(
+        'Complete the OHOS implementation, then update package.version and '
+        'FLUOH_CHANGELOG.md before release.',
+      );
+    }
     return 0;
+  }
+
+  void _writeJson(Map<String, Object?> value) {
+    stdout(jsonEncode(value));
   }
 
   Future<bool> _isMergeInProgress(Directory repository) async {

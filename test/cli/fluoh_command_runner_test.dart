@@ -387,6 +387,29 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('wraps leaf command option help at terminal width', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['package', 'check', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    expect(
+      help,
+      contains(
+        '    --package=<name>            Package to check when fluoh.yaml registers\n'
+        '                                multiple packages.',
+      ),
+    );
+    expect(help.split('\n').where((line) => line.length > 80), isEmpty);
+    expect(stderr, isEmpty);
+  });
+
   test('prints package create upstream argument guidance', () async {
     final stdout = <String>[];
     final stderr = <String>[];

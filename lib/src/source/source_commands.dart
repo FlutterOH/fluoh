@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -13,7 +14,7 @@ import '../schema/schema.dart';
 import 'source_runtime.dart';
 import 'source_sync.dart';
 
-class SourceCommand extends Command<int> {
+class SourceCommand extends FluohCommand<int> {
   SourceCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
@@ -123,7 +124,7 @@ const _sourceCommandSections = [
   ]),
 ];
 
-class SourceListCommand extends Command<int> {
+class SourceListCommand extends FluohCommand<int> {
   SourceListCommand({
     required this.environment,
     required this.stdout,
@@ -178,7 +179,7 @@ class SourceListCommand extends Command<int> {
   }
 }
 
-class SourceValidateCommand extends Command<int> {
+class SourceValidateCommand extends FluohCommand<int> {
   SourceValidateCommand({
     required this.environment,
     required this.stdout,
@@ -223,7 +224,7 @@ class SourceValidateCommand extends Command<int> {
   }
 }
 
-class SourceInitCommand extends Command<int> {
+class SourceInitCommand extends FluohCommand<int> {
   SourceInitCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -294,12 +295,18 @@ class SourceInitCommand extends Command<int> {
   }
 }
 
-class SourceSyncCommand extends Command<int> {
+class SourceSyncCommand extends FluohCommand<int> {
   SourceSyncCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print the source sync result as JSON.',
+    );
+  }
 
   final FluohEnvironment environment;
   final OutputWriter stdout;
@@ -323,6 +330,7 @@ class SourceSyncCommand extends Command<int> {
       'Expected zero or one source path.',
       usageException,
     );
+    final json = argResults!.flag('json');
 
     final source = rest.isEmpty
         ? environment.workingDirectory
@@ -391,35 +399,51 @@ class SourceSyncCommand extends Command<int> {
         await SourceRuntime(environment).saveConfigAndRebuildLock(
           config!,
           snapshots: {configuredSource.key: workingSource},
-          output: _output.style.capabilities.decorated ? _output : null,
+          output: json
+              ? null
+              : _output.style.capabilities.decorated
+              ? _output
+              : null,
         );
       }
 
-      for (final item in results) {
-        final result = item.result;
-        if (result.skippedFrozen) {
-          _output.skipped(
-            'Skipped source metadata update for ${result.packageName} because '
-            'maintenance.status is frozen.',
-          );
-          if (result.frozenReason != null) {
-            _output.next(result.frozenReason!);
+      if (json) {
+        stdout(
+          jsonEncode({
+            'source': source.path,
+            'configuredSource': configuredSource?.key,
+            'synced': synced,
+            'skipped': skipped,
+            'packages': results.map((result) => result.toJson()).toList(),
+          }),
+        );
+      } else {
+        for (final item in results) {
+          final result = item.result;
+          if (result.skippedFrozen) {
+            _output.skipped(
+              'Skipped source metadata update for ${result.packageName} because '
+              'maintenance.status is frozen.',
+            );
+            if (result.frozenReason != null) {
+              _output.next(result.frozenReason!);
+            }
+          } else {
+            _output.success(
+              'Synced source metadata for ${result.packageName} from '
+              '${_output.style.path(item.repository.path)}.',
+            );
           }
+        }
+
+        if (synced == 0 && skipped == 0) {
+          _output.skipped('No packages were synced.');
         } else {
-          _output.success(
-            'Synced source metadata for ${result.packageName} from '
-            '${_output.style.path(item.repository.path)}.',
+          _output.next(
+            'Synced $synced package${_s(synced)}'
+            '${skipped == 0 ? '' : '; skipped $skipped frozen package${_s(skipped)}'}.',
           );
         }
-      }
-
-      if (synced == 0 && skipped == 0) {
-        _output.skipped('No packages were synced.');
-      } else {
-        _output.next(
-          'Synced $synced package${_s(synced)}'
-          '${skipped == 0 ? '' : '; skipped $skipped frozen package${_s(skipped)}'}.',
-        );
       }
     } finally {
       for (final repository in repositories) {
@@ -640,6 +664,16 @@ class _SourceSyncResult {
 
   final Directory repository;
   final _SourcePackageMetadataResult result;
+
+  Map<String, Object?> toJson() {
+    return {
+      'package': result.packageName,
+      'repository': repository.path,
+      'manifestPath': result.repositoryPath,
+      'status': result.skippedFrozen ? 'skipped' : 'synced',
+      if (result.frozenReason != null) 'reason': result.frozenReason,
+    };
+  }
 }
 
 class _SourceSyncPackage {
@@ -982,7 +1016,7 @@ List<SourceManifestRelease> _upsertManifestRelease(
   return next;
 }
 
-class SourceAddCommand extends Command<int> {
+class SourceAddCommand extends FluohCommand<int> {
   SourceAddCommand({
     required this.environment,
     required this.stdout,
@@ -1074,7 +1108,7 @@ class SourceAddCommand extends Command<int> {
   }
 }
 
-class SourceRemoveCommand extends Command<int> {
+class SourceRemoveCommand extends FluohCommand<int> {
   SourceRemoveCommand({
     required this.environment,
     required this.stdout,
@@ -1120,7 +1154,7 @@ class SourceRemoveCommand extends Command<int> {
   }
 }
 
-class SourceUpdateCommand extends Command<int> {
+class SourceUpdateCommand extends FluohCommand<int> {
   SourceUpdateCommand({
     required this.environment,
     required this.stdout,

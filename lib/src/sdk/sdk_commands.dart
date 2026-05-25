@@ -8,7 +8,7 @@ import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 import 'sdk_use_command.dart';
 
-class SdkCommand extends Command<int> {
+class SdkCommand extends FluohCommand<int> {
   SdkCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
@@ -75,7 +75,7 @@ const _sdkCommandSections = [
   CommandUsageSection('', ['list', 'install', 'current', 'remove', 'use']),
 ];
 
-class SdkListCommand extends Command<int> {
+class SdkListCommand extends FluohCommand<int> {
   SdkListCommand({
     required this.manager,
     required this.stdout,
@@ -127,7 +127,7 @@ class SdkListCommand extends Command<int> {
   }
 }
 
-class SdkInstallCommand extends Command<int> {
+class SdkInstallCommand extends FluohCommand<int> {
   SdkInstallCommand({
     required this.manager,
     required this.stdout,
@@ -166,7 +166,7 @@ class SdkInstallCommand extends Command<int> {
   }
 }
 
-class SdkCurrentCommand extends Command<int> {
+class SdkCurrentCommand extends FluohCommand<int> {
   SdkCurrentCommand({
     required this.manager,
     required this.stdout,
@@ -197,7 +197,7 @@ class SdkCurrentCommand extends Command<int> {
   }
 }
 
-class SdkRemoveCommand extends Command<int> {
+class SdkRemoveCommand extends FluohCommand<int> {
   SdkRemoveCommand({
     required this.manager,
     required this.stdout,

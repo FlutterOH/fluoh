@@ -103,6 +103,36 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test(
+    'prints json and returns non-zero in strict mode when warnings exist',
+    () async {
+      final environment = await createTestEnvironment();
+
+      final result = await _runDoctorCommand(
+        environment: environment,
+        versionMetadataProvider: () async =>
+            const DoctorVersionMetadata(latestVersion: packageVersion),
+        arguments: const ['doctor', '--json', '--strict'],
+      );
+
+      expect(result.exitCode, 1);
+      final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('ok', false));
+      expect(report['issueCount'], isNonZero);
+      final checks = report['checks'] as List<Object?>;
+      expect(
+        checks,
+        contains(
+          allOf(
+            containsPair('title', 'Flutter project'),
+            containsPair('status', 'warning'),
+          ),
+        ),
+      );
+      expect(result.stderr, isEmpty);
+    },
+  );
+
   test('reports malformed fluoh.yaml as a warning', () async {
     final environment = await createTestEnvironment();
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -265,6 +295,7 @@ Future<_DoctorRunResult> _runDoctorCommand({
   required DoctorVersionMetadataProvider versionMetadataProvider,
   Uri? scriptUri,
   bool enableColor = false,
+  List<String> arguments = const ['doctor'],
 }) async {
   final stdout = <String>[];
   final stderr = <String>[];
@@ -283,7 +314,7 @@ Future<_DoctorRunResult> _runDoctorCommand({
       ),
     );
 
-  final exitCode = await runner.run(['doctor']);
+  final exitCode = await runner.run(arguments);
   return _DoctorRunResult(exitCode ?? 0, stdout, stderr);
 }
 

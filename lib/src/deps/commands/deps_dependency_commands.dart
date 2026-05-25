@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
-
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
@@ -12,7 +10,7 @@ import '../dependency_plan.dart';
 import '../dependency_policy.dart';
 import '../pubspec_dependency_editor.dart';
 
-class DepsCheckCommand extends Command<int> {
+class DepsCheckCommand extends FluohCommand<int> {
   DepsCheckCommand({
     required this.environment,
     required this.stdout,
@@ -54,7 +52,7 @@ class DepsCheckCommand extends Command<int> {
   }
 }
 
-class DepsFixCommand extends Command<int> {
+class DepsFixCommand extends FluohCommand<int> {
   DepsFixCommand({
     required this.environment,
     required this.stdout,

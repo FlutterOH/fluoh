@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
-
 import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/fluoh_installation.dart';
@@ -12,7 +10,7 @@ typedef UpgradeProcessRunner =
 
 typedef UpgradeScriptUriProvider = Uri Function();
 
-class UpgradeCommand extends Command<int> {
+class UpgradeCommand extends FluohCommand<int> {
   UpgradeCommand({
     required OutputWriter stdout,
     OutputWriter? stderr,

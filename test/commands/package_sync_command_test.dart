@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
@@ -100,6 +101,62 @@ void main() {
       expect(stderr, isEmpty);
     },
   );
+
+  test('package sync can emit json results', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_sync_json'),
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_sync_json',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'sync', '--json'],
+        environment: FluohEnvironment(
+          homeDirectory: environment.homeDirectory,
+          workingDirectory: packageRepository,
+        ),
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('status', 'synced'));
+    expect(report, containsPair('committed', true));
+    expect(report, containsPair('packageBranch', 'ohos/3.35'));
+    expect(stderr, isEmpty);
+  });
 
   test(
     'package sync restores the starting branch when fast-forward fails',

@@ -41,7 +41,7 @@ dart pub global activate fluoh
 
 cd your_flutter_project
 fluoh source update
-fluoh sdk use 3.35 --pub-get
+fluoh sdk use 3.35 --pub-get --init-ohos
 fluoh deps check
 fluoh deps fix
 fluoh deps get
@@ -49,8 +49,8 @@ fluohf build hap
 ```
 
 After setup, the project has an exact SDK version in `fluoh.yaml`, a stable IDE
-SDK link at `.fluoh/flutter_sdk`, and FlutterOH dependency replacements from
-the latest validated snapshot.
+SDK link at `.fluoh/flutter_sdk`, an `ohos/` platform directory, and FlutterOH
+dependency replacements from the latest validated snapshot.
 
 ## Install
 
@@ -76,7 +76,7 @@ brew install fluoh
 
 | Workflow | Command |
 | --- | --- |
-| Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
+| Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get --init-ohos` |
 | Run Flutter from the selected SDK | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
 | Check FlutterOH dependency support | `fluoh deps check` |
 | Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
@@ -92,7 +92,7 @@ brew install fluoh
 
 ```sh
 fluoh sdk list
-fluoh sdk use 3.35 --pub-get
+fluoh sdk use 3.35 --pub-get --init-ohos
 
 fluoh deps check
 fluoh deps fix --dry-run
@@ -111,6 +111,7 @@ can also create, sync, check, and release third-party FlutterOH package reposito
 ```sh
 fluoh package create <upstream-git-url>
 fluoh package sync
+fluoh package status
 fluoh package check
 fluoh package release
 fluoh source sync

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:args/command_runner.dart';
 
 import '../../cli/argument_validation.dart';
@@ -10,7 +12,7 @@ import '../manifest/package_manifest.dart';
 import '../package_checker.dart';
 import '../release_validator.dart';
 
-class PackageReleaseCommand extends Command<int> {
+class PackageReleaseCommand extends FluohCommand<int> {
   PackageReleaseCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -34,6 +36,16 @@ class PackageReleaseCommand extends Command<int> {
         'push',
         negatable: false,
         help: 'Push the release tag to origin after creating or validating it.',
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'Validate and test the release without creating or pushing tags.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the release result as JSON.',
       );
   }
 
@@ -50,52 +62,137 @@ class PackageReleaseCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    expectNoArguments(argResults!, usageException);
-    if (argResults!.flag('all') &&
-        (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
-      usageException('Use only one of --all or --package.');
-    }
-
-    final manifest = await readPackageManifest(environment.workingDirectory);
-    final branch = await currentBranch(environment.workingDirectory);
-    if (branch != manifest.branch) {
-      usageException(
-        'Current branch $branch does not match package branch '
-        '${manifest.branch}.',
-      );
-    }
-    await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
-    await _ensureSdkVersionExists(manifest.sdkVersion);
-    final packages = argResults!.flag('all')
-        ? manifest.packages
-        : [manifest.packageForName(argResults!.option('package'))];
-    for (final package in packages) {
-      final result = await _validateAndTestPackage(
-        manifest: manifest,
-        package: package,
-      );
-      if (result != 0) {
-        return result;
-      }
-    }
+    final dryRun = argResults!.flag('dry-run');
+    final json = argResults!.flag('json');
+    final validations = <_PackageReleaseValidationResult>[];
     final tags = <String>[];
-    for (final package in packages) {
-      tags.add(await _createReleaseTag(manifest: manifest, package: package));
-    }
-    if (argResults!.flag('push')) {
-      await _pushReleaseTags(tags);
-    }
-    if (argResults!.flag('all')) {
-      _output.success(
-        'Released ${packages.length} package${_s(packages.length)}.',
+    var pushed = false;
+
+    try {
+      expectNoArguments(argResults!, usageException);
+      if (argResults!.flag('all') &&
+          (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
+        usageException('Use only one of --all or --package.');
+      }
+      final output = json
+          ? TerminalOutput(stdout: (_) {}, stderr: (_) {})
+          : _output;
+      final OutputWriter stdout = json ? (_) {} : _stdout;
+      final OutputWriter stderr = json ? (_) {} : _stderr;
+
+      final manifest = await readPackageManifest(environment.workingDirectory);
+      final branch = await currentBranch(environment.workingDirectory);
+      if (branch != manifest.branch) {
+        usageException(
+          'Current branch $branch does not match package branch '
+          '${manifest.branch}.',
+        );
+      }
+      await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
+      await _ensureSdkVersionExists(manifest.sdkVersion);
+      final packages = argResults!.flag('all')
+          ? manifest.packages
+          : [manifest.packageForName(argResults!.option('package'))];
+      for (final package in packages) {
+        final result = await _validateAndTestPackage(
+          manifest: manifest,
+          package: package,
+          stdout: stdout,
+          stderr: stderr,
+          output: output,
+        );
+        validations.add(result);
+        if (!result.check.passed) {
+          _printJsonIfRequested(
+            json: json,
+            dryRun: dryRun,
+            pushed: false,
+            validations: validations,
+            tags: const [],
+          );
+          return result.check.exitCode;
+        }
+      }
+      if (dryRun) {
+        for (final validation in validations) {
+          tags.add(validation.tag);
+          output.skipped('Would create release tag ${validation.tag}.');
+        }
+      } else {
+        for (final package in packages) {
+          tags.add(
+            await _createReleaseTag(
+              manifest: manifest,
+              package: package,
+              output: output,
+            ),
+          );
+        }
+      }
+      if (argResults!.flag('push')) {
+        if (dryRun) {
+          output.skipped(
+            'Would push ${tags.length} release tag${_s(tags.length)}.',
+          );
+        } else {
+          await _pushReleaseTags(tags, output: output);
+          pushed = true;
+        }
+      }
+      if (dryRun) {
+        output.success(
+          'Release dry run passed for ${packages.length} package${_s(packages.length)}.',
+        );
+      } else if (argResults!.flag('all')) {
+        output.success(
+          'Released ${packages.length} package${_s(packages.length)}.',
+        );
+      }
+      _printJsonIfRequested(
+        json: json,
+        dryRun: dryRun,
+        pushed: pushed,
+        validations: validations,
+        tags: tags,
       );
+      return 0;
+    } on UsageException catch (error) {
+      if (!json) {
+        rethrow;
+      }
+      _printJsonIfRequested(
+        json: true,
+        dryRun: dryRun,
+        pushed: pushed,
+        validations: validations,
+        tags: tags,
+        exitCode: 64,
+        error: error.message,
+      );
+      return 64;
+    } on FormatException catch (error) {
+      if (!json) {
+        rethrow;
+      }
+      _printJsonIfRequested(
+        json: true,
+        dryRun: dryRun,
+        pushed: pushed,
+        validations: validations,
+        tags: tags,
+        exitCode: 64,
+        error: error.message,
+      );
+      return 64;
     }
-    return 0;
   }
 
-  Future<int> _validateAndTestPackage({
+  Future<_PackageReleaseValidationResult> _validateAndTestPackage({
     required PackageManifest manifest,
     required PackageManifestPackage package,
+    required OutputWriter stdout,
+    required OutputWriter stderr,
+    required TerminalOutput output,
   }) async {
     final tag = package.releaseTag(manifest.sdkVersion);
     await validatePackageReleaseMetadata(
@@ -111,33 +208,42 @@ class PackageReleaseCommand extends Command<int> {
       tag: tag,
     );
     for (final warning in warnings) {
-      _output.warningError(warning);
+      output.warningError(warning);
     }
     await _ensureReleaseTagIsUsable(tag: tag, package: package);
 
     final checkCommand = manifest.packages.length == 1
         ? 'fluoh package check'
         : 'fluoh package check --package ${package.name}';
-    _output.step('Running $checkCommand before release.');
+    output.step('Running $checkCommand before release.');
     final checkResult = await checkPackage(
       environment: environment,
       manifest: manifest,
       package: package,
-      stdout: _stdout,
-      stderr: _stderr,
-      output: _output,
+      stdout: stdout,
+      stderr: stderr,
+      output: output,
       usage: usage,
     );
     if (!checkResult.passed) {
-      return checkResult.exitCode;
+      return _PackageReleaseValidationResult(
+        tag: tag,
+        warnings: warnings,
+        check: checkResult,
+      );
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
-    return 0;
+    return _PackageReleaseValidationResult(
+      tag: tag,
+      warnings: warnings,
+      check: checkResult,
+    );
   }
 
   Future<String> _createReleaseTag({
     required PackageManifest manifest,
     required PackageManifestPackage package,
+    required TerminalOutput output,
   }) async {
     final tag = package.releaseTag(manifest.sdkVersion);
     final existsAtHead = await _ensureReleaseTagIsUsable(
@@ -145,16 +251,19 @@ class PackageReleaseCommand extends Command<int> {
       package: package,
     );
     if (existsAtHead) {
-      _output.skipped('Release tag already exists: $tag.');
+      output.skipped('Release tag already exists: $tag.');
       return tag;
     }
 
     await runGit(['tag', tag], workingDirectory: environment.workingDirectory);
-    _output.success('Created release tag $tag.');
+    output.success('Created release tag $tag.');
     return tag;
   }
 
-  Future<void> _pushReleaseTags(List<String> tags) async {
+  Future<void> _pushReleaseTags(
+    List<String> tags, {
+    required TerminalOutput output,
+  }) async {
     if (tags.length == 1) {
       final tag = tags.single;
       await runGit([
@@ -162,7 +271,7 @@ class PackageReleaseCommand extends Command<int> {
         'origin',
         tag,
       ], workingDirectory: environment.workingDirectory);
-      _output.success('Pushed release tag $tag.');
+      output.success('Pushed release tag $tag.');
       return;
     }
 
@@ -172,7 +281,7 @@ class PackageReleaseCommand extends Command<int> {
       'origin',
       ...tags,
     ], workingDirectory: environment.workingDirectory);
-    _output.success('Pushed ${tags.length} release tags.');
+    output.success('Pushed ${tags.length} release tags.');
   }
 
   Future<bool> _ensureReleaseTagIsUsable({
@@ -210,6 +319,58 @@ class PackageReleaseCommand extends Command<int> {
       );
     }
   }
+
+  void _printJsonIfRequested({
+    required bool json,
+    required bool dryRun,
+    required bool pushed,
+    required List<_PackageReleaseValidationResult> validations,
+    required List<String> tags,
+    int? exitCode,
+    String? error,
+  }) {
+    if (!json) {
+      return;
+    }
+    final resolvedExitCode =
+        exitCode ??
+        validations
+            .map((result) => result.check.exitCode)
+            .firstWhere((exitCode) => exitCode != 0, orElse: () => 0);
+    final result = {
+      'passed': resolvedExitCode == 0 && error == null,
+      'exitCode': resolvedExitCode,
+      'dryRun': dryRun,
+      'pushed': pushed,
+      'tags': tags,
+      'packages': validations.map((result) => result.toJson()).toList(),
+    };
+    if (error != null) {
+      result['error'] = error;
+    }
+    _stdout(jsonEncode(result));
+  }
 }
 
 String _s(int count) => count == 1 ? '' : 's';
+
+class _PackageReleaseValidationResult {
+  const _PackageReleaseValidationResult({
+    required this.tag,
+    required this.warnings,
+    required this.check,
+  });
+
+  final String tag;
+  final List<String> warnings;
+  final PackageCheckResult check;
+
+  Map<String, Object?> toJson() {
+    return {
+      'package': check.packageName,
+      'tag': tag,
+      'warnings': warnings,
+      'check': check.toJson(),
+    };
+  }
+}

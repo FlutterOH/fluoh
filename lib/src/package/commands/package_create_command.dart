@@ -17,7 +17,7 @@ import '../package_examples.dart';
 import '../package_repository_docs.dart';
 import '../repository_url.dart';
 
-class PackageCreateCommand extends Command<int> {
+class PackageCreateCommand extends FluohCommand<int> {
   PackageCreateCommand({
     required this.environment,
     required OutputWriter stdout,

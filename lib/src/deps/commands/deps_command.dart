@@ -8,7 +8,7 @@ import 'deps_dependency_commands.dart';
 import 'deps_get_command.dart';
 import 'deps_upgrade_command.dart';
 
-class DepsCommand extends Command<int> {
+class DepsCommand extends FluohCommand<int> {
   DepsCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,

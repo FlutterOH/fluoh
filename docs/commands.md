@@ -43,6 +43,7 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
 | `fluoh package check` | `lib/src/package/commands/package_check_command.dart` | Run pub get, analysis, and existing tests. |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Check, tag, and optionally push FlutterOH package releases. |
+| `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | Summarize package release readiness. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose local project, source, SDK, and tool state. |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | Upgrade the installed `fluoh` CLI. |
 
@@ -95,11 +96,12 @@ Design constraints:
 
 ### `fluoh doctor`
 
-`doctor` is diagnostic and returns success after printing its findings. It
-checks the installation method and latest pub.dev version, configured source
-snapshots, Flutter project shape, selected project SDK, and the `ohos`
-platform directory. Missing or stale state is reported as warnings rather than
-immediate remediation.
+`doctor` is diagnostic and returns success after printing its findings unless
+`--strict` is used. It checks the installation method and latest pub.dev version,
+configured source snapshots, Flutter project shape, selected project SDK, and
+the `ohos` platform directory. Missing or stale state is reported as warnings
+rather than immediate remediation. `--json` prints the same checks as
+machine-readable JSON.
 
 ### `fluoh upgrade`
 
@@ -193,7 +195,7 @@ is treated as a configured Source snapshot mutation and the Source runtime
 rebuilds the merged lock. When `<path>` is a maintainer checkout outside
 the configured snapshots, the local lock is not changed; run
 `fluoh source update <name>` after publishing or copying the Source into a
-configured snapshot.
+configured snapshot. `--json` prints synced and skipped package records as JSON.
 
 ## SDK Commands
 
@@ -217,7 +219,9 @@ local cache version and deletes only the matching SDK directory under
 the current directory to be a Flutter project, refuses to overwrite FlutterOH
 package repository metadata, resolves or installs the SDK, writes the project
 `fluoh.yaml`, and updates `.fluoh/flutter_sdk` as a stable IDE SDK path.
-`--pub-get` runs `flutter pub get` after the switch.
+`--init-ohos` runs the selected SDK's `flutter create --no-pub --platforms=ohos .`
+when the project has no `ohos/` directory. `--pub-get` runs `flutter pub get`
+after the switch and optional OHOS initialization.
 
 ## Dependency Commands
 
@@ -308,7 +312,7 @@ updates upstream metadata in `fluoh.yaml`, stages it, and
 commits `Sync upstream packages` when changes are present. Merge conflicts are
 left for the user to resolve, then `fluoh package sync --continue` validates staged
 resolution and finishes. `--abort` runs `git merge --abort` for an in-progress
-sync.
+sync. `--json` prints the completed sync action list and commit status.
 
 `fluoh package check` runs existing automated checks for packages registered in
 Package `fluoh.yaml`. It runs selected-SDK `pub get` and `analyze` for the
@@ -316,13 +320,25 @@ package, using `flutter` for Flutter packages and `dart` for non-Flutter
 packages, then runs package tests when `test/**/*_test.dart` exists. It also
 runs `flutter pub get`, `flutter analyze`, and existing tests in a top-level
 Flutter example when `example/pubspec.yaml` is present. Use `--package <name>`
-for one package or `--all` for every registered package.
+for one package or `--all` for every registered package. `--build-example hap`
+builds each Flutter example after analysis and tests; combine it with `--debug`
+to pass `--debug` to `flutter build hap`. `--json` prints structured check
+results.
 
 `fluoh package release` validates release metadata, checks that the configured
 SDK version exists in sources, runs `fluoh package check`, ensures the working
 tree remains clean, creates release tags at HEAD, and optionally pushes them.
 Use `--package <name>` for one package or `--all` for every registered package.
-Existing tags are accepted only when they already point at HEAD.
+Existing tags are accepted only when they already point at HEAD. `--dry-run`
+performs validation and package checks without creating or pushing tags. `--json`
+prints tags, warnings, and package check results.
+
+`fluoh package status` reads Package `fluoh.yaml` and reports release readiness
+without mutating the repository. It checks the current branch, clean working
+tree, package status, release notes, license warnings, package tests, Flutter
+example presence, example OHOS platform, example tests, and tracked files that
+contain the local fluoh home path. Use `--package <name>` for one package,
+`--all` for every package, and `--json` for machine-readable output.
 
 ## State Ownership
 
@@ -334,7 +350,7 @@ Existing tags are accepted only when they already point at HEAD.
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
 | Project `fluoh.yaml` | `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
 | Project `pubspec.yaml` | `deps fix`, `deps upgrade` |
-| FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package release` validation |
+| FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package status`, `package release` validation |
 | Source root and Manifest files | `source init`, `source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`, `package create` SDK setup |
 | Package examples | `package create`, `package add`, `deps get`, `package check`, `package release` |

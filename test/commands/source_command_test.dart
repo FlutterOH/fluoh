@@ -861,6 +861,55 @@ environment:
     expect(stderr, isEmpty);
   });
 
+  test('source sync can emit json results', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/json_source');
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/json_packages_implementation',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'init', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await _writePackageManifest(packageRepository);
+    await _writeSourceSyncManifest(source, packageRepository);
+    await initializeGitRepository(packageRepository);
+    await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['source', 'sync', '--json'],
+        environment: FluohEnvironment(
+          homeDirectory: environment.homeDirectory,
+          workingDirectory: source,
+        ),
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('synced', 1));
+    final packages = report['packages'] as List<Object?>;
+    expect(
+      packages,
+      contains(
+        allOf(
+          containsPair('package', 'camera'),
+          containsPair('status', 'synced'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test(
     'source sync resolves local repository paths from source manifests',
     () async {

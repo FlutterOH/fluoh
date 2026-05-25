@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
@@ -60,6 +61,64 @@ void main() {
     expect(stdout, contains('Example tests passed for camera.'));
     expect(stdout, contains('Package check passed for camera.'));
     expect(stderr, contains('flutter stderr'));
+  });
+
+  test('can build example HAP and emit json results', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--build-example', 'hap', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/package_check_invocations.txt',
+      ).readAsStringSync(),
+      contains('$root/example::flutter build hap --debug'),
+    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', true));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-build-hap'),
+          containsPair('command', 'flutter build hap --debug'),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
   });
 
   test('uses dart test for non-Flutter packages', () async {

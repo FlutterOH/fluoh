@@ -39,7 +39,7 @@ dart pub global activate fluoh
 
 cd your_flutter_project
 fluoh source update
-fluoh sdk use 3.35 --pub-get
+fluoh sdk use 3.35 --pub-get --init-ohos
 fluoh deps check
 fluoh deps fix
 fluoh deps get
@@ -47,7 +47,8 @@ fluohf build hap
 ```
 
 配置完成后，项目会在 `fluoh.yaml` 中记录精确的 SDK 版本，`.fluoh/flutter_sdk`
-会作为稳定的 IDE SDK 链接，FlutterOH 依赖替换来自最新校验通过的快照。
+会作为稳定的 IDE SDK 链接，项目会拥有 `ohos/` 平台目录，FlutterOH 依赖替换来自最新
+校验通过的快照。
 
 ## 安装
 
@@ -73,7 +74,7 @@ brew install fluoh
 
 | 场景 | 命令 |
 | --- | --- |
-| 选择并固定 Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
+| 选择并固定 Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get --init-ohos` |
 | 通过已选择的 SDK 运行 Flutter | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
 | 检查 FlutterOH 依赖支持 | `fluoh deps check` |
 | 安全改写依赖 | `fluoh deps fix --dry-run`, `fluoh deps fix` |
@@ -89,7 +90,7 @@ brew install fluoh
 
 ```sh
 fluoh sdk list
-fluoh sdk use 3.35 --pub-get
+fluoh sdk use 3.35 --pub-get --init-ohos
 
 fluoh deps check
 fluoh deps fix --dry-run
@@ -108,6 +109,7 @@ fluohf build hap
 ```sh
 fluoh package create <upstream-git-url>
 fluoh package sync
+fluoh package status
 fluoh package check
 fluoh package release
 fluoh source sync

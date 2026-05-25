@@ -8,9 +8,10 @@ import 'package_add_command.dart';
 import 'package_check_command.dart';
 import 'package_create_command.dart';
 import 'package_release_command.dart';
+import 'package_status_command.dart';
 import 'package_sync_command.dart';
 
-class PackageCommand extends Command<int> {
+class PackageCommand extends FluohCommand<int> {
   PackageCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
@@ -53,6 +54,13 @@ class PackageCommand extends Command<int> {
         environment: environment,
         stdout: stdout,
         stderr: stderr,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      PackageStatusCommand(
+        environment: environment,
+        stdout: stdout,
         output: _output,
       ),
     );
@@ -104,5 +112,6 @@ const _packageCommandSections = [
     'sync',
     'check',
     'release',
+    'status',
   ]),
 ];

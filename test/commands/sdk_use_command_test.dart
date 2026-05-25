@@ -158,6 +158,38 @@ dependencyPolicy:
     expect(stderr, isEmpty);
   });
 
+  test('initializes the OHOS platform when requested', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3', '--init-ohos'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      Directory('${environment.workingDirectory.path}/ohos').existsSync(),
+      isTrue,
+    );
+    expect(stdout, contains('Initialized OHOS platform directory.'));
+    expect(stderr, isEmpty);
+  });
+
   test('refuses to replace a non-symlink IDE SDK path', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);

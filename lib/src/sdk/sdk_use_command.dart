@@ -11,7 +11,7 @@ import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 import 'sdk_project_environment.dart';
 
-class SdkUseCommand extends Command<int> {
+class SdkUseCommand extends FluohCommand<int> {
   SdkUseCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -21,6 +21,11 @@ class SdkUseCommand extends Command<int> {
       'pub-get',
       negatable: false,
       help: 'Run flutter pub get after switching the SDK.',
+    );
+    argParser.addFlag(
+      'init-ohos',
+      negatable: false,
+      help: 'Create the OHOS platform directory when it is missing.',
     );
   }
 
@@ -70,6 +75,9 @@ class SdkUseCommand extends Command<int> {
     _output.next(
       'Use this link as your IDE Flutter SDK path; reload the IDE if it keeps the old SDK.',
     );
+    if (argResults!.flag('init-ohos')) {
+      await _initOhosPlatform(sdkDirectory);
+    }
     if (argResults!.flag('pub-get')) {
       await _runPubGet(sdkDirectory);
     }
@@ -126,5 +134,35 @@ class SdkUseCommand extends Command<int> {
     if (result.exitCode != 0) {
       throw UsageException('flutter pub get failed:\n${result.stderr}', '');
     }
+  }
+
+  Future<void> _initOhosPlatform(Directory sdkDirectory) async {
+    final ohos = Directory('${environment.workingDirectory.path}/ohos');
+    if (await ohos.exists()) {
+      _output.skipped('OHOS platform directory already exists.');
+      return;
+    }
+
+    final sdkFlutter = File('${sdkDirectory.path}/bin/flutter');
+    final executable = await sdkFlutter.exists() ? sdkFlutter.path : 'flutter';
+    final result = await Process.run(executable, const [
+      'create',
+      '--no-pub',
+      '--platforms=ohos',
+      '.',
+    ], workingDirectory: environment.workingDirectory.path);
+    if (result.exitCode != 0) {
+      throw UsageException(
+        'flutter create --platforms=ohos failed:\n${result.stderr}',
+        '',
+      );
+    }
+    if (!await ohos.exists()) {
+      throw UsageException(
+        'flutter create --platforms=ohos did not create an ohos directory.',
+        '',
+      );
+    }
+    _output.success('Initialized OHOS platform directory.');
   }
 }

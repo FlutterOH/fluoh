@@ -28,7 +28,7 @@ class DoctorVersionMetadata {
   final String? currentVersionPublished;
 }
 
-class DoctorCommand extends Command<int> {
+class DoctorCommand extends FluohCommand<int> {
   DoctorCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -59,7 +59,19 @@ class DoctorCommand extends Command<int> {
                decorated: enableColor,
                unicode: true,
              ),
-           );
+           ) {
+    argParser
+      ..addFlag(
+        'strict',
+        negatable: false,
+        help: 'Return a non-zero exit code when doctor finds warnings.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the doctor result as JSON.',
+      );
+  }
 
   final FluohEnvironment environment;
   final TerminalOutput _output;
@@ -83,8 +95,19 @@ class DoctorCommand extends Command<int> {
     checks.add(await _checkSdkFiles());
     checks.add(await _checkOhosDirectory());
 
-    _printChecks(checks);
-    return 0;
+    final issueCount = _issueCount(checks);
+    if (argResults!.flag('json')) {
+      _output.write(
+        jsonEncode({
+          'ok': issueCount == 0,
+          'issueCount': issueCount,
+          'checks': checks.map((check) => check.toJson()).toList(),
+        }),
+      );
+    } else {
+      _printChecks(checks);
+    }
+    return argResults!.flag('strict') && issueCount > 0 ? 1 : 0;
   }
 
   Future<_DoctorCheck> _checkToolVersion() async {
@@ -253,9 +276,7 @@ class DoctorCommand extends Command<int> {
       }
     }
 
-    final issueCount = checks
-        .where((check) => check.status == _DoctorCheckStatus.warning)
-        .length;
+    final issueCount = _issueCount(checks);
     if (issueCount == 0) {
       _output.success('Doctor found no issues.');
     } else if (issueCount == 1) {
@@ -264,6 +285,12 @@ class DoctorCommand extends Command<int> {
       _output.warning('Doctor found issues in $issueCount categories.');
     }
   }
+}
+
+int _issueCount(List<_DoctorCheck> checks) {
+  return checks
+      .where((check) => check.status == _DoctorCheckStatus.warning)
+      .length;
 }
 
 String _installationDescription(FluohInstallation installation) {
@@ -291,6 +318,10 @@ class _DoctorCheck {
   final _DoctorCheckStatus status;
   final String title;
   final List<String> details;
+
+  Map<String, Object?> toJson() {
+    return {'title': title, 'status': status.name, 'details': details};
+  }
 }
 
 enum _DoctorCheckStatus { ok, warning }
