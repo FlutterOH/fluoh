@@ -219,9 +219,10 @@ local cache version and deletes only the matching SDK directory under
 the current directory to be a Flutter project, refuses to overwrite FlutterOH
 package repository metadata, resolves or installs the SDK, writes the project
 `fluoh.yaml`, and updates `.fluoh/flutter_sdk` as a stable IDE SDK path.
-`--init-ohos` runs the selected SDK's `flutter create --no-pub --platforms=ohos .`
-when the project has no `ohos/` directory. `--pub-get` runs `flutter pub get`
-after the switch and optional OHOS initialization.
+By default, it runs the selected SDK's
+`flutter create --no-pub --platforms=ohos .` when the project has no `ohos/`
+directory. `--no-init-ohos` skips that default initialization. `--pub-get` runs
+`flutter pub get` after the switch and any OHOS initialization.
 
 ## Dependency Commands
 

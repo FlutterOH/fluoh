@@ -175,9 +175,10 @@ sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合�
 
 `fluoh sdk use <version-or-series>` 是项目修改命令。它要求当前目录是 Flutter 项目，
 拒绝覆盖 FlutterOH package 仓库元数据，解析或安装 SDK，写入项目 `fluoh.yaml`，并更新
-`.fluoh/flutter_sdk` 作为稳定的 IDE SDK 路径。`--init-ohos` 会在项目缺少 `ohos/`
+`.fluoh/flutter_sdk` 作为稳定的 IDE SDK 路径。默认情况下，它会在项目缺少 `ohos/`
 目录时使用已选择 SDK 执行 `flutter create --no-pub --platforms=ohos .`。
-`--pub-get` 会在切换和可选 OHOS 初始化后执行 `flutter pub get`。
+`--no-init-ohos` 可跳过这个默认初始化。`--pub-get` 会在切换和可能的 OHOS 初始化后
+执行 `flutter pub get`。
 
 ## 依赖命令
 

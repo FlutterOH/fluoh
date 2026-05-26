@@ -4,11 +4,7 @@
 </h1>
 
 <p align="center">
-  <strong>A command-line toolkit for FlutterOH projects.</strong>
-</p>
-
-<p align="center">
-  Select the Flutter OHOS SDK, keep dependency replacements up to date, and run Flutter through the selected toolchain.
+  Bring Flutter apps to OpenHarmony faster.
 </p>
 
 <p align="center">
@@ -19,6 +15,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#maintenance-workflows">Maintenance</a> ·
   <a href="docs/commands.md">Commands</a> ·
   <a href="docs/schema.md">Schema</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -41,7 +38,7 @@ dart pub global activate fluoh
 
 cd your_flutter_project
 fluoh source update
-fluoh sdk use 3.35 --pub-get --init-ohos
+fluoh sdk use 3.35 --pub-get
 fluoh deps check
 fluoh deps fix
 fluoh deps get
@@ -51,6 +48,7 @@ fluohf build hap
 After setup, the project has an exact SDK version in `fluoh.yaml`, a stable IDE
 SDK link at `.fluoh/flutter_sdk`, an `ohos/` platform directory, and FlutterOH
 dependency replacements from the latest validated snapshot.
+Use `--no-init-ohos` when platform creation is handled by another workflow.
 
 ## Install
 
@@ -76,7 +74,7 @@ brew install fluoh
 
 | Workflow | Command |
 | --- | --- |
-| Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get --init-ohos` |
+| Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
 | Run Flutter from the selected SDK | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
 | Check FlutterOH dependency support | `fluoh deps check` |
 | Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
@@ -84,15 +82,11 @@ brew install fluoh
 | Diagnose project setup | `fluoh doctor` |
 | Upgrade the CLI | `fluoh upgrade` |
 
-<p align="center">
-  <img src="docs/assets/svg/readme-flow.svg" alt="fluoh workflow diagram" width="860">
-</p>
-
-## Daily Loop
+### Daily Loop
 
 ```sh
 fluoh sdk list
-fluoh sdk use 3.35 --pub-get --init-ohos
+fluoh sdk use 3.35 --pub-get
 
 fluoh deps check
 fluoh deps fix --dry-run
@@ -103,7 +97,7 @@ fluohf run
 fluohf build hap
 ```
 
-## Maintainer Workflows
+## Maintenance Workflows
 
 Most app projects only need the commands above. FlutterOH package maintainers
 can also create, sync, check, and release third-party FlutterOH package repositories:
@@ -116,6 +110,20 @@ fluoh package check
 fluoh package release
 fluoh source sync
 ```
+
+### AI Assistance
+
+For maintainers adapting a third-party Flutter package, let `fluoh` create the
+repository contract first, then hand the generated repository to an AI coding
+agent. Copy this one-line prompt and replace the upstream URL:
+
+```text
+Use fluoh to adapt <upstream-git-url> for FlutterOH: run `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`, read the generated `AGENTS.md`, `FLUOH.md`, `fluoh.yaml`, and examples, implement the OHOS platform without changing upstream public APIs, run `fluoh package check`, update `FLUOH_CHANGELOG.md`, and leave the repository ready for `fluoh package release`.
+```
+
+The generated `AGENTS.md` and `FLUOH.md` give the agent stable package paths,
+SDK selection, check commands, release metadata, and local-state rules. Review
+the final diff and device-only behavior before release.
 
 See [docs/commands.md](docs/commands.md) for the full command surface and
 [CONTRIBUTING.md](CONTRIBUTING.md) for repository, release, and publishing

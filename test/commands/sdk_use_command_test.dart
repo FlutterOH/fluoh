@@ -158,7 +158,7 @@ dependencyPolicy:
     expect(stderr, isEmpty);
   });
 
-  test('initializes the OHOS platform when requested', () async {
+  test('initializes the OHOS platform by default', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -174,7 +174,7 @@ dependencyPolicy:
 
     expect(
       await runFluoh(
-        ['sdk', 'use', '3.35.8-ohos-0.0.3', '--init-ohos'],
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -188,6 +188,57 @@ dependencyPolicy:
     );
     expect(stdout, contains('Initialized OHOS platform directory.'));
     expect(stderr, isEmpty);
+  });
+
+  test('skips OHOS platform initialization when disabled', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3', '--no-init-ohos'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      Directory('${environment.workingDirectory.path}/ohos').existsSync(),
+      isFalse,
+    );
+    expect(stdout, isNot(contains('Initialized OHOS platform directory.')));
+    expect(stderr, isEmpty);
+  });
+
+  test('rejects explicit OHOS initialization flag', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3', '--init-ohos'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, isEmpty);
+    expect(stderr.join('\n'), contains('init-ohos'));
   });
 
   test('refuses to replace a non-symlink IDE SDK path', () async {
@@ -492,6 +543,10 @@ Future<Directory> _createSdkUsePubGetSourceFixture(
   await flutter.parent.create(recursive: true);
   await flutter.writeAsString('''
 #!/bin/sh
+if [ "\$1" = "create" ]; then
+  mkdir -p ohos
+  exit 0
+fi
 printf "%s %s" "\$1" "\$2" > "${project.path}/flutter_dependency_get_args.txt"
 exit 0
 ''');

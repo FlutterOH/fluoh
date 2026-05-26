@@ -26,7 +26,7 @@ void main() {
       stderr: stderr.add,
     );
     await runFluoh(
-      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      ['sdk', 'use', '3.35.8-ohos-0.0.3', '--no-init-ohos'],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

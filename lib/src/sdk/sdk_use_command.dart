@@ -20,12 +20,14 @@ class SdkUseCommand extends FluohCommand<int> {
     argParser.addFlag(
       'pub-get',
       negatable: false,
-      help: 'Run flutter pub get after switching the SDK.',
+      help:
+          'Run flutter pub get after switching the SDK '
+          'and any OHOS initialization.',
     );
     argParser.addFlag(
-      'init-ohos',
+      'no-init-ohos',
       negatable: false,
-      help: 'Create the OHOS platform directory when it is missing.',
+      help: 'Skip creating the OHOS platform directory when it is missing.',
     );
   }
 
@@ -75,7 +77,7 @@ class SdkUseCommand extends FluohCommand<int> {
     _output.next(
       'Use this link as your IDE Flutter SDK path; reload the IDE if it keeps the old SDK.',
     );
-    if (argResults!.flag('init-ohos')) {
+    if (!argResults!.flag('no-init-ohos')) {
       await _initOhosPlatform(sdkDirectory);
     }
     if (argResults!.flag('pub-get')) {
