@@ -61,7 +61,13 @@ Use `test/helpers/fluoh_command_context.dart` for isolated temporary homes, proj
 
 Every command behavior change, pubspec rewrite, source index rule, SDK selection rule, package workflow, release validation, or publishing artifact change should include a regression test. For documentation or packaging changes, update `test/release/release_artifacts_test.dart` when the expected release surface changes.
 
-Documentation and generated-guidance tests should protect stable release contracts and structure, not exact prose. Assert key commands, files, schema keys, and links; avoid broad `contains(...)` checks for full sentences or translated wording so documentation can be edited for clarity without brittle test failures.
+Documentation and generated-guidance tests should protect stable release contracts and structure, not exact prose. They should verify that the feature or workflow is usable, not that every description keeps the same wording.
+
+- Prefer structured parsing for generated YAML, JSON, Markdown sections, and command output when a parser or local helper is available.
+- Assert stable contracts: required files, schema keys, package names, versions, paths, command names, links, headings, non-empty generated sections, and positive/negative workflow outcomes.
+- Avoid broad `contains(...)` checks for full sentences, explanatory paragraphs, translated wording, comments, or guidance prose. Short stable tokens are acceptable when they are part of the contract, such as command names, schema keys, release tags, or file names.
+- For generated README, FLUOH, AGENTS, schema, and command-design documents, check structure and required anchors rather than prose details. This keeps documentation editable for clarity without brittle test failures.
+- For CLI output, assert the exit code, changed files or parsed result, and essential next-step command when needed. Do not require incidental progress text or descriptive wording unless that exact message is the behavior under test.
 
 ## Documentation Standards
 

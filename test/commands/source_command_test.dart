@@ -595,14 +595,10 @@ environment:
       stdout,
       contains('Created local source template at ${source.path}.'),
     );
+    expect(stdout.join('\n'), contains('fluoh source sync ${source.path}'));
     expect(
-      stdout,
-      contains('Edit manifest files directly, or sync released packages with:'),
-    );
-    expect(stdout, contains('  fluoh source sync ${source.path}'));
-    expect(
-      stdout,
-      contains('Add it with: fluoh source add <name> ${source.path}'),
+      stdout.join('\n'),
+      contains('fluoh source add <name> ${source.path}'),
     );
     expect(stdout, contains('Added source local: ${source.path}'));
     expect(stderr, isEmpty);
@@ -629,12 +625,11 @@ environment:
       );
 
       expect(File('${source.path}/fluoh.yaml').existsSync(), isTrue);
-      expect(
-        File('${source.path}/README.md').readAsStringSync(),
-        contains(
-          'A source repository can add scheduled validation or ingestion workflows',
-        ),
-      );
+      final readme = File('${source.path}/README.md').readAsStringSync();
+      expect(readme, contains('fluoh source add <name> .'));
+      expect(readme, contains('fluoh source sync .'));
+      expect(readme, contains('fluoh.yaml'));
+      expect(readme, contains('manifests/example/fluoh.yaml'));
       expect(
         stdout,
         contains('Created local source template at ${source.path}.'),

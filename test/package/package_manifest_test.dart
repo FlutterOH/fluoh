@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:fluoh/src/package/manifest/package_manifest.dart';
 import 'package:fluoh/src/package/manifest/pubspec_package.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   test('builds release tags from the Flutter OHOS SDK line', () {
@@ -80,52 +81,39 @@ void main() {
     );
 
     final content = File('${root.path}/fluoh.yaml').readAsStringSync();
-    expect(content, contains('schema: 1'));
-    expect(content, contains('name: image_gallery_saver'));
+    final yaml = loadYaml(content) as YamlMap;
+    final repository = yaml['repository'] as YamlMap;
+    final repositoryGit = repository['git'] as YamlMap;
+    final upstream = yaml['upstream'] as YamlMap;
+    final upstreamGit = upstream['git'] as YamlMap;
+    final packages = yaml['packages'] as YamlMap;
+    final package = packages['image_gallery_saver'] as YamlMap;
+
+    expect(yaml['schema'], 1);
+    expect(yaml['name'], 'image_gallery_saver');
+    expect((yaml['sdk'] as YamlMap)['version'], '3.35.8-ohos-0.0.3');
     expect(
-      content,
-      contains(
-        '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
-      ),
+      repositoryGit['url'],
+      'https://github.com/FlutterOH/image_gallery_saver.git',
     );
+    expect(repositoryGit['branch'], 'ohos/3.35');
     expect(
-      content,
-      contains(
-        '# FlutterOH adaptation repository. Branches normally follow ohos/<sdkLine>.',
-      ),
+      upstreamGit['url'],
+      'https://github.com/fluttercandies/image_gallery_saver',
     );
-    expect(
-      content,
-      contains(
-        '# Package release metadata. Update version/status before fluoh package release.',
-      ),
-    );
-    expect(content, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
-    expect(content, contains('repository:'));
-    expect(content, contains('  git:'));
-    expect(content, contains('packages:'));
-    expect(content, contains('  image_gallery_saver:'));
-    expect(content, contains('    version: 0.1.0'));
-    expect(content, contains('    status: experimental'));
-    expect(content, contains('upstream:'));
-    expect(content, contains('    upstreamVersion: 2.0.3'));
-    expect(content, isNot(contains('type: git')));
-    expect(content, contains('branch: ohos/3.35'));
-    expect(content, isNot(contains('ref:')));
-    expect(content, isNot(contains('release:')));
-    expect(content, isNot(contains('implementation:')));
-    expect(content, isNot(contains('dependency:')));
-    expect(content, isNot(contains('fluoh:')));
-    expect(content, isNot(contains('sdkVersion:')));
-    expect(content, isNot(contains('    path:')));
-    expect(
-      content,
-      contains('url: https://github.com/FlutterOH/image_gallery_saver.git'),
-    );
-    expect(content, isNot(contains('"https://github.com/FlutterOH')));
-    expect(content, isNot(contains('tag: 0.1.0')));
-    expect(content, isNot(contains('tag: 2.0.3')));
-    expect(content, isNot(contains('tag: image_gallery_saver')));
+    expect(package['version'], '0.1.0');
+    expect(package['upstreamVersion'], '2.0.3');
+    expect(package['status'], 'experimental');
+    expect(package.containsKey('repository'), isFalse);
+    expect(package.containsKey('upstream'), isFalse);
+    expect(repositoryGit.containsKey('ref'), isFalse);
+    expect(repositoryGit.containsKey('type'), isFalse);
+    expect(package.containsKey('release'), isFalse);
+    expect(package.containsKey('tag'), isFalse);
+    expect(yaml.containsKey('implementation'), isFalse);
+    expect(yaml.containsKey('dependency'), isFalse);
+    expect(yaml.containsKey('fluoh'), isFalse);
+    expect(yaml.containsKey('sdkVersion'), isFalse);
 
     final manifest = await readPackageManifest(root);
     expect(
@@ -163,9 +151,6 @@ void main() {
         repositoryUrl: 'https://github.com/FlutterOH/share_plus.git',
       );
 
-      final content = File('${root.path}/fluoh.yaml').readAsStringSync();
-      expect(content, contains('      path: packages/share_plus/share_plus'));
-
       final manifest = await readPackageManifest(root);
 
       expect(
@@ -197,10 +182,6 @@ void main() {
       branch: 'ohos/3.35',
       repositoryUrl: 'https://github.com/FlutterOH/share_plus.git',
     );
-
-    final content = File('${root.path}/fluoh.yaml').readAsStringSync();
-    expect(content, contains('    path: implementation/share_plus'));
-    expect(content, contains('    path: packages/share_plus/share_plus'));
 
     final manifest = await readPackageManifest(root);
     expect(manifest.dependencyPath, 'implementation/share_plus');

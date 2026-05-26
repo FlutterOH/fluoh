@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:fluoh/fluoh.dart';
 import 'package:fluoh/src/cli/terminal_output.dart';
 import 'package:fluoh/src/package/commands/package_command.dart';
+import 'package:fluoh/src/package/manifest/package_manifest.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
@@ -89,180 +90,69 @@ void main() {
       ]);
       expect(authorName.stdout.toString().trim(), 'FlutterOH Adapter');
       expect(authorEmail.stdout.toString().trim(), 'adapter@example.com');
-      final manifest = File(
+      final manifestContent = File(
         '${packageRepository.path}/fluoh.yaml',
       ).readAsStringSync();
-      expect(manifest, contains('schema: 1'));
-      expect(manifest, contains('name: camera'));
+      final packageManifest = await readPackageManifest(packageRepository);
+      expect(manifestContent, contains('schema: 1'));
+      expect(manifestContent, contains('packages:\n  camera:'));
+      expect(manifestContent, isNot(contains('implementation:')));
+      expect(manifestContent, isNot(contains('dependency:')));
+      expect(manifestContent, isNot(contains('dependencyPolicy:')));
+      expect(manifestContent, isNot(contains('fluoh:')));
+      expect(manifestContent, isNot(contains('flutteroh:')));
+      expect(manifestContent, isNot(contains('replacement:')));
+      expect(manifestContent, isNot(contains('ref:')));
+      expect(manifestContent, isNot(contains('sdkVersion:')));
+      expect(manifestContent, isNot(contains('release:')));
+      expect(manifestContent, isNot(contains('tag:')));
+      expect(packageManifest.name, 'camera');
+      expect(packageManifest.sdkVersion, '3.35.8-ohos-0.0.3');
       expect(
-        manifest,
-        contains(
-          '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
-        ),
+        packageManifest.repositoryUrl,
+        'https://github.com/FlutterOH/camera.git',
       );
-      expect(
-        manifest,
-        contains(
-          '# Upstream package repository tracked by fluoh package sync.',
-        ),
-      );
-      expect(manifest, contains('packages:\n  camera:'));
-      expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.3'));
-      expect(manifest, contains('repository:\n  git:'));
-      expect(manifest, contains('upstream:\n  git:'));
-      expect(manifest, isNot(contains('implementation:')));
-      expect(manifest, isNot(contains('dependency:')));
-      expect(manifest, isNot(contains('dependencyPolicy:')));
-      expect(manifest, isNot(contains('fluoh:')));
-      expect(manifest, isNot(contains('flutteroh:')));
-      expect(manifest, isNot(contains('replacement:')));
-      expect(
-        manifest,
-        contains('url: https://github.com/FlutterOH/camera.git'),
-      );
-      expect(manifest, isNot(contains('"https://github.com/FlutterOH')));
-      expect(manifest, contains('branch: ohos/3.35'));
-      expect(manifest, isNot(contains('ref: ohos/3.35')));
-      expect(manifest, isNot(contains('sdkVersion:')));
-      expect(manifest, contains('status: experimental'));
-      expect(manifest, isNot(contains('release:')));
-      expect(manifest, contains('version: 0.1.0'));
-      expect(manifest, contains('upstreamVersion: 0.11.0'));
-      expect(manifest, isNot(contains('tag: 0.1.0')));
-      expect(manifest, isNot(contains('tag: 0.11.0')));
-      expect(manifest, isNot(contains('tag: camera-0.11.0-ohos-3.35-0.1.0')));
+      expect(packageManifest.repositoryBranch, 'ohos/3.35');
+      expect(packageManifest.upstreamUrl, upstream.path);
+      expect(packageManifest.upstreamBranch, 'main');
+      expect(packageManifest.primaryPackage.name, 'camera');
+      expect(packageManifest.primaryPackage.version, '0.1.0');
+      expect(packageManifest.primaryPackage.upstreamVersion, '0.11.0');
+      expect(packageManifest.primaryPackage.status, 'experimental');
       final guide = File('${packageRepository.path}/FLUOH.md');
       expect(guide.existsSync(), isTrue);
       final guideContent = guide.readAsStringSync();
-      expect(guideContent, contains('# FlutterOH Implementation'));
-      expect(guideContent, contains('## Next Steps'));
-      expect(guideContent, contains('## Adaptation Workflow'));
-      expect(guideContent, contains('## Before Commit'));
-      expect(guideContent, contains('fluoh.yaml'));
-      expect(guideContent, contains('fluoh package release'));
-      expect(guideContent, contains('fluoh package check'));
-      expect(guideContent, contains('example'));
-      expect(guideContent, contains('fluoh deps get'));
-      expect(guideContent, contains('selected-SDK baseline'));
-      expect(guideContent, contains('fluoh flutter analyze'));
-      expect(guideContent, contains('non-OHOS platform regressions'));
-      expect(guideContent, contains('iOS team/profile signing values'));
-      expect(
+      _expectImplementationGuide(
         guideContent,
-        contains('OHOS `signingConfigs` can be used locally'),
+        packages: const [
+          _GuidancePackage(name: 'camera', version: '0.11.0', path: '.'),
+        ],
       );
       final releaseNotes = File('${packageRepository.path}/FLUOH_CHANGELOG.md');
       expect(releaseNotes.existsSync(), isTrue);
       final releaseNotesContent = releaseNotes.readAsStringSync();
-      expect(releaseNotesContent, contains('## camera-0.11.0-ohos-3.35-0.1.0'));
-      expect(
+      _expectChangelogEntry(
         releaseNotesContent,
-        contains(
-          'Initial OHOS implementation for `camera` 0.11.0 on Flutter OHOS SDK '
-          '`3.35.8-ohos-0.0.3`.',
-        ),
+        'camera-0.11.0-ohos-3.35-0.1.0',
       );
       final agents = File('${packageRepository.path}/AGENTS.md');
       expect(agents.existsSync(), isTrue);
       final agentsContent = agents.readAsStringSync();
-      expect(agentsContent, contains('# AGENTS.md'));
-      expect(agentsContent, contains('## FlutterOH Context'));
-      expect(
+      _expectAgentsInstructions(
         agentsContent,
-        contains(
-          'This repository contains the OHOS implementation for `camera`. '
-          'Treat `fluoh.yaml` as the source of truth',
-        ),
-      );
-      expect(
-        agentsContent,
-        contains('- Package metadata: `packages.camera` in `fluoh.yaml`.'),
-      );
-      expect(
-        agentsContent,
-        contains(
-          '- Package path: `packages.camera.repository.path` when present; '
-          'otherwise `repository.git.path` or `.` in `fluoh.yaml`.',
-        ),
-      );
-      expect(
-        agentsContent,
-        contains(
-          '- Repository branch: `repository.git.branch` in `fluoh.yaml`.',
-        ),
-      );
-      expect(
-        agentsContent,
-        contains('- Upstream repository: `upstream.git` in `fluoh.yaml`.'),
-      );
-      expect(
-        agentsContent,
-        contains('fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get'),
+        packages: const [
+          _GuidancePackage(name: 'camera', version: '0.11.0', path: '.'),
+        ],
       );
       expect(agentsContent, isNot(contains('Upstream branch at creation')));
       expect(agentsContent, isNot(contains('- FlutterOH branch: `ohos/3.35`')));
-      expect(agentsContent, contains('fluoh.yaml'));
-      expect(agentsContent, contains('FLUOH_CHANGELOG.md'));
-      expect(agentsContent, contains('## Working Rules'));
-      expect(agentsContent, contains('## Adaptation Workflow'));
-      expect(agentsContent, contains('## Local Commit Checkpoints'));
-      expect(agentsContent, contains('## Before Commit'));
-      expect(
-        agentsContent,
-        contains(
-          'Use `fluoh flutter <args>` so commands use the SDK selected in '
-          '`fluoh.yaml`',
-        ),
-      );
-      expect(agentsContent, contains('fluoh deps get'));
-      expect(agentsContent, contains('selected-SDK baseline'));
-      expect(agentsContent, contains('fluoh flutter analyze'));
-      expect(agentsContent, contains('non-OHOS regressions first'));
-      expect(agentsContent, contains('example'));
-      expect(
-        agentsContent,
-        contains('assert stable commands, files, and schema keys'),
-      );
-      expect(agentsContent, contains('packages.camera.status: experimental'));
-      expect(agentsContent, contains('example'));
-      expect(agentsContent, contains('fluoh deps get'));
-      expect(
-        agentsContent,
-        contains('Run `fluoh package check` before release.'),
-      );
       expect(
         agentsContent,
         isNot(contains('Use `fluoh sdk use <version-or-series>`')),
       );
       expect(
         agentsContent,
-        contains(
-          'Commit before `fluoh package sync` or '
-          '`fluoh package release`',
-        ),
-      );
-      expect(agentsContent, contains('git status --short --ignored=matching'));
-      expect(agentsContent, contains('git config --local --get user.name'));
-      expect(agentsContent, contains('--git-author-name'));
-      expect(agentsContent, contains('small local commits'));
-      expect(
-        agentsContent,
-        contains('Commit generated baseline files separately'),
-      );
-      expect(agentsContent, contains('feat: add OHOS platform scaffold'));
-      expect(
-        agentsContent,
-        contains('Use a scope only when it adds real context'),
-      );
-      expect(
-        agentsContent,
         isNot(contains('feat(camera): add OHOS platform scaffold')),
-      );
-      expect(agentsContent, contains('DEVELOPMENT_TEAM'));
-      expect(agentsContent, contains('PROVISIONING_PROFILE_SPECIFIER'));
-      expect(
-        agentsContent,
-        contains('OHOS `signingConfigs` may exist for local testing'),
       );
       expect(agentsContent, isNot(contains('## Implementation Checklist')));
       final claude = File('${packageRepository.path}/CLAUDE.md');
@@ -354,64 +244,11 @@ void main() {
         tags.stdout.toString().split('\n'),
         contains('camera-0.11.0-ohos-3.35-0.1.0'),
       );
-      expect(
-        stdout,
-        contains('Created package repository at ${packageRepository.path}.'),
-      );
-      expect(
-        stdout,
-        contains(
-          'Configured local Git author: FlutterOH Adapter <adapter@example.com>.',
-        ),
-      );
-      expect(stdout, contains('Resolving Flutter OHOS SDK.'));
-      expect(
-        stdout,
-        contains(
-          'Cloning upstream repository into ${packageRepository.path}...',
-        ),
-      );
-      expect(
-        stdout,
-        contains(
-          'Installing Flutter OHOS SDK 3.35.8-ohos-0.0.3; this may take a while.',
-        ),
-      );
-      expect(
-        stdout,
-        contains(
-          'Flutter OHOS SDK path: '
-          '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3.',
-        ),
-      );
-      expect(
-        stdout,
-        contains(
-          'IDE Flutter SDK link: ${packageRepository.path}/.fluoh/flutter_sdk.',
-        ),
-      );
-      expect(stdout, contains('Use this link as your IDE Flutter SDK path.'));
-      expect(stdout, isNot(contains('Generated FLUOH.md')));
-      expect(stdout, isNot(contains('Generated files are staged')));
-      expect(
-        stdout,
-        isNot(contains('Commit before running fluoh package sync')),
-      );
-      expect(
-        stdout,
-        contains('See FLUOH.md and AGENTS.md for implementation steps.'),
-      );
-      expect(
-        stdout,
-        contains('Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3.'),
-      );
-      expect(
-        stdout,
-        contains(
-          'Created release tag '
-          'camera-0.11.0-ohos-3.35-0.1.0.',
-        ),
-      );
+      _expectContainsAll(stdout.join('\n'), [
+        'Created package repository at ${packageRepository.path}.',
+        'Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3.',
+        'Created release tag camera-0.11.0-ohos-3.35-0.1.0.',
+      ]);
       expect(stderr, isEmpty);
     },
   );
@@ -493,10 +330,8 @@ void main() {
     final sdkLinkIndex = stdout.indexWhere(
       (line) => line.contains('IDE Flutter SDK link:'),
     );
-    expect(
-      stdout[sdkLinkIndex + 1],
-      contains('Use this link as your IDE Flutter SDK path.'),
-    );
+    expect(sdkLinkIndex, greaterThanOrEqualTo(0));
+    expect(stdout[sdkLinkIndex + 1], isNot(isEmpty));
     expect(stdout[sdkLinkIndex + 2], isEmpty);
     final exampleSkipIndex = stdout.indexWhere(
       (line) => line.contains('Skipping example OHOS setup for video_player:'),
@@ -1154,56 +989,26 @@ Prefer the upstream release workflow.
       expect(manifest, contains('  share_plus:'));
       expect(manifest, contains('path: packages/camera/camera'));
       expect(manifest, contains('path: packages/share_plus/share_plus'));
+      const packages = [
+        _GuidancePackage(
+          name: 'camera',
+          version: '0.11.0',
+          path: 'packages/camera/camera',
+        ),
+        _GuidancePackage(
+          name: 'share_plus',
+          version: '9.0.0',
+          path: 'packages/share_plus/share_plus',
+        ),
+      ];
       final guide = File(
         '${packageRepository.path}/FLUOH.md',
       ).readAsStringSync();
-      expect(
-        guide,
-        contains('contains OHOS implementations for multiple Flutter packages'),
-      );
-      expect(
-        guide,
-        contains(
-          '`camera` 0.11.0: package path `packages/camera/camera`, '
-          'example `packages/camera/camera/example`, check command '
-          '`fluoh package check --package camera`',
-        ),
-      );
-      expect(
-        guide,
-        contains(
-          '`share_plus` 9.0.0: package path '
-          '`packages/share_plus/share_plus`, example '
-          '`packages/share_plus/share_plus/example`, check command '
-          '`fluoh package check --package share_plus`',
-        ),
-      );
-      expect(guide, contains('`fluoh package release --package share_plus`'));
-      expect(guide, contains('## Adaptation Workflow'));
-      expect(guide, contains('selected-SDK baseline'));
-      expect(guide, contains('non-OHOS platform regressions'));
-      expect(guide, contains('Keep `packages.<name>.status: experimental`'));
-      expect(
-        guide,
-        contains('`fluoh package release --all` for release tagging'),
-      );
+      _expectImplementationGuide(guide, packages: packages);
       final agents = File(
         '${packageRepository.path}/AGENTS.md',
       ).readAsStringSync();
-      expect(
-        agents,
-        contains('contains OHOS implementations for multiple Flutter packages'),
-      );
-      expect(agents, contains('## Adaptation Workflow'));
-      expect(agents, contains('fluoh flutter analyze'));
-      expect(agents, contains('non-OHOS regressions first'));
-      expect(
-        agents,
-        contains('assert stable commands, files, and schema keys'),
-      );
-      expect(agents, contains('`fluoh package check --package <name>`'));
-      expect(agents, contains('`fluoh package release --package camera`'));
-      expect(agents, contains('`fluoh package release --package share_plus`'));
+      _expectAgentsInstructions(agents, packages: packages);
       expect(stderr, isEmpty);
     },
   );
@@ -1275,78 +1080,31 @@ Prefer the upstream release workflow.
       ).readAsStringSync();
       expect(manifest, contains('packages:\n  camera:'));
       expect(manifest, contains('  share_plus:'));
+      const packages = [
+        _GuidancePackage(
+          name: 'camera',
+          version: '0.11.0',
+          path: 'packages/camera/camera',
+        ),
+        _GuidancePackage(
+          name: 'share_plus',
+          version: '9.0.0',
+          path: 'packages/share_plus/share_plus',
+        ),
+      ];
       final guide = File(
         '${packageRepository.path}/FLUOH.md',
       ).readAsStringSync();
-      expect(
-        guide,
-        contains(
-          'This repository contains OHOS implementations for multiple Flutter packages',
-        ),
-      );
-      expect(
-        guide,
-        contains(
-          '`camera` 0.11.0: package path `packages/camera/camera`, '
-          'example `packages/camera/camera/example`, check command '
-          '`fluoh package check --package camera`, release command '
-          '`fluoh package release --package camera`',
-        ),
-      );
-      expect(
-        guide,
-        contains(
-          '`share_plus` 9.0.0: package path '
-          '`packages/share_plus/share_plus`, example '
-          '`packages/share_plus/share_plus/example`, check command '
-          '`fluoh package check --package share_plus`, '
-          'release command `fluoh package release --package share_plus`',
-        ),
-      );
-      expect(guide, contains('## Adaptation Workflow'));
-      expect(
-        guide,
-        isNot(contains('then use `fluoh package release` for release tagging')),
-      );
+      _expectImplementationGuide(guide, packages: packages);
       final agents = File(
         '${packageRepository.path}/AGENTS.md',
       ).readAsStringSync();
-      expect(
-        agents,
-        contains(
-          'This repository contains OHOS implementations for multiple Flutter packages',
-        ),
-      );
-      expect(
-        agents,
-        contains(
-          'Treat `fluoh.yaml` as the source of truth for the current SDK',
-        ),
-      );
+      _expectAgentsInstructions(agents, packages: packages);
       expect(agents, isNot(contains('Upstream branch at creation')));
-      expect(agents, contains('## Adaptation Workflow'));
-      expect(agents, contains('feat(<name>): add OHOS platform scaffold'));
-      expect(
-        agents,
-        contains(
-          'Use repository-level scopes such as `docs`, `ci`, or `release`',
-        ),
-      );
-      expect(
-        agents,
-        contains('release command `fluoh package release --package camera`'),
-      );
-      expect(
-        agents,
-        contains(
-          'release command `fluoh package release --package share_plus`',
-        ),
-      );
-      expect(agents, contains('fluoh package check --package'));
       final changelog = File(
         '${packageRepository.path}/FLUOH_CHANGELOG.md',
       ).readAsStringSync();
-      expect(changelog, contains('## share_plus-9.0.0-ohos-3.35-0.1.0'));
+      _expectChangelogEntry(changelog, 'share_plus-9.0.0-ohos-3.35-0.1.0');
       final status = await runGit(packageRepository, ['status', '--porcelain']);
       expect(status.stdout.toString(), contains('M  fluoh.yaml'));
       expect(status.stdout.toString(), contains('M  AGENTS.md'));
@@ -1842,6 +1600,157 @@ Prefer the upstream release workflow.
     expect(stderr.join('\n'), contains('Could not find an option named'));
     expect(Directory('${packageRepository.path}/.git').existsSync(), isFalse);
   });
+}
+
+class _GuidancePackage {
+  const _GuidancePackage({
+    required this.name,
+    required this.version,
+    required this.path,
+  });
+
+  final String name;
+  final String version;
+  final String path;
+
+  String get examplePath => path == '.' ? 'example' : '$path/example';
+
+  String get checkCommand => path == '.'
+      ? 'fluoh package check'
+      : 'fluoh package check --package $name';
+
+  String get releaseCommand => path == '.'
+      ? 'fluoh package release'
+      : 'fluoh package release --package $name';
+}
+
+void _expectImplementationGuide(
+  String content, {
+  required List<_GuidancePackage> packages,
+}) {
+  _expectMarkdownHeadings(content, [
+    '# FlutterOH Implementation',
+    if (packages.length > 1) '## Packages',
+    '## Metadata',
+    '## Next Steps',
+    '## Adaptation Workflow',
+    '## Before Commit',
+  ]);
+  _expectContainsAll(content, [
+    'fluoh.yaml',
+    'repository.git.branch',
+    'upstream.git',
+    'FLUOH_CHANGELOG.md',
+    'fluoh deps get',
+    'fluoh flutter analyze',
+    'fluoh flutter build hap --debug',
+    'git status --short --ignored=matching',
+  ]);
+  if (packages.length > 1) {
+    _expectContainsAll(content, [
+      'packages.<name>',
+      'fluoh package check --package <name>',
+      'fluoh package release --all',
+    ]);
+  }
+
+  for (final package in packages) {
+    _expectContainsAll(content, [
+      package.name,
+      package.examplePath,
+      package.checkCommand,
+      package.releaseCommand,
+    ]);
+    if (packages.length > 1) {
+      expect(content, contains(package.version));
+    }
+    if (package.path != '.') {
+      expect(content, contains(package.path));
+    } else {
+      expect(content, contains('packages.${package.name}'));
+    }
+  }
+}
+
+void _expectAgentsInstructions(
+  String content, {
+  required List<_GuidancePackage> packages,
+}) {
+  _expectMarkdownHeadings(content, [
+    '# AGENTS.md',
+    '## FlutterOH Context',
+    if (packages.length > 1) '## Packages',
+    '## Working Rules',
+    '## Adaptation Workflow',
+    '## Local Commit Checkpoints',
+    '## Before Commit',
+  ]);
+  _expectContainsAll(content, [
+    'fluoh.yaml',
+    'repository.git.branch',
+    'upstream.git',
+    'FLUOH_CHANGELOG.md',
+    'fluoh deps get',
+    'fluoh flutter analyze',
+    'git status --short --ignored=matching',
+    'git config --local --get user.name',
+    '--git-author-name',
+    'DEVELOPMENT_TEAM',
+    'PROVISIONING_PROFILE_SPECIFIER',
+  ]);
+  if (packages.length > 1) {
+    _expectContainsAll(content, [
+      'packages.<name>',
+      'fluoh package check --package <name>',
+      'fluoh package release --all',
+    ]);
+  }
+
+  for (final package in packages) {
+    _expectContainsAll(content, [
+      package.name,
+      package.examplePath,
+      package.checkCommand,
+      package.releaseCommand,
+    ]);
+    if (packages.length > 1) {
+      expect(content, contains(package.version));
+    }
+    if (package.path != '.') {
+      expect(content, contains(package.path));
+    } else {
+      expect(content, contains('packages.${package.name}'));
+    }
+  }
+}
+
+void _expectChangelogEntry(String content, String tag) {
+  final heading = '## $tag';
+  final start = content.indexOf(heading);
+  expect(start, isNot(-1), reason: 'Expected changelog entry $heading.');
+
+  final next = content.indexOf('\n## ', start + heading.length);
+  final entry = content
+      .substring(start + heading.length, next == -1 ? content.length : next)
+      .trim();
+  expect(entry, isNotEmpty);
+  expect(entry.split('\n').any((line) => line.trim().startsWith('- ')), isTrue);
+}
+
+void _expectMarkdownHeadings(String content, Iterable<String> expected) {
+  final headings = content
+      .split('\n')
+      .where((line) => line.startsWith('#'))
+      .toSet();
+  for (final heading in expected) {
+    expect(headings, contains(heading), reason: 'Missing heading $heading.');
+  }
+}
+
+void _expectContainsAll(String content, Iterable<String> expected) {
+  for (final value in expected) {
+    expect(content, contains(value), reason: 'Expected to find "$value".');
+  }
 }
 
 Future<void> _addWorkspacePackage(

@@ -242,8 +242,6 @@ void main() {
       'repository.git.branch',
       'upstreamVersion',
       'sdks.<sdkLine>.releases',
-      'baseline checks with the selected SDK',
-      'non-OHOS platform regressions first',
       '`config.json`',
       '`sources.lock.json`',
       '"fingerprint"',
@@ -273,8 +271,6 @@ void main() {
       'repository.git.branch',
       'upstreamVersion',
       'sdks.<sdkLine>.releases',
-      '基线检查',
-      '非 OHOS 平台',
       '`config.json`',
       '`sources.lock.json`',
       '"fingerprint"',
@@ -313,18 +309,10 @@ void main() {
       '--dry-run',
       'fluoh doctor',
       '--strict',
-      'selected-SDK baseline',
-      'non-OHOS platform regressions',
       '\$FLUOH_HOME/sources.lock.json',
       'load-index API',
-      'State Ownership',
     ]);
-    expectContainsNone(commands, [
-      'fluoh source package',
-      'fluoh source use',
-      'manifest package branch',
-      'recorded for future Git-backed',
-    ]);
+    expectContainsNone(commands, ['fluoh source package', 'fluoh source use']);
 
     expectContainsAll(chineseCommands, [
       '# 命令设计',
@@ -344,17 +332,12 @@ void main() {
       '--dry-run',
       'fluoh doctor',
       '--strict',
-      '基线',
-      '非 OHOS 平台',
       '\$FLUOH_HOME/sources.lock.json',
       'load-index API',
-      '状态归属',
     ]);
     expectContainsNone(chineseCommands, [
       'fluoh source package',
       'fluoh source use',
-      'manifest 记录的 pub 分支',
-      '等待之后的 `source update`',
     ]);
   });
 
