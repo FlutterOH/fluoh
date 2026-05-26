@@ -115,7 +115,7 @@ fluoh source sync
 AI 编码 agent。复制下面这一行，把上游仓库 URL 换成目标 package：
 
 ```text
-使用 fluoh 将 <upstream-git-url> 适配到 FlutterOH：运行 `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`，阅读生成的 `AGENTS.md`、`FLUOH.md`、`fluoh.yaml` 和 example，在不改变上游公开 API 的前提下实现 OHOS 平台，运行 `fluoh package check`，更新 `FLUOH_CHANGELOG.md`，并让仓库达到可执行 `fluoh package release` 的状态。
+使用 fluoh 将 <upstream-git-url> 适配到 FlutterOH：运行 `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`，阅读生成的 `AGENTS.md`、`FLUOH.md`、`fluoh.yaml` 和 example，先盘点 package API、平台实现、example 和测试并汇报简短计划，再在不改变上游公开 API 的前提下实现 OHOS 平台，运行 `fluoh package check`，更新 `FLUOH_CHANGELOG.md`，并让仓库达到可执行 `fluoh package release` 的状态。
 ```
 
 生成的 `AGENTS.md` 和 `FLUOH.md` 会给 AI agent 提供稳定的 package 路径、SDK 选择、

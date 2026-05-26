@@ -1632,8 +1632,10 @@ void _expectImplementationGuide(
     '# FlutterOH Implementation',
     if (packages.length > 1) '## Packages',
     '## Metadata',
+    '## Adaptation Checklist',
     '## Next Steps',
     '## Adaptation Workflow',
+    '## Release Readiness',
     '## Before Commit',
   ]);
   _expectContainsAll(content, [
@@ -1647,6 +1649,7 @@ void _expectImplementationGuide(
     'fluoh deps get',
     'fluoh flutter analyze',
     'fluoh flutter build hap --debug',
+    'Device-only behavior',
     'git status --short --ignored=matching',
   ]);
   if (packages.length > 1) {
@@ -1684,7 +1687,10 @@ void _expectAgentsInstructions(
     '## FlutterOH Context',
     if (packages.length > 1) '## Packages',
     '## Working Rules',
+    '## Stop and Ask',
     '## Adaptation Workflow',
+    '## Definition of Done',
+    '## Final Response',
     '## Local Commit Checkpoints',
     '## Before Commit',
   ]);
@@ -1698,6 +1704,9 @@ void _expectAgentsInstructions(
     'fluoh help package check',
     'fluoh deps get',
     'fluoh flutter analyze',
+    'Do not invent OHOS APIs',
+    'changed files',
+    'device-only verification',
     'git status --short --ignored=matching',
     'git config --local --get user.name',
     '--git-author-name',

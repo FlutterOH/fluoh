@@ -118,7 +118,7 @@ repository contract first, then hand the generated repository to an AI coding
 agent. Copy this one-line prompt and replace the upstream URL:
 
 ```text
-Use fluoh to adapt <upstream-git-url> for FlutterOH: run `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`, read the generated `AGENTS.md`, `FLUOH.md`, `fluoh.yaml`, and examples, implement the OHOS platform without changing upstream public APIs, run `fluoh package check`, update `FLUOH_CHANGELOG.md`, and leave the repository ready for `fluoh package release`.
+Use fluoh to adapt <upstream-git-url> for FlutterOH: run `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`, read the generated `AGENTS.md`, `FLUOH.md`, `fluoh.yaml`, and examples, inventory the package API/platform/example/test surface and report a short plan, implement the OHOS platform without changing upstream public APIs, run `fluoh package check`, update `FLUOH_CHANGELOG.md`, and leave the repository ready for `fluoh package release`.
 ```
 
 The generated `AGENTS.md` and `FLUOH.md` give the agent stable package paths,
