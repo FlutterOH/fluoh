@@ -5,6 +5,9 @@ import 'package:args/command_runner.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
+import '../ohos/build_profile_signing.dart';
+import '../ohos/device_runner.dart';
+import '../ohos/debug_signer.dart';
 import '../sdk/flutter_runner.dart';
 import 'manifest/package_manifest.dart';
 import 'manifest/pubspec_package.dart';
@@ -41,6 +44,8 @@ class PackageCheckStepResult {
     required this.status,
     this.exitCode,
     this.reason,
+    this.details = const {},
+    this.diagnostics = const [],
   });
 
   final String name;
@@ -49,6 +54,8 @@ class PackageCheckStepResult {
   final String status;
   final int? exitCode;
   final String? reason;
+  final Map<String, Object?> details;
+  final List<PackageCheckDiagnostic> diagnostics;
 
   Map<String, Object?> toJson() {
     return {
@@ -58,6 +65,32 @@ class PackageCheckStepResult {
       'status': status,
       if (exitCode != null) 'exitCode': exitCode,
       if (reason != null) 'reason': reason,
+      if (details.isNotEmpty) 'details': details,
+      if (diagnostics.isNotEmpty)
+        'diagnostics': diagnostics.map((item) => item.toJson()).toList(),
+    };
+  }
+}
+
+class PackageCheckDiagnostic {
+  const PackageCheckDiagnostic({
+    required this.code,
+    required this.message,
+    this.severity = 'error',
+    this.details = const {},
+  });
+
+  final String code;
+  final String message;
+  final String severity;
+  final Map<String, Object?> details;
+
+  Map<String, Object?> toJson() {
+    return {
+      'code': code,
+      'severity': severity,
+      'message': message,
+      if (details.isNotEmpty) 'details': details,
     };
   }
 }
@@ -72,6 +105,13 @@ Future<PackageCheckResult> checkPackage({
   String usage = '',
   String? buildExampleTarget,
   bool buildExampleDebug = false,
+  bool autoSignExample = false,
+  bool runExample = false,
+  String? deviceId,
+  bool startEmulator = false,
+  String? emulatorName,
+  Duration deviceTimeout = const Duration(seconds: 90),
+  Duration logDuration = const Duration(seconds: 8),
 }) async {
   final repository = environment.workingDirectory;
   final packageRoot = packageDirectory(repository, package.repositoryPath);
@@ -101,14 +141,14 @@ Future<PackageCheckResult> checkPackage({
       path: packagePath,
       flutter: isFlutterPackage,
       arguments: const ['pub', 'get'],
-      exitCode: packagePubGet,
+      result: packagePubGet,
     ),
   );
-  if (packagePubGet != 0) {
+  if (packagePubGet.exitCode != 0) {
     output.failure('Package dependency resolution failed for ${package.name}.');
     return PackageCheckResult(
       packageName: package.name,
-      exitCode: packagePubGet,
+      exitCode: packagePubGet.exitCode,
       steps: steps,
     );
   }
@@ -130,14 +170,14 @@ Future<PackageCheckResult> checkPackage({
       path: packagePath,
       flutter: isFlutterPackage,
       arguments: const ['analyze'],
-      exitCode: packageAnalyze,
+      result: packageAnalyze,
     ),
   );
-  if (packageAnalyze != 0) {
+  if (packageAnalyze.exitCode != 0) {
     output.failure('Package analysis failed for ${package.name}.');
     return PackageCheckResult(
       packageName: package.name,
-      exitCode: packageAnalyze,
+      exitCode: packageAnalyze.exitCode,
       steps: steps,
     );
   }
@@ -161,14 +201,14 @@ Future<PackageCheckResult> checkPackage({
         path: packagePath,
         flutter: isFlutterPackage,
         arguments: const ['test'],
-        exitCode: packageTest,
+        result: packageTest,
       ),
     );
-    if (packageTest != 0) {
+    if (packageTest.exitCode != 0) {
       output.failure('Package tests failed for ${package.name}.');
       return PackageCheckResult(
         packageName: package.name,
-        exitCode: packageTest,
+        exitCode: packageTest.exitCode,
         steps: steps,
       );
     }
@@ -247,14 +287,14 @@ Future<PackageCheckResult> checkPackage({
       path: examplePath,
       flutter: true,
       arguments: const ['pub', 'get'],
-      exitCode: examplePubGet,
+      result: examplePubGet,
     ),
   );
-  if (examplePubGet != 0) {
+  if (examplePubGet.exitCode != 0) {
     output.failure('Example dependency resolution failed for ${package.name}.');
     return PackageCheckResult(
       packageName: package.name,
-      exitCode: examplePubGet,
+      exitCode: examplePubGet.exitCode,
       steps: steps,
     );
   }
@@ -276,14 +316,14 @@ Future<PackageCheckResult> checkPackage({
       path: examplePath,
       flutter: true,
       arguments: const ['analyze'],
-      exitCode: exampleAnalyze,
+      result: exampleAnalyze,
     ),
   );
-  if (exampleAnalyze != 0) {
+  if (exampleAnalyze.exitCode != 0) {
     output.failure('Example analysis failed for ${package.name}.');
     return PackageCheckResult(
       packageName: package.name,
-      exitCode: exampleAnalyze,
+      exitCode: exampleAnalyze.exitCode,
       steps: steps,
     );
   }
@@ -321,14 +361,14 @@ Future<PackageCheckResult> checkPackage({
         path: examplePath,
         flutter: true,
         arguments: const ['test'],
-        exitCode: exampleTest,
+        result: exampleTest,
       ),
     );
-    if (exampleTest != 0) {
+    if (exampleTest.exitCode != 0) {
       output.failure('Example tests failed for ${package.name}.');
       return PackageCheckResult(
         packageName: package.name,
-        exitCode: exampleTest,
+        exitCode: exampleTest.exitCode,
         steps: steps,
       );
     }
@@ -341,39 +381,339 @@ Future<PackageCheckResult> checkPackage({
       buildExampleTarget,
       if (buildExampleDebug) '--debug',
     ];
-    final exampleBuild = await _runToolCommand(
-      environment: environment,
-      directory: example,
-      displayPath: examplePath,
-      flutter: true,
-      arguments: buildArguments,
-      stdout: stdout,
-      stderr: stderr,
-      output: output,
-      usage: usage,
-    );
+    OhosBuildProfileSigningSession? signingSession;
+    OhosDebugSigningMaterial? signingMaterial;
+    var signedHaps = <File>[];
+    String? signingMode;
+    if (autoSignExample) {
+      if (buildExampleTarget != 'hap') {
+        throw UsageException(
+          'Automatic OHOS signing only supports --build-example hap.',
+          usage,
+        );
+      }
+      final ohosDirectory = Directory('${example.path}/ohos');
+      if (!await ohosDirectory.exists()) {
+        const reason = 'Missing OHOS example project.';
+        steps.add(
+          _ohosDiagnosticStep(
+            name: 'ohos-auto-sign',
+            path: examplePath,
+            command: 'prepare OHOS debug signing',
+            code: 'ohos.ohos_project_missing',
+            message: reason,
+            reason: '$reason Expected $examplePath/ohos.',
+            details: {'expectedPath': '$examplePath/ohos'},
+          ),
+        );
+        return PackageCheckResult(
+          packageName: package.name,
+          exitCode: 1,
+          steps: steps,
+        );
+      }
+      output.step(
+        'Preparing temporary OHOS debug signing for ${package.name}.',
+      );
+      try {
+        signingMaterial = await prepareOhosDebugSigning(
+          environment: environment,
+          ohosDirectory: ohosDirectory,
+          output: output,
+          usage: usage,
+        );
+      } on UsageException catch (error) {
+        steps.add(
+          _ohosDiagnosticStep(
+            name: 'ohos-auto-sign',
+            path: examplePath,
+            command: 'prepare OHOS debug signing',
+            code: 'ohos.toolchain_missing',
+            message: 'Could not locate the local OHOS toolchain.',
+            reason: error.message,
+            details: {'error': error.message},
+          ),
+        );
+        return PackageCheckResult(
+          packageName: package.name,
+          exitCode: 1,
+          steps: steps,
+        );
+      } on Object catch (error) {
+        steps.add(
+          _ohosDiagnosticStep(
+            name: 'ohos-auto-sign',
+            path: examplePath,
+            command: 'prepare OHOS debug signing',
+            code: error is OhosSigningException
+                ? 'ohos.signing_profile_failed'
+                : 'ohos.auto_sign_failed',
+            message: 'OHOS automatic debug signing failed.',
+            reason: error.toString(),
+            details: {'error': error.toString()},
+          ),
+        );
+        return PackageCheckResult(
+          packageName: package.name,
+          exitCode: 1,
+          steps: steps,
+        );
+      }
+      try {
+        signingSession = await applyTemporaryOhosSigning(
+          ohosDirectory: ohosDirectory,
+          config: signingMaterial.signingConfig,
+        );
+      } on Object catch (error) {
+        steps.add(
+          _ohosDiagnosticStep(
+            name: 'ohos-auto-sign',
+            path: examplePath,
+            command: 'patch OHOS build-profile signing',
+            code: 'ohos.build_profile_patch_failed',
+            message: 'Could not patch OHOS build-profile signing.',
+            reason: error.toString(),
+            details: {
+              ..._signingDetails(signingMaterial),
+              'error': error.toString(),
+            },
+          ),
+        );
+        return PackageCheckResult(
+          packageName: package.name,
+          exitCode: 1,
+          steps: steps,
+        );
+      }
+      signingMode = 'build-profile';
+      steps.add(
+        PackageCheckStepResult(
+          name: 'ohos-auto-sign',
+          path: examplePath,
+          command: 'prepare OHOS debug signing',
+          status: 'passed',
+          exitCode: 0,
+          details: _signingDetails(signingMaterial),
+        ),
+      );
+      if (signingMaterial.permissionProfile.restrictedPermissions.isNotEmpty) {
+        output.detail(
+          'Restricted permissions: '
+          '${signingMaterial.permissionProfile.restrictedPermissions.join(', ')}',
+        );
+      }
+    }
+    late SelectedToolResult exampleBuild;
+    var exampleBuildExitCode = 1;
+    try {
+      final buildStartedAt = DateTime.now().subtract(
+        const Duration(seconds: 1),
+      );
+      exampleBuild = await _runToolCommand(
+        environment: environment,
+        directory: example,
+        displayPath: examplePath,
+        flutter: true,
+        arguments: buildArguments,
+        stdout: stdout,
+        stderr: stderr,
+        output: output,
+        usage: usage,
+      );
+      exampleBuildExitCode = exampleBuild.exitCode;
+      if (exampleBuildExitCode != 0 && signingMaterial != null) {
+        output.step('Signing generated unsigned OHOS HAP for ${package.name}.');
+        try {
+          signedHaps = await signGeneratedUnsignedHaps(
+            environment: environment,
+            exampleDirectory: example,
+            signingMaterial: signingMaterial,
+            output: output,
+            modifiedAfter: buildStartedAt,
+            usage: usage,
+          );
+        } on Object catch (error) {
+          steps.add(
+            _ohosDiagnosticStep(
+              name: 'ohos-direct-sign',
+              path: examplePath,
+              command: 'sign generated unsigned OHOS HAP',
+              code: 'ohos.direct_sign_failed',
+              message: 'Could not directly sign generated unsigned OHOS HAP.',
+              reason: error.toString(),
+              details: {
+                ..._signingDetails(signingMaterial),
+                ..._commandOutputDetails(exampleBuild),
+                'error': error.toString(),
+              },
+            ),
+          );
+          return PackageCheckResult(
+            packageName: package.name,
+            exitCode: 1,
+            steps: steps,
+          );
+        }
+        if (signedHaps.isNotEmpty) {
+          output.warning(
+            'Flutter HAP build failed during Hvigor signing; '
+            'fluoh signed the generated unsigned HAP directly.',
+          );
+          signingMode = 'direct-sign-fallback';
+          exampleBuildExitCode = 0;
+          steps.add(
+            PackageCheckStepResult(
+              name: 'ohos-direct-sign',
+              path: examplePath,
+              command: 'sign generated unsigned OHOS HAP',
+              status: 'passed',
+              exitCode: 0,
+              details: {
+                ..._signingDetails(signingMaterial),
+                'signedHaps': _hapPaths(signedHaps),
+              },
+            ),
+          );
+        }
+      }
+      if (exampleBuildExitCode == 0) {
+        signedHaps = await findInstallableOhosHaps(
+          exampleDirectory: example,
+          modifiedAfter: buildStartedAt,
+        );
+      }
+    } finally {
+      if (signingSession != null) {
+        await signingSession.restore();
+        output.detail('Restored $examplePath/ohos/build-profile.json5.');
+      }
+    }
+    final buildDetails = <String, Object?>{
+      if (signedHaps.isNotEmpty) 'installableHaps': _hapPaths(signedHaps),
+    };
+    if (signingMode != null) {
+      buildDetails['signingMode'] = signingMode;
+    }
     steps.add(
       _commandStep(
         name: 'example-build-$buildExampleTarget',
         path: examplePath,
         flutter: true,
         arguments: buildArguments,
-        exitCode: exampleBuild,
+        result: exampleBuild,
+        effectiveExitCode: exampleBuildExitCode,
+        details: buildDetails,
       ),
     );
-    if (exampleBuild != 0) {
+    if (exampleBuildExitCode != 0) {
       output.failure(
         'Example $buildExampleTarget build failed for ${package.name}.',
       );
       return PackageCheckResult(
         packageName: package.name,
-        exitCode: exampleBuild,
+        exitCode: exampleBuildExitCode,
         steps: steps,
       );
     }
     output.success(
       'Example $buildExampleTarget build passed for ${package.name}.',
     );
+
+    if (runExample) {
+      if (buildExampleTarget != 'hap') {
+        throw UsageException(
+          'OHOS example run only supports --build-example hap.',
+          usage,
+        );
+      }
+      final ohosDirectory = Directory('${example.path}/ohos');
+      if (!await ohosDirectory.exists()) {
+        const reason = 'Missing OHOS example project.';
+        steps.add(
+          _ohosDiagnosticStep(
+            name: 'example-run-ohos',
+            path: examplePath,
+            command: 'hdc install -r <hap> && hdc shell aa start',
+            code: 'ohos.ohos_project_missing',
+            message: reason,
+            reason: '$reason Expected $examplePath/ohos.',
+            details: {'expectedPath': '$examplePath/ohos'},
+          ),
+        );
+        return PackageCheckResult(
+          packageName: package.name,
+          exitCode: 1,
+          steps: steps,
+        );
+      }
+      final runResult = await runOhosHapsOnDevice(
+        environment: environment,
+        ohosDirectory: ohosDirectory,
+        haps: signedHaps,
+        output: output,
+        deviceId: deviceId,
+        startEmulator: startEmulator,
+        emulatorName: emulatorName,
+        deviceTimeout: deviceTimeout,
+        logDuration: logDuration,
+        usage: usage,
+      );
+      final reasonParts = [
+        if (runResult.reason != null) runResult.reason!,
+        if (runResult.logFile != null) 'hilog: ${runResult.logFile!.path}',
+        if (runResult.findings.isNotEmpty)
+          'findings: ${runResult.findings.join(' | ')}',
+      ];
+      steps.add(
+        PackageCheckStepResult(
+          name: 'example-run-ohos',
+          path: examplePath,
+          command: [
+            'hdc',
+            if (deviceId != null && deviceId.trim().isNotEmpty) '-t $deviceId',
+            'install -r',
+            '<hap>',
+            '&&',
+            'hdc',
+            'shell aa start',
+          ].join(' '),
+          status: runResult.passed ? 'passed' : 'failed',
+          exitCode: runResult.exitCode,
+          reason: reasonParts.isEmpty ? null : reasonParts.join('\n'),
+          diagnostics: runResult.diagnostics
+              .map(
+                (diagnostic) => PackageCheckDiagnostic(
+                  code: diagnostic.code,
+                  severity: diagnostic.severity,
+                  message: diagnostic.message,
+                  details: diagnostic.details,
+                ),
+              )
+              .toList(),
+        ),
+      );
+      if (!runResult.passed) {
+        output.failure('Example OHOS run failed for ${package.name}.');
+        if (runResult.reason != null) {
+          output.detail(runResult.reason!);
+        }
+        if (runResult.logFile != null) {
+          output.detail('Hilog saved to ${runResult.logFile!.path}.');
+        }
+        for (final finding in runResult.findings) {
+          output.detail(finding);
+        }
+        return PackageCheckResult(
+          packageName: package.name,
+          exitCode: runResult.exitCode,
+          steps: steps,
+        );
+      }
+      if (runResult.logFile != null) {
+        output.detail('Hilog saved to ${runResult.logFile!.path}.');
+      }
+      output.success('Example OHOS run passed for ${package.name}.');
+    }
   }
 
   return PackageCheckResult(
@@ -388,18 +728,122 @@ PackageCheckStepResult _commandStep({
   required String path,
   required bool flutter,
   required List<String> arguments,
-  required int exitCode,
+  required SelectedToolResult result,
+  int? effectiveExitCode,
+  Map<String, Object?> details = const {},
 }) {
+  final exitCode = effectiveExitCode ?? result.exitCode;
   return PackageCheckStepResult(
     name: name,
     path: path,
     command: '${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')}',
     status: exitCode == 0 ? 'passed' : 'failed',
     exitCode: exitCode,
+    details: {
+      ...details,
+      if (result.exitCode != exitCode) 'originalExitCode': result.exitCode,
+      if (result.exitCode != exitCode) ..._commandOutputDetails(result),
+    },
+    diagnostics: _diagnosticsForCommandStep(
+      name: name,
+      flutter: flutter,
+      arguments: arguments,
+      result: result,
+      effectiveExitCode: exitCode,
+    ),
   );
 }
 
-Future<int> _runToolCommand({
+List<PackageCheckDiagnostic> _diagnosticsForCommandStep({
+  required String name,
+  required bool flutter,
+  required List<String> arguments,
+  required SelectedToolResult result,
+  required int effectiveExitCode,
+}) {
+  if (effectiveExitCode == 0) {
+    return const [];
+  }
+  final command = '${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')}';
+  final code = switch (name) {
+    'package-pub-get' || 'example-pub-get' => 'dart.pub_get_failed',
+    'package-analyze' || 'example-analyze' => 'dart.analysis_failed',
+    'package-test' || 'example-test' => 'dart.test_failed',
+    _
+        when arguments.length >= 2 &&
+            arguments[0] == 'build' &&
+            arguments[1] == 'hap' =>
+      'ohos.hap_build_failed',
+    _ => 'command.failed',
+  };
+  final message = switch (code) {
+    'dart.pub_get_failed' => 'Dependency resolution failed.',
+    'dart.analysis_failed' => 'Static analysis failed.',
+    'dart.test_failed' => 'Tests failed.',
+    'ohos.hap_build_failed' => 'OHOS HAP build failed.',
+    _ => 'Command failed.',
+  };
+  return [
+    PackageCheckDiagnostic(
+      code: code,
+      message: message,
+      details: {
+        'command': command,
+        'exitCode': effectiveExitCode,
+        ..._commandOutputDetails(result),
+      },
+    ),
+  ];
+}
+
+PackageCheckStepResult _ohosDiagnosticStep({
+  required String name,
+  required String path,
+  required String command,
+  required String code,
+  required String message,
+  required String reason,
+  Map<String, Object?> details = const {},
+}) {
+  return PackageCheckStepResult(
+    name: name,
+    path: path,
+    command: command,
+    status: 'failed',
+    exitCode: 1,
+    reason: reason,
+    diagnostics: [
+      PackageCheckDiagnostic(code: code, message: message, details: details),
+    ],
+  );
+}
+
+Map<String, Object?> _signingDetails(OhosDebugSigningMaterial signingMaterial) {
+  final profile = signingMaterial.permissionProfile;
+  return {
+    'bundleName': profile.bundleName,
+    'requestedPermissions': profile.requestedPermissions,
+    'restrictedPermissions': profile.restrictedPermissions,
+    'apl': profile.apl,
+    'signingConfig': signingMaterial.signingConfig.name,
+    'profile': signingMaterial.signingConfig.profile,
+  };
+}
+
+List<String> _hapPaths(List<File> haps) {
+  return [for (final hap in haps) hap.path];
+}
+
+Map<String, Object?> _commandOutputDetails(SelectedToolResult result) {
+  return {
+    if (result.stdout.trim().isNotEmpty) 'stdoutTail': result.stdout,
+    if (result.stderr.trim().isNotEmpty) 'stderrTail': result.stderr,
+    if (result.combinedOutput.trim().isNotEmpty)
+      'outputTail': result.combinedOutput,
+  };
+}
+
+Future<SelectedToolResult> _runToolCommand({
   required FluohEnvironment environment,
   required Directory directory,
   required String displayPath,
@@ -421,7 +865,7 @@ Future<int> _runToolCommand({
     '$displayPath',
   );
   return flutter
-      ? runSelectedFlutter(
+      ? runSelectedFlutterResult(
           environment: commandEnvironment,
           arguments: arguments,
           workingDirectory: directory,
@@ -430,7 +874,7 @@ Future<int> _runToolCommand({
           output: output,
           usage: usage,
         )
-      : runSelectedDart(
+      : runSelectedDartResult(
           environment: commandEnvironment,
           arguments: arguments,
           workingDirectory: directory,

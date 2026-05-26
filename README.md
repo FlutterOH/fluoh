@@ -114,16 +114,18 @@ fluoh source sync
 ### AI Assistance
 
 For maintainers adapting a third-party Flutter package, let `fluoh` create the
-repository contract first, then hand the generated repository to an AI coding
-agent. Copy this one-line prompt and replace the upstream URL:
+repository contract first:
 
-```text
-Use fluoh to adapt <upstream-git-url> for FlutterOH: run `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`, read the generated `AGENTS.md`, `FLUOH.md`, `fluoh.yaml`, and examples, inventory the package API/platform/example/test surface and report a short plan, implement the OHOS platform without changing upstream public APIs, run `fluoh package check`, update `FLUOH_CHANGELOG.md`, and leave the repository ready for `fluoh package release`.
+```sh
+fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"
 ```
 
-The generated `AGENTS.md` and `FLUOH.md` give the agent stable package paths,
-SDK selection, check commands, release metadata, and local-state rules. Review
-the final diff and device-only behavior before release.
+Then open the generated repository in an AI coding agent and ask it to read
+`AGENTS.md` and complete the adaptation. The generated `AGENTS.md` and
+`FLUOH.md` give the agent stable package paths, SDK selection, full check
+commands, diagnostics routing, completion report requirements, release metadata,
+and local-state rules. Review the final diff and device-only behavior before
+release.
 
 See [docs/commands.md](docs/commands.md) for the full command surface and
 [CONTRIBUTING.md](CONTRIBUTING.md) for repository, release, and publishing

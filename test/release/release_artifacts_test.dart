@@ -144,7 +144,6 @@ void main() {
       'fluoh package status',
       'AGENTS.md',
       'FLUOH.md',
-      'FLUOH_CHANGELOG.md',
       'fluohf build hap',
       'https://github.com/FlutterOH/source.git',
       '[docs/commands.md](docs/commands.md)',
@@ -157,6 +156,7 @@ void main() {
       '--repository git@github.com:FlutterOH/package.git',
       'dart pub publish --dry-run',
       'git tag v0.1.0',
+      'docs/ai-adaptation',
     ]);
 
     expectContainsAll(chineseReadme, [
@@ -177,7 +177,6 @@ void main() {
       'fluoh package status',
       'AGENTS.md',
       'FLUOH.md',
-      'FLUOH_CHANGELOG.md',
       'fluohf build hap',
       'https://github.com/FlutterOH/source.git',
       '[docs/commands.zh-CN.md](docs/commands.zh-CN.md)',
@@ -190,6 +189,7 @@ void main() {
       '--repository git@github.com:FlutterOH/package.git',
       'dart pub publish --dry-run',
       'git tag v0.1.0',
+      'docs/ai-adaptation',
     ]);
 
     expectContainsAll(contributing, [
@@ -323,6 +323,10 @@ void main() {
       'fluoh package status',
       'fluoh package check',
       '--build-example hap',
+      '--auto-sign',
+      '--run-example',
+      '--start-emulator',
+      'diagnostics',
       'fluoh package release',
       '--dry-run',
       'fluoh doctor',
@@ -346,6 +350,10 @@ void main() {
       'fluoh package status',
       'fluoh package check',
       '--build-example hap',
+      '--auto-sign',
+      '--run-example',
+      '--start-emulator',
+      'diagnostics',
       'fluoh package release',
       '--dry-run',
       'fluoh doctor',

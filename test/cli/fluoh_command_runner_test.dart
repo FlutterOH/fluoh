@@ -401,13 +401,8 @@ void main() {
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    expect(
-      help,
-      contains(
-        '    --package=<name>            Package to check when fluoh.yaml registers\n'
-        '                                multiple packages.',
-      ),
-    );
+    expect(help, contains('    --package=<name>'));
+    expect(help, contains('multiple packages.'));
     expect(help.split('\n').where((line) => line.length > 80), isEmpty);
     expect(stderr, isEmpty);
   });

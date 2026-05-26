@@ -87,9 +87,9 @@
 ### `fluoh doctor`
 
 `doctor` 是诊断命令，除非使用 `--strict`，否则打印结果后返回成功。它会检查安装方式和
-pub.dev 最新版本、已配置 source 快照、Flutter 项目结构、项目 SDK，以及 `ohos`
-平台目录。缺失或过期状态会作为 warning 输出，不会自动修复。`--json` 会输出机器可读的
-同一组检查结果。
+pub.dev 最新版本、已配置 source 快照、Flutter 项目结构、项目 SDK、`ohos`
+平台目录，以及自动签名或模拟器运行所需的本地 DevEco/OpenHarmony 工具。缺失或过期状态会作为
+warning 输出，不会自动修复。`--json` 会输出机器可读的同一组检查结果。
 
 ### `fluoh upgrade`
 
@@ -266,7 +266,15 @@ Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 a
 example 中运行 `flutter pub get`、`flutter analyze` 和已有测试。使用 `--package <name>`
 检查单个 package，或用 `--all` 检查所有已注册 package。`--build-example hap` 会在分析和
 测试之后构建每个 Flutter example；配合 `--debug` 会把 `--debug` 传给
-`flutter build hap`。`--json` 会输出结构化检查结果。
+`flutter build hap`。`--auto-sign` 会根据 example 申请的权限生成临时本地 OHOS debug
+签名 profile，并在构建后恢复 `example/ohos/build-profile.json5`。`--run-example` 会用
+`hdc` 安装构建出的 HAP、启动 example ability，并把一段 hilog 保存到
+`$FLUOH_HOME/package-runs`；连接多个 hdc target 时用 `--device <id>` 指定设备。
+没有连接设备时可以加 `--start-emulator` 启动本地 DevEco 模拟器；`--emulator <name>`
+指定本地 HVD，`--device-timeout <seconds>` 控制等待 hdc target 上线的时间。
+`--log-duration <seconds>` 调整采集窗口。`--json` 会输出结构化检查结果，其中每个
+step 可包含带稳定错误码的 `diagnostics`、失败命令输出尾部，以及 OHOS 签名和 HAP 明细，
+方便自动化流程判断下一步动作。
 
 `fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh package check`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用

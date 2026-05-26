@@ -10,6 +10,8 @@ import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../cli/fluoh_installation.dart';
 import '../cli/terminal_output.dart';
+import '../ohos/device_runner.dart';
+import '../ohos/ohos_toolchain.dart';
 import '../sdk/sdk_project_config.dart';
 import '../source/source_sync.dart';
 import '../version.dart';
@@ -94,6 +96,7 @@ class DoctorCommand extends FluohCommand<int> {
     checks.add(await _checkFlutterProject());
     checks.add(await _checkSdkFiles());
     checks.add(await _checkOhosDirectory());
+    checks.add(await _checkOhosToolchain());
 
     final issueCount = _issueCount(checks);
     if (argResults!.flag('json')) {
@@ -260,6 +263,56 @@ class DoctorCommand extends FluohCommand<int> {
     return _DoctorCheck.warning('OHOS platform', [
       'Missing ohos platform directory.',
     ]);
+  }
+
+  Future<_DoctorCheck> _checkOhosToolchain() async {
+    OhosToolchain toolchain;
+    try {
+      toolchain = await locateOhosToolchain(
+        environment: environment.processEnvironment,
+      );
+    } on Object catch (error) {
+      return _DoctorCheck.warning('OHOS local tools', [
+        'DevEco Studio OpenHarmony tools were not found.',
+        error.toString(),
+        'Set FLUOH_DEVECO_STUDIO to the DevEco Studio .app path if it is not installed in the default location.',
+      ]);
+    }
+
+    final details = <String>[
+      'DevEco Studio: ${toolchain.devEcoStudio.path}.',
+      'OpenHarmony SDK: ${toolchain.openHarmonySdk.path}.',
+      'hap-sign-tool: ${toolchain.hapSignTool.path}.',
+      'hdc: ${toolchain.hdc.path}.',
+    ];
+    var healthy = true;
+
+    if (await toolchain.emulator.exists()) {
+      details.add('Emulator: ${toolchain.emulator.path}.');
+    } else {
+      healthy = false;
+      details.add(
+        'DevEco emulator binary is missing: ${toolchain.emulator.path}.',
+      );
+    }
+
+    final emulators = await discoverOhosLocalEmulators(
+      environment: environment,
+    );
+    if (emulators.isEmpty) {
+      healthy = false;
+      details.add(
+        'No local DevEco emulator HVD was found; create one in Device Manager or use --device <id> with a connected target.',
+      );
+    } else {
+      details.add(
+        'Local emulators: ${emulators.map((item) => item.name).join(', ')}.',
+      );
+    }
+
+    return healthy
+        ? _DoctorCheck.ok('OHOS local tools', details)
+        : _DoctorCheck.warning('OHOS local tools', details);
   }
 
   void _printChecks(List<_DoctorCheck> checks) {

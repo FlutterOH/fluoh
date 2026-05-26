@@ -39,6 +39,43 @@ class PackageCheckCommand extends FluohCommand<int> {
         help: 'Pass --debug to the example build.',
       )
       ..addFlag(
+        'auto-sign',
+        negatable: false,
+        help: 'Generate and apply temporary OHOS debug signing for HAP builds.',
+      )
+      ..addFlag(
+        'run-example',
+        negatable: false,
+        help: 'Install and launch the built OHOS example HAP on a device.',
+      )
+      ..addOption(
+        'device',
+        valueHelp: 'id',
+        help: 'OHOS hdc target id to use with --run-example.',
+      )
+      ..addFlag(
+        'start-emulator',
+        negatable: false,
+        help: 'Start a local DevEco emulator when no OHOS target is connected.',
+      )
+      ..addOption(
+        'emulator',
+        valueHelp: 'name',
+        help: 'Local DevEco emulator name to start with --start-emulator.',
+      )
+      ..addOption(
+        'device-timeout',
+        valueHelp: 'seconds',
+        defaultsTo: '90',
+        help: 'Seconds to wait for an OHOS target after starting an emulator.',
+      )
+      ..addOption(
+        'log-duration',
+        valueHelp: 'seconds',
+        defaultsTo: '8',
+        help: 'Seconds of OHOS hilog to collect after launching the example.',
+      )
+      ..addFlag(
         'json',
         negatable: false,
         help: 'Print the package check result as JSON.',
@@ -63,6 +100,38 @@ class PackageCheckCommand extends FluohCommand<int> {
     if (argResults!.flag('all') &&
         (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
       usageException('Use only one of --all or --package.');
+    }
+    if (argResults!.flag('auto-sign') &&
+        argResults!.option('build-example') != 'hap') {
+      usageException('Use --auto-sign together with --build-example hap.');
+    }
+    if (argResults!.flag('run-example') &&
+        argResults!.option('build-example') != 'hap') {
+      usageException('Use --run-example together with --build-example hap.');
+    }
+    if ((argResults!.option('device')?.trim().isNotEmpty ?? false) &&
+        !argResults!.flag('run-example')) {
+      usageException('Use --device together with --run-example.');
+    }
+    if (argResults!.flag('start-emulator') &&
+        !argResults!.flag('run-example')) {
+      usageException('Use --start-emulator together with --run-example.');
+    }
+    if ((argResults!.option('emulator')?.trim().isNotEmpty ?? false) &&
+        !argResults!.flag('start-emulator')) {
+      usageException('Use --emulator together with --start-emulator.');
+    }
+    final deviceTimeoutSeconds = int.tryParse(
+      argResults!.option('device-timeout') ?? '',
+    );
+    if (deviceTimeoutSeconds == null || deviceTimeoutSeconds < 0) {
+      usageException('Use a non-negative integer for --device-timeout.');
+    }
+    final logDurationSeconds = int.tryParse(
+      argResults!.option('log-duration') ?? '',
+    );
+    if (logDurationSeconds == null || logDurationSeconds < 0) {
+      usageException('Use a non-negative integer for --log-duration.');
     }
 
     final manifest = await readPackageManifest(environment.workingDirectory);
@@ -89,6 +158,13 @@ class PackageCheckCommand extends FluohCommand<int> {
         usage: usage,
         buildExampleTarget: argResults!.option('build-example'),
         buildExampleDebug: argResults!.flag('debug'),
+        autoSignExample: argResults!.flag('auto-sign'),
+        runExample: argResults!.flag('run-example'),
+        deviceId: argResults!.option('device')?.trim(),
+        startEmulator: argResults!.flag('start-emulator'),
+        emulatorName: argResults!.option('emulator')?.trim(),
+        deviceTimeout: Duration(seconds: deviceTimeoutSeconds),
+        logDuration: Duration(seconds: logDurationSeconds),
       );
       results.add(result);
       if (!result.passed) {

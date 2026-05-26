@@ -111,15 +111,16 @@ fluoh source sync
 
 ### AI 辅助
 
-维护者适配第三方 Flutter package 时，先让 `fluoh` 创建仓库契约，再把生成的仓库交给
-AI 编码 agent。复制下面这一行，把上游仓库 URL 换成目标 package：
+维护者适配第三方 Flutter package 时，先让 `fluoh` 创建仓库契约：
 
-```text
-使用 fluoh 将 <upstream-git-url> 适配到 FlutterOH：运行 `fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"`，阅读生成的 `AGENTS.md`、`FLUOH.md`、`fluoh.yaml` 和 example，先盘点 package API、平台实现、example 和测试并汇报简短计划，再在不改变上游公开 API 的前提下实现 OHOS 平台，运行 `fluoh package check`，更新 `FLUOH_CHANGELOG.md`，并让仓库达到可执行 `fluoh package release` 的状态。
+```sh
+fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"
 ```
 
-生成的 `AGENTS.md` 和 `FLUOH.md` 会给 AI agent 提供稳定的 package 路径、SDK 选择、
-检查命令、发布元数据和本地状态规则。发布前仍需要人工 review 最终 diff 和只能在设备上验证的行为。
+然后把生成的仓库交给 AI 编码 agent，让它阅读 `AGENTS.md` 并完成适配。生成的
+`AGENTS.md` 和 `FLUOH.md` 会给 AI agent 提供稳定的 package 路径、SDK 选择、完整检查命令、
+diagnostics 分流规则、完成报告要求、发布元数据和本地状态规则。发布前仍需要人工 review
+最终 diff 和只能在设备上验证的行为。
 
 完整命令见 [docs/commands.zh-CN.md](docs/commands.zh-CN.md)，仓库维护、发布和打包流程见
 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。

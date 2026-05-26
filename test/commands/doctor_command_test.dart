@@ -62,16 +62,22 @@ void main() {
     expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
     expect(stdout, contains('[!] OHOS platform'));
     expect(stdout, contains('    • Missing ohos platform directory.'));
+    expect(stdout, contains('[!] OHOS local tools'));
+    expect(
+      stdout,
+      contains('    • DevEco Studio OpenHarmony tools were not found.'),
+    );
     expect(stdout.join('\n'), isNot(contains('Dependencies')));
     expect(stdout.join('\n'), isNot(contains('mystery_package')));
     expect(stdout.join('\n'), isNot(contains('camera_platform_interface')));
-    expect(stdout, contains('Doctor found issues in 2 categories.'));
+    expect(stdout, contains('Doctor found issues in 3 categories.'));
     _expectInOrder(stdout.join('\n'), [
       '[✓] fluoh ($packageVersion)',
       '[!] Sources',
       '[✓] Flutter project',
       '[✓] Project SDK',
       '[!] OHOS platform',
+      '[!] OHOS local tools',
     ]);
     expect(stderr, isEmpty);
   });
@@ -194,6 +200,42 @@ manifests:
     expect(result.stderr, isEmpty);
   });
 
+  test('reports healthy OHOS local tools and deployed emulators', () async {
+    final environment = await createTestEnvironment();
+    final devEco = await _writeDevEcoFixture(environment.homeDirectory);
+    final deployed = await _writeEmulatorList(environment.homeDirectory);
+    final imageRoot = Directory('${environment.homeDirectory.path}/Huawei/Sdk')
+      ..createSync(recursive: true);
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_DEVECO_STUDIO': devEco.path,
+        'FLUOH_OHOS_EMULATOR_DEPLOYED': deployed.path,
+        'FLUOH_HARMONYOS_SDK_ROOT': imageRoot.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+    );
+
+    expect(result.exitCode, 0);
+    expect(result.stdout, contains('[✓] OHOS local tools'));
+    expect(
+      result.stdout.join('\n'),
+      contains('DevEco Studio: ${devEco.path}.'),
+    );
+    expect(
+      result.stdout.join('\n'),
+      contains('Local emulators: Huawei_Phone.'),
+    );
+    expect(result.stderr, isEmpty);
+  });
+
   test('reports the current CLI version and available upgrades', () async {
     final environment = await createTestEnvironment();
     final result = await _runDoctorCommand(
@@ -299,10 +341,20 @@ Future<_DoctorRunResult> _runDoctorCommand({
 }) async {
   final stdout = <String>[];
   final stderr = <String>[];
+  final commandEnvironment = FluohEnvironment(
+    homeDirectory: environment.homeDirectory,
+    workingDirectory: environment.workingDirectory,
+    processEnvironment: {
+      ...environment.processEnvironment,
+      if (!environment.processEnvironment.containsKey('FLUOH_DEVECO_STUDIO'))
+        'FLUOH_DEVECO_STUDIO':
+            '${environment.homeDirectory.path}/missing/DevEco-Studio.app',
+    },
+  );
   final runner = CommandRunner<int>('fluoh', 'test')
     ..addCommand(
       DoctorCommand(
-        environment: environment,
+        environment: commandEnvironment,
         stdout: stdout.add,
         versionMetadataProvider: versionMetadataProvider,
         scriptUriProvider: () =>
@@ -316,6 +368,48 @@ Future<_DoctorRunResult> _runDoctorCommand({
 
   final exitCode = await runner.run(arguments);
   return _DoctorRunResult(exitCode ?? 0, stdout, stderr);
+}
+
+Future<Directory> _writeDevEcoFixture(Directory root) async {
+  final devEco = Directory('${root.path}/DevEco-Studio.app');
+  final toolchains = Directory(
+    '${devEco.path}/Contents/sdk/default/openharmony/toolchains',
+  );
+  final lib = Directory('${toolchains.path}/lib');
+  final jbr = Directory('${devEco.path}/Contents/jbr/Contents/Home/bin');
+  final node = Directory('${devEco.path}/Contents/tools/node/bin');
+  final emulatorDirectory = Directory('${devEco.path}/Contents/tools/emulator');
+  await lib.create(recursive: true);
+  await jbr.create(recursive: true);
+  await node.create(recursive: true);
+  await emulatorDirectory.create(recursive: true);
+  for (final path in [
+    '${lib.path}/hap-sign-tool.jar',
+    '${lib.path}/OpenHarmony.p12',
+    '${lib.path}/OpenHarmonyProfileDebug.pem',
+    '${jbr.path}/java',
+    '${jbr.path}/keytool',
+    '${node.path}/node',
+    '${toolchains.path}/hdc',
+    '${emulatorDirectory.path}/Emulator',
+  ]) {
+    await File(path).writeAsString('');
+  }
+  return devEco;
+}
+
+Future<Directory> _writeEmulatorList(Directory root) async {
+  final deployed = Directory('${root.path}/deployed');
+  await Directory('${deployed.path}/Huawei_Phone').create(recursive: true);
+  await File(
+    '${deployed.path}/Huawei_Phone/config.ini',
+  ).writeAsString('name=Huawei_Phone\n');
+  await File('${deployed.path}/lists.json').writeAsString('''
+[
+  {"name": "Huawei_Phone", "path": "${deployed.path}/Huawei_Phone"}
+]
+''');
+  return deployed;
 }
 
 class _DoctorRunResult {

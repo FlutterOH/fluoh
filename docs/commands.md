@@ -98,8 +98,9 @@ Design constraints:
 
 `doctor` is diagnostic and returns success after printing its findings unless
 `--strict` is used. It checks the installation method and latest pub.dev version,
-configured source snapshots, Flutter project shape, selected project SDK, and
-the `ohos` platform directory. Missing or stale state is reported as warnings
+configured source snapshots, Flutter project shape, selected project SDK, the
+`ohos` platform directory, and local DevEco/OpenHarmony tools needed for
+auto-signing or emulator runs. Missing or stale state is reported as warnings
 rather than immediate remediation. `--json` prints the same checks as
 machine-readable JSON.
 
@@ -327,8 +328,18 @@ runs `flutter pub get`, `flutter analyze`, and existing tests in a top-level
 Flutter example when `example/pubspec.yaml` is present. Use `--package <name>`
 for one package or `--all` for every registered package. `--build-example hap`
 builds each Flutter example after analysis and tests; combine it with `--debug`
-to pass `--debug` to `flutter build hap`. `--json` prints structured check
-results.
+to pass `--debug` to `flutter build hap`. `--auto-sign` generates a temporary
+local OHOS debug signing profile from the example's requested permissions and
+restores `example/ohos/build-profile.json5` after the build. `--run-example`
+installs the built HAP with `hdc`, starts the example ability, and stores a
+short hilog capture under `$FLUOH_HOME/package-runs`; use `--device <id>` when
+multiple hdc targets are connected. Add `--start-emulator` to launch a local
+DevEco emulator when no target is connected; `--emulator <name>` selects a
+specific local HVD and `--device-timeout <seconds>` controls how long fluoh
+waits for it to appear in hdc. `--log-duration <seconds>` tunes the capture
+window. `--json` prints structured check results, including per-step
+`diagnostics` entries with stable error codes, command output tails for failed
+steps, and OHOS signing/HAP details for automation.
 
 `fluoh package release` validates release metadata, checks that the configured
 SDK version exists in sources, runs `fluoh package check`, ensures the working

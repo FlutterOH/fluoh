@@ -10,6 +10,23 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 
+class SelectedToolResult {
+  const SelectedToolResult({
+    required this.exitCode,
+    this.stdout = '',
+    this.stderr = '',
+  });
+
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+
+  String get combinedOutput => [
+    if (stdout.trim().isNotEmpty) stdout.trim(),
+    if (stderr.trim().isNotEmpty) stderr.trim(),
+  ].join('\n');
+}
+
 Future<io.File> resolveFlutterExecutable({
   required FluohEnvironment environment,
   required TerminalOutput output,
@@ -70,6 +87,29 @@ Future<int> runSelectedFlutter({
   bool inheritStdio = false,
   String usage = '',
 }) async {
+  final result = await runSelectedFlutterResult(
+    environment: environment,
+    arguments: arguments,
+    workingDirectory: workingDirectory,
+    stdout: stdout,
+    stderr: stderr,
+    output: output,
+    inheritStdio: inheritStdio,
+    usage: usage,
+  );
+  return result.exitCode;
+}
+
+Future<SelectedToolResult> runSelectedFlutterResult({
+  required FluohEnvironment environment,
+  required List<String> arguments,
+  required io.Directory workingDirectory,
+  required OutputWriter stdout,
+  required OutputWriter stderr,
+  required TerminalOutput output,
+  bool inheritStdio = false,
+  String usage = '',
+}) async {
   final flutter = await resolveFlutterExecutable(
     environment: environment,
     output: output,
@@ -92,7 +132,7 @@ Future<int> runSelectedFlutter({
       arguments: arguments,
       output: output,
     );
-    return exitCode;
+    return SelectedToolResult(exitCode: exitCode);
   }
 
   final stdoutLines = _LineBuffer();
@@ -114,10 +154,35 @@ Future<int> runSelectedFlutter({
     output: output,
     outputText: '${stdoutLines.text}\n${stderrLines.text}',
   );
-  return exitCode;
+  return SelectedToolResult(
+    exitCode: exitCode,
+    stdout: stdoutLines.text,
+    stderr: stderrLines.text,
+  );
 }
 
 Future<int> runSelectedDart({
+  required FluohEnvironment environment,
+  required List<String> arguments,
+  required io.Directory workingDirectory,
+  required OutputWriter stdout,
+  required OutputWriter stderr,
+  required TerminalOutput output,
+  String usage = '',
+}) async {
+  final result = await runSelectedDartResult(
+    environment: environment,
+    arguments: arguments,
+    workingDirectory: workingDirectory,
+    stdout: stdout,
+    stderr: stderr,
+    output: output,
+    usage: usage,
+  );
+  return result.exitCode;
+}
+
+Future<SelectedToolResult> runSelectedDartResult({
   required FluohEnvironment environment,
   required List<String> arguments,
   required io.Directory workingDirectory,
@@ -137,11 +202,25 @@ Future<int> runSelectedDart({
     workingDirectory: workingDirectory.path,
     environment: environment.processEnvironment,
   );
-  final stdoutDone = _writeLines(process.stdout, stdout);
-  final stderrDone = _writeLines(process.stderr, stderr);
+  final stdoutLines = _LineBuffer();
+  final stderrLines = _LineBuffer();
+  final stdoutDone = _writeLines(
+    process.stdout,
+    stdout,
+    capture: stdoutLines.add,
+  );
+  final stderrDone = _writeLines(
+    process.stderr,
+    stderr,
+    capture: stderrLines.add,
+  );
   final exitCode = await process.exitCode;
   await Future.wait([stdoutDone, stderrDone]);
-  return exitCode;
+  return SelectedToolResult(
+    exitCode: exitCode,
+    stdout: stdoutLines.text,
+    stderr: stderrLines.text,
+  );
 }
 
 Future<void> _forwardStdin(io.IOSink sink) async {
