@@ -44,7 +44,7 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh package check` | `lib/src/package/commands/package_check_command.dart` | Run pub get, analysis, and existing tests. |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Check, tag, and optionally push FlutterOH package releases. |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | Summarize package release readiness. |
-| `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose local project, source, SDK, and tool state. |
+| `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose scoped environment, project, SDK, and tool state. |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | Upgrade the installed `fluoh` CLI. |
 
 ## Shared Runtime Rules
@@ -97,12 +97,25 @@ Design constraints:
 ### `fluoh doctor`
 
 `doctor` is diagnostic and returns success after printing its findings unless
-`--strict` is used. It checks the installation method and latest pub.dev version,
-configured source snapshots, Flutter project shape, selected project SDK, the
-`ohos` platform directory, and local DevEco/OpenHarmony tools needed for
-auto-signing or emulator runs. Missing or stale state is reported as warnings
-rather than immediate remediation. `--json` prints the same checks as
-machine-readable JSON.
+`--strict` is used. Its first argument is an optional scope:
+
+- `fluoh doctor env`: checks global fluoh installation state, configured source
+  snapshots, and local platform toolchains. OHOS tooling is checked by default;
+  `--platform all` also checks Android SDK, `adb`, emulator, `avdmanager`, Java,
+  Xcode `xcrun`, and `simctl` without requiring a selected Flutter SDK or global
+  `flutter` executable.
+- `fluoh doctor project`: checks the current Flutter project shape, selected
+  project SDK, and project platform directories. OHOS is checked by default;
+  `--platform all` also checks `android` and `ios` directories.
+- `fluoh doctor all`: runs both scopes. Bare `fluoh doctor` is a compatibility
+  alias for `fluoh doctor all`.
+
+Missing or stale state is reported as warnings rather than immediate
+remediation. Use `fluoh doctor env --platform all --json --strict` when
+automation needs a native Android/iOS environment gate, and
+`fluoh doctor project --json --strict` when it needs a current-project gate.
+`--json` prints the same checks as machine-readable JSON and includes each
+check's `group`.
 
 ### `fluoh upgrade`
 
@@ -259,6 +272,48 @@ version-change policy and dry-run behavior.
 These commands maintain FlutterOH package repositories. They assume Git
 repositories and are intentionally strict about branch and working tree state.
 
+### Automatic Adaptation Command Flow
+
+The AI adaptation flow uses a small command set with clear ownership:
+
+1. Repository setup: use `fluoh package create <upstream>` for a new package
+   repository, `fluoh package add <package-path>` for additional packages, and
+   `fluoh package sync` only after a completed, committed checkpoint when
+   upstream needs to be merged.
+2. Baseline gates: run `fluoh deps get`, `fluoh doctor project --json --strict`,
+   `fluoh doctor env --json --strict`,
+   `fluoh doctor env --platform all --json --strict`,
+   `fluoh flutter analyze`, and the relevant existing package or example tests
+   before adding OHOS code. Project warnings point to repository files;
+   environment warnings point to local tool or Source setup.
+3. Implementation loop: after each meaningful code or metadata change, rerun
+   `fluoh deps get` when dependencies or SDK metadata changed, then use
+   `fluoh package check --package <name> --json` until pub get, analysis, and
+   existing tests pass.
+4. OHOS verification: use
+   `fluoh package check --package <name> --preset ohos-run --json`, or add
+   `--device <id>` for a connected hdc target. If no device is available, use
+   `fluoh package check --package <name> --build-example hap --debug --auto-sign --json`
+   as build-only evidence.
+5. Existing-platform regression: when `example/android` exists, run
+   `fluoh doctor env --platform android --json --strict`, then
+   `fluoh package check --package <name> --preset android-run --json`.
+   When `example/ios` exists, use the matching iOS doctor command and
+   `fluoh package check --package <name> --preset ios-run --json`.
+6. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
+   `stderrTail`, and saved run logs from JSON output before editing. Fix
+   `doctor env` failures in local tooling, `doctor project` failures in
+   repository configuration, and package check failures in the code or example
+   that produced the diagnostic.
+7. Completion report: write `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md`
+   with commands, results, platform matrix, signing mode, logs, remaining risks,
+   and release recommendation.
+8. Release gate: run `fluoh package status --package <name>`, the final
+   `fluoh package check --package <name>`, and
+   `fluoh package release --package <name> --dry-run`. Commit only after the
+   relevant gate succeeds; run `fluoh package release --package <name>` when
+   the maintainer approves tagging.
+
 ### Adaptation Workflow
 
 Adaptation is maintained by Flutter OHOS SDK line, not SDK patch version. For
@@ -326,20 +381,44 @@ package, using `flutter` for Flutter packages and `dart` for non-Flutter
 packages, then runs package tests when `test/**/*_test.dart` exists. It also
 runs `flutter pub get`, `flutter analyze`, and existing tests in a top-level
 Flutter example when `example/pubspec.yaml` is present. Use `--package <name>`
-for one package or `--all` for every registered package. `--build-example hap`
-builds each Flutter example after analysis and tests; combine it with `--debug`
-to pass `--debug` to `flutter build hap`. `--auto-sign` generates a temporary
-local OHOS debug signing profile from the example's requested permissions and
-restores `example/ohos/build-profile.json5` after the build. `--run-example`
-installs the built HAP with `hdc`, starts the example ability, and stores a
-short hilog capture under `$FLUOH_HOME/package-runs`; use `--device <id>` when
-multiple hdc targets are connected. Add `--start-emulator` to launch a local
-DevEco emulator when no target is connected; `--emulator <name>` selects a
-specific local HVD and `--device-timeout <seconds>` controls how long fluoh
-waits for it to appear in hdc. `--log-duration <seconds>` tunes the capture
-window. `--json` prints structured check results, including per-step
-`diagnostics` entries with stable error codes, command output tails for failed
-steps, and OHOS signing/HAP details for automation.
+for one package or `--all` for every registered package.
+
+`--preset baseline`, `--preset ohos-run`, `--preset android-run`,
+`--preset ios-run`, `--preset all-run`, and `--preset release` expand common
+automation flows without requiring long option lists. Single-platform run
+presets start a local emulator or simulator by default; add `--device <id>` for
+an already connected target or `--emulator <name>` to select a local emulator.
+The `release` preset runs build-only OHOS, Android, and iOS gates.
+
+The lower-level `--build-example hap`, `--build-example apk`, or
+`--build-example ios` options build each Flutter example after analysis and
+tests; combine them with `--debug` to pass `--debug` to `flutter build`. iOS
+example builds automatically add `--no-codesign` so the check can catch compile
+regressions without requiring a developer team or provisioning profile.
+`--auto-sign` generates a temporary local OHOS debug signing profile from the
+example's requested permissions and restores
+`example/ohos/build-profile.json5` after the build; it only applies to
+`--build-example hap`. `--run-example` installs the built HAP with `hdc`, starts
+the example ability, and stores a short hilog capture under
+`$FLUOH_HOME/package-runs` for HAP targets. For APK and iOS targets,
+`--run-example` launches the example through the selected SDK's `flutter run`,
+captures run-smoke output under `$FLUOH_HOME/package-runs`, and runs
+`flutter test integration_test -d <device>` when the example has an
+`integration_test/` directory. Before Android/iOS run checks, use
+`fluoh doctor env --platform android --json --strict` or
+`fluoh doctor env --platform ios --json --strict` for native environment
+health. Add `--start-emulator` when no target is connected; fluoh starts Android
+AVDs or iOS simulators through native tools, then waits for the selected SDK to
+see the target. This keeps emulator/simulator startup inside fluoh while Flutter
+build and run still go through the selected SDK. Use `--emulator <name>` for a
+specific local emulator id or name, and `--device <id>` when multiple targets
+are already connected.
+`--device-timeout <seconds>` controls how long fluoh waits for the target to
+appear. `--log-duration <seconds>` tunes the OHOS hilog window or Android/iOS
+Flutter run-smoke capture. `--json` prints structured check results, including
+per-package and per-step `nextCommand`, per-step `diagnostics` entries with
+stable error codes, command output tails for failed steps, and signing, run,
+HAP, or platform target details for automation.
 
 `fluoh package release` validates release metadata, checks that the configured
 SDK version exists in sources, runs `fluoh package check`, ensures the working

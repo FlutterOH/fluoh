@@ -1,17 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 
 import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
+import '../cli/fluoh_installation.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
-import '../cli/fluoh_installation.dart';
 import '../cli/terminal_output.dart';
 import '../ohos/device_runner.dart';
 import '../ohos/ohos_toolchain.dart';
+import '../platform/platform_environment.dart';
 import '../sdk/sdk_project_config.dart';
 import '../source/source_sync.dart';
 import '../version.dart';
@@ -72,6 +74,17 @@ class DoctorCommand extends FluohCommand<int> {
         'json',
         negatable: false,
         help: 'Print the doctor result as JSON.',
+      )
+      ..addOption(
+        'platform',
+        allowed: const ['all', 'ohos', 'android', 'ios'],
+        help: 'Platform scope to check. OHOS is checked by default.',
+        allowedHelp: const {
+          'all': 'Check OHOS, Android, and iOS.',
+          'ohos': 'Check OHOS project or local tooling.',
+          'android': 'Check Android SDK, adb, emulator, avdmanager, and Java.',
+          'ios': 'Check Xcode xcrun and simctl.',
+        },
       );
   }
 
@@ -85,32 +98,74 @@ class DoctorCommand extends FluohCommand<int> {
   String get name => 'doctor';
 
   @override
-  String get description => 'Diagnose FlutterOH project setup.';
+  String get description => 'Diagnose fluoh environment and project setup.';
+
+  @override
+  String get usage => '$description\n\n$_usageWithoutDescription';
+
+  @override
+  void printUsage() {
+    _output.write(usage);
+  }
+
+  @override
+  Never usageException(String message) {
+    throw UsageException(message, _usageWithoutDescription);
+  }
+
+  String get _usageWithoutDescription {
+    return [
+      'Usage: ${runner!.executableName} $name [env|project|all]',
+      argParser.usage,
+      '',
+      _output.style.section('Doctor scopes:'),
+      '  env       ${_DoctorScope.environment.description}',
+      '  project   ${_DoctorScope.project.description}',
+      '  all       ${_DoctorScope.all.description}',
+      '',
+      'Run "${runner!.executableName} help" to see global options.',
+    ].join('\n');
+  }
 
   @override
   Future<int> run() async {
-    expectNoArguments(argResults!, usageException);
+    final scope = _scopeFromArguments(argResults!, usageException);
+    return _runScoped(scope, argResults!, usageException);
+  }
+
+  Future<int> _runScoped(
+    _DoctorScope scope,
+    ArgResults results,
+    UsageError usageException,
+  ) async {
     final checks = <_DoctorCheck>[];
-    checks.add(await _checkToolVersion());
-    checks.add(await _checkSource());
-    checks.add(await _checkFlutterProject());
-    checks.add(await _checkSdkFiles());
-    checks.add(await _checkOhosDirectory());
-    checks.add(await _checkOhosToolchain());
+    final platforms = _platformsFromOption(results.option('platform'));
+    if (scope.includesEnvironment) {
+      checks.add(await _checkToolVersion());
+      checks.add(await _checkSource());
+      checks.addAll(await _checkPlatformToolchains(platforms));
+    }
+    if (scope.includesProject) {
+      checks.add(await _checkFlutterProject());
+      checks.add(await _checkSdkFiles());
+      checks.addAll(await _checkProjectPlatforms(platforms));
+    }
 
     final issueCount = _issueCount(checks);
-    if (argResults!.flag('json')) {
+    if (results.flag('json')) {
       _output.write(
         jsonEncode({
+          'scope': scope.cliName,
+          'platforms': platforms.map((platform) => platform.cliName).toList(),
           'ok': issueCount == 0,
           'issueCount': issueCount,
           'checks': checks.map((check) => check.toJson()).toList(),
         }),
       );
     } else {
-      _printChecks(checks);
+      _printChecks(scope, checks);
     }
-    return argResults!.flag('strict') && issueCount > 0 ? 1 : 0;
+    return results.flag('strict') && issueCount > 0 ? 1 : 0;
   }
 
   Future<_DoctorCheck> _checkToolVersion() async {
@@ -123,7 +178,11 @@ class DoctorCommand extends FluohCommand<int> {
       details.add(
         'Could not check the latest version from pub.dev: ${error.toString()}',
       );
-      return _DoctorCheck.warning('fluoh ($packageVersion)', details);
+      return _DoctorCheck.warning(
+        _DoctorCheckGroup.environment,
+        'fluoh ($packageVersion)',
+        details,
+      );
     }
 
     if (versionMetadata?.currentVersionPublished case final published?) {
@@ -132,7 +191,11 @@ class DoctorCommand extends FluohCommand<int> {
     final latestVersion = versionMetadata?.latestVersion;
     if (latestVersion == null || latestVersion.isEmpty) {
       details.add('Could not check the latest version from pub.dev.');
-      return _DoctorCheck.warning('fluoh ($packageVersion)', details);
+      return _DoctorCheck.warning(
+        _DoctorCheckGroup.environment,
+        'fluoh ($packageVersion)',
+        details,
+      );
     }
 
     if (_compareVersions(latestVersion, packageVersion) > 0) {
@@ -145,20 +208,30 @@ class DoctorCommand extends FluohCommand<int> {
       } else {
         details.add('Upgrade available: $latestVersion. Run `fluoh upgrade`.');
       }
-      return _DoctorCheck.warning('fluoh ($packageVersion)', details);
+      return _DoctorCheck.warning(
+        _DoctorCheckGroup.environment,
+        'fluoh ($packageVersion)',
+        details,
+      );
     }
 
     details.add('Latest version: $latestVersion.');
     details.add('Up to date.');
-    return _DoctorCheck.ok('fluoh ($packageVersion)', details);
+    return _DoctorCheck.ok(
+      _DoctorCheckGroup.environment,
+      'fluoh ($packageVersion)',
+      details,
+    );
   }
 
   Future<_DoctorCheck> _checkFlutterProject() async {
     final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
     if (!await pubspec.exists()) {
-      return _DoctorCheck.warning('Flutter project', [
-        'Current directory is not a Flutter project.',
-      ]);
+      return _DoctorCheck.warning(
+        _DoctorCheckGroup.project,
+        'Flutter project',
+        ['Current directory is not a Flutter project.'],
+      );
     }
 
     try {
@@ -166,7 +239,7 @@ class DoctorCommand extends FluohCommand<int> {
       final dependencies = yaml is YamlMap ? yaml['dependencies'] : null;
       final flutter = dependencies is YamlMap ? dependencies['flutter'] : null;
       if (flutter is YamlMap && flutter['sdk'] == 'flutter') {
-        return _DoctorCheck.ok('Flutter project', [
+        return _DoctorCheck.ok(_DoctorCheckGroup.project, 'Flutter project', [
           'Detected Flutter project.',
         ]);
       }
@@ -174,7 +247,7 @@ class DoctorCommand extends FluohCommand<int> {
       // Report as a project warning below.
     }
 
-    return _DoctorCheck.warning('Flutter project', [
+    return _DoctorCheck.warning(_DoctorCheckGroup.project, 'Flutter project', [
       'Current directory is not a Flutter project.',
     ]);
   }
@@ -182,7 +255,9 @@ class DoctorCommand extends FluohCommand<int> {
   Future<_DoctorCheck> _checkSource() async {
     final config = await FluohConfigStore(environment).load();
     if (config.sources.isEmpty) {
-      return _DoctorCheck.warning('Sources', ['No sources configured.']);
+      return _DoctorCheck.warning(_DoctorCheckGroup.environment, 'Sources', [
+        'No sources configured.',
+      ]);
     }
 
     final available = <String>[];
@@ -218,8 +293,12 @@ class DoctorCommand extends FluohCommand<int> {
     }
 
     return missing.isEmpty && invalid.isEmpty && available.isNotEmpty
-        ? _DoctorCheck.ok('Sources', details)
-        : _DoctorCheck.warning('Sources', details);
+        ? _DoctorCheck.ok(_DoctorCheckGroup.environment, 'Sources', details)
+        : _DoctorCheck.warning(
+            _DoctorCheckGroup.environment,
+            'Sources',
+            details,
+          );
   }
 
   Future<_DoctorCheck> _checkSdkFiles() async {
@@ -249,19 +328,34 @@ class DoctorCommand extends FluohCommand<int> {
     }
 
     return sdkHealthy
-        ? _DoctorCheck.ok('Project SDK', sdkDetails)
-        : _DoctorCheck.warning('Project SDK', sdkDetails);
+        ? _DoctorCheck.ok(_DoctorCheckGroup.project, 'Project SDK', sdkDetails)
+        : _DoctorCheck.warning(
+            _DoctorCheckGroup.project,
+            'Project SDK',
+            sdkDetails,
+          );
   }
 
-  Future<_DoctorCheck> _checkOhosDirectory() async {
-    final ohos = Directory('${environment.workingDirectory.path}/ohos');
-    if (await ohos.exists()) {
-      return _DoctorCheck.ok('OHOS platform', [
-        'ohos platform directory exists.',
+  Future<List<_DoctorCheck>> _checkProjectPlatforms(
+    List<FluohPlatform> platforms,
+  ) async {
+    return [
+      for (final platform in platforms) await _checkPlatformDirectory(platform),
+    ];
+  }
+
+  Future<_DoctorCheck> _checkPlatformDirectory(FluohPlatform platform) async {
+    final directory = Directory(
+      '${environment.workingDirectory.path}/${platform.cliName}',
+    );
+    final title = '${_platformDisplayName(platform)} project platform';
+    if (await directory.exists()) {
+      return _DoctorCheck.ok(_DoctorCheckGroup.project, title, [
+        '${platform.cliName} platform directory exists.',
       ]);
     }
-    return _DoctorCheck.warning('OHOS platform', [
-      'Missing ohos platform directory.',
+    return _DoctorCheck.warning(_DoctorCheckGroup.project, title, [
+      'Missing ${platform.cliName} platform directory.',
     ]);
   }
 
@@ -272,11 +366,15 @@ class DoctorCommand extends FluohCommand<int> {
         environment: environment.processEnvironment,
       );
     } on Object catch (error) {
-      return _DoctorCheck.warning('OHOS local tools', [
-        'DevEco Studio OpenHarmony tools were not found.',
-        error.toString(),
-        'Set FLUOH_DEVECO_STUDIO to the DevEco Studio .app path if it is not installed in the default location.',
-      ]);
+      return _DoctorCheck.warning(
+        _DoctorCheckGroup.environment,
+        'OHOS local tools',
+        [
+          'DevEco Studio OpenHarmony tools were not found.',
+          error.toString(),
+          'Set FLUOH_DEVECO_STUDIO to the DevEco Studio .app path if it is not installed in the default location.',
+        ],
+      );
     }
 
     final details = <String>[
@@ -311,21 +409,87 @@ class DoctorCommand extends FluohCommand<int> {
     }
 
     return healthy
-        ? _DoctorCheck.ok('OHOS local tools', details)
-        : _DoctorCheck.warning('OHOS local tools', details);
+        ? _DoctorCheck.ok(
+            _DoctorCheckGroup.environment,
+            'OHOS local tools',
+            details,
+          )
+        : _DoctorCheck.warning(
+            _DoctorCheckGroup.environment,
+            'OHOS local tools',
+            details,
+          );
   }
 
-  void _printChecks(List<_DoctorCheck> checks) {
-    _output.section('Doctor summary:');
-    for (final check in checks) {
-      final marker = check.status == _DoctorCheckStatus.ok
-          ? _style.symbols.success
-          : _style.symbols.warning;
-      _output.write(
-        _style.status(check.status.terminalStatus, '[$marker] ${check.title}'),
-      );
-      for (final detail in check.details) {
-        _output.detail(detail);
+  Future<List<_DoctorCheck>> _checkPlatformToolchains(
+    List<FluohPlatform> platforms,
+  ) async {
+    final checks = <_DoctorCheck>[];
+    if (platforms.contains(FluohPlatform.ohos)) {
+      checks.add(await _checkOhosToolchain());
+    }
+    final nativePlatforms = [
+      for (final platform in platforms)
+        if (platform != FluohPlatform.ohos) platform,
+    ];
+    if (nativePlatforms.isEmpty) {
+      return checks;
+    }
+    final reports = await inspectPlatformEnvironment(
+      environment: environment,
+      platforms: nativePlatforms,
+    );
+    checks.addAll([
+      for (final report in reports)
+        report.ok
+            ? _DoctorCheck.ok(
+                _DoctorCheckGroup.environment,
+                [
+                  _platformDisplayName(report.platform),
+                  'native tools',
+                ].join(' '),
+                [
+                  for (final check in report.checks)
+                    '${check.label}: ${check.message}',
+                ],
+              )
+            : _DoctorCheck.warning(
+                _DoctorCheckGroup.environment,
+                [
+                  _platformDisplayName(report.platform),
+                  'native tools',
+                ].join(' '),
+                [
+                  for (final check in report.checks)
+                    '${check.label}: ${check.message}',
+                ],
+              ),
+    ]);
+    return checks;
+  }
+
+  void _printChecks(_DoctorScope scope, List<_DoctorCheck> checks) {
+    _output.section('Doctor summary (${scope.cliName}):');
+    final groups = _DoctorCheckGroup.values
+        .where((group) => checks.any((check) => check.group == group))
+        .toList();
+    for (final group in groups) {
+      if (groups.length > 1) {
+        _output.section('${group.title}:');
+      }
+      for (final check in checks.where((check) => check.group == group)) {
+        final marker = check.status == _DoctorCheckStatus.ok
+            ? _style.symbols.success
+            : _style.symbols.warning;
+        _output.write(
+          _style.status(
+            check.status.terminalStatus,
+            '[$marker] ${check.title}',
+          ),
+        );
+        for (final detail in check.details) {
+          _output.detail(detail);
+        }
       }
     }
 
@@ -346,6 +510,48 @@ int _issueCount(List<_DoctorCheck> checks) {
       .length;
 }
 
+_DoctorScope _scopeFromArguments(
+  ArgResults results,
+  UsageError usageException,
+) {
+  final rest = results.rest;
+  if (rest.isEmpty) {
+    return _DoctorScope.all;
+  }
+  if (rest.length > 1) {
+    usageException('Unexpected arguments: ${rest.join(' ')}.');
+  }
+  final value = rest.single;
+  for (final scope in _DoctorScope.values) {
+    if (scope.matches(value)) {
+      return scope;
+    }
+  }
+  usageException('Unknown doctor scope: $value.');
+}
+
+List<FluohPlatform> _platformsFromOption(String? value) {
+  return switch (value) {
+    'all' => const [
+      FluohPlatform.ohos,
+      FluohPlatform.android,
+      FluohPlatform.ios,
+    ],
+    'ohos' => const [FluohPlatform.ohos],
+    'android' => const [FluohPlatform.android],
+    'ios' => const [FluohPlatform.ios],
+    _ => const [FluohPlatform.ohos],
+  };
+}
+
+String _platformDisplayName(FluohPlatform platform) {
+  return switch (platform) {
+    FluohPlatform.android => 'Android',
+    FluohPlatform.ios => 'iOS',
+    FluohPlatform.ohos => 'OHOS',
+  };
+}
+
 String _installationDescription(FluohInstallation installation) {
   switch (installation.method) {
     case FluohInstallMethod.dartPubGlobal:
@@ -358,22 +564,94 @@ String _installationDescription(FluohInstallation installation) {
 }
 
 class _DoctorCheck {
-  const _DoctorCheck._(this.status, this.title, this.details);
+  const _DoctorCheck._(this.group, this.status, this.title, this.details);
 
-  factory _DoctorCheck.ok(String title, List<String> details) {
-    return _DoctorCheck._(_DoctorCheckStatus.ok, title, details);
+  factory _DoctorCheck.ok(
+    _DoctorCheckGroup group,
+    String title,
+    List<String> details,
+  ) {
+    return _DoctorCheck._(group, _DoctorCheckStatus.ok, title, details);
   }
 
-  factory _DoctorCheck.warning(String title, List<String> details) {
-    return _DoctorCheck._(_DoctorCheckStatus.warning, title, details);
+  factory _DoctorCheck.warning(
+    _DoctorCheckGroup group,
+    String title,
+    List<String> details,
+  ) {
+    return _DoctorCheck._(group, _DoctorCheckStatus.warning, title, details);
   }
 
+  final _DoctorCheckGroup group;
   final _DoctorCheckStatus status;
   final String title;
   final List<String> details;
 
   Map<String, Object?> toJson() {
-    return {'title': title, 'status': status.name, 'details': details};
+    return {
+      'group': group.cliName,
+      'title': title,
+      'status': status.name,
+      'details': details,
+    };
+  }
+}
+
+enum _DoctorScope { environment, project, all }
+
+extension on _DoctorScope {
+  String get cliName {
+    return switch (this) {
+      _DoctorScope.environment => 'env',
+      _DoctorScope.project => 'project',
+      _DoctorScope.all => 'all',
+    };
+  }
+
+  String get description {
+    return switch (this) {
+      _DoctorScope.environment =>
+        'Check global fluoh configuration and local toolchains.',
+      _DoctorScope.project =>
+        'Check the current FlutterOH project configuration.',
+      _DoctorScope.all => 'Run both environment and project checks.',
+    };
+  }
+
+  List<String> get aliases {
+    return switch (this) {
+      _DoctorScope.environment => const ['environment', 'global'],
+      _DoctorScope.project => const [],
+      _DoctorScope.all => const [],
+    };
+  }
+
+  bool matches(String value) {
+    return value == cliName || aliases.contains(value);
+  }
+
+  bool get includesEnvironment =>
+      this == _DoctorScope.environment || this == _DoctorScope.all;
+
+  bool get includesProject =>
+      this == _DoctorScope.project || this == _DoctorScope.all;
+}
+
+enum _DoctorCheckGroup { environment, project }
+
+extension on _DoctorCheckGroup {
+  String get cliName {
+    return switch (this) {
+      _DoctorCheckGroup.environment => 'environment',
+      _DoctorCheckGroup.project => 'project',
+    };
+  }
+
+  String get title {
+    return switch (this) {
+      _DoctorCheckGroup.environment => 'Environment checks',
+      _DoctorCheckGroup.project => 'Project checks',
+    };
   }
 }
 

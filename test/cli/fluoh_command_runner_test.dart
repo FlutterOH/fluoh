@@ -254,7 +254,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('rejects unexpected arguments for leaf commands', () async {
+  test('rejects unknown doctor scopes', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -266,7 +266,7 @@ void main() {
 
     expect(exitCode, 64);
     expect(stdout, isEmpty);
-    expect(stderr.join('\n'), contains('Unexpected argument: extra.'));
+    expect(stderr.join('\n'), contains('Unknown doctor scope: extra.'));
   });
 
   test('prints top-level commands without grouping', () async {

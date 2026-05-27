@@ -79,7 +79,7 @@ brew install fluoh
 | Check FlutterOH dependency support | `fluoh deps check` |
 | Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
 | Update existing FlutterOH dependency replacements | `fluoh deps upgrade` |
-| Diagnose project setup | `fluoh doctor` |
+| Diagnose project and native platform setup | `fluoh doctor project`, `fluoh doctor env --platform all` |
 | Upgrade the CLI | `fluoh upgrade` |
 
 ### Daily Loop
@@ -122,10 +122,12 @@ fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-
 
 Then open the generated repository in an AI coding agent and ask it to read
 `AGENTS.md` and complete the adaptation. The generated `AGENTS.md` and
-`FLUOH.md` give the agent stable package paths, SDK selection, full check
-commands, diagnostics routing, completion report requirements, release metadata,
-and local-state rules. Review the final diff and device-only behavior before
-release.
+`FLUOH.md` give the agent a staged command flow: `fluoh doctor project` for
+repository state, `fluoh doctor env --platform all` for local toolchains,
+`fluoh package check --preset ohos-run|android-run|ios-run --json` for
+diagnostics-driven implementation loops, JSON `nextCommand` for the next
+action, and `.fluoh/ai-report-...md` for the final release recommendation.
+Review the final diff and device-only behavior before release.
 
 See [docs/commands.md](docs/commands.md) for the full command surface and
 [CONTRIBUTING.md](CONTRIBUTING.md) for repository, release, and publishing

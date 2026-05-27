@@ -12,7 +12,7 @@ const _currentVersionPublished = '2026-05-01';
 const _newerVersion = '99.0.0';
 
 void main() {
-  test('reports project, SDK, source, and platform status', () async {
+  test('reports all environment and project status by default', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -44,7 +44,9 @@ void main() {
 
     expect(result.exitCode, 0);
 
-    expect(stdout, contains('Doctor summary:'));
+    expect(stdout, contains('Doctor summary (all):'));
+    expect(stdout, contains('Environment checks:'));
+    expect(stdout, contains('Project checks:'));
     expect(stdout, contains('[✓] fluoh ($packageVersion)'));
     expect(stdout, contains('    • Installed with dart pub global activate.'));
     expect(
@@ -60,7 +62,7 @@ void main() {
     expect(stdout, contains('    • Not updated: flutteroh.'));
     expect(stdout, contains('[✓] Project SDK'));
     expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
-    expect(stdout, contains('[!] OHOS platform'));
+    expect(stdout, contains('[!] OHOS project platform'));
     expect(stdout, contains('    • Missing ohos platform directory.'));
     expect(stdout, contains('[!] OHOS local tools'));
     expect(
@@ -74,10 +76,10 @@ void main() {
     _expectInOrder(stdout.join('\n'), [
       '[✓] fluoh ($packageVersion)',
       '[!] Sources',
+      '[!] OHOS local tools',
       '[✓] Flutter project',
       '[✓] Project SDK',
-      '[!] OHOS platform',
-      '[!] OHOS local tools',
+      '[!] OHOS project platform',
     ]);
     expect(stderr, isEmpty);
   });
@@ -91,6 +93,7 @@ void main() {
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', 'project'],
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
@@ -110,6 +113,63 @@ void main() {
   });
 
   test(
+    'checks native Android tooling without a selected Flutter SDK',
+    () async {
+      final environment = await createTestEnvironment();
+      final androidSdk = await _writeAndroidSdkFixture(
+        environment.homeDirectory,
+      );
+      final javaHome = Directory('${environment.homeDirectory.path}/java');
+      await _writeExecutable(File('${javaHome.path}/bin/java'), 'exit 0\n');
+      final doctorEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: environment.workingDirectory,
+        processEnvironment: {
+          ...environment.processEnvironment,
+          'ANDROID_HOME': androidSdk.path,
+          'JAVA_HOME': javaHome.path,
+        },
+      );
+
+      final result = await _runDoctorCommand(
+        environment: doctorEnvironment,
+        versionMetadataProvider: () async =>
+            const DoctorVersionMetadata(latestVersion: packageVersion),
+        arguments: const ['doctor', 'env', '--platform', 'android', '--json'],
+      );
+
+      expect(result.exitCode, 0);
+      final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+      final checks = report['checks'] as List<Object?>;
+      expect(
+        checks,
+        contains(
+          allOf(
+            containsPair('title', 'Android native tools'),
+            containsPair('status', 'ok'),
+          ),
+        ),
+      );
+      expect(
+        checks,
+        isNot(
+          contains(
+            allOf(
+              containsPair('group', 'project'),
+              containsPair('title', 'Project SDK'),
+            ),
+          ),
+        ),
+      );
+      expect(
+        File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
+        isFalse,
+      );
+      expect(result.stderr, isEmpty);
+    },
+  );
+
+  test(
     'prints json and returns non-zero in strict mode when warnings exist',
     () async {
       final environment = await createTestEnvironment();
@@ -118,7 +178,7 @@ void main() {
         environment: environment,
         versionMetadataProvider: () async =>
             const DoctorVersionMetadata(latestVersion: packageVersion),
-        arguments: const ['doctor', '--json', '--strict'],
+        arguments: const ['doctor', 'project', '--json', '--strict'],
       );
 
       expect(result.exitCode, 1);
@@ -152,6 +212,7 @@ void main() {
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', 'project'],
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
@@ -191,6 +252,7 @@ manifests:
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', 'env'],
     );
 
     expect(result.exitCode, 0);
@@ -221,6 +283,7 @@ manifests:
       environment: doctorEnvironment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', 'env'],
     );
 
     expect(result.exitCode, 0);
@@ -242,6 +305,7 @@ manifests:
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: _newerVersion),
+      arguments: const ['doctor', 'env'],
     );
 
     expect(result.exitCode, 0);
@@ -261,6 +325,7 @@ manifests:
         latestVersion: packageVersion,
         currentVersionPublished: _currentVersionPublished,
       ),
+      arguments: const ['doctor', 'env'],
     );
 
     expect(result.exitCode, 0);
@@ -282,6 +347,7 @@ manifests:
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async => null,
+      arguments: const ['doctor', 'env'],
     );
 
     expect(result.exitCode, 0);
@@ -410,6 +476,38 @@ Future<Directory> _writeEmulatorList(Directory root) async {
 ]
 ''');
   return deployed;
+}
+
+Future<Directory> _writeAndroidSdkFixture(Directory root) async {
+  final sdk = Directory('${root.path}/android-sdk');
+  await _writeExecutable(File('${sdk.path}/platform-tools/adb'), '''
+if [ "\$1" = "devices" ]; then
+  printf "List of devices attached\\n"
+  exit 0
+fi
+exit 0
+''');
+  await _writeExecutable(File('${sdk.path}/emulator/emulator'), '''
+if [ "\$1" = "-list-avds" ]; then
+  printf "Pixel_35\\n"
+  exit 0
+fi
+exit 0
+''');
+  await _writeExecutable(
+    File('${sdk.path}/cmdline-tools/latest/bin/avdmanager'),
+    'exit 0\n',
+  );
+  return sdk;
+}
+
+Future<void> _writeExecutable(File file, String script) async {
+  await file.parent.create(recursive: true);
+  await file.writeAsString('#!/bin/sh\n$script');
+  final result = await Process.run('chmod', ['+x', file.path]);
+  if (result.exitCode != 0) {
+    fail('chmod failed: ${result.stderr}');
+  }
 }
 
 class _DoctorRunResult {

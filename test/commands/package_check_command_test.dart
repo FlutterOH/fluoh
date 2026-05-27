@@ -121,6 +121,652 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('can build example APK and emit json results', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--build-example', 'apk', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/package_check_invocations.txt',
+      ).readAsStringSync(),
+      contains('$root/example::flutter build apk --debug'),
+    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', true));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-build-apk'),
+          containsPair('command', 'flutter build apk --debug'),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('can build example iOS without codesigning', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--build-example', 'ios', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/package_check_invocations.txt',
+      ).readAsStringSync(),
+      contains('$root/example::flutter build ios --debug --no-codesign'),
+    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-build-ios'),
+          containsPair('command', 'flutter build ios --debug --no-codesign'),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('emits platform diagnostics for failed example builds', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterFailures: const {'build apk --debug': 3},
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--build-example', 'apk', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      3,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', false));
+    expect(report, containsPair('exitCode', 3));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    final buildStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-build-apk',
+    );
+    final diagnostics = buildStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'android.apk_build_failed'));
+    expect(diagnostic, containsPair('message', 'Android APK build failed.'));
+    final details = diagnostic['details'] as Map<String, Object?>;
+    expect(details, containsPair('command', 'flutter build apk --debug'));
+    expect(details, containsPair('stdoutTail', contains('flutter stdout')));
+    expect(details, containsPair('stderrTail', contains('flutter stderr')));
+    expect(stderr, isEmpty);
+  });
+
+  test('emits iOS diagnostics for failed example builds', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterFailures: const {'build ios --debug --no-codesign': 4},
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--build-example', 'ios', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      4,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', false));
+    expect(report, containsPair('exitCode', 4));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    final buildStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-build-ios',
+    );
+    final diagnostics = buildStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'ios.build_failed'));
+    expect(diagnostic, containsPair('message', 'iOS build failed.'));
+    final details = diagnostic['details'] as Map<String, Object?>;
+    expect(
+      details,
+      containsPair('command', 'flutter build ios --debug --no-codesign'),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('can run Android example and integration tests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+        'run -d emulator-5554 --debug --no-pub':
+            'Flutter run key commands.\\nApplication running.',
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await Directory(
+      '${environment.workingDirectory.path}/example/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
+    ).writeAsString('''
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('fixture integration test', (tester) async {});
+}
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--build-example',
+          'apk',
+          '--debug',
+          '--run-example',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    final invocations = File(
+      '${environment.workingDirectory.path}/package_check_invocations.txt',
+    ).readAsStringSync();
+    expect(invocations, contains('$root/example::flutter devices --machine'));
+    expect(invocations, contains('$root/example::flutter build apk --debug'));
+    expect(
+      invocations,
+      contains('$root/example::flutter run -d emulator-5554 --debug --no-pub'),
+    );
+    expect(
+      invocations,
+      contains('$root/example::flutter test integration_test -d emulator-5554'),
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', true));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-run-android'),
+          containsPair(
+            'command',
+            'flutter run -d emulator-5554 --debug --no-pub',
+          ),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-integration-android'),
+          containsPair(
+            'command',
+            'flutter test integration_test -d emulator-5554',
+          ),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'android run preset expands to debug build and selected device run',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createCheckSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterStdout: const {
+          'devices --machine':
+              '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+          'run -d emulator-5554 --debug --no-pub':
+              'Flutter run key commands.\\nApplication running.',
+        },
+      );
+      await _writePackageManifest(environment.workingDirectory);
+      await _writeFlutterPackage(environment.workingDirectory);
+      await _writeFlutterExample(
+        Directory('${environment.workingDirectory.path}/example'),
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'check',
+            '--preset',
+            'android-run',
+            '--device',
+            'emulator-5554',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final root = await environment.workingDirectory.resolveSymbolicLinks();
+      final invocations = File(
+        '${environment.workingDirectory.path}/package_check_invocations.txt',
+      ).readAsStringSync();
+      expect(invocations, contains('$root/example::flutter build apk --debug'));
+      expect(
+        invocations,
+        contains(
+          '$root/example::flutter run -d emulator-5554 --debug --no-pub',
+        ),
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final packages = report['packages'] as List<Object?>;
+      final package = packages.single as Map<String, Object?>;
+      expect(package, containsPair('preset', 'android-run'));
+      expect(package, containsPair('phase', 'android-run'));
+      expect(report, containsPair('passed', true));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'android emulator preset starts requested emulator instead of connected device',
+    () async {
+      final environment = await createTestEnvironment();
+      final androidSdk = await _writeAndroidSdkFixture(
+        environment.homeDirectory,
+        '${environment.workingDirectory.path}/package_check_invocations.txt',
+      );
+      final source = await _createCheckSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterStdout: const {
+          'run -d emulator-5554 --debug --no-pub':
+              'Flutter run key commands.\\nApplication running.',
+        },
+        flutterStdoutSequences: const {
+          'devices --machine': [
+            '[{"id":"connected-device","name":"Connected Phone","targetPlatform":"android-arm64","isSupported":true}]',
+            '[{"id":"connected-device","name":"Connected Phone","targetPlatform":"android-arm64","isSupported":true},{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+          ],
+        },
+      );
+      final commandEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: environment.workingDirectory,
+        processEnvironment: {
+          ...environment.processEnvironment,
+          'ANDROID_HOME': androidSdk.path,
+        },
+      );
+      await _writePackageManifest(environment.workingDirectory);
+      await _writeFlutterPackage(environment.workingDirectory);
+      await _writeFlutterExample(
+        Directory('${environment.workingDirectory.path}/example'),
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: commandEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'check',
+            '--preset',
+            'android-run',
+            '--emulator',
+            'Pixel_35',
+            '--json',
+          ],
+          environment: commandEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final root = await environment.workingDirectory.resolveSymbolicLinks();
+      final invocations = File(
+        '${environment.workingDirectory.path}/package_check_invocations.txt',
+      ).readAsStringSync();
+      expect(invocations, contains('android-emulator -list-avds'));
+      expect(invocations, contains('android-emulator -avd Pixel_35'));
+      expect(
+        invocations,
+        contains(
+          '$root/example::flutter run -d emulator-5554 --debug --no-pub',
+        ),
+      );
+      expect(invocations, isNot(contains('flutter run -d connected-device')));
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('passed', true));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('emits Android diagnostics when no run target is available', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {'devices --machine': '[]'},
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--build-example',
+          'apk',
+          '--run-example',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', false));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-run-android',
+    );
+    final diagnostics = runStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'android.device_missing'));
+    expect(
+      diagnostic,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --preset android-run --json',
+      ),
+    );
+    expect(
+      runStep,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --preset android-run --json',
+      ),
+    );
+    expect(
+      package,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --preset android-run --json',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('emits iOS diagnostics when example run fails', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createCheckSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterFailures: const {'run -d ios-sim --debug --no-pub': 2},
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"ios-sim","name":"iPhone 15","targetPlatform":"ios","isSupported":true}]',
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--build-example',
+          'ios',
+          '--debug',
+          '--run-example',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('passed', false));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final steps = package['steps'] as List<Object?>;
+    final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-run-ios',
+    );
+    final diagnostics = runStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'ios.run_failed'));
+    expect(diagnostic, containsPair('message', 'Flutter example run failed.'));
+    expect(
+      diagnostic,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --preset ios-run --json',
+      ),
+    );
+    expect(
+      runStep,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --preset ios-run --json',
+      ),
+    );
+    expect(
+      package,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --preset ios-run --json',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('emits structured diagnostics for failed JSON checks', () async {
     final environment = await createTestEnvironment();
     final source = await _createCheckSdkSource(
@@ -171,6 +817,27 @@ void main() {
     expect(details, containsPair('stderrTail', contains('flutter stderr')));
     expect(details, containsPair('outputTail', contains('flutter stdout')));
     expect(details, containsPair('outputTail', contains('flutter stderr')));
+    expect(
+      diagnostic,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --json',
+      ),
+    );
+    expect(
+      analyzeStep,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --json',
+      ),
+    );
+    expect(
+      package,
+      containsPair(
+        'nextCommand',
+        'fluoh package check --package camera --json',
+      ),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -384,10 +1051,28 @@ void main() {
         stderr.join('\n'),
         contains('Use --auto-sign together with --build-example hap.'),
       );
+
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          ['package', 'check', '--build-example', 'apk', '--auto-sign'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(
+        stderr.join('\n'),
+        contains('Use --auto-sign together with --build-example hap.'),
+      );
     },
   );
 
-  test('requires HAP example build when example run is requested', () async {
+  test('requires example build target when example run is requested', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
@@ -404,7 +1089,9 @@ void main() {
 
     expect(
       stderr.join('\n'),
-      contains('Use --run-example together with --build-example hap.'),
+      contains(
+        'Use --run-example together with --build-example hap, apk, or ios.',
+      ),
     );
   });
 
@@ -450,6 +1137,33 @@ void main() {
     );
   });
 
+  test('does not allow device and emulator startup together', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--build-example',
+          'apk',
+          '--run-example',
+          '--device',
+          'emulator-5554',
+          '--start-emulator',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stderr.join('\n'), contains('Use --device for connected targets'));
+  });
+
   test('requires emulator start when emulator is selected', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
@@ -476,6 +1190,66 @@ void main() {
     expect(
       stderr.join('\n'),
       contains('Use --emulator together with --start-emulator.'),
+    );
+  });
+
+  test('does not allow device and emulator together', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--build-example',
+          'apk',
+          '--run-example',
+          '--device',
+          'emulator-5554',
+          '--start-emulator',
+          '--emulator',
+          'Pixel',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(
+      stderr.join('\n'),
+      contains('Use only one of --device or --emulator.'),
+    );
+  });
+
+  test('does not allow explicit build options with presets', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--preset',
+          'android-run',
+          '--build-example',
+          'apk',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(
+      stderr.join('\n'),
+      contains('Do not combine --preset with --build-example'),
     );
   });
 }
@@ -612,6 +1386,9 @@ Future<Directory> _createCheckSdkSource(
   Directory parent,
   Directory project, {
   Map<String, int> flutterFailures = const {},
+  Map<String, String> flutterStdout = const {},
+  Map<String, List<String>> flutterStdoutSequences = const {},
+  Map<String, String> flutterStderr = const {},
   Map<String, int> dartFailures = const {},
 }) async {
   final source = Directory('${parent.path}/package_check_source');
@@ -630,6 +1407,9 @@ Future<Directory> _createCheckSdkSource(
     '${project.path}/package_check_invocations.txt',
     'flutter',
     failures: flutterFailures,
+    stdoutByCommand: flutterStdout,
+    stdoutSequencesByCommand: flutterStdoutSequences,
+    stderrByCommand: flutterStderr,
   );
   await _writeTool(
     File('${sdkRepository.path}/bin/dart'),
@@ -654,8 +1434,56 @@ Future<void> _writeTool(
   String logPath,
   String name, {
   Map<String, int> failures = const {},
+  Map<String, String> stdoutByCommand = const {},
+  Map<String, List<String>> stdoutSequencesByCommand = const {},
+  Map<String, String> stderrByCommand = const {},
 }) async {
+  final sequenceBuffer = StringBuffer();
+  var sequenceIndex = 0;
+  for (final entry in stdoutSequencesByCommand.entries) {
+    final countPath = '$logPath.$name.$sequenceIndex.count';
+    final cases = StringBuffer();
+    for (var index = 0; index < entry.value.length; index += 1) {
+      cases.writeln(
+        '    $index) printf "%s\\\\n" '
+        '${_shellSingleQuote(entry.value[index])} ;;',
+      );
+    }
+    cases.writeln(
+      '    *) printf "%s\\\\n" ${_shellSingleQuote(entry.value.last)} ;;',
+    );
+    sequenceBuffer.writeln('''
+if [ "\$*" = ${_shellSingleQuote(entry.key)} ]; then
+  count_file=${_shellSingleQuote(countPath)}
+  count=0
+  if [ -f "\$count_file" ]; then
+    count=\$(cat "\$count_file")
+  fi
+  next=\$((count + 1))
+  printf "%s\\n" "\$next" > "\$count_file"
+  case "\$count" in
+$cases  esac
+  exit ${failures[entry.key] ?? 0}
+fi
+''');
+    sequenceIndex += 1;
+  }
+  final commandOutputs = stdoutByCommand.entries.map((entry) {
+    final stderr = stderrByCommand[entry.key];
+    return '''
+if [ "\$*" = ${_shellSingleQuote(entry.key)} ]; then
+  printf "%s\\n" ${_shellSingleQuote(entry.value)}
+${stderr == null ? '' : '  printf "%s\\\\n" ${_shellSingleQuote(stderr)} >&2'}
+  exit ${failures[entry.key] ?? 0}
+fi
+''';
+  }).join();
   final failureChecks = failures.entries
+      .where(
+        (entry) =>
+            !stdoutByCommand.containsKey(entry.key) &&
+            !stdoutSequencesByCommand.containsKey(entry.key),
+      )
       .map(
         (entry) =>
             '''
@@ -665,15 +1493,32 @@ fi
 ''',
       )
       .join();
+  await tool.parent.create(recursive: true);
   await tool.writeAsString('''
 #!/bin/sh
 printf "%s::$name %s\\n" "\$(pwd)" "\$*" >> "$logPath"
+$sequenceBuffer
+$commandOutputs
 printf "$name stdout\\n"
 printf "$name stderr\\n" >&2
 $failureChecks
 exit 0
 ''');
   await _runProcess('chmod', ['+x', tool.path], tool.parent);
+}
+
+Future<Directory> _writeAndroidSdkFixture(
+  Directory root,
+  String logPath,
+) async {
+  final sdk = Directory('${root.path}/android-sdk');
+  await _writeTool(
+    File('${sdk.path}/emulator/emulator'),
+    logPath,
+    'android-emulator',
+    stdoutByCommand: const {'-list-avds': 'Pixel_35'},
+  );
+  return sdk;
 }
 
 String _shellSingleQuote(String value) {
