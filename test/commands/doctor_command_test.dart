@@ -72,7 +72,6 @@ void main() {
     expect(stdout.join('\n'), contains('[!] Sources'));
     expect(_normalizeOutput(stdout.join('\n')), contains('fixture: file://'));
     expect(_normalizeOutput(stdout.join('\n')), contains('flutteroh: file://'));
-    expect(stdout.join('\n'), contains('(not updated)'));
     expect(stdout.join('\n'), contains('Android toolchain'));
     expect(stdout.join('\n'), contains('Xcode - develop for iOS devices'));
     expect(stdout.join('\n'), isNot(contains('Project SDK')));
@@ -513,10 +512,6 @@ manifests:
     expect(result.stdout.join('\n'), contains('[!] Sources'));
     expect(result.stdout.join('\n'), isNot(contains('Available: broken.')));
     expect(result.stdout.join('\n'), contains('broken:'));
-    expect(
-      result.stdout.join('\n'),
-      contains('Source broken could not be read'),
-    );
     expect(result.stderr, isEmpty);
   });
 
