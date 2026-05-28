@@ -67,6 +67,8 @@ void main() {
     expect(stdout, contains('    • Detected Flutter project'));
     expect(stdout, contains('    • FlutterOH SDK 3.35.8-ohos-0.0.3 selected'));
     expect(stdout, contains('    • Missing ohos platform directory'));
+    expect(stdout, contains('    • Missing android platform directory'));
+    expect(stdout, contains('    • Missing ios platform directory'));
     expect(stdout.join('\n'), contains('[!] Sources'));
     expect(_normalizeOutput(stdout.join('\n')), contains('fixture: file://'));
     expect(_normalizeOutput(stdout.join('\n')), contains('flutteroh: file://'));
@@ -74,9 +76,6 @@ void main() {
     expect(stdout.join('\n'), contains('Android toolchain'));
     expect(stdout.join('\n'), contains('Xcode - develop for iOS devices'));
     expect(stdout.join('\n'), isNot(contains('Project SDK')));
-    expect(stdout.join('\n'), isNot(contains('OHOS project platform')));
-    expect(stdout.join('\n'), isNot(contains('Android project platform')));
-    expect(stdout.join('\n'), isNot(contains('iOS project platform')));
     expect(
       stdout.join('\n'),
       contains('[!] OpenHarmony toolchain - develop for OHOS devices'),
@@ -117,6 +116,8 @@ void main() {
     expect(result.stdout, contains('    • Detected Flutter project'));
     expect(result.stdout, contains('    • No FlutterOH SDK selected'));
     expect(result.stdout, contains('    • Missing ohos platform directory'));
+    expect(result.stdout, contains('    • Missing android platform directory'));
+    expect(result.stdout, contains('    • Missing ios platform directory'));
     expect(result.stdout.join('\n'), isNot(contains('Project SDK')));
     expect(result.stderr, isEmpty);
   });
@@ -401,6 +402,56 @@ exit 0
       expect(result.stderr, isEmpty);
     },
   );
+
+  test('checks only selected project platform directories', () async {
+    final environment = await createTestEnvironment();
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    await Directory(
+      '${environment.workingDirectory.path}/android',
+    ).create(recursive: true);
+
+    final result = await _runDoctorCommand(
+      environment: environment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const [
+        'doctor',
+        '--project',
+        '--platform',
+        'android',
+        '--json',
+      ],
+    );
+
+    expect(result.exitCode, 0);
+    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    final checks = report['checks'] as List<Object?>;
+    final projectCheck = checks.cast<Map<String, Object?>>().singleWhere(
+      (check) => check['id'] == 'project.flutter',
+    );
+
+    expect(projectCheck, containsPair('status', 'warning'));
+    expect(
+      projectCheck['details'],
+      contains('android platform directory exists'),
+    );
+    expect(
+      projectCheck['details'],
+      isNot(contains('Missing ohos platform directory')),
+    );
+    expect(
+      projectCheck['details'],
+      isNot(contains('Missing ios platform directory')),
+    );
+    expect(
+      projectCheck['data'],
+      containsPair(
+        'platformDirectories',
+        containsPair('android', {'path': 'android', 'exists': true}),
+      ),
+    );
+    expect(result.stderr, isEmpty);
+  });
 
   test('reports malformed fluoh.yaml as a warning', () async {
     final environment = await createTestEnvironment();

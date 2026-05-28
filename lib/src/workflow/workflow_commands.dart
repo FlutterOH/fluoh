@@ -8,9 +8,14 @@ import '../cli/fluoh_command_runner.dart';
 import '../cli/machine_output.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
+import '../ohos/build_profile_signing.dart';
+import '../ohos/debug_signer.dart';
+import '../ohos/device_runner.dart';
 import '../package/manifest/package_manifest.dart';
+import '../package/flutter_example_runner.dart';
 import '../package/package_workflow_runner.dart';
 import '../package/package_examples.dart';
+import '../schema/yaml_utils.dart';
 import '../sdk/flutter_runner.dart';
 import 'workflow_result.dart';
 
@@ -147,6 +152,7 @@ class BuildCommand extends FluohCommand<int> {
       projectInvocation: _ProjectWorkflowInvocation.build(
         platform: platform,
         debug: argResults!.flag('debug'),
+        autoSign: platform == 'ohos' && argResults!.flag('auto-sign'),
       ),
     );
     _printWorkflowJson(
@@ -255,6 +261,8 @@ class RunCommand extends FluohCommand<int> {
       projectInvocation: _ProjectWorkflowInvocation.run(
         platform: platform,
         deviceId: deviceId,
+        startEmulator: emulatorName != null,
+        emulatorName: emulatorName,
       ),
       deviceTimeout: deviceTimeout,
       logDuration: logDuration,
@@ -333,6 +341,8 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
         usage: usage,
         invocation:
             projectInvocation ?? const _ProjectWorkflowInvocation.baseline(),
+        deviceTimeout: deviceTimeout,
+        logDuration: logDuration,
       ),
     ];
   }
@@ -380,6 +390,13 @@ Future<PackageManifest?> _readOptionalPackageManifest(
   if (!await file.exists()) {
     return null;
   }
+  final content = await file.readAsString();
+  final yaml = parseYamlMap(content, label: 'fluoh.yaml');
+  if (!yaml.containsKey('packages') &&
+      !yaml.containsKey('repository') &&
+      !yaml.containsKey('upstream')) {
+    return null;
+  }
   return readPackageManifest(environment.workingDirectory);
 }
 
@@ -423,24 +440,36 @@ class _ProjectWorkflowInvocation {
     : kind = 'baseline',
       platform = null,
       debug = false,
-      deviceId = null;
+      autoSign = false,
+      deviceId = null,
+      startEmulator = false,
+      emulatorName = null;
 
   const _ProjectWorkflowInvocation.build({
     required this.platform,
     required this.debug,
+    required this.autoSign,
   }) : kind = 'build',
-       deviceId = null;
+       deviceId = null,
+       startEmulator = false,
+       emulatorName = null;
 
   const _ProjectWorkflowInvocation.run({
     required this.platform,
     required this.deviceId,
+    required this.startEmulator,
+    required this.emulatorName,
   }) : kind = 'run',
-       debug = true;
+       debug = true,
+       autoSign = false;
 
   final String kind;
   final String? platform;
   final bool debug;
+  final bool autoSign;
   final String? deviceId;
+  final bool startEmulator;
+  final String? emulatorName;
 }
 
 Future<WorkflowTargetResult> _runProjectWorkflow({
@@ -450,6 +479,8 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
   required OutputWriter stderr,
   required String usage,
   required _ProjectWorkflowInvocation invocation,
+  Duration deviceTimeout = const Duration(seconds: 90),
+  Duration logDuration = const Duration(seconds: 8),
 }) async {
   final project = environment.workingDirectory;
   final pubspec = File('${project.path}/pubspec.yaml');
@@ -486,6 +517,9 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         flutter: isFlutter,
         arguments: arguments,
         result: result,
+        diagnosticCode: _projectBaselineDiagnosticCode(name),
+        diagnosticMessage: _projectBaselineDiagnosticMessage(name),
+        nextCommand: 'fluoh verify --json',
       ),
     );
     return result.exitCode == 0;
@@ -541,43 +575,448 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
     throw UsageException('Build and run require a Flutter project.', usage);
   }
   final platform = invocation.platform!;
-  final arguments = invocation.kind == 'build'
-      ? [
-          'build',
-          _buildTargetForPlatform(platform),
-          if (invocation.debug) '--debug',
-          if (platform == 'ios') '--no-codesign',
-        ]
-      : [
-          'run',
-          if (invocation.deviceId != null) ...['-d', invocation.deviceId!],
-          '--debug',
-        ];
+  if (invocation.kind == 'run') {
+    if (platform == 'ohos') {
+      return _runProjectOhosWorkflow(
+        environment: environment,
+        project: project,
+        output: output,
+        stdout: stdout,
+        stderr: stderr,
+        usage: usage,
+        invocation: invocation,
+        deviceTimeout: deviceTimeout,
+        logDuration: logDuration,
+      );
+    }
+    final runResult = await runFlutterExampleOnDevice(
+      environment: environment,
+      exampleDirectory: project,
+      buildExampleTarget: _buildTargetForPlatform(platform),
+      output: output,
+      stdout: stdout,
+      stderr: stderr,
+      deviceId: invocation.deviceId,
+      startEmulator: invocation.startEmulator,
+      emulatorName: invocation.emulatorName,
+      deviceTimeout: deviceTimeout,
+      runDuration: logDuration,
+      usage: usage,
+    );
+    steps.add(
+      WorkflowStepResult(
+        name: 'project-run-${runResult.platform}',
+        path: '.',
+        command: runResult.command,
+        status: runResult.passed ? 'passed' : 'failed',
+        exitCode: runResult.exitCode,
+        reason: runResult.reason,
+        details: {
+          ...runResult.details,
+          'platform': runResult.platform,
+          if (runResult.target != null) 'target': runResult.target!.toJson(),
+          if (runResult.emulator != null)
+            'emulator': runResult.emulator!.toJson(),
+          if (runResult.outputLog != null)
+            'outputLog': runResult.outputLog!.path,
+        },
+        diagnostics: runResult.diagnostics
+            .map(
+              (diagnostic) => WorkflowDiagnostic(
+                code: diagnostic.code,
+                severity: diagnostic.severity,
+                message: diagnostic.message,
+                details: diagnostic.details,
+                nextCommand: _projectNextCommandForDiagnosticCode(
+                  diagnostic.code,
+                  invocation,
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+    return WorkflowTargetResult.project(
+      projectName: 'current',
+      exitCode: runResult.exitCode,
+      steps: steps,
+      phase: 'run-$platform',
+    );
+  }
+
+  final signingSteps = <WorkflowStepResult>[];
+  OhosBuildProfileSigningSession? signingSession;
+  OhosDebugSigningMaterial? signingMaterial;
+  var signingMode = '';
+  if (invocation.autoSign) {
+    final ohosDirectory = Directory('${project.path}/ohos');
+    if (!await ohosDirectory.exists()) {
+      const reason = 'Missing OHOS project.';
+      steps.add(
+        _projectOhosDiagnosticStep(
+          name: 'ohos-auto-sign',
+          command: 'prepare OHOS debug signing',
+          code: 'ohos.ohos_project_missing',
+          message: reason,
+          reason: '$reason Expected ./ohos.',
+          details: {'expectedPath': 'ohos'},
+          nextCommand: 'fluoh doctor --platform ohos --project --json',
+        ),
+      );
+      return WorkflowTargetResult.project(
+        projectName: 'current',
+        exitCode: 1,
+        steps: steps,
+        phase: 'build-$platform',
+      );
+    }
+    output.step('Preparing temporary OHOS debug signing in current project');
+    try {
+      signingMaterial = await prepareOhosDebugSigning(
+        environment: environment,
+        ohosDirectory: ohosDirectory,
+        output: output,
+        usage: usage,
+      );
+    } on UsageException catch (error) {
+      steps.add(
+        _projectOhosDiagnosticStep(
+          name: 'ohos-auto-sign',
+          command: 'prepare OHOS debug signing',
+          code: 'ohos.toolchain_missing',
+          message: 'Could not locate the local OpenHarmony toolchain.',
+          reason: error.message,
+          details: {'error': error.message},
+          nextCommand: 'fluoh doctor --platform ohos --json',
+        ),
+      );
+      return WorkflowTargetResult.project(
+        projectName: 'current',
+        exitCode: 1,
+        steps: steps,
+        phase: 'build-$platform',
+      );
+    } on Object catch (error) {
+      steps.add(
+        _projectOhosDiagnosticStep(
+          name: 'ohos-auto-sign',
+          command: 'prepare OHOS debug signing',
+          code: error is OhosSigningException
+              ? 'ohos.signing_profile_failed'
+              : 'ohos.auto_sign_failed',
+          message: 'OHOS automatic debug signing failed.',
+          reason: error.toString(),
+          details: {'error': error.toString()},
+          nextCommand: 'fluoh doctor --platform ohos --json',
+        ),
+      );
+      return WorkflowTargetResult.project(
+        projectName: 'current',
+        exitCode: 1,
+        steps: steps,
+        phase: 'build-$platform',
+      );
+    }
+    try {
+      signingSession = await applyTemporaryOhosSigning(
+        ohosDirectory: ohosDirectory,
+        config: signingMaterial.signingConfig,
+      );
+    } on Object catch (error) {
+      steps.add(
+        _projectOhosDiagnosticStep(
+          name: 'ohos-auto-sign',
+          command: 'patch OHOS build-profile signing',
+          code: 'ohos.build_profile_patch_failed',
+          message: 'Could not patch OHOS build-profile signing.',
+          reason: error.toString(),
+          details: {
+            ..._ohosSigningDetails(signingMaterial),
+            'error': error.toString(),
+          },
+          nextCommand: 'fluoh build --platform ohos --auto-sign --json',
+        ),
+      );
+      return WorkflowTargetResult.project(
+        projectName: 'current',
+        exitCode: 1,
+        steps: steps,
+        phase: 'build-$platform',
+      );
+    }
+    signingMode = 'build-profile';
+    signingSteps.add(
+      WorkflowStepResult(
+        name: 'ohos-auto-sign',
+        path: '.',
+        command: 'prepare OHOS debug signing',
+        status: 'passed',
+        exitCode: 0,
+        details: _ohosSigningDetails(signingMaterial),
+      ),
+    );
+    if (signingMaterial.permissionProfile.restrictedPermissions.isNotEmpty) {
+      output.detail(
+        'Restricted permissions: '
+        '${signingMaterial.permissionProfile.restrictedPermissions.join(', ')}',
+      );
+    }
+  }
+
+  final arguments = [
+    'build',
+    _buildTargetForPlatform(platform),
+    if (invocation.debug) '--debug',
+    if (platform == 'ios') '--no-codesign',
+  ];
   output.step('Running flutter ${arguments.join(' ')} in current project');
-  final result = await runSelectedFlutterResult(
-    environment: environment,
-    arguments: arguments,
-    workingDirectory: project,
-    stdout: stdout,
-    stderr: stderr,
-    output: output,
-    usage: usage,
-  );
+  final SelectedToolResult result;
+  var effectiveExitCode = 1;
+  var signedHaps = <File>[];
+  var installableHaps = <File>[];
+  final postBuildSteps = <WorkflowStepResult>[];
+  try {
+    final buildStartedAt = DateTime.now().subtract(const Duration(seconds: 1));
+    result = await runSelectedFlutterResult(
+      environment: environment,
+      arguments: arguments,
+      workingDirectory: project,
+      stdout: stdout,
+      stderr: stderr,
+      output: output,
+      usage: usage,
+    );
+    effectiveExitCode = result.exitCode;
+    if (effectiveExitCode != 0 && signingMaterial != null) {
+      output.step('Signing generated unsigned OHOS HAP in current project');
+      try {
+        signedHaps = await signGeneratedUnsignedHaps(
+          environment: environment,
+          exampleDirectory: project,
+          signingMaterial: signingMaterial,
+          output: output,
+          modifiedAfter: buildStartedAt,
+          usage: usage,
+        );
+      } on Object catch (error) {
+        steps.addAll(signingSteps);
+        steps.add(
+          _projectOhosDiagnosticStep(
+            name: 'ohos-direct-sign',
+            command: 'sign generated unsigned OHOS HAP',
+            code: 'ohos.direct_sign_failed',
+            message: 'Could not directly sign generated unsigned OHOS HAP.',
+            reason: error.toString(),
+            details: {
+              ..._ohosSigningDetails(signingMaterial),
+              ..._toolOutputDetails(result),
+              'error': error.toString(),
+            },
+            nextCommand: 'fluoh build --platform ohos --auto-sign --json',
+          ),
+        );
+        return WorkflowTargetResult.project(
+          projectName: 'current',
+          exitCode: 1,
+          steps: steps,
+          phase: '${invocation.kind}-$platform',
+        );
+      }
+      if (signedHaps.isNotEmpty) {
+        output.warning(
+          'Flutter HAP build failed during Hvigor signing; '
+          'fluoh signed the generated unsigned HAP directly.',
+        );
+        signingMode = 'direct-sign-fallback';
+        effectiveExitCode = 0;
+        postBuildSteps.add(
+          WorkflowStepResult(
+            name: 'ohos-direct-sign',
+            path: '.',
+            command: 'sign generated unsigned OHOS HAP',
+            status: 'passed',
+            exitCode: 0,
+            details: {
+              ..._ohosSigningDetails(signingMaterial),
+              'signedHaps': _filePaths(signedHaps),
+            },
+          ),
+        );
+      }
+    }
+    if (effectiveExitCode == 0 && platform == 'ohos') {
+      installableHaps = await findInstallableOhosHaps(
+        exampleDirectory: project,
+        modifiedAfter: buildStartedAt,
+      );
+    }
+  } finally {
+    if (signingSession != null) {
+      await signingSession.restore();
+      output.detail('Restored ohos/build-profile.json5');
+    }
+  }
+  steps.addAll(signingSteps);
+  steps.addAll(postBuildSteps);
   steps.add(
     _toolStep(
       name: 'project-${invocation.kind}-$platform',
       path: '.',
       flutter: true,
       arguments: arguments,
-      result: result,
+      result: SelectedToolResult(
+        exitCode: effectiveExitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      ),
+      diagnosticCode: _projectPlatformDiagnosticCode(
+        kind: invocation.kind,
+        platform: platform,
+      ),
+      diagnosticMessage: _projectPlatformDiagnosticMessage(
+        kind: invocation.kind,
+        platform: platform,
+      ),
+      nextCommand: _projectPlatformNextCommand(invocation),
+      extraDetails: {
+        if (installableHaps.isNotEmpty)
+          'installableHaps': _filePaths(installableHaps),
+        if (signingMode.isNotEmpty) 'signingMode': signingMode,
+      },
     ),
   );
   return WorkflowTargetResult.project(
     projectName: 'current',
-    exitCode: result.exitCode,
+    exitCode: effectiveExitCode,
     steps: steps,
     phase: '${invocation.kind}-$platform',
   );
+}
+
+Future<WorkflowTargetResult> _runProjectOhosWorkflow({
+  required FluohEnvironment environment,
+  required Directory project,
+  required TerminalOutput output,
+  required OutputWriter stdout,
+  required OutputWriter stderr,
+  required String usage,
+  required _ProjectWorkflowInvocation invocation,
+  required Duration deviceTimeout,
+  required Duration logDuration,
+}) async {
+  final buildResult = await _runProjectWorkflow(
+    environment: environment,
+    output: output,
+    stdout: stdout,
+    stderr: stderr,
+    usage: usage,
+    invocation: const _ProjectWorkflowInvocation.build(
+      platform: 'ohos',
+      debug: true,
+      autoSign: true,
+    ),
+    deviceTimeout: deviceTimeout,
+    logDuration: logDuration,
+  );
+  final steps = [...buildResult.steps];
+  if (!buildResult.passed) {
+    return WorkflowTargetResult.project(
+      projectName: 'current',
+      exitCode: buildResult.exitCode,
+      steps: steps,
+      phase: 'run-ohos',
+    );
+  }
+
+  final haps = _installableHapsFromBuildResult(buildResult);
+  final ohosDirectory = Directory('${project.path}/ohos');
+  final runResult = await runOhosHapsOnDevice(
+    environment: environment,
+    ohosDirectory: ohosDirectory,
+    haps: haps,
+    output: output,
+    deviceId: invocation.deviceId,
+    startEmulator: invocation.startEmulator,
+    emulatorName: invocation.emulatorName,
+    deviceTimeout: deviceTimeout,
+    logDuration: logDuration,
+    usage: usage,
+  );
+  final reasonParts = [
+    if (runResult.reason != null) runResult.reason!,
+    if (runResult.logFile != null) 'hilog: ${runResult.logFile!.path}',
+    if (runResult.findings.isNotEmpty)
+      'findings: ${runResult.findings.join(' | ')}',
+  ];
+  steps.add(
+    WorkflowStepResult(
+      name: 'project-run-ohos',
+      path: '.',
+      command: [
+        'hdc',
+        if (invocation.deviceId != null &&
+            invocation.deviceId!.trim().isNotEmpty)
+          '-t ${invocation.deviceId}',
+        'install -r',
+        '<hap>',
+        '&&',
+        'hdc',
+        'shell aa start',
+      ].join(' '),
+      status: runResult.passed ? 'passed' : 'failed',
+      exitCode: runResult.exitCode,
+      reason: reasonParts.isEmpty ? null : reasonParts.join('\n'),
+      details: {
+        if (runResult.targetId != null) 'targetId': runResult.targetId,
+        if (runResult.launchInfo != null)
+          'launchInfo': {
+            'bundleName': runResult.launchInfo!.bundleName,
+            'moduleName': runResult.launchInfo!.moduleName,
+            'abilityName': runResult.launchInfo!.abilityName,
+          },
+        if (runResult.logFile != null) 'hilog': runResult.logFile!.path,
+        if (runResult.findings.isNotEmpty) 'findings': runResult.findings,
+      },
+      diagnostics: runResult.diagnostics
+          .map(
+            (diagnostic) => WorkflowDiagnostic(
+              code: diagnostic.code,
+              severity: diagnostic.severity,
+              message: diagnostic.message,
+              details: diagnostic.details,
+              nextCommand: _projectNextCommandForDiagnosticCode(
+                diagnostic.code,
+                invocation,
+              ),
+            ),
+          )
+          .toList(),
+    ),
+  );
+
+  return WorkflowTargetResult.project(
+    projectName: 'current',
+    exitCode: runResult.exitCode,
+    steps: steps,
+    phase: 'run-ohos',
+  );
+}
+
+List<File> _installableHapsFromBuildResult(WorkflowTargetResult result) {
+  for (final step in result.steps.reversed) {
+    final value = step.details['installableHaps'];
+    if (value is List) {
+      return [
+        for (final item in value)
+          if (item is String && item.trim().isNotEmpty) File(item),
+      ];
+    }
+  }
+  return const [];
+}
+
+List<String> _filePaths(List<File> files) {
+  return [for (final file in files) file.path];
 }
 
 WorkflowStepResult _toolStep({
@@ -586,6 +1025,10 @@ WorkflowStepResult _toolStep({
   required bool flutter,
   required List<String> arguments,
   required SelectedToolResult result,
+  String? diagnosticCode,
+  String? diagnosticMessage,
+  String? nextCommand,
+  Map<String, Object?> extraDetails = const {},
 }) {
   final command = '${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')}';
   return WorkflowStepResult(
@@ -594,23 +1037,199 @@ WorkflowStepResult _toolStep({
     command: command,
     status: result.exitCode == 0 ? 'passed' : 'failed',
     exitCode: result.exitCode,
-    details: {
-      if (result.stdout.trim().isNotEmpty) 'stdoutTail': result.stdout,
-      if (result.stderr.trim().isNotEmpty) 'stderrTail': result.stderr,
-      if (result.combinedOutput.trim().isNotEmpty)
-        'outputTail': result.combinedOutput,
-    },
+    details: {..._toolOutputDetails(result), ...extraDetails},
     diagnostics: result.exitCode == 0
         ? const []
         : [
             WorkflowDiagnostic(
-              code: 'command.failed',
-              message: 'Command failed',
-              details: {'command': command, 'exitCode': result.exitCode},
-              nextCommand: 'fluoh verify --json',
+              code: diagnosticCode ?? 'command.failed',
+              message: diagnosticMessage ?? 'Command failed.',
+              details: {
+                'command': command,
+                'exitCode': result.exitCode,
+                ..._toolOutputDetails(result),
+              },
+              nextCommand: nextCommand ?? 'fluoh verify --json',
             ),
           ],
   );
+}
+
+WorkflowStepResult _projectOhosDiagnosticStep({
+  required String name,
+  required String command,
+  required String code,
+  required String message,
+  required String reason,
+  required String nextCommand,
+  Map<String, Object?> details = const {},
+}) {
+  return WorkflowStepResult(
+    name: name,
+    path: '.',
+    command: command,
+    status: 'failed',
+    exitCode: 1,
+    reason: reason,
+    diagnostics: [
+      WorkflowDiagnostic(
+        code: code,
+        message: message,
+        details: details,
+        nextCommand: nextCommand,
+      ),
+    ],
+  );
+}
+
+Map<String, Object?> _ohosSigningDetails(
+  OhosDebugSigningMaterial signingMaterial,
+) {
+  final profile = signingMaterial.permissionProfile;
+  return {
+    'bundleName': profile.bundleName,
+    'requestedPermissions': profile.requestedPermissions,
+    'restrictedPermissions': profile.restrictedPermissions,
+    'apl': profile.apl,
+    'signingConfig': signingMaterial.signingConfig.name,
+    'profile': signingMaterial.signingConfig.profile,
+  };
+}
+
+Map<String, Object?> _toolOutputDetails(SelectedToolResult result) {
+  return {
+    if (result.stdout.trim().isNotEmpty) 'stdoutTail': result.stdout,
+    if (result.stderr.trim().isNotEmpty) 'stderrTail': result.stderr,
+    if (result.combinedOutput.trim().isNotEmpty)
+      'outputTail': result.combinedOutput,
+  };
+}
+
+String _projectBaselineDiagnosticCode(String stepName) {
+  return switch (stepName) {
+    'project-pub-get' => 'dart.pub_get_failed',
+    'project-analyze' => 'dart.analysis_failed',
+    'project-test' => 'dart.test_failed',
+    _ => 'command.failed',
+  };
+}
+
+String _projectBaselineDiagnosticMessage(String stepName) {
+  return switch (stepName) {
+    'project-pub-get' => 'Dependency resolution failed.',
+    'project-analyze' => 'Static analysis failed.',
+    'project-test' => 'Tests failed.',
+    _ => 'Command failed.',
+  };
+}
+
+String _projectPlatformDiagnosticCode({
+  required String kind,
+  required String platform,
+}) {
+  if (kind == 'run') {
+    return switch (platform) {
+      'ohos' => 'ohos.run_failed',
+      'android' => 'android.run_failed',
+      'ios' => 'ios.run_failed',
+      _ => 'command.failed',
+    };
+  }
+  return switch (platform) {
+    'ohos' => 'ohos.hap_build_failed',
+    'android' => 'android.apk_build_failed',
+    'ios' => 'ios.build_failed',
+    _ => 'command.failed',
+  };
+}
+
+String _projectPlatformDiagnosticMessage({
+  required String kind,
+  required String platform,
+}) {
+  if (kind == 'run') {
+    return switch (platform) {
+      'ohos' => 'OHOS run failed.',
+      'android' => 'Android run failed.',
+      'ios' => 'iOS run failed.',
+      _ => 'Command failed.',
+    };
+  }
+  return switch (platform) {
+    'ohos' => 'OHOS HAP build failed.',
+    'android' => 'Android APK build failed.',
+    'ios' => 'iOS build failed.',
+    _ => 'Command failed.',
+  };
+}
+
+String _projectPlatformNextCommand(_ProjectWorkflowInvocation invocation) {
+  final platform = invocation.platform!;
+  if (invocation.kind == 'run') {
+    return [
+      'fluoh run --platform $platform',
+      if (invocation.deviceId != null) '--device ${invocation.deviceId}',
+      if (invocation.emulatorName != null)
+        '--emulator ${invocation.emulatorName}',
+      '--json',
+    ].join(' ');
+  }
+  return [
+    'fluoh build --platform $platform',
+    if (!invocation.debug) '--no-debug',
+    if (invocation.autoSign) '--auto-sign',
+    '--json',
+  ].join(' ');
+}
+
+String? _projectNextCommandForDiagnosticCode(
+  String code,
+  _ProjectWorkflowInvocation invocation,
+) {
+  final platform = invocation.platform!;
+  final runCommand = _projectPlatformNextCommand(invocation);
+  return switch (code) {
+    'ohos.hap_build_failed' ||
+    'ohos.launch_timeout' ||
+    'ohos.run_failed' ||
+    'ohos.runtime_crash' ||
+    'android.apk_build_failed' ||
+    'android.launch_timeout' ||
+    'android.run_failed' ||
+    'android.runtime_crash' ||
+    'ios.build_failed' ||
+    'ios.launch_timeout' ||
+    'ios.run_failed' ||
+    'ios.runtime_crash' => runCommand,
+    'ohos.devices_failed' ||
+    'ohos.emulators_failed' ||
+    'ohos.emulator_missing' ||
+    'ohos.emulator_start_failed' ||
+    'android.devices_failed' ||
+    'android.emulators_failed' ||
+    'android.emulator_missing' ||
+    'android.emulator_start_failed' ||
+    'ios.devices_failed' ||
+    'ios.emulators_failed' ||
+    'ios.emulator_missing' ||
+    'ios.emulator_start_failed' => 'fluoh doctor --platform $platform --json',
+    'ohos.device_not_found' ||
+    'ohos.device_ambiguous' ||
+    'android.device_not_found' ||
+    'android.device_ambiguous' ||
+    'ios.device_not_found' ||
+    'ios.device_ambiguous' => 'fluoh devices --platform $platform',
+    'ohos.device_missing' ||
+    'ohos.emulator_not_found' ||
+    'ohos.emulator_ambiguous' ||
+    'android.device_missing' ||
+    'android.emulator_not_found' ||
+    'android.emulator_ambiguous' ||
+    'ios.device_missing' ||
+    'ios.emulator_not_found' ||
+    'ios.emulator_ambiguous' => runCommand,
+    _ => null,
+  };
 }
 
 int _lastExitCode(List<WorkflowStepResult> steps) {

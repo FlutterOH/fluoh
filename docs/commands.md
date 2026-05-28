@@ -118,9 +118,9 @@ intentionally has no
 verbose flags as pub logging flags when a global executable falls back to pub,
 which can print dependency solver output before fluoh starts. When the current
 directory is a Flutter project, it also checks project shape, selected
-FlutterOH SDK, and the required OHOS platform directory only when `-p` or
+FlutterOH SDK, and the selected platform directories only when `-p` or
 `--project` is passed. Use `--platform ohos|android|ios` to narrow native
-toolchain checks.
+toolchain and project platform checks.
 
 Checks are organized into three groups: fluoh and source snapshot health,
 platform toolchains for OHOS, Android, and iOS, and optional current-project
@@ -131,8 +131,10 @@ Xcode develops for iOS devices.
 Missing or stale state is reported as warnings rather than immediate
 remediation. Use `fluoh doctor --json --strict` when automation needs a native
 toolchain gate, and `fluoh doctor -p --json --strict` when it also needs
-a current-project gate. `--json` prints the same checks as machine-readable JSON
-and includes each check's stable `id` and `group`.
+a current-project gate. Project JSON includes `platformDirectories` data for
+the selected platform set so automation can decide whether to create or skip
+OHOS, Android, or iOS platform projects. `--json` prints the same checks as
+machine-readable JSON and includes each check's stable `id` and `group`.
 
 ### `fluoh upgrade`
 
@@ -403,18 +405,33 @@ under `targets`, with target identity, phase, steps, diagnostics, and
 
 `fluoh build --platform ohos|android|ios` builds the current Flutter project or
 the selected package example. iOS builds automatically add `--no-codesign`.
-Package OHOS builds can use `--auto-sign` to generate a temporary local debug
-signing profile from the example's requested permissions.
+OHOS builds can use `--auto-sign` to generate a temporary local debug signing
+profile from the project's or example's requested permissions, patch
+`ohos/build-profile.json5` for that build, and restore the original file after
+the build. If Flutter leaves a fresh unsigned HAP after Hvigor signing fails,
+`fluoh` directly signs that HAP and reports `signingMode:
+direct-sign-fallback` plus the installable HAP paths. JSON failures use
+platform-specific diagnostic codes such as `ohos.hap_build_failed`,
+`android.apk_build_failed`, and `ios.build_failed` for both projects and
+package examples.
 
 `fluoh run --platform ohos|android|ios` builds, installs, launches, and
-diagnoses the current project or selected package example. For OHOS package
-examples it signs the HAP, installs it with `hdc`, starts the ability, captures
-a short hilog, and reports runtime crash patterns. For Android and iOS package
-examples it launches through the selected SDK's `flutter run`, captures smoke
-output under `$FLUOH_HOME/package-runs`, and runs
+diagnoses the current project or selected package example. For OHOS projects
+and package examples it signs the HAP, installs it with `hdc`, starts the
+ability, captures a short hilog, and reports runtime crash patterns. For
+Android and iOS package examples it launches through the selected SDK's
+`flutter run`, captures smoke output under `$FLUOH_HOME/package-runs`, and runs
 `flutter test integration_test -d <device>` when the example has an
 `integration_test/` directory. Use `--device <id>` for an already connected
 target or `--emulator <name>` to select and start a local emulator or simulator.
+Android and iOS current-project runs use the same Flutter device discovery,
+platform filtering, emulator startup, run-smoke timeout, and saved output log
+path as package examples, but they do not run package example integration
+tests.
+JSON failures include platform run diagnostics such as `ohos.run_failed`,
+`android.run_failed`, and `ios.run_failed` for current-project runs, while
+package examples keep their more specific install, launch, runtime, and
+integration-test diagnostics where available.
 
 `fluoh package release` validates release metadata, verifies that the configured
 SDK version exists in sources, runs `fluoh verify`, ensures the working

@@ -164,7 +164,9 @@ class DoctorCommand extends FluohCommand<int> {
   Future<_DoctorReport> _buildReport(_DoctorOptions options) async {
     final checks = await _environmentChecks(options.platforms);
     if (options.includeProject) {
-      checks.add(await _timedCheck(_checkFlutterProject));
+      checks.add(
+        await _timedCheck(() => _checkFlutterProject(options.platforms)),
+      );
     }
 
     return _DoctorReport(
@@ -264,7 +266,9 @@ class DoctorCommand extends FluohCommand<int> {
     );
   }
 
-  Future<_DoctorCheck> _checkFlutterProject() async {
+  Future<_DoctorCheck> _checkFlutterProject(
+    List<FluohPlatform> platforms,
+  ) async {
     final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
     if (!await pubspec.exists()) {
       return _DoctorCheck.warning(
@@ -319,17 +323,22 @@ class DoctorCommand extends FluohCommand<int> {
       healthy = false;
     }
 
-    final ohosDirectory = Directory(
-      '${environment.workingDirectory.path}/ohos',
-    );
-    if (await ohosDirectory.exists()) {
-      details.add(_DoctorDetail.ok('ohos platform directory exists'));
-    } else {
-      details.add(_DoctorDetail.warning('Missing ohos platform directory'));
-      healthy = false;
+    final platformData = <String, Object?>{};
+    for (final platform in platforms) {
+      final path = platform.cliName;
+      final directory = Directory('${environment.workingDirectory.path}/$path');
+      final exists = await directory.exists();
+      platformData[platform.cliName] = {'path': path, 'exists': exists};
+      if (exists) {
+        details.add(_DoctorDetail.ok('$path platform directory exists'));
+      } else {
+        details.add(_DoctorDetail.warning('Missing $path platform directory'));
+        healthy = false;
+      }
     }
 
     final plainDetails = details.map((detail) => detail.text).toList();
+    final data = {'platformDirectories': platformData};
     if (healthy) {
       return _DoctorCheck.ok(
         _DoctorCheckGroup.project,
@@ -337,6 +346,7 @@ class DoctorCommand extends FluohCommand<int> {
         plainDetails,
         id: 'project.flutter',
         detailItems: details,
+        data: data,
       );
     }
     return _DoctorCheck.warning(
@@ -345,6 +355,7 @@ class DoctorCommand extends FluohCommand<int> {
       [...plainDetails],
       id: 'project.flutter',
       detailItems: details,
+      data: data,
     );
   }
 

@@ -101,7 +101,7 @@ Java、Xcode `xcrun`、`simctl`，以及当前可见的 OHOS、Android、iOS 设
 `--verbose` 或 `--details`，因为 Dart 的 `pub global run` 在全局可执行文件 fallback 到
 pub 时会把 verbose 参数当成 pub 自己的日志开关，可能在 fluoh 启动前输出依赖求解日志。
 只有传入 `-p` 或 `--project` 时才会追加检查项目结构、已选择的 FlutterOH SDK
-和必要的 OHOS 平台目录。使用 `--platform ohos|android|ios` 可缩小原生工具链检查范围。
+和所选平台目录。使用 `--platform ohos|android|ios` 可缩小原生工具链和项目平台检查范围。
 
 检查项分为三组：fluoh 与 source 快照状态、OHOS/Android/iOS 平台工具链、可选的当前项目状态。
 平台标题同时说明工具链和目标平台：OpenHarmony 工具链面向 OHOS 设备，Android 工具链面向
@@ -109,8 +109,10 @@ Android 设备，Xcode 面向 iOS 设备。
 
 缺失或过期状态会作为 warning 输出，不会自动修复。自动化只需要原生工具链门禁时，使用
 `fluoh doctor --json --strict`；也需要当前项目门禁时，使用
-`fluoh doctor -p --json --strict`。`--json` 会输出机器可读的同一组检查结果，
-并在每个 check 中包含稳定的 `id` 和 `group`。
+`fluoh doctor -p --json --strict`。项目 JSON 会包含所选平台集合的
+`platformDirectories` 数据，方便自动化判断是否需要创建或跳过 OHOS、Android、iOS
+平台工程。`--json` 会输出机器可读的同一组检查结果，并在每个 check 中包含稳定的
+`id` 和 `group`。
 
 ### `fluoh upgrade`
 
@@ -323,15 +325,23 @@ example。使用 `--package <name>` 验证单个 package，或用 `--all` 验证
 `nextCommand`。
 
 `fluoh build --platform ohos|android|ios` 构建当前 Flutter 项目或所选 package example。iOS
-构建会自动加入 `--no-codesign`。package 的 OHOS 构建可用 `--auto-sign` 根据 example 申请的
-权限生成临时本地 debug 签名 profile。
+构建会自动加入 `--no-codesign`。OHOS 构建可用 `--auto-sign` 根据项目或 example 申请的权限
+生成临时本地 debug 签名 profile，为本次构建 patch `ohos/build-profile.json5`，并在构建后恢复原文件。
+如果 Hvigor 签名失败但 Flutter 留下了新的 unsigned HAP，`fluoh` 会直接签这个 HAP，并在 JSON
+中报告 `signingMode: direct-sign-fallback` 和可安装 HAP 路径。JSON 失败会对当前项目和
+package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_failed`、
+`android.apk_build_failed` 和 `ios.build_failed`。
 
 `fluoh run --platform ohos|android|ios` 会构建、安装、启动并诊断当前项目或所选 package
-example。OHOS package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短 hilog，并通过
-JSON diagnostics 报告运行时 crash。Android 和 iOS package example 会通过已选择 SDK 的
-`flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/package-runs`，并在 example 存在
-`integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。已有目标时用
-`--device <id>`，需要选择并启动本地 emulator/simulator 时用 `--emulator <name>`。
+example。OHOS 当前项目和 package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
+hilog，并通过 JSON diagnostics 报告运行时 crash。Android 和 iOS package example 会通过已选择
+SDK 的 `flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/package-runs`，并在 example
+存在 `integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。已有目标时用
+`--device <id>`，需要选择并启动本地 emulator/simulator 时用 `--emulator <name>`。Android 和
+iOS 当前项目 run 也会使用同一套 Flutter device 发现、平台筛选、emulator 启动、run-smoke
+超时和输出日志保存逻辑，但不会运行 package example 的 integration tests。当前项目 run 的 JSON
+失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed` 等平台 diagnostic；
+package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
 
 `fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
