@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -6,6 +5,7 @@ import 'package:args/command_runner.dart';
 import '../cli/argument_validation.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
+import '../cli/machine_output.dart';
 import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
@@ -146,7 +146,7 @@ class SourceListCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final config = await FluohConfigStore(environment).load();
     if (config.sources.isEmpty) {
-      _output.warning('No sources configured.');
+      _output.warning('No sources configured');
       return 0;
     }
 
@@ -219,7 +219,7 @@ class SourceValidateCommand extends FluohCommand<int> {
     }
 
     await validateSource(source.path, SourceConfig(path: source.path));
-    _output.success('Validated source ${_output.style.path(source.path)}.');
+    _output.success('Validated source ${_output.style.path(source.path)}');
     return 0;
   }
 }
@@ -277,11 +277,11 @@ class SourceInitCommand extends FluohCommand<int> {
 
     if (existed) {
       _output.skipped(
-        'Local source template already exists at ${_output.style.path(source.path)}.',
+        'Local source template already exists at ${_output.style.path(source.path)}',
       );
     } else {
       _output.success(
-        'Created local source template at ${_output.style.path(source.path)}.',
+        'Created local source template at ${_output.style.path(source.path)}',
       );
     }
     _output.next(
@@ -408,14 +408,18 @@ class SourceSyncCommand extends FluohCommand<int> {
       }
 
       if (json) {
-        stdout(
-          jsonEncode({
+        writeMachineOutput(
+          stdout,
+          command: 'source sync',
+          ok: true,
+          exitCode: 0,
+          fields: {
             'source': source.path,
             'configuredSource': configuredSource?.key,
             'synced': synced,
             'skipped': skipped,
             'packages': results.map((result) => result.toJson()).toList(),
-          }),
+          },
         );
       } else {
         for (final item in results) {
@@ -423,7 +427,7 @@ class SourceSyncCommand extends FluohCommand<int> {
           if (result.skippedFrozen) {
             _output.skipped(
               'Skipped source metadata update for ${result.packageName} because '
-              'maintenance.status is frozen.',
+              'maintenance.status is frozen',
             );
             if (result.frozenReason != null) {
               _output.next(result.frozenReason!);
@@ -431,17 +435,17 @@ class SourceSyncCommand extends FluohCommand<int> {
           } else {
             _output.success(
               'Synced source metadata for ${result.packageName} from '
-              '${_output.style.path(item.repository.path)}.',
+              '${_output.style.path(item.repository.path)}',
             );
           }
         }
 
         if (synced == 0 && skipped == 0) {
-          _output.skipped('No packages were synced.');
+          _output.skipped('No packages were synced');
         } else {
           _output.next(
             'Synced $synced package${_s(synced)}'
-            '${skipped == 0 ? '' : '; skipped $skipped frozen package${_s(skipped)}'}.',
+            '${skipped == 0 ? '' : '; skipped $skipped frozen package${_s(skipped)}'}',
           );
         }
       }
@@ -1149,7 +1153,7 @@ class SourceRemoveCommand extends FluohCommand<int> {
     } on ArgumentError catch (error) {
       usageException(error.message);
     }
-    _output.success('Removed source $name.');
+    _output.success('Removed source $name');
     return 0;
   }
 }
@@ -1227,7 +1231,7 @@ class SourceUpdateCommand extends FluohCommand<int> {
     }
 
     for (final entry in sources) {
-      _output.success('Updated source ${entry.key}.');
+      _output.success('Updated source ${entry.key}');
     }
     return 0;
   }

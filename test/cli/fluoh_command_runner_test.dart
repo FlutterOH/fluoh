@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:fluoh/fluoh.dart';
@@ -39,6 +40,61 @@ void main() {
     expect(exitCode, 64);
     expect(stdout, isEmpty);
     expect(stderr.join('\n'), contains('Could not find a command named'));
+  });
+
+  test('prints machine-readable usage errors when json is requested', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['doctor', '--json', 'extra'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stderr, isEmpty);
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'doctor'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 64));
+    expect(
+      report['error'],
+      allOf(
+        isA<Map<String, Object?>>(),
+        containsPair('type', 'usage'),
+        containsPair('message', contains('Unexpected argument')),
+      ),
+    );
+  });
+
+  test('does not treat passthrough --machine as fluoh json mode', () async {
+    final home = await io.Directory.systemTemp.createTemp('fluoh_test_home_');
+    final project = await io.Directory.systemTemp.createTemp(
+      'fluoh_test_project_',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    try {
+      final exitCode = await runFluoh(
+        ['flutter', '--machine'],
+        environment: FluohEnvironment(
+          homeDirectory: home,
+          workingDirectory: project,
+        ),
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(exitCode, 64);
+      expect(stdout, isEmpty);
+      expect(stderr.join('\n'), contains('No SDK selected'));
+    } finally {
+      await home.delete(recursive: true);
+      await project.delete(recursive: true);
+    }
   });
 
   test('suggests similar top-level command names', () async {
@@ -254,7 +310,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('rejects unknown doctor scopes', () async {
+  test('rejects unexpected doctor arguments', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -266,7 +322,7 @@ void main() {
 
     expect(exitCode, 64);
     expect(stdout, isEmpty);
-    expect(stderr.join('\n'), contains('Unknown doctor scope: extra.'));
+    expect(stderr.join('\n'), contains('Unexpected argument: extra.'));
   });
 
   test('prints top-level commands without grouping', () async {
@@ -287,7 +343,12 @@ void main() {
       '  sdk',
       '  deps',
       '  package',
+      '  verify',
+      '  build',
+      '  run',
       '  doctor',
+      '  devices',
+      '  emulators',
       '  upgrade',
     ]);
     expect(help, isNot(contains('\nConfig:')));
@@ -339,9 +400,25 @@ void main() {
       '  create',
       '  add',
       '  sync',
-      '  check',
       '  release',
+      '  status',
     ]);
+    expect(help, isNot(contains('  check')));
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['verify', '--help'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    help = stdout.join('\n');
+    expect(help, contains('Usage: fluoh verify'));
+    expect(help, contains('--package=<name>'));
+    expect(help, isNot(contains('  baseline')));
+    expect(help, isNot(contains('  release')));
     expect(stderr, isEmpty);
   });
 
@@ -394,7 +471,7 @@ void main() {
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['package', 'check', '--help'],
+      ['verify', '--help'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -402,7 +479,7 @@ void main() {
     expect(exitCode, 0);
     final help = stdout.join('\n');
     expect(help, contains('    --package=<name>'));
-    expect(help, contains('multiple packages.'));
+    expect(help, contains('registered in fluoh.yaml.'));
     expect(help.split('\n').where((line) => line.length > 80), isEmpty);
     expect(stderr, isEmpty);
   });
@@ -446,9 +523,10 @@ void main() {
       '  create',
       '  add',
       '  sync',
-      '  check',
       '  release',
+      '  status',
     ]);
+    expect(help, isNot(contains('  check')));
     expect(stderr, isEmpty);
   });
 }

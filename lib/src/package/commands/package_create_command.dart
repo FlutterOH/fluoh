@@ -98,7 +98,7 @@ class PackageCreateCommand extends FluohCommand<int> {
 
     final upstream = rest.single;
     final gitAuthor = _gitAuthorConfigFromOptions();
-    _output.step('Resolving Flutter OHOS SDK.');
+    _output.step('Resolving Flutter OHOS SDK');
     final release = await _resolveSdkRelease();
     final packagePaths = argResults!.multiOption('package-path');
     final destination = _packageCreateDestination(
@@ -129,7 +129,7 @@ class PackageCreateCommand extends FluohCommand<int> {
       for (final selected in selectedPackages) {
         if (selected.path != '.') {
           _output.info(
-            'Selected package ${selected.package.name} at ${selected.path}.',
+            'Selected package ${selected.package.name} at ${selected.path}',
           );
         }
       }
@@ -151,7 +151,7 @@ class PackageCreateCommand extends FluohCommand<int> {
       if (gitAuthor != null) {
         await configurePackageGitAuthor(destination, gitAuthor);
         _output.info(
-          'Configured local Git author: ${gitAuthor.name} <${gitAuthor.email}>.',
+          'Configured local Git author: ${gitAuthor.name} <${gitAuthor.email}>',
         );
       }
 
@@ -169,26 +169,24 @@ class PackageCreateCommand extends FluohCommand<int> {
       ).sdkDirectory(release.tag);
       final sdkInstalled = await sdkDirectory.exists();
       if (sdkInstalled) {
-        _output.info('Using installed Flutter OHOS SDK ${release.tag}.');
+        _output.info('Using installed Flutter OHOS SDK ${release.tag}');
       }
       final projectEnvironment = SdkProjectEnvironment(packageEnvironment);
       final configuredSdkDirectory = await _output.withProgress(
         sdkInstalled
-            ? 'Configuring Flutter OHOS SDK ${release.tag}.'
+            ? 'Configuring Flutter OHOS SDK ${release.tag}'
             : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
         () => projectEnvironment.configure(release, writeFluohConfig: false),
         showWhenPlain: !sdkInstalled,
       );
       _output.info(
-        'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}.',
+        'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}',
       );
       final ideLink = await projectEnvironment.linkIdeSdk(
         configuredSdkDirectory,
       );
-      _output.info(
-        'IDE Flutter SDK link: ${_output.style.path(ideLink.path)}.',
-      );
-      _output.next('Use this link as your IDE Flutter SDK path.');
+      _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}');
+      _output.next('Use this link as your IDE Flutter SDK path');
       _output.blank();
       await writePackageManifestFile(
         destination,
@@ -255,7 +253,7 @@ class PackageCreateCommand extends FluohCommand<int> {
         if (!result.prepared && result.reason != null) {
           _output.skipped(
             'Skipping example OHOS setup for ${result.packageName}: '
-            '${result.reason}.',
+            '${result.reason}',
           );
         }
       }
@@ -298,12 +296,12 @@ class PackageCreateCommand extends FluohCommand<int> {
       }
 
       _output.success(
-        'Created package repository at ${_output.style.path(destination.path)}.',
+        'Created package repository at ${_output.style.path(destination.path)}',
       );
-      _output.info('Package branch: $branch.');
-      _output.info('Origin: ${_output.style.url(repositoryUrl)}.');
-      _output.success('Configured Flutter OHOS SDK ${release.tag}.');
-      _output.next('See FLUOH.md and AGENTS.md for implementation steps.');
+      _output.info('Package branch: $branch');
+      _output.info('Origin: ${_output.style.url(repositoryUrl)}');
+      _output.success('Configured Flutter OHOS SDK ${release.tag}');
+      _output.next('See FLUOH.md and AGENTS.md for implementation steps');
       shouldRollbackDestination = false;
       return 0;
     } catch (_) {

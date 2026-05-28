@@ -30,16 +30,16 @@ void main() {
     expect(exitCode, 0);
     expect(
       stdout,
-      contains('Will modify ${environment.workingDirectory.path}/fluoh.yaml.'),
+      contains('Will modify ${environment.workingDirectory.path}/fluoh.yaml'),
     );
     expect(
       stdout,
       contains(
         'Flutter OHOS SDK path: '
-        '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3.',
+        '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
       ),
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3.'));
+    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
 
     final fluohConfig = File(
@@ -98,7 +98,7 @@ dependencyPolicy:
       stdout,
       contains(
         'IDE Flutter SDK link: '
-        '${environment.workingDirectory.path}/.fluoh/flutter_sdk.',
+        '${environment.workingDirectory.path}/.fluoh/flutter_sdk',
       ),
     );
     expect(
@@ -186,7 +186,7 @@ dependencyPolicy:
       Directory('${environment.workingDirectory.path}/ohos').existsSync(),
       isTrue,
     );
-    expect(stdout, contains('Initialized OHOS platform directory.'));
+    expect(stdout, contains('Initialized OHOS platform directory'));
     expect(stderr, isEmpty);
   });
 
@@ -218,7 +218,7 @@ dependencyPolicy:
       Directory('${environment.workingDirectory.path}/ohos').existsSync(),
       isFalse,
     );
-    expect(stdout, isNot(contains('Initialized OHOS platform directory.')));
+    expect(stdout, isNot(contains('Initialized OHOS platform directory')));
     expect(stderr, isEmpty);
   });
 
@@ -354,7 +354,7 @@ dependencyPolicy:
       File('${existingSdk.path}/README.md').readAsStringSync(),
       'existing sdk',
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3.'));
+    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
   });
 
@@ -439,7 +439,7 @@ custom:
       ).readAsStringSync(),
       'pub get',
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3.'));
+    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
   });
 

@@ -9,7 +9,7 @@ import '../helpers/fluoh_command_context.dart';
 void main() {
   test('runs existing Flutter package and example tests', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -31,7 +31,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check'],
+        ['verify'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -42,7 +42,7 @@ void main() {
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     expect(
       File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync(),
       [
         '$root::flutter pub get',
@@ -54,18 +54,18 @@ void main() {
         '',
       ].join('\n'),
     );
-    expect(stdout, contains('Checking camera.'));
-    expect(stdout, contains('Package analysis passed for camera.'));
-    expect(stdout, contains('Package tests passed for camera.'));
-    expect(stdout, contains('Example analysis passed for camera.'));
-    expect(stdout, contains('Example tests passed for camera.'));
-    expect(stdout, contains('Package check passed for camera.'));
+    expect(stdout, contains('Verifying camera'));
+    expect(stdout, contains('Package analysis passed for camera'));
+    expect(stdout, contains('Package tests passed for camera'));
+    expect(stdout, contains('Example analysis passed for camera'));
+    expect(stdout, contains('Example tests passed for camera'));
+    expect(stdout, contains('Verification passed'));
     expect(stderr, contains('flutter stderr'));
   });
 
-  test('can build example HAP and emit json results', () async {
+  test('top-level verify runs package workflows', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -88,7 +88,53 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--build-example', 'hap', '--debug', '--json'],
+        ['verify', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'verify'));
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final identity = target['target'] as Map<String, Object?>;
+    expect(identity, containsPair('kind', 'package'));
+    expect(identity, containsPair('name', 'camera'));
+    expect(target, containsPair('phase', 'baseline'));
+    expect(stderr, isEmpty);
+  });
+
+  test('top-level build runs a package example build', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['build', '--platform', 'android', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -99,15 +145,61 @@ void main() {
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     expect(
       File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+      ).readAsStringSync(),
+      contains('$root/example::flutter build apk --debug'),
+    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'build'));
+    expect(report, containsPair('ok', true));
+    expect(stderr, isEmpty);
+  });
+
+  test('can build example HAP and emit json results', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['build', '--platform', 'ohos', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync(),
       contains('$root/example::flutter build hap --debug'),
     );
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', true));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     expect(
       steps,
       contains(
@@ -123,7 +215,7 @@ void main() {
 
   test('can build example APK and emit json results', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -146,7 +238,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--build-example', 'apk', '--debug', '--json'],
+        ['build', '--platform', 'android', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -157,15 +249,15 @@ void main() {
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     expect(
       File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync(),
       contains('$root/example::flutter build apk --debug'),
     );
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', true));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     expect(
       steps,
       contains(
@@ -181,7 +273,7 @@ void main() {
 
   test('can build example iOS without codesigning', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -204,7 +296,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--build-example', 'ios', '--debug', '--json'],
+        ['build', '--platform', 'ios', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -215,14 +307,14 @@ void main() {
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     expect(
       File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync(),
       contains('$root/example::flutter build ios --debug --no-codesign'),
     );
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     expect(
       steps,
       contains(
@@ -238,7 +330,7 @@ void main() {
 
   test('emits platform diagnostics for failed example builds', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
       flutterFailures: const {'build apk --debug': 3},
@@ -262,7 +354,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--build-example', 'apk', '--debug', '--json'],
+        ['build', '--platform', 'android', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -271,11 +363,11 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', false));
+    expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 3));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     final buildStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'example-build-apk',
     );
@@ -292,7 +384,7 @@ void main() {
 
   test('emits iOS diagnostics for failed example builds', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
       flutterFailures: const {'build ios --debug --no-codesign': 4},
@@ -316,7 +408,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--build-example', 'ios', '--debug', '--json'],
+        ['build', '--platform', 'ios', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -325,11 +417,11 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', false));
+    expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 4));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     final buildStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'example-build-ios',
     );
@@ -347,7 +439,7 @@ void main() {
 
   test('can run Android example and integration tests', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
       flutterStdout: const {
@@ -388,15 +480,7 @@ void main() {
 
     expect(
       await runFluoh(
-        [
-          'package',
-          'check',
-          '--build-example',
-          'apk',
-          '--debug',
-          '--run-example',
-          '--json',
-        ],
+        ['run', '--platform', 'android', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -406,7 +490,7 @@ void main() {
 
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     final invocations = File(
-      '${environment.workingDirectory.path}/package_check_invocations.txt',
+      '${environment.workingDirectory.path}/package_workflow_invocations.txt',
     ).readAsStringSync();
     expect(invocations, contains('$root/example::flutter devices --machine'));
     expect(invocations, contains('$root/example::flutter build apk --debug'));
@@ -420,10 +504,10 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', true));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     expect(
       steps,
       contains(
@@ -457,7 +541,7 @@ void main() {
     'android run preset expands to debug build and selected device run',
     () async {
       final environment = await createTestEnvironment();
-      final source = await _createCheckSdkSource(
+      final source = await _createWorkflowSdkSource(
         environment.homeDirectory,
         environment.workingDirectory,
         flutterStdout: const {
@@ -487,10 +571,9 @@ void main() {
       expect(
         await runFluoh(
           [
-            'package',
-            'check',
-            '--preset',
-            'android-run',
+            'run',
+            '--platform',
+            'android',
             '--device',
             'emulator-5554',
             '--json',
@@ -504,7 +587,7 @@ void main() {
 
       final root = await environment.workingDirectory.resolveSymbolicLinks();
       final invocations = File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync();
       expect(invocations, contains('$root/example::flutter build apk --debug'));
       expect(
@@ -515,11 +598,10 @@ void main() {
       );
 
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      final packages = report['packages'] as List<Object?>;
-      final package = packages.single as Map<String, Object?>;
-      expect(package, containsPair('preset', 'android-run'));
-      expect(package, containsPair('phase', 'android-run'));
-      expect(report, containsPair('passed', true));
+      final targets = report['targets'] as List<Object?>;
+      final target = targets.single as Map<String, Object?>;
+      expect(target, containsPair('phase', 'android-run'));
+      expect(report, containsPair('ok', true));
       expect(stderr, isEmpty);
     },
   );
@@ -530,9 +612,9 @@ void main() {
       final environment = await createTestEnvironment();
       final androidSdk = await _writeAndroidSdkFixture(
         environment.homeDirectory,
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       );
-      final source = await _createCheckSdkSource(
+      final source = await _createWorkflowSdkSource(
         environment.homeDirectory,
         environment.workingDirectory,
         flutterStdout: const {
@@ -573,15 +655,7 @@ void main() {
 
       expect(
         await runFluoh(
-          [
-            'package',
-            'check',
-            '--preset',
-            'android-run',
-            '--emulator',
-            'Pixel_35',
-            '--json',
-          ],
+          ['run', '--platform', 'android', '--emulator', 'Pixel_35', '--json'],
           environment: commandEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -591,7 +665,7 @@ void main() {
 
       final root = await environment.workingDirectory.resolveSymbolicLinks();
       final invocations = File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync();
       expect(invocations, contains('android-emulator -list-avds'));
       expect(invocations, contains('android-emulator -avd Pixel_35'));
@@ -604,14 +678,14 @@ void main() {
       expect(invocations, isNot(contains('flutter run -d connected-device')));
 
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('passed', true));
+      expect(report, containsPair('ok', true));
       expect(stderr, isEmpty);
     },
   );
 
   test('emits Android diagnostics when no run target is available', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
       flutterStdout: const {'devices --machine': '[]'},
@@ -635,14 +709,7 @@ void main() {
 
     expect(
       await runFluoh(
-        [
-          'package',
-          'check',
-          '--build-example',
-          'apk',
-          '--run-example',
-          '--json',
-        ],
+        ['run', '--platform', 'android', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -651,10 +718,10 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', false));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    expect(report, containsPair('ok', false));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     final runStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'example-run-android',
     );
@@ -665,21 +732,21 @@ void main() {
       diagnostic,
       containsPair(
         'nextCommand',
-        'fluoh package check --package camera --preset android-run --json',
+        'fluoh run --platform android --package camera --json',
       ),
     );
     expect(
       runStep,
       containsPair(
         'nextCommand',
-        'fluoh package check --package camera --preset android-run --json',
+        'fluoh run --platform android --package camera --json',
       ),
     );
     expect(
-      package,
+      target,
       containsPair(
         'nextCommand',
-        'fluoh package check --package camera --preset android-run --json',
+        'fluoh run --platform android --package camera --json',
       ),
     );
     expect(stderr, isEmpty);
@@ -687,7 +754,7 @@ void main() {
 
   test('emits iOS diagnostics when example run fails', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
       flutterFailures: const {'run -d ios-sim --debug --no-pub': 2},
@@ -715,15 +782,7 @@ void main() {
 
     expect(
       await runFluoh(
-        [
-          'package',
-          'check',
-          '--build-example',
-          'ios',
-          '--debug',
-          '--run-example',
-          '--json',
-        ],
+        ['run', '--platform', 'ios', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -732,36 +791,36 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', false));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    expect(report, containsPair('ok', false));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     final runStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'example-run-ios',
     );
     final diagnostics = runStep['diagnostics'] as List<Object?>;
     final diagnostic = diagnostics.single as Map<String, Object?>;
     expect(diagnostic, containsPair('code', 'ios.run_failed'));
-    expect(diagnostic, containsPair('message', 'Flutter example run failed.'));
+    expect(diagnostic, containsPair('message', 'Flutter example run failed'));
     expect(
       diagnostic,
       containsPair(
         'nextCommand',
-        'fluoh package check --package camera --preset ios-run --json',
+        'fluoh run --platform ios --package camera --json',
       ),
     );
     expect(
       runStep,
       containsPair(
         'nextCommand',
-        'fluoh package check --package camera --preset ios-run --json',
+        'fluoh run --platform ios --package camera --json',
       ),
     );
     expect(
-      package,
+      target,
       containsPair(
         'nextCommand',
-        'fluoh package check --package camera --preset ios-run --json',
+        'fluoh run --platform ios --package camera --json',
       ),
     );
     expect(stderr, isEmpty);
@@ -769,7 +828,7 @@ void main() {
 
   test('emits structured diagnostics for failed JSON checks', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
       flutterFailures: const {'analyze': 2},
@@ -790,7 +849,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--json'],
+        ['verify', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -799,11 +858,11 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', false));
+    expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 2));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     final analyzeStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'package-analyze',
     );
@@ -819,35 +878,26 @@ void main() {
     expect(details, containsPair('outputTail', contains('flutter stderr')));
     expect(
       diagnostic,
-      containsPair(
-        'nextCommand',
-        'fluoh package check --package camera --json',
-      ),
+      containsPair('nextCommand', 'fluoh verify --package camera --json'),
     );
     expect(
       analyzeStep,
-      containsPair(
-        'nextCommand',
-        'fluoh package check --package camera --json',
-      ),
+      containsPair('nextCommand', 'fluoh verify --package camera --json'),
     );
     expect(
-      package,
-      containsPair(
-        'nextCommand',
-        'fluoh package check --package camera --json',
-      ),
+      target,
+      containsPair('nextCommand', 'fluoh verify --package camera --json'),
     );
     expect(stderr, isEmpty);
   });
 
   test('emits JSON diagnostics when automatic signing cannot start', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
-    final checkEnvironment = FluohEnvironment(
+    final workflowEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
       workingDirectory: environment.workingDirectory,
       processEnvironment: {
@@ -870,7 +920,7 @@ void main() {
 
     await runFluoh(
       ['source', 'add', 'fixture', source.path],
-      environment: checkEnvironment,
+      environment: workflowEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -879,8 +929,8 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check', '--build-example', 'hap', '--auto-sign', '--json'],
-        environment: checkEnvironment,
+        ['build', '--platform', 'ohos', '--auto-sign', '--json'],
+        environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
       ),
@@ -888,10 +938,10 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('passed', false));
-    final packages = report['packages'] as List<Object?>;
-    final package = packages.single as Map<String, Object?>;
-    final steps = package['steps'] as List<Object?>;
+    expect(report, containsPair('ok', false));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
     final autoSignStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'ohos-auto-sign',
     );
@@ -904,7 +954,7 @@ void main() {
 
   test('uses dart test for non-Flutter packages', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -923,7 +973,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check'],
+        ['verify'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -934,7 +984,7 @@ void main() {
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     expect(
       File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync(),
       [
         '$root::dart pub get',
@@ -943,15 +993,18 @@ void main() {
         '',
       ].join('\n'),
     );
-    expect(stdout, contains('Package analysis passed for camera.'));
-    expect(stdout, contains('Package tests passed for camera.'));
-    expect(stdout.join('\n'), contains('Skipping example checks for camera'));
+    expect(stdout, contains('Package analysis passed for camera'));
+    expect(stdout, contains('Package tests passed for camera'));
+    expect(
+      stdout.join('\n'),
+      contains('Skipping example verification for camera'),
+    );
     expect(stderr, contains('dart stderr'));
   });
 
   test('runs analysis even when no tests exist', () async {
     final environment = await createTestEnvironment();
-    final source = await _createCheckSdkSource(
+    final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
       environment.workingDirectory,
     );
@@ -974,7 +1027,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check'],
+        ['verify'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -985,7 +1038,7 @@ void main() {
     final root = await environment.workingDirectory.resolveSymbolicLinks();
     expect(
       File(
-        '${environment.workingDirectory.path}/package_check_invocations.txt',
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
       ).readAsStringSync(),
       [
         '$root::flutter pub get',
@@ -995,17 +1048,17 @@ void main() {
         '',
       ].join('\n'),
     );
-    expect(stdout, contains('Package analysis passed for camera.'));
-    expect(stdout, contains('Example analysis passed for camera.'));
+    expect(stdout, contains('Package analysis passed for camera'));
+    expect(stdout, contains('Example analysis passed for camera'));
     expect(
       stdout.join('\n'),
-      contains('Skipping package tests for camera: no test files.'),
+      contains('Skipping package tests for camera: no test files'),
     );
     expect(
       stdout.join('\n'),
-      contains('Skipping example tests for camera: no example test files.'),
+      contains('Skipping example tests for camera: no example test files'),
     );
-    expect(stdout, contains('Package check passed for camera.'));
+    expect(stdout, contains('Verification passed'));
     expect(stderr, contains('flutter stderr'));
   });
 
@@ -1017,7 +1070,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'check'],
+        ['verify'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1026,60 +1079,18 @@ void main() {
     );
 
     expect(stderr.join('\n'), contains('Missing pubspec.yaml in .'));
-    expect(stdout, contains('Checking camera.'));
-    expect(stdout, isNot(contains('Package check passed for camera.')));
+    expect(stdout, contains('Verifying camera'));
+    expect(stdout, isNot(contains('Verification passed')));
   });
 
-  test(
-    'requires HAP example build when automatic signing is requested',
-    () async {
-      final environment = await createTestEnvironment();
-      final stdout = <String>[];
-      final stderr = <String>[];
-
-      expect(
-        await runFluoh(
-          ['package', 'check', '--auto-sign'],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        64,
-      );
-
-      expect(
-        stderr.join('\n'),
-        contains('Use --auto-sign together with --build-example hap.'),
-      );
-
-      stdout.clear();
-      stderr.clear();
-
-      expect(
-        await runFluoh(
-          ['package', 'check', '--build-example', 'apk', '--auto-sign'],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        64,
-      );
-
-      expect(
-        stderr.join('\n'),
-        contains('Use --auto-sign together with --build-example hap.'),
-      );
-    },
-  );
-
-  test('requires example build target when example run is requested', () async {
+  test('requires OHOS platform when automatic signing is requested', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        ['package', 'check', '--run-example'],
+        ['build', '--platform', 'android', '--auto-sign'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1089,107 +1100,7 @@ void main() {
 
     expect(
       stderr.join('\n'),
-      contains(
-        'Use --run-example together with --build-example hap, apk, or ios.',
-      ),
-    );
-  });
-
-  test('requires example run when device is selected', () async {
-    final environment = await createTestEnvironment();
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    expect(
-      await runFluoh(
-        ['package', 'check', '--device', 'emulator-5554'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-
-    expect(
-      stderr.join('\n'),
-      contains('Use --device together with --run-example.'),
-    );
-  });
-
-  test('requires example run when emulator start is requested', () async {
-    final environment = await createTestEnvironment();
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    expect(
-      await runFluoh(
-        ['package', 'check', '--start-emulator'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-
-    expect(
-      stderr.join('\n'),
-      contains('Use --start-emulator together with --run-example.'),
-    );
-  });
-
-  test('does not allow device and emulator startup together', () async {
-    final environment = await createTestEnvironment();
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    expect(
-      await runFluoh(
-        [
-          'package',
-          'check',
-          '--build-example',
-          'apk',
-          '--run-example',
-          '--device',
-          'emulator-5554',
-          '--start-emulator',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-
-    expect(stderr.join('\n'), contains('Use --device for connected targets'));
-  });
-
-  test('requires emulator start when emulator is selected', () async {
-    final environment = await createTestEnvironment();
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    expect(
-      await runFluoh(
-        [
-          'package',
-          'check',
-          '--build-example',
-          'hap',
-          '--run-example',
-          '--emulator',
-          'Huawei_Phone',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-
-    expect(
-      stderr.join('\n'),
-      contains('Use --emulator together with --start-emulator.'),
+      contains('Use --auto-sign only with --platform ohos.'),
     );
   });
 
@@ -1201,14 +1112,11 @@ void main() {
     expect(
       await runFluoh(
         [
-          'package',
-          'check',
-          '--build-example',
-          'apk',
-          '--run-example',
+          'run',
+          '--platform',
+          'android',
           '--device',
           'emulator-5554',
-          '--start-emulator',
           '--emulator',
           'Pixel',
         ],
@@ -1225,21 +1133,14 @@ void main() {
     );
   });
 
-  test('does not allow explicit build options with presets', () async {
+  test('validates run timeout options', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        [
-          'package',
-          'check',
-          '--preset',
-          'android-run',
-          '--build-example',
-          'apk',
-        ],
+        ['run', '--platform', 'android', '--device-timeout', 'not-seconds'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1249,7 +1150,7 @@ void main() {
 
     expect(
       stderr.join('\n'),
-      contains('Do not combine --preset with --build-example'),
+      contains('Use a non-negative integer for --device-timeout.'),
     );
   });
 }
@@ -1382,7 +1283,7 @@ dev_dependencies:
 ''');
 }
 
-Future<Directory> _createCheckSdkSource(
+Future<Directory> _createWorkflowSdkSource(
   Directory parent,
   Directory project, {
   Map<String, int> flutterFailures = const {},
@@ -1391,8 +1292,8 @@ Future<Directory> _createCheckSdkSource(
   Map<String, String> flutterStderr = const {},
   Map<String, int> dartFailures = const {},
 }) async {
-  final source = Directory('${parent.path}/package_check_source');
-  final sdkRepository = Directory('${parent.path}/package_check_sdk');
+  final source = Directory('${parent.path}/package_workflow_source');
+  final sdkRepository = Directory('${parent.path}/package_workflow_sdk');
   await sdkRepository.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], sdkRepository);
   await _runProcess('git', [
@@ -1404,7 +1305,7 @@ Future<Directory> _createCheckSdkSource(
   await Directory('${sdkRepository.path}/bin').create(recursive: true);
   await _writeTool(
     File('${sdkRepository.path}/bin/flutter'),
-    '${project.path}/package_check_invocations.txt',
+    '${project.path}/package_workflow_invocations.txt',
     'flutter',
     failures: flutterFailures,
     stdoutByCommand: flutterStdout,
@@ -1413,7 +1314,7 @@ Future<Directory> _createCheckSdkSource(
   );
   await _writeTool(
     File('${sdkRepository.path}/bin/dart'),
-    '${project.path}/package_check_invocations.txt',
+    '${project.path}/package_workflow_invocations.txt',
     'dart',
     failures: dartFailures,
   );

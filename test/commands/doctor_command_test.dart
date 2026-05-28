@@ -12,7 +12,7 @@ const _currentVersionPublished = '2026-05-01';
 const _newerVersion = '99.0.0';
 
 void main() {
-  test('reports all environment and project status by default', () async {
+  test('reports full environment and project status with --project', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -38,50 +38,87 @@ void main() {
         latestVersion: packageVersion,
         currentVersionPublished: _currentVersionPublished,
       ),
+      arguments: const ['doctor', '--project'],
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
 
     expect(result.exitCode, 0);
 
-    expect(stdout, contains('Doctor summary (all):'));
-    expect(stdout, contains('Environment checks:'));
-    expect(stdout, contains('Project checks:'));
-    expect(stdout, contains('[✓] fluoh ($packageVersion)'));
+    expect(stdout.join('\n'), isNot(contains('Doctor summary:')));
+    expect(stdout, isNot(contains('Environment checks:')));
+    expect(stdout, isNot(contains('Project checks:')));
+    expect(stdout.join('\n'), contains('[✓] fluoh ($packageVersion, on '));
+    expect(_normalizeOutput(stdout.join('\n')), contains('locale '));
     expect(stdout, contains('    • Installed with dart pub global activate.'));
+    expect(_normalizeOutput(stdout.join('\n')), contains('fluoh home at '));
+    expect(stdout.join('\n'), contains('Dart version '));
     expect(
-      stdout,
-      contains('    • Current version published: $_currentVersionPublished.'),
+      _normalizeOutput(stdout.join('\n')),
+      contains('Dart executable at '),
     );
-    expect(stdout, contains('    • Up to date.'));
-    expect(stdout.join('\n'), isNot(contains('\u001b[')));
-    expect(stdout, contains('[✓] Flutter project'));
-    expect(stdout, contains('    • Detected Flutter project.'));
-    expect(stdout, contains('[!] Sources'));
-    expect(stdout, contains('    • Available: fixture.'));
-    expect(stdout, contains('    • Not updated: flutteroh.'));
-    expect(stdout, contains('[✓] Project SDK'));
-    expect(stdout, contains('    • 3.35.8-ohos-0.0.3.'));
-    expect(stdout, contains('[!] OHOS project platform'));
-    expect(stdout, contains('    • Missing ohos platform directory.'));
-    expect(stdout, contains('[!] OHOS local tools'));
     expect(
       stdout,
-      contains('    • DevEco Studio OpenHarmony tools were not found.'),
+      contains('    • Current version published: $_currentVersionPublished'),
+    );
+    expect(stdout, contains('    • Up to date'));
+    expect(stdout.join('\n'), isNot(contains('\u001b[')));
+    expect(stdout.join('\n'), contains('[!] Flutter project'));
+    expect(stdout, contains('    • Detected Flutter project'));
+    expect(stdout, contains('    • FlutterOH SDK 3.35.8-ohos-0.0.3 selected'));
+    expect(stdout, contains('    • Missing ohos platform directory'));
+    expect(stdout.join('\n'), contains('[!] Sources'));
+    expect(_normalizeOutput(stdout.join('\n')), contains('fixture: file://'));
+    expect(_normalizeOutput(stdout.join('\n')), contains('flutteroh: file://'));
+    expect(stdout.join('\n'), contains('(not updated)'));
+    expect(stdout.join('\n'), contains('Android toolchain'));
+    expect(stdout.join('\n'), contains('Xcode - develop for iOS devices'));
+    expect(stdout.join('\n'), isNot(contains('Project SDK')));
+    expect(stdout.join('\n'), isNot(contains('OHOS project platform')));
+    expect(stdout.join('\n'), isNot(contains('Android project platform')));
+    expect(stdout.join('\n'), isNot(contains('iOS project platform')));
+    expect(
+      stdout.join('\n'),
+      contains('[!] OpenHarmony toolchain - develop for OHOS devices'),
+    );
+    expect(
+      stdout,
+      contains('    • DevEco Studio OpenHarmony tools were not found'),
     );
     expect(stdout.join('\n'), isNot(contains('Dependencies')));
     expect(stdout.join('\n'), isNot(contains('mystery_package')));
     expect(stdout.join('\n'), isNot(contains('camera_platform_interface')));
-    expect(stdout, contains('Doctor found issues in 3 categories.'));
+    expect(stdout.join('\n'), contains('Doctor found issues in '));
+    expect(stdout.join('\n'), contains(' categories.'));
     _expectInOrder(stdout.join('\n'), [
-      '[✓] fluoh ($packageVersion)',
+      '[✓] fluoh ($packageVersion, on ',
       '[!] Sources',
-      '[!] OHOS local tools',
-      '[✓] Flutter project',
-      '[✓] Project SDK',
-      '[!] OHOS project platform',
+      '[!] OpenHarmony toolchain - develop for OHOS devices',
+      'Android toolchain',
+      'Xcode - develop for iOS devices',
+      '[!] Flutter project',
     ]);
     expect(stderr, isEmpty);
+  });
+
+  test('accepts -p as the project check alias', () async {
+    final environment = await createTestEnvironment();
+    await writeFlutterProjectFixture(environment.workingDirectory);
+
+    final result = await _runDoctorCommand(
+      environment: environment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '-p'],
+    );
+
+    expect(result.exitCode, 0);
+    expect(result.stdout.join('\n'), contains('[!] Flutter project'));
+    expect(result.stdout, contains('    • Detected Flutter project'));
+    expect(result.stdout, contains('    • No FlutterOH SDK selected'));
+    expect(result.stdout, contains('    • Missing ohos platform directory'));
+    expect(result.stdout.join('\n'), isNot(contains('Project SDK')));
+    expect(result.stderr, isEmpty);
   });
 
   test('reports non-Flutter projects without modifying files', () async {
@@ -93,17 +130,17 @@ void main() {
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
-      arguments: const ['doctor', 'project'],
+      arguments: const ['doctor', '--project'],
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
 
     expect(result.exitCode, 0);
 
-    expect(stdout, contains('[!] Flutter project'));
+    expect(stdout.join('\n'), contains('[!] Flutter project'));
     expect(
       stdout,
-      contains('    • Current directory is not a Flutter project.'),
+      contains('    • Current directory is not a Flutter project'),
     );
     expect(
       File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
@@ -112,62 +149,223 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test(
-    'checks native Android tooling without a selected Flutter SDK',
-    () async {
-      final environment = await createTestEnvironment();
-      final androidSdk = await _writeAndroidSdkFixture(
-        environment.homeDirectory,
-      );
-      final javaHome = Directory('${environment.homeDirectory.path}/java');
-      await _writeExecutable(File('${javaHome.path}/bin/java'), 'exit 0\n');
-      final doctorEnvironment = FluohEnvironment(
-        homeDirectory: environment.homeDirectory,
-        workingDirectory: environment.workingDirectory,
-        processEnvironment: {
-          ...environment.processEnvironment,
-          'ANDROID_HOME': androidSdk.path,
-          'JAVA_HOME': javaHome.path,
+  test('omits project checks by default outside Flutter projects', () async {
+    final environment = await createTestEnvironment();
+
+    final result = await _runDoctorCommand(
+      environment: environment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+    );
+
+    expect(result.exitCode, 0);
+    expect(result.stdout.join('\n'), isNot(contains('Project checks:')));
+    expect(result.stdout.join('\n'), isNot(contains('[-] Project')));
+    expect(result.stdout.join('\n'), isNot(contains('[!] Flutter project')));
+    expect(result.stdout.join('\n'), isNot(contains('[!] Project SDK')));
+    expect(
+      result.stdout.join('\n'),
+      isNot(contains('[!] OHOS project platform')),
+    );
+    expect(result.stderr, isEmpty);
+  });
+
+  test('shows all available sources', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    await File('${environment.homeDirectory.path}/config.json').writeAsString(
+      jsonEncode({
+        'sources': {
+          'fixture': {'path': source.path, 'priority': 10},
+          'mirror': {'path': source.path, 'priority': 20},
         },
-      );
+      }),
+    );
 
-      final result = await _runDoctorCommand(
-        environment: doctorEnvironment,
-        versionMetadataProvider: () async =>
-            const DoctorVersionMetadata(latestVersion: packageVersion),
-        arguments: const ['doctor', 'env', '--platform', 'android', '--json'],
-      );
+    final result = await _runDoctorCommand(
+      environment: environment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'ohos'],
+    );
 
-      expect(result.exitCode, 0);
-      final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
-      final checks = report['checks'] as List<Object?>;
-      expect(
-        checks,
+    expect(result.exitCode, 0);
+    expect(result.stdout.join('\n'), contains('[✓] Sources'));
+    expect(result.stdout.join('\n'), isNot(contains('Sources (')));
+    expect(result.stdout.join('\n'), contains('fixture:'));
+    expect(result.stdout.join('\n'), contains('mirror:'));
+    expect(result.stderr, isEmpty);
+  });
+
+  test('checks native Android tooling without a selected Flutter SDK', () async {
+    final environment = await createTestEnvironment();
+    final androidSdk = await _writeAndroidSdkFixture(environment.homeDirectory);
+    final javaHome = Directory('${environment.homeDirectory.path}/java');
+    await _writeExecutable(File('${javaHome.path}/bin/java'), '''
+if [ "\$1" = "-version" ]; then
+  printf 'openjdk version "17.0.9"\\n' >&2
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'ANDROID_HOME': androidSdk.path,
+        'JAVA_HOME': javaHome.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'android', '--json'],
+    );
+
+    expect(result.exitCode, 0);
+    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'doctor'));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('project', false));
+    final checks = report['checks'] as List<Object?>;
+    expect(
+      checks,
+      contains(
+        allOf(
+          containsPair('id', 'android.toolchain'),
+          containsPair('title', 'Android toolchain'),
+          containsPair('status', 'ok'),
+        ),
+      ),
+    );
+    expect(
+      checks,
+      isNot(
         contains(
           allOf(
-            containsPair('title', 'Android native tools'),
-            containsPair('status', 'ok'),
+            containsPair('group', 'project'),
+            containsPair('title', 'Project SDK'),
           ),
         ),
-      );
-      expect(
-        checks,
-        isNot(
-          contains(
-            allOf(
-              containsPair('group', 'project'),
-              containsPair('title', 'Project SDK'),
-            ),
-          ),
+      ),
+    );
+    expect(
+      File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
+      isFalse,
+    );
+
+    final plainResult = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'android'],
+    );
+
+    expect(plainResult.exitCode, 0);
+    expect(
+      _normalizeOutput(plainResult.stdout.join('\n')),
+      contains(
+        _normalizeOutput(
+          '[✓] Android toolchain - develop for Android devices (Android SDK version 35.0.1)',
         ),
-      );
-      expect(
-        File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
-        isFalse,
-      );
-      expect(result.stderr, isEmpty);
-    },
-  );
+      ),
+    );
+    expect(
+      _normalizeOutput(plainResult.stdout.join('\n')),
+      contains('Android SDK at'),
+    );
+    expect(
+      _normalizeOutput(plainResult.stdout.join('\n')),
+      contains('home/android-sdk'),
+    );
+    expect(plainResult.stdout, contains('    • Emulator version 34.2.0.0'));
+    expect(
+      plainResult.stdout,
+      contains('    • Platform android-36, build-tools 35.0.1'),
+    );
+    expect(plainResult.stdout.join('\n'), contains('Java binary at'));
+    expect(
+      _normalizeOutput(plainResult.stdout.join('\n')),
+      contains('home/java/bin/java'),
+    );
+    expect(plainResult.stdout, contains('    • Java version 17.0.9'));
+    expect(plainResult.stdout, contains('    • All Android licenses accepted'));
+    expect(
+      plainResult.stdout.join('\n'),
+      contains('[✓] Connected devices (1 available)'),
+    );
+    expect(
+      plainResult.stdout.join('\n'),
+      contains('Pixel 35 - (Android) - emulator - emulator-5554 - device'),
+    );
+    expect(result.stderr, isEmpty);
+    expect(plainResult.stderr, isEmpty);
+  });
+
+  test('reports iOS native tooling details in plain output', () async {
+    final environment = await createTestEnvironment();
+    final xcode = Directory('${environment.homeDirectory.path}/Xcode.app');
+    await xcode.create(recursive: true);
+    final xcrun = File('${environment.homeDirectory.path}/bin/xcrun');
+    final pod = File('${environment.homeDirectory.path}/bin/pod');
+    await _writeExecutable(xcrun, '''
+if [ "\$1" = "simctl" ]; then
+  printf '{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"name":"iPhone 16","udid":"SIM-1","state":"Shutdown","isAvailable":true}]}}'
+  exit 0
+fi
+if [ "\$1" = "--version" ]; then
+  printf "xcrun version 70.\\n"
+  exit 0
+fi
+if [ "\$1" = "xcodebuild" ]; then
+  printf "Xcode 16.2\\nBuild version 16C5032a\\n"
+  exit 0
+fi
+exit 0
+''');
+    await _writeExecutable(pod, '''
+if [ "\$1" = "--version" ]; then
+  printf "1.16.2\\n"
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'DEVELOPER_DIR': xcode.path,
+        'FLUOH_XCRUN': xcrun.path,
+        'FLUOH_COCOAPODS': pod.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'ios'],
+    );
+
+    expect(result.exitCode, 0);
+    expect(
+      result.stdout.join('\n'),
+      contains('[✓] Xcode - develop for iOS devices (Xcode 16.2)'),
+    );
+    expect(_normalizeOutput(result.stdout.join('\n')), contains('Xcode at'));
+    expect(
+      _normalizeOutput(result.stdout.join('\n')),
+      contains('home/Xcode.app'),
+    );
+    expect(result.stdout, contains('    • Build 16C5032a'));
+    expect(result.stdout, contains('    • CocoaPods version 1.16.2'));
+    expect(result.stderr, isEmpty);
+  });
 
   test(
     'prints json and returns non-zero in strict mode when warnings exist',
@@ -178,18 +376,23 @@ void main() {
         environment: environment,
         versionMetadataProvider: () async =>
             const DoctorVersionMetadata(latestVersion: packageVersion),
-        arguments: const ['doctor', 'project', '--json', '--strict'],
+        arguments: const ['doctor', '--project', '--json', '--strict'],
       );
 
       expect(result.exitCode, 1);
       final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('command', 'doctor'));
       expect(report, containsPair('ok', false));
+      expect(report, containsPair('exitCode', 1));
+      expect(report, containsPair('project', true));
       expect(report['issueCount'], isNonZero);
       final checks = report['checks'] as List<Object?>;
       expect(
         checks,
         contains(
           allOf(
+            containsPair('id', 'project.flutter'),
             containsPair('title', 'Flutter project'),
             containsPair('status', 'warning'),
           ),
@@ -212,15 +415,15 @@ void main() {
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
-      arguments: const ['doctor', 'project'],
+      arguments: const ['doctor', '--project'],
     );
     stdout.addAll(result.stdout);
     stderr.addAll(result.stderr);
 
     expect(result.exitCode, 0);
 
-    expect(stdout, contains('[!] Project SDK'));
-    expect(stdout, contains('    • fluoh.yaml is not valid YAML.'));
+    expect(stdout.join('\n'), contains('[!] Flutter project'));
+    expect(stdout, contains('    • fluoh.yaml is not valid YAML'));
     expect(stderr, isEmpty);
   });
 
@@ -252,52 +455,80 @@ manifests:
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
-      arguments: const ['doctor', 'env'],
+      arguments: const ['doctor'],
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[!] Sources'));
+    expect(result.stdout.join('\n'), contains('[!] Sources'));
     expect(result.stdout.join('\n'), isNot(contains('Available: broken.')));
-    expect(result.stdout.join('\n'), contains('Invalid: broken'));
+    expect(result.stdout.join('\n'), contains('broken:'));
+    expect(
+      result.stdout.join('\n'),
+      contains('Source broken could not be read'),
+    );
     expect(result.stderr, isEmpty);
   });
 
-  test('reports healthy OHOS local tools and deployed emulators', () async {
-    final environment = await createTestEnvironment();
-    final devEco = await _writeDevEcoFixture(environment.homeDirectory);
-    final deployed = await _writeEmulatorList(environment.homeDirectory);
-    final imageRoot = Directory('${environment.homeDirectory.path}/Huawei/Sdk')
-      ..createSync(recursive: true);
-    final doctorEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: environment.workingDirectory,
-      processEnvironment: {
-        ...environment.processEnvironment,
-        'FLUOH_DEVECO_STUDIO': devEco.path,
-        'FLUOH_OHOS_EMULATOR_DEPLOYED': deployed.path,
-        'FLUOH_HARMONYOS_SDK_ROOT': imageRoot.path,
-      },
-    );
+  test(
+    'reports healthy OpenHarmony local tools and deployed emulators',
+    () async {
+      final environment = await createTestEnvironment();
+      final devEco = await _writeDevEcoFixture(environment.homeDirectory);
+      final deployed = await _writeEmulatorList(environment.homeDirectory);
+      final imageRoot = Directory(
+        '${environment.homeDirectory.path}/Huawei/Sdk',
+      )..createSync(recursive: true);
+      final doctorEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: environment.workingDirectory,
+        processEnvironment: {
+          ...environment.processEnvironment,
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+          'FLUOH_OHOS_EMULATOR_DEPLOYED': deployed.path,
+          'FLUOH_HARMONYOS_SDK_ROOT': imageRoot.path,
+        },
+      );
 
-    final result = await _runDoctorCommand(
-      environment: doctorEnvironment,
-      versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: packageVersion),
-      arguments: const ['doctor', 'env'],
-    );
+      final result = await _runDoctorCommand(
+        environment: doctorEnvironment,
+        versionMetadataProvider: () async =>
+            const DoctorVersionMetadata(latestVersion: packageVersion),
+        arguments: const ['doctor', '--platform', 'ohos'],
+      );
 
-    expect(result.exitCode, 0);
-    expect(result.stdout, contains('[✓] OHOS local tools'));
-    expect(
-      result.stdout.join('\n'),
-      contains('DevEco Studio: ${devEco.path}.'),
-    );
-    expect(
-      result.stdout.join('\n'),
-      contains('Local emulators: Huawei_Phone.'),
-    );
-    expect(result.stderr, isEmpty);
-  });
+      expect(result.exitCode, 0);
+      expect(
+        result.stdout.join('\n'),
+        contains(
+          '[✓] OpenHarmony toolchain - develop for OHOS devices (DevEco Studio 5.0.0)',
+        ),
+      );
+      expect(result.stdout.join('\n'), isNot(contains('1 emulator')));
+      expect(
+        _normalizeOutput(result.stdout.join('\n')),
+        contains('DevEco Studio 5.0.0 at'),
+      );
+      expect(
+        _normalizeOutput(result.stdout.join('\n')),
+        contains('home/DevEco-Studio.app'),
+      );
+      expect(result.stdout.join('\n'), contains('OpenHarmony SDK 5.0.1 at'));
+      expect(
+        _normalizeOutput(result.stdout.join('\n')),
+        contains('hap-sign-tool at'),
+      );
+      expect(result.stdout.join('\n'), contains('hdc 1.2.3 at'));
+      expect(
+        _normalizeOutput(result.stdout.join('\n')),
+        contains('Emulator at'),
+      );
+      expect(
+        result.stdout.join('\n'),
+        contains('Local emulators: Huawei_Phone'),
+      );
+      expect(result.stderr, isEmpty);
+    },
+  );
 
   test('reports the current CLI version and available upgrades', () async {
     final environment = await createTestEnvironment();
@@ -305,14 +536,17 @@ manifests:
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: _newerVersion),
-      arguments: const ['doctor', 'env'],
+      arguments: const ['doctor'],
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[!] fluoh ($packageVersion)'));
+    expect(
+      result.stdout.join('\n'),
+      contains('[!] fluoh ($packageVersion, on '),
+    );
     expect(
       result.stdout,
-      contains('    • Upgrade available: $_newerVersion. Run `fluoh upgrade`.'),
+      contains('    • Upgrade available: $_newerVersion; run `fluoh upgrade`'),
     );
     expect(result.stderr, isEmpty);
   });
@@ -325,20 +559,23 @@ manifests:
         latestVersion: packageVersion,
         currentVersionPublished: _currentVersionPublished,
       ),
-      arguments: const ['doctor', 'env'],
+      arguments: const ['doctor'],
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[✓] fluoh ($packageVersion)'));
+    expect(
+      result.stdout.join('\n'),
+      contains('[✓] fluoh ($packageVersion, on '),
+    );
     expect(
       result.stdout,
       contains('    • Installed with dart pub global activate.'),
     );
     expect(
       result.stdout,
-      contains('    • Current version published: $_currentVersionPublished.'),
+      contains('    • Current version published: $_currentVersionPublished'),
     );
-    expect(result.stdout, contains('    • Up to date.'));
+    expect(result.stdout, contains('    • Up to date'));
     expect(result.stderr, isEmpty);
   });
 
@@ -347,11 +584,14 @@ manifests:
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async => null,
-      arguments: const ['doctor', 'env'],
+      arguments: const ['doctor'],
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout, contains('[!] fluoh ($packageVersion)'));
+    expect(
+      result.stdout.join('\n'),
+      contains('[✓] fluoh ($packageVersion, on '),
+    );
     expect(
       result.stdout,
       contains('    • Installed with dart pub global activate.'),
@@ -363,21 +603,86 @@ manifests:
     expect(result.stderr, isEmpty);
   });
 
+  test('rejects details and verbose aliases', () async {
+    final environment = await createTestEnvironment();
+    final detailsStdout = <String>[];
+    final detailsStderr = <String>[];
+    final shortStdout = <String>[];
+    final shortStderr = <String>[];
+    final longStdout = <String>[];
+    final longStderr = <String>[];
+
+    final detailsExitCode = await runFluoh(
+      const ['doctor', '--details'],
+      environment: environment,
+      stdout: detailsStdout.add,
+      stderr: detailsStderr.add,
+    );
+    final shortExitCode = await runFluoh(
+      const ['doctor', '-v'],
+      environment: environment,
+      stdout: shortStdout.add,
+      stderr: shortStderr.add,
+    );
+    final longExitCode = await runFluoh(
+      const ['doctor', '--verbose'],
+      environment: environment,
+      stdout: longStdout.add,
+      stderr: longStderr.add,
+    );
+
+    expect(detailsExitCode, 64);
+    expect(detailsStdout, isEmpty);
+    expect(
+      detailsStderr.join('\n'),
+      contains('Could not find an option named "--details".'),
+    );
+    expect(shortExitCode, 64);
+    expect(shortStdout, isEmpty);
+    expect(
+      shortStderr.join('\n'),
+      contains('Could not find an option or flag "-v".'),
+    );
+    expect(longExitCode, 64);
+    expect(longStdout, isEmpty);
+    expect(
+      longStderr.join('\n'),
+      contains('Could not find an option named "--verbose".'),
+    );
+  });
+
   test('colors doctor check headings when enabled', () async {
     final environment = await createTestEnvironment();
+    await writeFlutterProjectFixture(environment.workingDirectory);
     final result = await _runDoctorCommand(
       environment: environment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
       enableColor: true,
+      arguments: const ['doctor', '--project'],
     );
 
     expect(result.exitCode, 0);
     expect(
-      result.stdout,
-      contains('\u001b[32m[✓] fluoh ($packageVersion)\u001b[0m'),
+      result.stdout.join('\n'),
+      contains('\u001b[32m[✓]\u001b[0m fluoh ($packageVersion, on '),
     );
-    expect(result.stdout, contains('\u001b[33m[!] Flutter project\u001b[0m'));
+    expect(
+      result.stdout.join('\n'),
+      contains('\u001b[33m[!]\u001b[0m Flutter project'),
+    );
+    expect(
+      result.stdout.join('\n'),
+      contains(
+        '    \u001b[32m•\u001b[0m \u001b[1mDetected Flutter project\u001b[0m',
+      ),
+    );
+    expect(
+      result.stdout.join('\n'),
+      contains(
+        '    \u001b[33m•\u001b[0m \u001b[1mNo FlutterOH SDK selected\u001b[0m',
+      ),
+    );
     expect(result.stderr, isEmpty);
   });
 
@@ -449,6 +754,18 @@ Future<Directory> _writeDevEcoFixture(Directory root) async {
   await jbr.create(recursive: true);
   await node.create(recursive: true);
   await emulatorDirectory.create(recursive: true);
+  await File('${devEco.path}/Contents/Info.plist').writeAsString('''
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>CFBundleShortVersionString</key>
+  <string>5.0.0</string>
+</dict>
+</plist>
+''');
+  await File(
+    '${devEco.path}/Contents/sdk/default/openharmony/oh-uni-package.json',
+  ).writeAsString('{"version":"5.0.1"}');
   for (final path in [
     '${lib.path}/hap-sign-tool.jar',
     '${lib.path}/OpenHarmony.p12',
@@ -461,6 +778,13 @@ Future<Directory> _writeDevEcoFixture(Directory root) async {
   ]) {
     await File(path).writeAsString('');
   }
+  await _writeExecutable(File('${toolchains.path}/hdc'), '''
+if [ "\$1" = "-v" ]; then
+  printf "1.2.3\\n"
+  exit 0
+fi
+exit 0
+''');
   return devEco;
 }
 
@@ -480,14 +804,28 @@ Future<Directory> _writeEmulatorList(Directory root) async {
 
 Future<Directory> _writeAndroidSdkFixture(Directory root) async {
   final sdk = Directory('${root.path}/android-sdk');
+  await Directory('${sdk.path}/platforms/android-36').create(recursive: true);
+  await Directory('${sdk.path}/build-tools/35.0.1').create(recursive: true);
+  await Directory('${sdk.path}/licenses').create(recursive: true);
+  await File(
+    '${sdk.path}/licenses/android-sdk-license',
+  ).writeAsString('license-hash\n');
   await _writeExecutable(File('${sdk.path}/platform-tools/adb'), '''
+if [ "\$1" = "version" ]; then
+  printf "Android Debug Bridge version 1.0.41\\n"
+  exit 0
+fi
 if [ "\$1" = "devices" ]; then
-  printf "List of devices attached\\n"
+  printf "List of devices attached\\nemulator-5554 device product:sdk_gphone model:Pixel_35 device:generic_x86\\n"
   exit 0
 fi
 exit 0
 ''');
   await _writeExecutable(File('${sdk.path}/emulator/emulator'), '''
+if [ "\$1" = "-version" ]; then
+  printf "Android emulator version 34.2.0.0\\n"
+  exit 0
+fi
 if [ "\$1" = "-list-avds" ]; then
   printf "Pixel_35\\n"
   exit 0
@@ -496,7 +834,13 @@ exit 0
 ''');
   await _writeExecutable(
     File('${sdk.path}/cmdline-tools/latest/bin/avdmanager'),
-    'exit 0\n',
+    '''
+if [ "\$1" = "--version" ]; then
+  printf "12.0\\n"
+  exit 0
+fi
+exit 0
+''',
   );
   return sdk;
 }
@@ -526,4 +870,11 @@ void _expectInOrder(String text, List<String> needles) {
     expect(index, greaterThan(previous), reason: 'Expected "$needle" later.');
     previous = index;
   }
+}
+
+String _normalizeOutput(String value) {
+  return value
+      .replaceAll(RegExp(r'(?<=[/-])\s+'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }

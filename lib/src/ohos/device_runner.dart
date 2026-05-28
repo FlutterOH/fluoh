@@ -187,10 +187,10 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.no_installable_hap',
-          message: 'No signed OHOS HAP was found to install.',
+          message: 'No signed OHOS HAP was found to install',
         ),
       ],
-      reason: 'No signed OHOS HAP was found to install.',
+      reason: 'No signed OHOS HAP was found to install',
     );
   }
 
@@ -210,7 +210,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.toolchain_missing',
-          message: 'Could not locate the local OHOS toolchain.',
+          message: 'Could not locate the local OpenHarmony toolchain',
           details: {'error': error.toString()},
         ),
       ],
@@ -231,7 +231,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.launch_info_missing',
-          message: 'Could not read the OHOS launch ability.',
+          message: 'Could not read the OHOS launch ability',
           details: {'error': error.toString()},
         ),
       ],
@@ -255,7 +255,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.hdc_targets_failed',
-          message: 'Could not list OHOS device targets with hdc.',
+          message: 'Could not list OHOS device targets with hdc',
           details: {'error': error.toString()},
         ),
       ],
@@ -281,13 +281,13 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
         diagnostics: [
           OhosDeviceDiagnostic(
             code: 'ohos.emulator_start_failed',
-            message: 'Could not start a local DevEco emulator.',
+            message: 'Could not start a local DevEco emulator',
           ),
         ],
         reason: error.toString(),
       );
     }
-    output.step('Starting OHOS emulator ${startResult.emulator.name}.');
+    output.step('Starting OHOS emulator ${startResult.emulator.name}');
     output.detail(startResult.command.join(' '));
     target = await waitForOhosDeviceTarget(
       environment: environment,
@@ -304,8 +304,8 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
               '${targets.isEmpty ? 'none' : targets.map((item) => item.id).join(', ')}.'
         : targets.isEmpty
         ? 'No OHOS device target is connected. Start a DevEco emulator or '
-              'connect a device, then retry. Pass --start-emulator to let '
-              'fluoh start a local DevEco emulator.'
+              'connect a device, then retry. Pass --emulator to let fluoh '
+              'start a local DevEco emulator.'
         : 'Multiple OHOS device targets are connected; pass --device with one '
               'of: ${targets.map((item) => item.id).join(', ')}.';
     return OhosDeviceRunResult(
@@ -333,7 +333,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
     );
   }
 
-  output.step('Installing ${haps.length} OHOS HAP file(s) on ${target.id}.');
+  output.step('Installing ${haps.length} OHOS HAP file(s) on ${target.id}');
   final install = await _runHdc(
     toolchain,
     _targeted(target.id, ['install', '-r', ...haps.map((file) => file.path)]),
@@ -348,7 +348,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.install_failed',
-          message: 'OHOS HAP install failed.',
+          message: 'OHOS HAP install failed',
           details: {
             'device': target.id,
             'exitCode': install.exitCode,
@@ -358,7 +358,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
         ),
       ],
       reason:
-          'OHOS HAP install failed.\n'
+          'OHOS HAP install failed\n'
           '${_trimOutput(install.stdout)}${_trimOutput(install.stderr)}',
     );
   }
@@ -390,7 +390,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
 
   output.step(
     'Launching ${launchInfo.bundleName}/${launchInfo.abilityName} on '
-    '${target.id}.',
+    '${target.id}',
   );
   final launch = await _runHdc(
     toolchain,
@@ -431,7 +431,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.launch_failed',
-          message: 'OHOS ability launch failed.',
+          message: 'OHOS ability launch failed',
           details: {
             'device': target.id,
             'bundleName': launchInfo.bundleName,
@@ -444,7 +444,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
         ),
       ],
       reason:
-          'OHOS ability launch failed.\n'
+          'OHOS ability launch failed\n'
           '${_trimOutput(launch.stdout)}${_trimOutput(launch.stderr)}',
     );
   }
@@ -458,7 +458,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.runtime_crash',
-          message: 'OHOS runtime crash patterns were found in hilog.',
+          message: 'OHOS runtime crash patterns were found in hilog',
           details: {
             'device': target.id,
             'bundleName': launchInfo.bundleName,
@@ -467,7 +467,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
           },
         ),
       ],
-      reason: 'OHOS runtime crash patterns were found in hilog.',
+      reason: 'OHOS runtime crash patterns were found in hilog',
     );
   }
 
@@ -511,7 +511,7 @@ Future<OhosEmulatorStartResult> startOhosEmulator({
 }) async {
   if (!await toolchain.emulator.exists()) {
     throw OhosDeviceException(
-      'Could not locate DevEco emulator at ${toolchain.emulator.path}.',
+      'Could not locate DevEco emulator at ${toolchain.emulator.path}',
     );
   }
   final emulators = await discoverOhosLocalEmulators(environment: environment);
@@ -528,7 +528,7 @@ Future<OhosEmulatorStartResult> startOhosEmulator({
   if (emulator == null) {
     throw OhosDeviceException(
       'Local DevEco emulator $requested was not found. Available emulators: '
-      '${emulators.map((item) => item.name).join(', ')}.',
+      '${emulators.map((item) => item.name).join(', ')}',
     );
   }
 

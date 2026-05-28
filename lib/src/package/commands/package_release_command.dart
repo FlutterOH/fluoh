@@ -1,15 +1,15 @@
-import 'dart:convert';
-
 import 'package:args/command_runner.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
+import '../../workflow/workflow_result.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
-import '../package_checker.dart';
+import '../package_workflow_runner.dart';
 import '../release_validator.dart';
 
 class PackageReleaseCommand extends FluohCommand<int> {
@@ -58,7 +58,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
   String get name => 'release';
 
   @override
-  String get description => 'Check and tag FlutterOH package releases.';
+  String get description => 'Validate and tag FlutterOH package releases.';
 
   @override
   Future<int> run() async {
@@ -102,7 +102,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
           output: output,
         );
         validations.add(result);
-        if (!result.check.passed) {
+        if (!result.verification.passed) {
           _printJsonIfRequested(
             json: json,
             dryRun: dryRun,
@@ -110,13 +110,13 @@ class PackageReleaseCommand extends FluohCommand<int> {
             validations: validations,
             tags: const [],
           );
-          return result.check.exitCode;
+          return result.verification.exitCode;
         }
       }
       if (dryRun) {
         for (final validation in validations) {
           tags.add(validation.tag);
-          output.skipped('Would create release tag ${validation.tag}.');
+          output.skipped('Would create release tag ${validation.tag}');
         }
       } else {
         for (final package in packages) {
@@ -132,7 +132,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
       if (argResults!.flag('push')) {
         if (dryRun) {
           output.skipped(
-            'Would push ${tags.length} release tag${_s(tags.length)}.',
+            'Would push ${tags.length} release tag${_s(tags.length)}',
           );
         } else {
           await _pushReleaseTags(tags, output: output);
@@ -141,11 +141,11 @@ class PackageReleaseCommand extends FluohCommand<int> {
       }
       if (dryRun) {
         output.success(
-          'Release dry run passed for ${packages.length} package${_s(packages.length)}.',
+          'Release dry run passed for ${packages.length} package${_s(packages.length)}',
         );
       } else if (argResults!.flag('all')) {
         output.success(
-          'Released ${packages.length} package${_s(packages.length)}.',
+          'Released ${packages.length} package${_s(packages.length)}',
         );
       }
       _printJsonIfRequested(
@@ -167,6 +167,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
         validations: validations,
         tags: tags,
         exitCode: 64,
+        errorType: 'usage',
         error: error.message,
       );
       return 64;
@@ -181,6 +182,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
         validations: validations,
         tags: tags,
         exitCode: 64,
+        errorType: 'format',
         error: error.message,
       );
       return 64;
@@ -212,11 +214,11 @@ class PackageReleaseCommand extends FluohCommand<int> {
     }
     await _ensureReleaseTagIsUsable(tag: tag, package: package);
 
-    final checkCommand = manifest.packages.length == 1
-        ? 'fluoh package check'
-        : 'fluoh package check --package ${package.name}';
-    output.step('Running $checkCommand before release.');
-    final checkResult = await checkPackage(
+    final verifyCommand = manifest.packages.length == 1
+        ? 'fluoh verify'
+        : 'fluoh verify --package ${package.name}';
+    output.step('Running $verifyCommand before release');
+    final verificationResult = await runPackageWorkflow(
       environment: environment,
       manifest: manifest,
       package: package,
@@ -225,18 +227,18 @@ class PackageReleaseCommand extends FluohCommand<int> {
       output: output,
       usage: usage,
     );
-    if (!checkResult.passed) {
+    if (!verificationResult.passed) {
       return _PackageReleaseValidationResult(
         tag: tag,
         warnings: warnings,
-        check: checkResult,
+        verification: verificationResult,
       );
     }
     await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
     return _PackageReleaseValidationResult(
       tag: tag,
       warnings: warnings,
-      check: checkResult,
+      verification: verificationResult,
     );
   }
 
@@ -251,12 +253,12 @@ class PackageReleaseCommand extends FluohCommand<int> {
       package: package,
     );
     if (existsAtHead) {
-      output.skipped('Release tag already exists: $tag.');
+      output.skipped('Release tag already exists: $tag');
       return tag;
     }
 
     await runGit(['tag', tag], workingDirectory: environment.workingDirectory);
-    output.success('Created release tag $tag.');
+    output.success('Created release tag $tag');
     return tag;
   }
 
@@ -271,7 +273,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
         'origin',
         tag,
       ], workingDirectory: environment.workingDirectory);
-      output.success('Pushed release tag $tag.');
+      output.success('Pushed release tag $tag');
       return;
     }
 
@@ -281,7 +283,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
       'origin',
       ...tags,
     ], workingDirectory: environment.workingDirectory);
-    output.success('Pushed ${tags.length} release tags.');
+    output.success('Pushed ${tags.length} release tags');
   }
 
   Future<bool> _ensureReleaseTagIsUsable({
@@ -327,6 +329,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
     required List<_PackageReleaseValidationResult> validations,
     required List<String> tags,
     int? exitCode,
+    String? errorType,
     String? error,
   }) {
     if (!json) {
@@ -335,20 +338,26 @@ class PackageReleaseCommand extends FluohCommand<int> {
     final resolvedExitCode =
         exitCode ??
         validations
-            .map((result) => result.check.exitCode)
+            .map((result) => result.verification.exitCode)
             .firstWhere((exitCode) => exitCode != 0, orElse: () => 0);
+    final passed = resolvedExitCode == 0 && error == null;
     final result = {
-      'passed': resolvedExitCode == 0 && error == null,
-      'exitCode': resolvedExitCode,
+      'passed': passed,
       'dryRun': dryRun,
       'pushed': pushed,
       'tags': tags,
       'packages': validations.map((result) => result.toJson()).toList(),
     };
     if (error != null) {
-      result['error'] = error;
+      result['error'] = {'type': errorType ?? 'error', 'message': error};
     }
-    _stdout(jsonEncode(result));
+    writeMachineOutput(
+      _stdout,
+      command: 'package release',
+      ok: passed,
+      exitCode: resolvedExitCode,
+      fields: result,
+    );
   }
 }
 
@@ -358,19 +367,19 @@ class _PackageReleaseValidationResult {
   const _PackageReleaseValidationResult({
     required this.tag,
     required this.warnings,
-    required this.check,
+    required this.verification,
   });
 
   final String tag;
   final List<String> warnings;
-  final PackageCheckResult check;
+  final WorkflowTargetResult verification;
 
   Map<String, Object?> toJson() {
     return {
-      'package': check.packageName,
+      'package': verification.targetName,
       'tag': tag,
       'warnings': warnings,
-      'check': check.toJson(),
+      'verification': verification.toJson(),
     };
   }
 }

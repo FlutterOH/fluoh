@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../git/package_git.dart';
@@ -69,7 +69,7 @@ class PackageSyncCommand extends FluohCommand<int> {
       if (json) {
         _writeJson({'status': 'aborted', 'actions': actions});
       } else {
-        _output.warning('Aborted package sync merge.');
+        _output.warning('Aborted package sync merge');
       }
       return 0;
     }
@@ -85,7 +85,7 @@ class PackageSyncCommand extends FluohCommand<int> {
       await runGit(['fetch', 'upstream'], workingDirectory: repository);
     } else {
       await _output.withProgress(
-        'Fetching upstream.',
+        'Fetching upstream',
         () => runGit(['fetch', 'upstream'], workingDirectory: repository),
       );
     }
@@ -94,7 +94,7 @@ class PackageSyncCommand extends FluohCommand<int> {
     var switchedBranches = false;
     try {
       if (!json) {
-        _output.step('Checking out $defaultBranch.');
+        _output.step('Checking out $defaultBranch');
       }
       await runGit(['checkout', defaultBranch], workingDirectory: repository);
       switchedBranches = true;
@@ -106,7 +106,7 @@ class PackageSyncCommand extends FluohCommand<int> {
       actions.add('synchronized $defaultBranch from upstream/$defaultBranch');
       if (!json) {
         _output.success(
-          'Synchronized $defaultBranch from upstream/$defaultBranch.',
+          'Synchronized $defaultBranch from upstream/$defaultBranch',
         );
       }
     } finally {
@@ -114,7 +114,7 @@ class PackageSyncCommand extends FluohCommand<int> {
           startingBranch.isNotEmpty &&
           startingBranch != defaultBranch) {
         if (!json) {
-          _output.step('Checking out $startingBranch.');
+          _output.step('Checking out $startingBranch');
         }
         await runGit([
           'checkout',
@@ -193,13 +193,13 @@ class PackageSyncCommand extends FluohCommand<int> {
     if (await _isMergeInProgress(repository)) {
       actions.add('merged $defaultBranch into $packageBranch');
       if (!json) {
-        _output.success('Merged $defaultBranch into $packageBranch.');
+        _output.success('Merged $defaultBranch into $packageBranch');
       }
     } else {
       actions.add('$packageBranch already contains $defaultBranch');
       if (!json) {
         _output.skipped(
-          'Package branch $packageBranch already contains $defaultBranch.',
+          'Package branch $packageBranch already contains $defaultBranch',
         );
       }
     }
@@ -260,7 +260,7 @@ class PackageSyncCommand extends FluohCommand<int> {
         });
       } else {
         _output.skipped(
-          'Package branch $packageBranch already matches upstream metadata.',
+          'Package branch $packageBranch already matches upstream metadata',
         );
       }
       return 0;
@@ -281,7 +281,7 @@ class PackageSyncCommand extends FluohCommand<int> {
         'committed': true,
       });
     } else {
-      _output.success('Updated upstream metadata for registered packages.');
+      _output.success('Updated upstream metadata for registered packages');
       _output.next(
         'Complete the OHOS implementation, then update package.version and '
         'FLUOH_CHANGELOG.md before release.',
@@ -291,7 +291,13 @@ class PackageSyncCommand extends FluohCommand<int> {
   }
 
   void _writeJson(Map<String, Object?> value) {
-    stdout(jsonEncode(value));
+    writeMachineOutput(
+      stdout,
+      command: 'package sync',
+      ok: true,
+      exitCode: 0,
+      fields: value,
+    );
   }
 
   Future<bool> _isMergeInProgress(Directory repository) async {

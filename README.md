@@ -79,7 +79,8 @@ brew install fluoh
 | Check FlutterOH dependency support | `fluoh deps check` |
 | Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
 | Update existing FlutterOH dependency replacements | `fluoh deps upgrade` |
-| Diagnose project and native platform setup | `fluoh doctor project`, `fluoh doctor env --platform all` |
+| Diagnose native tools and optional project setup | `fluoh doctor`, `fluoh doctor -p` |
+| List local targets | `fluoh devices`, `fluoh emulators` |
 | Upgrade the CLI | `fluoh upgrade` |
 
 ### Daily Loop
@@ -100,13 +101,14 @@ fluohf build hap
 ## Maintenance Workflows
 
 Most app projects only need the commands above. FlutterOH package maintainers
-can also create, sync, check, and release third-party FlutterOH package repositories:
+can also create, sync, verify, and release third-party FlutterOH package repositories:
 
 ```sh
 fluoh package create <upstream-git-url>
 fluoh package sync
 fluoh package status
-fluoh package check
+fluoh verify
+fluoh run --platform ohos
 fluoh package release
 fluoh source sync
 ```
@@ -122,11 +124,12 @@ fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-
 
 Then open the generated repository in an AI coding agent and ask it to read
 `AGENTS.md` and complete the adaptation. The generated `AGENTS.md` and
-`FLUOH.md` give the agent a staged command flow: `fluoh doctor project` for
-repository state, `fluoh doctor env --platform all` for local toolchains,
-`fluoh package check --preset ohos-run|android-run|ios-run --json` for
-diagnostics-driven implementation loops, JSON `nextCommand` for the next
-action, and `.fluoh/ai-report-...md` for the final release recommendation.
+`FLUOH.md` give the agent a staged command flow:
+`fluoh doctor -p --json --strict` for repository and local toolchain
+state, `fluoh verify --json` for
+package and example tests, `fluoh run --platform ohos|android|ios --json` for
+diagnostics-driven implementation loops, JSON `nextCommand` for the next action,
+and `.fluoh/ai-report-...md` for the final release recommendation.
 Review the final diff and device-only behavior before release.
 
 See [docs/commands.md](docs/commands.md) for the full command surface and

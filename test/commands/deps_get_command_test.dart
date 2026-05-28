@@ -82,7 +82,7 @@ void main() {
     );
     expect(stdout.join('\n'), contains('Running flutter pub get in .'));
     expect(stdout.join('\n'), contains('Running flutter pub get in example'));
-    expect(stdout, contains('Dependencies are up to date.'));
+    expect(stdout, contains('Dependencies are up to date'));
     expect(stderr, contains('flutter stderr'));
   });
 

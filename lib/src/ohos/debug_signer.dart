@@ -108,7 +108,7 @@ Future<OhosDebugSigningMaterial> prepareOhosDebugSigning({
 
   output.detail(
     'Prepared OHOS debug profile for ${permissionProfile.bundleName} '
-    'with APL ${permissionProfile.apl}.',
+    'with APL ${permissionProfile.apl}',
   );
 
   return OhosDebugSigningMaterial(
@@ -195,7 +195,7 @@ Future<List<io.File>> signGeneratedUnsignedHaps({
       operation: 'Sign generated OHOS HAP',
     );
     signedHaps.add(signedHap);
-    output.detail('Signed ${_fileName(signedHap.path)}.');
+    output.detail('Signed ${_fileName(signedHap.path)}');
   }
 
   return signedHaps;

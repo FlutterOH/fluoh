@@ -53,18 +53,20 @@ void main() {
       ),
     );
     expect(stdout, contains('Transitive dependencies:'));
-    expect(
+    _expectOutputContains(
       stdout,
-      contains(
-        '  camera_platform_interface 2.9.0: Transitive dependency; fluoh only rewrites direct dependencies.',
-      ),
+      'camera_platform_interface 2.9.0: Transitive dependency; fluoh only rewrites direct dependencies.',
     );
     expect(
       stdout,
-      contains('Next: run `fluoh deps fix`, then `fluoh deps get`.'),
+      contains('Next: run `fluoh deps fix`, then `fluoh deps get`'),
     );
 
     final jsonReport = jsonDecode(stdout.last) as Map<String, Object?>;
+    expect(jsonReport, containsPair('schemaVersion', 1));
+    expect(jsonReport, containsPair('command', 'deps check'));
+    expect(jsonReport, containsPair('ok', false));
+    expect(jsonReport, containsPair('exitCode', 0));
     final dependencies = jsonReport['dependencies'] as List<Object?>;
     expect(
       dependencies,
@@ -235,11 +237,8 @@ void main() {
         contains('Would override camera -> camera-0.11.0-ohos-3.35-1'),
       );
       expect(stdout, contains('override camera -> camera-0.11.0-ohos-3.35-1'));
-      expect(
-        stdout,
-        contains('Updated pubspec.yaml with 1 dependency change.'),
-      );
-      expect(stdout, contains('Next: run `fluoh deps get`.'));
+      expect(stdout, contains('Updated pubspec.yaml with 1 dependency change'));
+      expect(stdout, contains('Next: run `fluoh deps get`'));
       expect(pubspec, contains('dependency_overrides:'));
       expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
       expect(pubspec, contains('path: packages/camera/camera'));
@@ -296,11 +295,9 @@ void main() {
         '  share_plus: Prefer upstream share_plus when native OHOS support is enough.',
       ),
     );
-    expect(
+    _expectOutputContains(
       stdout,
-      contains(
-        '  share_plus: consider share_plus_ohos - Provides native OHOS support. https://pub.dev/packages/share_plus_ohos',
-      ),
+      'share_plus: consider share_plus_ohos - Provides native OHOS support. https://pub.dev/packages/share_plus_ohos',
     );
 
     expect(
@@ -374,11 +371,9 @@ dependency_overrides:
         '  camera 0.11.0: dependency_overrides already contains this package.',
       ),
     );
-    expect(
+    _expectOutputContains(
       checkStdout,
-      contains(
-        'Summary: 0 ready, 1 needs decision, 1 manual, 1 unavailable, 0 already OK, 1 transitive.',
-      ),
+      'Summary: 0 ready, 1 needs decision, 1 manual, 1 unavailable, 0 already OK, 1 transitive',
     );
     expect(
       fixStdout,
@@ -534,12 +529,10 @@ dependency_overrides:
         0,
       );
 
-      expect(
+      _expectOutputContains(
         stdout,
-        contains(
-          'Would override share_plus -> share_plus-10.1.0-ohos-3.35-1 '
-          '(upstream 10.0.0 -> 10.1.0)',
-        ),
+        'Would override share_plus -> share_plus-10.1.0-ohos-3.35-1 '
+        '(upstream 10.0.0 -> 10.1.0)',
       );
       expect(
         stdout.join('\n'),
@@ -1071,6 +1064,20 @@ Future<FluohEnvironment> _preparedEnvironment() async {
   );
 
   return environment;
+}
+
+void _expectOutputContains(List<String> output, String expected) {
+  expect(
+    _normalizeOutput(output.join('\n')),
+    contains(_normalizeOutput(expected)),
+  );
+}
+
+String _normalizeOutput(String value) {
+  return value
+      .replaceAll(RegExp(r'(?<=[/-])\s+'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }
 
 Future<void> _writeCameraOnlyProjectFixture(Directory project) async {

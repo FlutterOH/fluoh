@@ -65,7 +65,7 @@ Future<PackageExampleSetupResult> preparePackageExample({
 
     if (!await Directory('${example.path}/ohos').exists()) {
       output.step(
-        'Adding OHOS platform to ${_relativePath(repository, example)}.',
+        'Adding OHOS platform to ${_relativePath(repository, example)}',
       );
       final result = await runSelectedFlutter(
         environment: exampleEnvironment,
@@ -93,7 +93,7 @@ Future<PackageExampleSetupResult> preparePackageExample({
 
     output.success(
       'Prepared example for ${package.name} at '
-      '${_relativePath(repository, example)}.',
+      '${_relativePath(repository, example)}',
     );
     return PackageExampleSetupResult(
       packageName: package.name,

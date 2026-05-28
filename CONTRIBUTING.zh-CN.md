@@ -81,6 +81,12 @@ dart pub publish --dry-run
 
 如果本地 shell 的 `dart` 不稳定，可以显式使用 Flutter 缓存中的 Dart SDK，但不要把机器上的绝对路径写入仓库文件。
 
+## CLI 输出风格
+
+面向用户的命令输出应简洁，并方便复制到 issue。短状态片段、路径、URL、版本号、标识符、命令名，以及 `SDK path: ...`、`Dart version ...`、`Branch ...`、`No SDK selected` 这类标签/值输出末尾不要加句点。只有完整解释句、多句指导、help 文本，以及需要原样保留的外部工具输出才使用句末标点。
+
+支持 `--json` 的命令必须只向 stdout 输出一个 JSON 对象，顶层包含 `schemaVersion`、`command`、`ok` 和 `exitCode` 字段。命令专属字段保留在顶层；JSON 模式下不要输出人类可读的进度文本。
+
 ## 提交前检查
 
 建议提交前检查：
@@ -184,7 +190,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 
 使用 `fluoh package sync` 从 `upstream` 快进同步 Package `fluoh.yaml` 记录的上游分支，把该分支合入当前 `ohos/<sdkLine>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 upstream package 版本不变。
 
-沿用上游 package 测试和已有 example 测试作为自动化基线。`fluoh package check` 会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用 `flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行 package 自身测试。存在顶层 Flutter example（`example/pubspec.yaml`）时也会检查 example。
+沿用上游 package 测试和已有 example 测试作为自动化基线。`fluoh verify` 会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用 `flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行 package 自身测试。存在顶层 Flutter example（`example/pubspec.yaml`）时也会检查 example。
 
 `fluoh package release` 必须继续保证：
 
@@ -193,7 +199,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 - SDK 版本来自已配置的数据源。
 - Package `version` 大于同 package、上游版本、SDK 版本线下已有 release tag 的版本。
 - 缺失或未填写当前版本的 `FLUOH_CHANGELOG.md` 发布说明会提示 warning，但不阻塞 release。
-- Package 分析和现有 package/example 测试通过 `fluoh package check`。
+- Package 分析和现有 package/example 测试通过 `fluoh verify`。
 - release tag 和 Package `fluoh.yaml` 中的 package、上游版本、SDK 版本线、`version` 一致。
 
 FlutterOH package 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 package 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/source PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。

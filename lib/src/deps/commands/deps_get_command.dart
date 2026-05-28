@@ -85,7 +85,7 @@ class DepsGetCommand extends Command<int> {
       }
     }
 
-    _output.success('Dependencies are up to date.');
+    _output.success('Dependencies are up to date');
     return 0;
   }
 

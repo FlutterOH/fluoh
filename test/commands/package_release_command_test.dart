@@ -35,7 +35,7 @@ void main() {
     );
     expect(
       stdout,
-      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
     );
     expect(stderr, isEmpty);
   });
@@ -70,9 +70,19 @@ void main() {
         isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')),
       );
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('command', 'package release'));
+      expect(report, containsPair('ok', true));
+      expect(report, containsPair('exitCode', 0));
       expect(report, containsPair('passed', true));
       expect(report, containsPair('dryRun', true));
       expect(report, containsPair('tags', ['camera-0.11.0-ohos-3.35-0.1.0']));
+      final packages = report['packages'] as List<Object?>;
+      final package = packages.single as Map<String, Object?>;
+      final verification = package['verification'] as Map<String, Object?>;
+      final target = verification['target'] as Map<String, Object?>;
+      expect(target, containsPair('kind', 'package'));
+      expect(target, containsPair('name', 'camera'));
       expect(stderr, isEmpty);
     },
   );
@@ -106,7 +116,14 @@ void main() {
     expect(report, containsPair('tags', isEmpty));
     expect(
       report['error'],
-      contains('must be greater than latest release version 0.2.0'),
+      allOf(
+        isA<Map<String, Object?>>(),
+        containsPair('type', 'usage'),
+        containsPair(
+          'message',
+          contains('must be greater than latest release version 0.2.0'),
+        ),
+      ),
     );
     expect(stderr, isEmpty);
   });
@@ -268,7 +285,7 @@ void main() {
     expect(stderr.join('\n'), contains('Missing FLUOH_CHANGELOG.md'));
     expect(
       stdout,
-      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
     );
   });
 
@@ -307,7 +324,7 @@ void main() {
     );
     expect(
       stdout,
-      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
     );
   });
 
@@ -337,7 +354,7 @@ void main() {
     expect(stderr.join('\n'), contains('Missing LICENSE for camera'));
     expect(
       stdout,
-      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
     );
   });
 
@@ -378,7 +395,7 @@ void main() {
     );
     expect(
       stdout,
-      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0.'),
+      contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
     );
     expect(stderr, isEmpty);
   });
@@ -476,7 +493,7 @@ void main() {
     ])).stdout.toString();
     expect(tags, contains('camera-0.11.0-ohos-3.35-0.1.0'));
     expect(tags, contains('share_plus-9.0.0-ohos-3.35-0.1.0'));
-    expect(stdout, contains('Released 2 packages.'));
+    expect(stdout, contains('Released 2 packages'));
     expect(stderr, isEmpty);
   });
 
@@ -722,7 +739,7 @@ exit 0
     expect(stderr.join('\n'), contains('entry for share_plus release 0.1.0'));
     expect(
       stdout,
-      contains('Created release tag share_plus-9.0.0-ohos-3.35-0.1.0.'),
+      contains('Created release tag share_plus-9.0.0-ohos-3.35-0.1.0'),
     );
   });
 }

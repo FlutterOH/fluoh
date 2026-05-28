@@ -77,7 +77,8 @@ brew install fluoh
 | 检查 FlutterOH 依赖支持 | `fluoh deps check` |
 | 安全改写依赖 | `fluoh deps fix --dry-run`, `fluoh deps fix` |
 | 更新已有的 FlutterOH 依赖替换 | `fluoh deps upgrade` |
-| 诊断项目和原生平台配置 | `fluoh doctor project`, `fluoh doctor env --platform all` |
+| 诊断原生工具链和可选项目配置 | `fluoh doctor`, `fluoh doctor -p` |
+| 列出本地目标 | `fluoh devices`, `fluoh emulators` |
 | 升级 CLI | `fluoh upgrade` |
 
 ### 日常循环
@@ -98,13 +99,14 @@ fluohf build hap
 ## 维护工作流
 
 大多数应用项目只需要上面的命令。FlutterOH package 的维护者还可以使用下面的命令创建、
-同步、检查和发布第三方库 FlutterOH package 仓库：
+同步、验证和发布第三方库 FlutterOH package 仓库：
 
 ```sh
 fluoh package create <upstream-git-url>
 fluoh package sync
 fluoh package status
-fluoh package check
+fluoh verify
+fluoh run --platform ohos
 fluoh package release
 fluoh source sync
 ```
@@ -118,11 +120,12 @@ fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-
 ```
 
 然后把生成的仓库交给 AI 编码 agent，让它阅读 `AGENTS.md` 并完成适配。生成的
-`AGENTS.md` 和 `FLUOH.md` 会给 AI agent 提供分阶段命令流：用 `fluoh doctor project`
-检查仓库状态，用 `fluoh doctor env --platform all` 检查本机工具链，用
-`fluoh package check --preset ohos-run|android-run|ios-run --json` 做 diagnostics
-驱动的实现循环，用 JSON `nextCommand` 判断下一步动作，最后生成 `.fluoh/ai-report-...md`
-给出发布建议。发布前仍需要人工 review 最终 diff 和只能在设备上验证的行为。
+`AGENTS.md` 和 `FLUOH.md` 会给 AI agent 提供分阶段命令流：用
+`fluoh doctor -p --json --strict` 检查仓库和本机工具链状态，用
+`fluoh verify --json` 检查 package 和 example 测试，用
+`fluoh run --platform ohos|android|ios --json` 做 diagnostics 驱动的实现循环，用
+JSON `nextCommand` 判断下一步动作，最后生成 `.fluoh/ai-report-...md` 给出发布建议。
+发布前仍需要人工 review 最终 diff 和只能在设备上验证的行为。
 
 完整命令见 [docs/commands.zh-CN.md](docs/commands.zh-CN.md)，仓库维护、发布和打包流程见
 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。

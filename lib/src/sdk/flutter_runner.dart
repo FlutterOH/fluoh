@@ -273,7 +273,7 @@ void _reportFlutterFailureHint({
 
   if (outputText != null && _looksLikeOhosSigningFailure(outputText)) {
     output.warningError(
-      'OHOS HAP build reached signing and failed on local signing configuration.',
+      'OHOS HAP build reached signing and failed on local signing configuration',
     );
     output.writeError(
       'Configure DevEco Studio debug signing or local OHOS signingConfigs, '
@@ -285,7 +285,7 @@ void _reportFlutterFailureHint({
     return;
   }
 
-  output.warningError('OHOS HAP build failed.');
+  output.warningError('OHOS HAP build failed');
   output.writeError(
     outputText == null
         ? 'If the output above stopped at signing, configure DevEco Studio '

@@ -52,7 +52,7 @@ class DepsUpgradeCommand extends FluohCommand<int> {
     if (changes.isEmpty) {
       if (skippedIncompatibleVersion.isEmpty) {
         _output.skipped(
-          'No existing FlutterOH dependency replacements need upgrades.',
+          'No existing FlutterOH dependency replacements need upgrades',
         );
       }
       _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
@@ -70,9 +70,9 @@ class DepsUpgradeCommand extends FluohCommand<int> {
     }
     _printSkippedIncompatibleVersion(skippedIncompatibleVersion);
     if (dryRun) {
-      _output.warning('Dry run only; pubspec.yaml was not modified.');
+      _output.warning('Dry run only; pubspec.yaml was not modified');
       _output.next(
-        'Run ${_output.style.code('fluoh deps upgrade')} to apply these changes.',
+        'Run ${_output.style.code('fluoh deps upgrade')} to apply these changes',
       );
       return 0;
     }
@@ -84,9 +84,9 @@ class DepsUpgradeCommand extends FluohCommand<int> {
     );
     _output.success(
       'Updated $applied FlutterOH dependency '
-      'replacement${applied == 1 ? '' : 's'}.',
+      'replacement${applied == 1 ? '' : 's'}',
     );
-    _output.next('Next: run ${_output.style.code('fluoh deps get')}.');
+    _output.next('Next: run ${_output.style.code('fluoh deps get')}');
     return 0;
   }
 

@@ -33,17 +33,21 @@
 | `fluoh sdk use <version-or-series>` | `lib/src/sdk/sdk_use_command.dart` | 为当前 Flutter 项目选择 SDK。 |
 | `fluoh deps` | `lib/src/deps/commands/deps_command.dart` | 项目依赖命令组。 |
 | `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | 为项目和 package example 执行 `flutter pub get`。 |
-| `fluoh deps check` | `lib/src/deps/commands/deps_dependency_commands.dart` | 输出依赖 FlutterOH 适配状态。 |
-| `fluoh deps fix` | `lib/src/deps/commands/deps_dependency_commands.dart` | 应用推荐的 FlutterOH 依赖变更。 |
+| `fluoh deps check` | `lib/src/deps/commands/dependency_plan_commands.dart` | 输出依赖 FlutterOH 适配状态。 |
+| `fluoh deps fix` | `lib/src/deps/commands/dependency_plan_commands.dart` | 应用推荐的 FlutterOH 依赖变更。 |
 | `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | 只升级已有 FlutterOH 依赖替换。 |
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | FlutterOH package 仓库命令组。 |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH package 仓库。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH package 仓库中注册另一个 package。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS package 分支。 |
-| `fluoh package check` | `lib/src/package/commands/package_check_command.dart` | 运行 pub get、分析和已有测试。 |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 检查、打 tag，并可选择推送 FlutterOH package release。 |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 package 发布就绪状态。 |
-| `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 按 scope 诊断环境、项目、SDK 和工具状态。 |
+| `fluoh verify` | `lib/src/workflow/workflow_commands.dart` | 为项目或 package 仓库运行 pub get、分析和测试。 |
+| `fluoh build --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | 构建项目或 package example。 |
+| `fluoh run --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | 构建、安装、启动并诊断应用。 |
+| `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断环境、项目、SDK 和工具状态。 |
+| `fluoh devices` | `lib/src/platform/platform_commands.dart` | 列出已连接的 OHOS、Android 和 iOS target。 |
+| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | 列出并启动本地 OHOS、Android 和 iOS emulator/simulator。 |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | 升级已安装的 `fluoh` CLI。 |
 
 ## 共享运行规则
@@ -63,6 +67,9 @@
   `fluoh flutter`、`fluohf` 和 `fluoh deps get` 在已选择 SDK 缺失时，仍可能通过 SDK
   resolver 加载 Source index，因为安装已选择的 SDK 需要 SDK 元数据。
 - 用法错误和 schema 格式错误返回退出码 `64`。
+- 支持 `--json` 的命令只向 stdout 输出一个机器可读 JSON 对象。顶层契约在这些命令之间保持稳定：
+  `schemaVersion`、`command`、`ok` 和 `exitCode` 始终存在；`checks`、`targets`、
+  `packages`、`dependencies`、`error` 等命令专属字段仍保留在顶层。
 - 命令类只负责参数解析和用户可见输出；可复用行为放到
   `lib/src/sdk/`、`lib/src/deps/`、`lib/src/package/` 和 `lib/src/source/`
   等领域 helper 中。
@@ -86,22 +93,24 @@
 
 ### `fluoh doctor`
 
-`doctor` 是诊断命令，除非使用 `--strict`，否则打印结果后返回成功。第一个参数是可选
-scope：
+`doctor` 是诊断命令，除非使用 `--strict`，否则打印结果后返回成功。裸
+`fluoh doctor` 检查 fluoh 安装状态、Dart 运行时、已配置 source 快照、OpenHarmony 工具链、Android SDK 工具、
+Java、Xcode `xcrun`、`simctl`，以及当前可见的 OHOS、Android、iOS 设备。默认 plain 输出直接打印完整 doctor 报告：每个类别一行摘要，
+并展开已检查工具、source 条目、模拟器摘要、路径、命令摘要、版本和单项耗时。source 条目固定列在
+`Sources` 标题下，不再写进标题。命令特意不提供 `-v`、
+`--verbose` 或 `--details`，因为 Dart 的 `pub global run` 在全局可执行文件 fallback 到
+pub 时会把 verbose 参数当成 pub 自己的日志开关，可能在 fluoh 启动前输出依赖求解日志。
+只有传入 `-p` 或 `--project` 时才会追加检查项目结构、已选择的 FlutterOH SDK
+和必要的 OHOS 平台目录。使用 `--platform ohos|android|ios` 可缩小原生工具链检查范围。
 
-- `fluoh doctor env`：检查 fluoh 安装状态、已配置 source 快照和本地平台工具链。默认检查
-  OHOS 工具链；`--platform all` 还会检查 Android SDK、`adb`、emulator、
-  `avdmanager`、Java、Xcode `xcrun` 和 `simctl`，不要求项目已选择 Flutter SDK，
-  也不会调用全局 `flutter`。
-- `fluoh doctor project`：检查当前 Flutter 项目结构、项目 SDK 和项目平台目录。默认检查
-  OHOS；`--platform all` 还会检查 `android` 和 `ios` 目录。
-- `fluoh doctor all`：同时运行两类检查。裸 `fluoh doctor` 是兼容入口，等价于
-  `fluoh doctor all`。
+检查项分为三组：fluoh 与 source 快照状态、OHOS/Android/iOS 平台工具链、可选的当前项目状态。
+平台标题同时说明工具链和目标平台：OpenHarmony 工具链面向 OHOS 设备，Android 工具链面向
+Android 设备，Xcode 面向 iOS 设备。
 
-缺失或过期状态会作为 warning 输出，不会自动修复。自动化需要 Android/iOS 原生环境门禁时，
-使用 `fluoh doctor env --platform all --json --strict`；需要当前项目门禁时，使用
-`fluoh doctor project --json --strict`。`--json` 会输出机器可读的同一组检查结果，并在每个
-check 中包含 `group`。
+缺失或过期状态会作为 warning 输出，不会自动修复。自动化只需要原生工具链门禁时，使用
+`fluoh doctor --json --strict`；也需要当前项目门禁时，使用
+`fluoh doctor -p --json --strict`。`--json` 会输出机器可读的同一组检查结果，
+并在每个 check 中包含稳定的 `id` 和 `group`。
 
 ### `fluoh upgrade`
 
@@ -226,31 +235,31 @@ AI 自动适配只使用一组职责清晰的命令：
 1. 建仓：新 package 仓库使用 `fluoh package create <upstream>`，追加 package 使用
    `fluoh package add <package-path>`；只有在已完成并提交一个 checkpoint 后，才用
    `fluoh package sync` 合入 upstream。
-2. 基线门禁：写 OHOS 代码前运行 `fluoh deps get`、`fluoh doctor project --json --strict`、
-   `fluoh doctor env --json --strict`、`fluoh doctor env --platform all --json --strict`、
+2. 基线门禁：写 OHOS 代码前运行 `fluoh deps get`、
+   `fluoh doctor -p --json --strict`、
    `fluoh flutter analyze`，以及相关的既有 package 或 example 测试。project warning
    指向仓库文件；environment warning 指向本机工具链或 Source 配置。
 3. 实现循环：每次有意义的代码或元数据变更后，如果依赖或 SDK 元数据变了先跑
-   `fluoh deps get`，再用 `fluoh package check --package <name> --json` 跑到 pub get、
+   `fluoh deps get`，再用 `fluoh verify --package <name> --json` 跑到 pub get、
    analyze 和已有测试全部通过。
 4. OHOS 验证：使用
-   `fluoh package check --package <name> --preset ohos-run --json`；已有 hdc 目标时添加
+   `fluoh run --platform ohos --package <name> --json`；已有 hdc 目标时添加
    `--device <id>`。没有设备时，用
-   `fluoh package check --package <name> --build-example hap --debug --auto-sign --json`
+   `fluoh build --platform ohos --package <name> --auto-sign --json`
    作为 build-only 证据。
 5. 既有平台回归：存在 `example/android` 时，先跑
-   `fluoh doctor env --platform android --json --strict`，再跑
-   `fluoh package check --package <name> --preset android-run --json`。
+   `fluoh doctor --platform android --json --strict`，再跑
+   `fluoh run --platform android --package <name> --json`。
    存在 `example/ios` 时使用对应 iOS doctor 和
-   `fluoh package check --package <name> --preset ios-run --json`。
+   `fluoh run --platform ios --package <name> --json`。
 6. diagnostics 循环：编辑前先读 JSON 里的 `nextCommand`、`diagnostics[].code`、
-   `stdoutTail`、`stderrTail` 和已保存运行日志。`doctor env` 失败修本机工具链，
-   `doctor project` 失败修仓库配置，`package check` 失败修产生 diagnostic 的代码或
+   `stdoutTail`、`stderrTail` 和已保存运行日志。`doctor` 失败修本机工具链，
+   project warning 修仓库配置，`verify` 失败修产生 diagnostic 的代码或
    example。
 7. 完成报告：写入 `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md`，包含命令、
    结果、平台矩阵、签名模式、日志、剩余风险和发布建议。
 8. 发布门禁：运行 `fluoh package status --package <name>`、最终
-   `fluoh package check --package <name>` 和
+   `fluoh verify --package <name>` 和
    `fluoh package release --package <name> --dry-run`。只有相关门禁通过后才提交；维护者确认
    打 tag 后再运行 `fluoh package release --package <name>`。
 
@@ -306,44 +315,29 @@ Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 a
 `fluoh package sync --continue` 校验已暂存的解决结果并完成流程。`--abort` 对进行中的 sync
 执行 `git merge --abort`。`--json` 会输出完成的 sync 动作列表和提交状态。
 
-`fluoh package check` 会运行 Package `fluoh.yaml` 中已注册 package 的现有自动化检查。
-它会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用
-`flutter`，非 Flutter package 使用 `dart`；如果 package 存在 `test/**/*_test.dart`，
-继续运行 package 测试。如果存在顶层 Flutter example（`example/pubspec.yaml`），也会在
-example 中运行 `flutter pub get`、`flutter analyze` 和已有测试。使用 `--package <name>`
-检查单个 package，或用 `--all` 检查所有已注册 package。
+`fluoh verify` 会为当前项目或 Package `fluoh.yaml` 中已注册 package 运行自动化验证。它会先用已选择 SDK 执行 `pub get` 和 `analyze`：Flutter package 使用
+`flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行测试。
+在 package 仓库中，如果存在顶层 Flutter example（`example/pubspec.yaml`），也会验证
+example。使用 `--package <name>` 验证单个 package，或用 `--all` 验证所有已注册 package。
+`--json` 会在 `targets` 下输出每个项目或 package 的目标身份、phase、steps、diagnostics 和
+`nextCommand`。
 
-`--preset baseline`、`--preset ohos-run`、`--preset android-run`、`--preset ios-run`、
-`--preset all-run` 和 `--preset release` 会展开常用自动化流程，避免记长参数。单平台 run
-preset 默认启动本地 emulator 或 simulator；已有目标时加 `--device <id>`，需要选择本地
-emulator 时加 `--emulator <name>`。`release` preset 运行 OHOS、Android 和 iOS 的 build-only
-门禁。
+`fluoh build --platform ohos|android|ios` 构建当前 Flutter 项目或所选 package example。iOS
+构建会自动加入 `--no-codesign`。package 的 OHOS 构建可用 `--auto-sign` 根据 example 申请的
+权限生成临时本地 debug 签名 profile。
 
-底层的 `--build-example hap`、`--build-example apk` 或 `--build-example ios` 会在分析和测试
-之后构建每个 Flutter example；配合 `--debug` 会把 `--debug` 传给 `flutter build`。iOS
-example 构建会自动加入 `--no-codesign`，用于捕获编译回归，不要求开发者团队或 provisioning
-profile。`--auto-sign` 会根据 example 申请的权限生成临时本地 OHOS debug 签名 profile，并在构建后
-恢复 `example/ohos/build-profile.json5`；它只适用于 `--build-example hap`。
-`--run-example` 会用 `hdc` 安装构建出的 HAP、启动 example ability，并把一段 hilog 保存到
-`$FLUOH_HOME/package-runs`。对于 APK 和 iOS target，`--run-example` 会通过已选择 SDK 的
-`flutter run` 启动 example，把 run-smoke 输出保存到
-`$FLUOH_HOME/package-runs`，并在 example 存在 `integration_test/` 目录时继续运行
-`flutter test integration_test -d <device>`。Android/iOS 运行检查前，先使用
-`fluoh doctor env --platform android --json --strict` 或
-`fluoh doctor env --platform ios --json --strict` 检查原生环境。没有连接设备时可以加
-`--start-emulator`，fluoh 会通过原生工具启动 Android AVD 或 iOS simulator，然后等待已选择
-SDK 识别目标；`--emulator <name>` 指定本地 emulator id 或名称，多个 target 已连接时用
-`--device <id>` 指定。
-`--device-timeout <seconds>` 控制等待 target 上线的时间。`--log-duration <seconds>` 调整
-OHOS hilog 或 Android/iOS Flutter run-smoke 采集窗口。`--json` 会输出结构化检查结果，其中
-package 和 step 可包含 `nextCommand`，每个 step 可包含带稳定错误码的 `diagnostics`、失败命令
-输出尾部，以及签名、运行、HAP 或平台目标明细，方便自动化流程判断下一步动作。
+`fluoh run --platform ohos|android|ios` 会构建、安装、启动并诊断当前项目或所选 package
+example。OHOS package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短 hilog，并通过
+JSON diagnostics 报告运行时 crash。Android 和 iOS package example 会通过已选择 SDK 的
+`flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/package-runs`，并在 example 存在
+`integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。已有目标时用
+`--device <id>`，需要选择并启动本地 emulator/simulator 时用 `--emulator <name>`。
 
 `fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
-`fluoh package check`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
+`fluoh verify`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
 `--package <name>` 发布单个 package，或用 `--all` 发布所有已注册 package。已有 tag 只有在
-已经指向 HEAD 时才会被接受。`--dry-run` 会执行校验和 package check，但不会创建或推送
-tag。`--json` 会输出 tag、warning 和 package check 结果。
+已经指向 HEAD 时才会被接受。`--dry-run` 会执行校验和验证，但不会创建或推送
+tag。`--json` 会输出 tag、warning 和验证结果。
 
 `fluoh package status` 读取 Package `fluoh.yaml` 并汇总发布就绪状态，不修改仓库。它会检查
 当前分支、工作树是否干净、package status、release notes、license warning、package 测试、
@@ -364,4 +358,4 @@ Flutter example、example OHOS 平台、example 测试，以及 tracked 文件�
 | FlutterOH package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package status`、`package release` 校验 |
 | Source root 和 Manifest 文件 | `source init`、`source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`、`package create` 的 SDK 设置 |
-| Package examples | `package create`、`package add`、`deps get`、`package check`、`package release` |
+| Package examples | `package create`、`package add`、`deps get`、`verify`、`package release` |

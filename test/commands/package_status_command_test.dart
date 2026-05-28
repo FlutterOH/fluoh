@@ -28,6 +28,10 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'package status'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 0));
     expect(report, containsPair('branchMatches', true));
     expect(report, containsPair('workingTreeClean', true));
     expect(report, containsPair('ready', false));

@@ -68,7 +68,7 @@ void main() {
       0,
     );
 
-    expect(stdout, contains('Validated source ${source.path}.'));
+    expect(stdout, contains('Validated source ${source.path}'));
     expect(
       File('${environment.homeDirectory.path}/config.json').existsSync(),
       isFalse,
@@ -513,7 +513,7 @@ repository:
 
     expect(stdout, contains('Added source fixture: ${source.path}'));
     expect(stdout, contains('[2] fixture ${Uri.file(source.path)}'));
-    expect(stdout, contains('Updated source fixture.'));
+    expect(stdout, contains('Updated source fixture'));
     expect(File('${cachedSource.path}/fluoh.yaml').existsSync(), isTrue);
     expect(
       File('${cachedSource.path}/manifests/camera/fluoh.yaml').existsSync(),
@@ -591,10 +591,7 @@ environment:
       contains('# kind: manifest'),
     );
     expect(File('${source.path}/README.md').existsSync(), isTrue);
-    expect(
-      stdout,
-      contains('Created local source template at ${source.path}.'),
-    );
+    expect(stdout, contains('Created local source template at ${source.path}'));
     expect(stdout.join('\n'), contains('fluoh source sync ${source.path}'));
     expect(
       stdout.join('\n'),
@@ -632,7 +629,7 @@ environment:
       expect(readme, contains('manifests/example/fluoh.yaml'));
       expect(
         stdout,
-        contains('Created local source template at ${source.path}.'),
+        contains('Created local source template at ${source.path}'),
       );
       expect(stderr, isEmpty);
     },
@@ -785,10 +782,7 @@ environment:
     expect(versions, isEmpty);
     expect(lock['routes'], isEmpty);
 
-    expect(
-      stdout,
-      contains('Created local source template at ${source.path}.'),
-    );
+    expect(stdout, contains('Created local source template at ${source.path}'));
     expect(stdout, contains('Added source empty: ${source.path}'));
     expect(stderr, isEmpty);
   });
@@ -850,7 +844,7 @@ environment:
     expect(
       stdout,
       contains(
-        'Synced source metadata for camera from ${packageRepository.path}.',
+        'Synced source metadata for camera from ${packageRepository.path}',
       ),
     );
     expect(stderr, isEmpty);
@@ -891,6 +885,10 @@ environment:
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'source sync'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
     expect(report, containsPair('synced', 1));
     final packages = report['packages'] as List<Object?>;
     expect(
@@ -902,6 +900,29 @@ environment:
         ),
       ),
     );
+    expect(stderr, isEmpty);
+  });
+
+  test('source sync json usage errors keep a stable command name', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'sync', 'missing-source', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'source sync'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 64));
+    expect(report['error'], isA<Map<String, Object?>>());
     expect(stderr, isEmpty);
   });
 
@@ -1003,7 +1024,7 @@ environment:
       expect(
         stdout,
         contains(
-          'Synced source metadata for camera from ${packageRepository.path}.',
+          'Synced source metadata for camera from ${packageRepository.path}',
         ),
       );
       expect(stderr, isEmpty);
@@ -1284,7 +1305,7 @@ environment:
       expect(
         stdout,
         contains(
-          'Skipped source metadata update for camera because maintenance.status is frozen.',
+          'Skipped source metadata update for camera because maintenance.status is frozen',
         ),
       );
       expect(stderr, isEmpty);
@@ -1348,7 +1369,7 @@ manifests:
     expect(Directory('${source.path}/manifests').existsSync(), isTrue);
     expect(
       stdout,
-      contains('Local source template already exists at ${source.path}.'),
+      contains('Local source template already exists at ${source.path}'),
     );
     expect(stderr, isEmpty);
   });
@@ -1416,7 +1437,7 @@ manifests:
     );
     expect(_lockSourceSnapshotHash(lock, 'local'), isNot(previousSnapshotHash));
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
-    expect(stdout, contains('Updated source local.'));
+    expect(stdout, contains('Updated source local'));
     expect(stderr, isEmpty);
   });
 
@@ -1586,7 +1607,7 @@ manifests:
       0,
     );
 
-    expect(stdout, contains('Removed source team.'));
+    expect(stdout, contains('Removed source team'));
     expect(stdout.last, '[1] flutteroh file://${defaultSource.path}');
 
     expect(
@@ -1665,7 +1686,7 @@ manifests:
     );
 
     expect(stdout, contains('Added source remote: $sourceUrl'));
-    expect(stdout, contains('Updated source remote.'));
+    expect(stdout, contains('Updated source remote'));
     expect(
       File(
         '${environment.homeDirectory.path}/sources/remote/fluoh.yaml',
@@ -1946,7 +1967,7 @@ packages:
         0,
       );
 
-      expect(stdout, contains('Updated source team.'));
+      expect(stdout, contains('Updated source team'));
       expect(stderr, isEmpty);
     },
   );
@@ -2035,7 +2056,7 @@ sdk:
       0,
     );
 
-    expect(stdout, contains('Updated source schema.'));
+    expect(stdout, contains('Updated source schema'));
     expect(stderr, isEmpty);
   });
 

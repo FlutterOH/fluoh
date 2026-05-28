@@ -89,6 +89,12 @@ dart pub publish --dry-run
 
 If the `dart` command in your shell is unstable, you may explicitly use the Dart SDK bundled with Flutter, but do not commit machine-specific absolute paths.
 
+## CLI Output Style
+
+Keep human-readable command output concise and easy to paste into issues. Do not add a trailing period to short status fragments, paths, URLs, versions, identifiers, command names, or label/value lines such as `SDK path: ...`, `Dart version ...`, `Branch ...`, or `No SDK selected`. Use punctuation only for complete explanatory sentences, multi-sentence guidance, help text, and raw tool output that is intentionally preserved.
+
+Commands that support `--json` must write exactly one JSON object to stdout with top-level `schemaVersion`, `command`, `ok`, and `exitCode` fields. Keep command-specific fields at the top level, and do not emit human progress text while JSON mode is active.
+
 ## Pre-commit Checks
 
 Recommended checks before committing:
@@ -193,7 +199,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 
 Use `fluoh package sync` to fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge that branch into the current `ohos/<sdkLine>` branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep the upstream package version unchanged until the new FlutterOH adaptation is complete.
 
-Use upstream package tests and existing example tests as the automated baseline. `fluoh package check` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
+Use upstream package tests and existing example tests as the automated baseline. `fluoh verify` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
 
 `fluoh package release` must continue to guarantee:
 
@@ -202,7 +208,7 @@ Use upstream package tests and existing example tests as the automated baseline.
 - The SDK version comes from configured sources.
 - The Package `version` is newer than previous release tags for the same package, upstream version, and SDK line.
 - Missing or incomplete `FLUOH_CHANGELOG.md` release notes are reported as warnings, not release blockers.
-- Package analysis and existing package/example tests pass through `fluoh package check`.
+- Package analysis and existing package/example tests pass through `fluoh verify`.
 - The release tag matches the package, upstream version, SDK line, and `version` recorded in Package `fluoh.yaml`.
 
 FlutterOH package repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released package repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. FlutterOH/source pull requests and scheduled package ingestion workflows should call the same source command path.

@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' as io;
+
+const defaultTerminalLineLength = 80;
 
 enum TerminalMessageKind { success, warning, error, info, step, skipped }
 
@@ -90,7 +93,27 @@ class TerminalStyle {
       return text;
     }
 
-    return '${_messageMarker(kind)} $text';
+    return '${messageMarker(kind)} $text';
+  }
+
+  String messageMarker(TerminalMessageKind kind) {
+    final marker = switch (kind) {
+      TerminalMessageKind.success => symbols.success,
+      TerminalMessageKind.warning => symbols.warning,
+      TerminalMessageKind.error => symbols.error,
+      TerminalMessageKind.info => symbols.info,
+      TerminalMessageKind.step => symbols.step,
+      TerminalMessageKind.skipped => symbols.skipped,
+    };
+    final color = switch (kind) {
+      TerminalMessageKind.success => TerminalColor.green,
+      TerminalMessageKind.warning => TerminalColor.yellow,
+      TerminalMessageKind.error => TerminalColor.red,
+      TerminalMessageKind.info => TerminalColor.blue,
+      TerminalMessageKind.step => TerminalColor.cyan,
+      TerminalMessageKind.skipped => TerminalColor.gray,
+    };
+    return paint(marker, color: color);
   }
 
   String paint(
@@ -113,26 +136,6 @@ class TerminalStyle {
     }
     return '\u001b[${codes.join(';')}m$text\u001b[0m';
   }
-
-  String _messageMarker(TerminalMessageKind kind) {
-    final marker = switch (kind) {
-      TerminalMessageKind.success => symbols.success,
-      TerminalMessageKind.warning => symbols.warning,
-      TerminalMessageKind.error => symbols.error,
-      TerminalMessageKind.info => symbols.info,
-      TerminalMessageKind.step => symbols.step,
-      TerminalMessageKind.skipped => symbols.skipped,
-    };
-    final color = switch (kind) {
-      TerminalMessageKind.success => TerminalColor.green,
-      TerminalMessageKind.warning => TerminalColor.yellow,
-      TerminalMessageKind.error => TerminalColor.red,
-      TerminalMessageKind.info => TerminalColor.blue,
-      TerminalMessageKind.step => TerminalColor.cyan,
-      TerminalMessageKind.skipped => TerminalColor.gray,
-    };
-    return paint(marker, color: color);
-  }
 }
 
 class TerminalOutput {
@@ -141,6 +144,7 @@ class TerminalOutput {
     void Function(String message)? stderr,
     void Function(String text)? transient,
     this.style = const TerminalStyle(),
+    this.lineLength = defaultTerminalLineLength,
   }) : _stdout = stdout,
        _stderr = stderr ?? stdout,
        _transient = transient;
@@ -149,6 +153,7 @@ class TerminalOutput {
   final void Function(String message) _stderr;
   final void Function(String text)? _transient;
   final TerminalStyle style;
+  final int lineLength;
 
   void write(String message) {
     _stdout(message);
@@ -171,51 +176,63 @@ class TerminalOutput {
   }
 
   void success(String message) {
-    _stdout(style.message(TerminalMessageKind.success, message));
+    _writeMessage(_stdout, TerminalMessageKind.success, message);
   }
 
   void warning(String message) {
-    _stdout(style.message(TerminalMessageKind.warning, message));
+    _writeMessage(_stdout, TerminalMessageKind.warning, message);
   }
 
   void warningError(String message) {
-    _stderr(style.message(TerminalMessageKind.warning, message));
+    _writeMessage(_stderr, TerminalMessageKind.warning, message);
   }
 
   void error(String message) {
-    _stderr(style.message(TerminalMessageKind.error, message));
+    _writeMessage(_stderr, TerminalMessageKind.error, message);
   }
 
   void failure(String message) {
-    _stdout(style.message(TerminalMessageKind.error, message));
+    _writeMessage(_stdout, TerminalMessageKind.error, message);
   }
 
   void info(String message) {
-    _stdout(style.message(TerminalMessageKind.info, message));
+    _writeMessage(_stdout, TerminalMessageKind.info, message);
   }
 
   void step(String message) {
-    _stdout(style.message(TerminalMessageKind.step, message));
+    _writeMessage(_stdout, TerminalMessageKind.step, message);
   }
 
   void skipped(String message) {
-    _stdout(style.message(TerminalMessageKind.skipped, message));
+    _writeMessage(_stdout, TerminalMessageKind.skipped, message);
   }
 
   void next(String message) {
     final prefix = style.capabilities.decorated
         ? '${style.paint(style.symbols.arrow, color: TerminalColor.cyan)} '
         : '';
-    _stdout('$prefix$message');
+    final visiblePrefix = style.capabilities.decorated ? '  ' : '';
+    _writeWrapped(
+      _stdout,
+      message,
+      prefix: prefix,
+      visiblePrefix: visiblePrefix,
+    );
   }
 
   void detail(String message) {
     final bullet = style.paint(style.symbols.bullet, color: TerminalColor.gray);
-    _stdout('    $bullet $message');
+    _writeWrapped(
+      _stdout,
+      message,
+      prefix: '    $bullet ',
+      visiblePrefix: '      ',
+    );
   }
 
   void indented(String message, {int spaces = 2}) {
-    _stdout('${' ' * spaces}$message');
+    final indent = ' ' * spaces;
+    _writeWrapped(_stdout, message, prefix: indent, visiblePrefix: indent);
   }
 
   Future<T> withProgress<T>(
@@ -370,6 +387,98 @@ class TerminalOutput {
     final padding = ' ' * (width - raw.length);
     return alignRight ? '$padding$styled' : '$styled$padding';
   }
+
+  void _writeMessage(
+    void Function(String message) writer,
+    TerminalMessageKind kind,
+    String message,
+  ) {
+    if (!style.capabilities.decorated) {
+      _writeWrapped(writer, message);
+      return;
+    }
+    final marker = style.messageMarker(kind);
+    _writeWrapped(writer, message, prefix: '$marker ', visiblePrefix: '  ');
+  }
+
+  void _writeWrapped(
+    void Function(String message) writer,
+    String message, {
+    String prefix = '',
+    String visiblePrefix = '',
+  }) {
+    final firstWidth = (lineLength - visiblePrefix.length).clamp(1, lineLength);
+    final continuationPrefix = visiblePrefix.isEmpty
+        ? ''
+        : ' ' * visiblePrefix.length;
+    final continuationWidth = (lineLength - continuationPrefix.length).clamp(
+      1,
+      lineLength,
+    );
+    final lines = wrapTerminalText(message, width: firstWidth.toInt());
+    if (lines.isEmpty) {
+      writer(prefix);
+      return;
+    }
+    writer('$prefix${lines.first}');
+    for (final line in lines.skip(1)) {
+      for (final continuation in wrapTerminalText(
+        line,
+        width: continuationWidth.toInt(),
+      )) {
+        writer('$continuationPrefix$continuation');
+      }
+    }
+  }
+}
+
+List<String> wrapTerminalText(String value, {required int width}) {
+  final normalizedWidth = width < 1 ? 1 : width;
+  final lines = <String>[];
+  for (final rawLine in const LineSplitter().convert(value)) {
+    if (rawLine.trim().isEmpty) {
+      lines.add('');
+      continue;
+    }
+    lines.addAll(_wrapTerminalLine(rawLine.trimRight(), normalizedWidth));
+  }
+  return lines;
+}
+
+List<String> _wrapTerminalLine(String line, int width) {
+  if (line.length <= width) {
+    return [line];
+  }
+
+  final result = <String>[];
+  var remaining = line;
+  while (remaining.length > width) {
+    var split = _lastTerminalBreakBefore(remaining, width);
+    if (split <= 0) {
+      split = width;
+    }
+    result.add(remaining.substring(0, split).trimRight());
+    remaining = remaining.substring(split).trimLeft();
+  }
+  if (remaining.isNotEmpty) {
+    result.add(remaining);
+  }
+  return result.isEmpty ? [''] : result;
+}
+
+int _lastTerminalBreakBefore(String value, int width) {
+  final searchLimit = width < value.length ? width : value.length;
+  var bestSpace = -1;
+  var bestSymbol = -1;
+  for (var index = 0; index < searchLimit; index += 1) {
+    final codeUnit = value.codeUnitAt(index);
+    if (codeUnit == 0x20) {
+      bestSpace = index + 1;
+    } else if (codeUnit == 0x2f || codeUnit == 0x2d) {
+      bestSymbol = index + 1;
+    }
+  }
+  return bestSpace > 0 ? bestSpace : bestSymbol;
 }
 
 class TerminalTableColumn {

@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../git/package_git.dart';
@@ -94,7 +94,13 @@ class PackageStatusCommand extends FluohCommand<int> {
     };
 
     if (argResults!.flag('json')) {
-      _stdout(jsonEncode(result));
+      writeMachineOutput(
+        _stdout,
+        command: 'package status',
+        ok: result['ready'] == true,
+        exitCode: 0,
+        fields: result,
+      );
       return 0;
     }
 
@@ -113,7 +119,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       package.status == null || package.status == 'compatible'
           ? const _PackageStatusCheck.ok(
               'release-status',
-              'Package is marked compatible.',
+              'Package is marked compatible',
             )
           : _PackageStatusCheck.warning(
               'release-status',
@@ -154,7 +160,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       checks.add(
         const _PackageStatusCheck.ok(
           'release-metadata',
-          'Release metadata is present.',
+          'Release metadata is present',
         ),
       );
     } else {
@@ -164,13 +170,13 @@ class PackageStatusCommand extends FluohCommand<int> {
     final packageRoot = packageDirectory(repository, package.repositoryPath);
     if (await hasPackageTests(packageRoot)) {
       checks.add(
-        const _PackageStatusCheck.ok('package-tests', 'Package tests exist.'),
+        const _PackageStatusCheck.ok('package-tests', 'Package tests exist'),
       );
     } else {
       checks.add(
         const _PackageStatusCheck.warning(
           'package-tests',
-          'No package tests were found.',
+          'No package tests were found',
         ),
       );
     }
@@ -181,41 +187,41 @@ class PackageStatusCommand extends FluohCommand<int> {
       checks.add(
         const _PackageStatusCheck.skipped(
           'example',
-          'No top-level Flutter example was found.',
+          'No top-level Flutter example was found',
         ),
       );
     } else if (!await isFlutterPackageDirectory(example)) {
       checks.add(
         const _PackageStatusCheck.skipped(
           'example',
-          'Top-level example is not a Flutter project.',
+          'Top-level example is not a Flutter project',
         ),
       );
     } else {
       checks.add(
-        const _PackageStatusCheck.ok('example', 'Flutter example exists.'),
+        const _PackageStatusCheck.ok('example', 'Flutter example exists'),
       );
       final ohos = Directory('${example.path}/ohos');
       checks.add(
         await ohos.exists()
             ? const _PackageStatusCheck.ok(
                 'example-ohos',
-                'Example OHOS platform exists.',
+                'Example OHOS platform exists',
               )
             : const _PackageStatusCheck.warning(
                 'example-ohos',
-                'Example is missing the OHOS platform directory.',
+                'Example is missing the OHOS platform directory',
               ),
       );
       checks.add(
         await hasPackageTests(example)
             ? const _PackageStatusCheck.ok(
                 'example-tests',
-                'Example tests exist.',
+                'Example tests exist',
               )
             : const _PackageStatusCheck.warning(
                 'example-tests',
-                'No example tests were found.',
+                'No example tests were found',
               ),
       );
     }
@@ -227,24 +233,24 @@ class PackageStatusCommand extends FluohCommand<int> {
     Map<String, Object?> result,
     List<_PackageStatus> packageStatuses,
   ) {
-    _output.heading('Package release status.');
+    _output.heading('Package release status');
     final branchMatches = result['branchMatches'] == true;
     final workingTreeClean = result['workingTreeClean'] == true;
     if (branchMatches) {
-      _output.success('Branch matches ${result['expectedBranch']}.');
+      _output.success('Branch matches ${result['expectedBranch']}');
     } else {
       _output.warning(
         'Current branch ${result['branch']} does not match ${result['expectedBranch']}.',
       );
     }
     if (workingTreeClean) {
-      _output.success('Working tree is clean.');
+      _output.success('Working tree is clean');
     } else {
-      _output.warning('Working tree has uncommitted changes.');
+      _output.warning('Working tree has uncommitted changes');
     }
     final localPathFiles = result['localPathFiles'] as List<String>;
     if (localPathFiles.isEmpty) {
-      _output.success('No tracked files contain the local fluoh home path.');
+      _output.success('No tracked files contain the local fluoh home path');
     } else {
       _output.warning(
         'Tracked files contain local fluoh home paths: ${localPathFiles.join(', ')}.',
@@ -270,10 +276,10 @@ class PackageStatusCommand extends FluohCommand<int> {
     }
 
     if (result['ready'] == true) {
-      _output.success('Package repository appears ready for release.');
+      _output.success('Package repository appears ready for release');
     } else {
       _output.next(
-        'Resolve warnings, run fluoh package check, commit, then run fluoh package release.',
+        'Resolve warnings, run fluoh verify, commit, then run fluoh package release.',
       );
     }
   }

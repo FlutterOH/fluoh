@@ -92,11 +92,11 @@ void main() {
         File('${packageRepository.path}/fluoh.yaml').existsSync(),
         isFalse,
       );
-      expect(stdout, contains('Synchronized main from upstream/main.'));
-      expect(stdout, contains('Merged main into ohos/3.35.'));
+      expect(stdout, contains('Synchronized main from upstream/main'));
+      expect(stdout, contains('Merged main into ohos/3.35'));
       expect(
         stdout,
-        contains('Updated upstream metadata for registered packages.'),
+        contains('Updated upstream metadata for registered packages'),
       );
       expect(stderr, isEmpty);
     },
@@ -152,6 +152,10 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'package sync'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
     expect(report, containsPair('status', 'synced'));
     expect(report, containsPair('committed', true));
     expect(report, containsPair('packageBranch', 'ohos/3.35'));

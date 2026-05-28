@@ -7,30 +7,31 @@ import '../context/fluoh_environment.dart';
 import '../deps/commands/deps_command.dart';
 import '../doctor/doctor_command.dart';
 import '../package/commands/package_command.dart';
+import '../platform/platform_commands.dart';
 import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
 import '../source/source_runtime.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
+import '../workflow/workflow_commands.dart';
 import 'command_suggestions.dart';
 import 'command_usage.dart';
+import 'machine_output.dart';
 import 'terminal_output.dart';
 
 typedef OutputWriter = void Function(String message);
-
-const _defaultUsageLineLength = 80;
 
 int fluohUsageLineLength() {
   try {
     if (io.stdout.hasTerminal) {
       final columns = io.stdout.terminalColumns;
-      return columns < 40 ? 40 : columns;
+      return columns.clamp(40, defaultTerminalLineLength).toInt();
     }
   } on Object {
     // Fall through to a deterministic default for tests and non-TTY output.
   }
-  return _defaultUsageLineLength;
+  return defaultTerminalLineLength;
 }
 
 abstract class FluohCommand<T> extends Command<T> {
@@ -71,6 +72,7 @@ class FluohCommandRunner extends CommandRunner<int> {
          stdout: stdout ?? print,
          stderr: stderr ?? print,
          transient: stdout == null ? io.stdout.write : null,
+         lineLength: _outputLineLength(stdout),
          style: TerminalStyle(
            capabilities: TerminalCapabilities.detect(
              enableFormatting: stdout == null,
@@ -118,7 +120,37 @@ class FluohCommandRunner extends CommandRunner<int> {
       SourceCommand(environment: env, stdout: _stdout, output: _output),
     );
     addCommand(
+      VerifyCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
+    );
+    addCommand(
+      BuildCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
+    );
+    addCommand(
+      RunCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
+    );
+    addCommand(
       DoctorCommand(environment: env, stdout: _stdout, output: _output),
+    );
+    addCommand(
+      DevicesCommand(environment: env, stdout: _stdout, output: _output),
+    );
+    addCommand(
+      EmulatorsCommand(environment: env, stdout: _stdout, output: _output),
     );
     addCommand(
       UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
@@ -159,8 +191,10 @@ class FluohCommandRunner extends CommandRunner<int> {
 
   @override
   Future<int> run(Iterable<String> args) async {
+    _MachineOutputRequest? machineOutputRequest;
     try {
       final results = parse(args);
+      machineOutputRequest = _machineOutputRequest(results);
       if (results.flag('version')) {
         _printVersionInformation();
         return 0;
@@ -176,11 +210,31 @@ class FluohCommandRunner extends CommandRunner<int> {
 
       return await runCommand(results) ?? 0;
     } on UsageException catch (error) {
+      if (machineOutputRequest != null) {
+        writeMachineErrorOutput(
+          _stdout,
+          command: machineOutputRequest.command,
+          exitCode: 64,
+          type: 'usage',
+          message: error.message,
+        );
+        return 64;
+      }
       _output.error(error.message);
       _output.writeError('');
       _output.writeError(error.usage);
       return 64;
     } on FormatException catch (error) {
+      if (machineOutputRequest != null) {
+        writeMachineErrorOutput(
+          _stdout,
+          command: machineOutputRequest.command,
+          exitCode: 64,
+          type: 'format',
+          message: error.message,
+        );
+        return 64;
+      }
       _output.error(error.message);
       return 64;
     }
@@ -271,6 +325,29 @@ class FluohCommandRunner extends CommandRunner<int> {
   }
 }
 
+class _MachineOutputRequest {
+  const _MachineOutputRequest(this.command);
+
+  final String command;
+}
+
+_MachineOutputRequest? _machineOutputRequest(ArgResults results) {
+  var current = results;
+  final commandParts = <String>[];
+  while (current.command != null) {
+    final command = current.command!;
+    commandParts.add(command.name!);
+    current = command;
+  }
+  if (commandParts.isEmpty) {
+    return null;
+  }
+  if (!current.options.contains('json') || !current.flag('json')) {
+    return null;
+  }
+  return _MachineOutputRequest(commandParts.join(' '));
+}
+
 const _topLevelCommandSections = [
   CommandUsageSection('', [
     'flutter',
@@ -278,7 +355,12 @@ const _topLevelCommandSections = [
     'sdk',
     'deps',
     'package',
+    'verify',
+    'build',
+    'run',
     'doctor',
+    'devices',
+    'emulators',
     'upgrade',
   ]),
 ];
@@ -297,6 +379,11 @@ bool _usesSourceConfiguration(ArgResults results) {
         'source',
         'sdk',
         'doctor',
+        'devices',
+        'emulators',
+        'verify',
+        'build',
+        'run',
         'deps',
         'package',
       }.contains(commandName);
@@ -322,6 +409,10 @@ bool _repairsSourceSnapshots(ArgResults results) {
   }
   final subcommand = sourceSubcommandResults?.name;
   return subcommand == null || subcommand == 'list';
+}
+
+int _outputLineLength(OutputWriter? stdout) {
+  return stdout == null ? fluohUsageLineLength() : 1 << 30;
 }
 
 Future<int> runFluoh(

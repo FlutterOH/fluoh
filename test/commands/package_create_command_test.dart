@@ -244,10 +244,10 @@ void main() {
         tags.stdout.toString().split('\n'),
         contains('camera-0.11.0-ohos-3.35-0.1.0'),
       );
-      _expectContainsAll(stdout.join('\n'), [
-        'Created package repository at ${packageRepository.path}.',
-        'Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3.',
-        'Created release tag camera-0.11.0-ohos-3.35-0.1.0.',
+      _expectWrappedContainsAll(stdout.join('\n'), [
+        'Created package repository at ${packageRepository.path}',
+        'Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3',
+        'Created release tag camera-0.11.0-ohos-3.35-0.1.0',
       ]);
       expect(stderr, isEmpty);
     },
@@ -312,10 +312,15 @@ void main() {
 
     final cloneMessage =
         'Cloning upstream repository into ${packageRepository.path}...';
-    expect(stdout.where((line) => line.contains(cloneMessage)), hasLength(1));
+    expect(
+      _normalizeOutput(stdout.join('\n')).split(_normalizeOutput(cloneMessage)),
+      hasLength(2),
+    );
     expect(transient.join(), isNot(contains(cloneMessage)));
     expect(transient.join(), isNot(contains('Receiving objects')));
-    final cloneIndex = stdout.indexWhere((line) => line.contains(cloneMessage));
+    final cloneIndex = stdout.indexWhere(
+      (line) => line.contains('Cloning upstream repository into '),
+    );
     final firstBlank = stdout.indexWhere(
       (line) => line.isEmpty,
       cloneIndex + 1,
@@ -332,15 +337,17 @@ void main() {
     );
     expect(sdkLinkIndex, greaterThanOrEqualTo(0));
     expect(stdout[sdkLinkIndex + 1], isNot(isEmpty));
-    expect(stdout[sdkLinkIndex + 2], isEmpty);
+    final blankAfterSdkLink = stdout.indexWhere(
+      (line) => line.isEmpty,
+      sdkLinkIndex + 1,
+    );
+    expect(blankAfterSdkLink, greaterThan(sdkLinkIndex));
     final exampleSkipIndex = stdout.indexWhere(
       (line) => line.contains('Skipping example OHOS setup for video_player:'),
     );
-    expect(exampleSkipIndex, greaterThan(sdkLinkIndex));
+    expect(exampleSkipIndex, greaterThan(blankAfterSdkLink));
     final summaryIndex = stdout.indexWhere(
-      (line) => line.contains(
-        'Created package repository at ${packageRepository.path}.',
-      ),
+      (line) => line.contains('Package branch:'),
     );
     expect(summaryIndex, greaterThan(exampleSkipIndex));
     expect(stderr, isEmpty);
@@ -489,7 +496,7 @@ fluoh.yaml
         '${packageRepository.path}/example::create --no-pub --platforms=ohos .',
       ),
     );
-    expect(stdout, contains('Prepared example for camera at example.'));
+    expect(stdout, contains('Prepared example for camera at example'));
     expect(stderr, contains('flutter create stderr'));
   });
 
@@ -554,7 +561,7 @@ fluoh.yaml
       contains('/packages/package_relative_camera/example::create --no-pub'),
     );
     expect(
-      process.stdout.toString(),
+      _normalizeOutput(process.stdout.toString()),
       contains('/packages/package_relative_camera.'),
     );
     expect(
@@ -604,8 +611,12 @@ fluoh.yaml
 
     expect(stderr.join('\n'), contains('Missing LICENSE for camera'));
     expect(
-      stdout,
-      contains('Created package repository at ${packageRepository.path}.'),
+      _normalizeOutput(stdout.join('\n')),
+      contains(
+        _normalizeOutput(
+          'Created package repository at ${packageRepository.path}',
+        ),
+      ),
     );
   });
 
@@ -660,8 +671,12 @@ No derivative works are permitted.
         contains('LICENSE appears to disallow modified redistribution'),
       );
       expect(
-        stdout,
-        contains('Created package repository at ${packageRepository.path}.'),
+        _normalizeOutput(stdout.join('\n')),
+        contains(
+          _normalizeOutput(
+            'Created package repository at ${packageRepository.path}',
+          ),
+        ),
       );
     },
   );
@@ -857,11 +872,15 @@ Prefer the upstream release workflow.
       final guide = File(
         '${packageRepository.path}/FLUOH.md',
       ).readAsStringSync();
-      expect(guide, contains('fluoh package check'));
+      expect(guide, contains('fluoh verify'));
       expect(guide, contains('`fluoh package release`'));
       expect(
-        stdout,
-        contains('Created package repository at ${packageRepository.path}.'),
+        _normalizeOutput(stdout.join('\n')),
+        contains(
+          _normalizeOutput(
+            'Created package repository at ${packageRepository.path}',
+          ),
+        ),
       );
       expect(stderr, isEmpty);
     },
@@ -917,14 +936,18 @@ Prefer the upstream release workflow.
       expect(manifest, contains('packages:\n  syncfusion_flutter_pdf:'));
       expect(manifest, contains('path: packages/syncfusion_flutter_pdf'));
       expect(
-        stdout,
-        contains('Created package repository at ${packageRepository.path}.'),
+        _normalizeOutput(stdout.join('\n')),
+        contains(
+          _normalizeOutput(
+            'Created package repository at ${packageRepository.path}',
+          ),
+        ),
       );
       expect(
         stdout,
         contains(
           'Selected package syncfusion_flutter_pdf at '
-          'packages/syncfusion_flutter_pdf.',
+          'packages/syncfusion_flutter_pdf',
         ),
       );
       expect(stderr, isEmpty);
@@ -1113,7 +1136,7 @@ Prefer the upstream release workflow.
       expect(
         stdout,
         contains(
-          'Registered package share_plus at packages/share_plus/share_plus.',
+          'Registered package share_plus at packages/share_plus/share_plus',
         ),
       );
       expect(stderr, isEmpty);
@@ -1247,7 +1270,7 @@ Prefer the upstream release workflow.
     );
 
     expect(
-      stderr.join('\n'),
+      _normalizeOutput(stderr.join('\n')),
       contains('For packages below the root, select package paths'),
     );
     expect(stderr.join('\n'), contains('--package-path <package-path>'));
@@ -1615,9 +1638,8 @@ class _GuidancePackage {
 
   String get examplePath => path == '.' ? 'example' : '$path/example';
 
-  String get checkCommand => path == '.'
-      ? 'fluoh package check'
-      : 'fluoh package check --package $name';
+  String get verifyCommand =>
+      path == '.' ? 'fluoh verify' : 'fluoh verify --package $name';
 
   String get releaseCommand => path == '.'
       ? 'fluoh package release'
@@ -1647,16 +1669,14 @@ void _expectImplementationGuide(
     'FLUOH_CHANGELOG.md',
     'fluoh help',
     'fluoh help package',
-    'fluoh help package check',
-    'fluoh doctor project --json --strict',
-    'fluoh doctor env --json --strict',
-    'fluoh doctor env --platform all --json --strict',
+    'fluoh help verify',
+    'fluoh doctor --project --json --strict',
     'fluoh deps get',
     'fluoh flutter analyze',
-    '--preset ohos-run',
-    '--preset android-run',
-    '--preset ios-run',
-    '--build-example hap',
+    'fluoh run --platform ohos',
+    'fluoh run --platform android',
+    'fluoh run --platform ios',
+    'fluoh build --platform ohos',
     '--no-codesign',
     '--device <id>',
     'integration_test/',
@@ -1674,7 +1694,7 @@ void _expectImplementationGuide(
   if (packages.length > 1) {
     _expectContainsAll(content, [
       'packages.<name>',
-      'fluoh package check --package <name>',
+      'fluoh verify --package <name>',
       'fluoh package release --all',
     ]);
   }
@@ -1683,7 +1703,7 @@ void _expectImplementationGuide(
     _expectContainsAll(content, [
       package.name,
       package.examplePath,
-      package.checkCommand,
+      package.verifyCommand,
       package.releaseCommand,
     ]);
     if (packages.length > 1) {
@@ -1724,17 +1744,15 @@ void _expectAgentsInstructions(
     'FLUOH_CHANGELOG.md',
     'fluoh help',
     'fluoh help package',
-    'fluoh help package check',
-    'fluoh doctor project --json --strict',
-    'fluoh doctor env --json --strict',
-    'fluoh doctor env --platform all --json --strict',
+    'fluoh help verify',
+    'fluoh doctor --project --json --strict',
     'fluoh deps get',
     'fluoh flutter analyze',
-    '--preset ohos-run',
-    '--preset android-run',
-    '--preset ios-run',
+    'fluoh run --platform ohos',
+    'fluoh run --platform android',
+    'fluoh run --platform ios',
     '--auto-sign',
-    '--build-example hap',
+    'fluoh build --platform ohos',
     '--no-codesign',
     '--device <id>',
     'integration_test/',
@@ -1776,7 +1794,7 @@ void _expectAgentsInstructions(
   if (packages.length > 1) {
     _expectContainsAll(content, [
       'packages.<name>',
-      'fluoh package check --package <name>',
+      'fluoh verify --package <name>',
       'fluoh package release --all',
     ]);
   }
@@ -1785,7 +1803,7 @@ void _expectAgentsInstructions(
     _expectContainsAll(content, [
       package.name,
       package.examplePath,
-      package.checkCommand,
+      package.verifyCommand,
       package.releaseCommand,
     ]);
     if (packages.length > 1) {
@@ -1826,6 +1844,24 @@ void _expectContainsAll(String content, Iterable<String> expected) {
   for (final value in expected) {
     expect(content, contains(value), reason: 'Expected to find "$value".');
   }
+}
+
+void _expectWrappedContainsAll(String content, Iterable<String> expected) {
+  final normalizedContent = _normalizeOutput(content);
+  for (final value in expected) {
+    expect(
+      normalizedContent,
+      contains(_normalizeOutput(value)),
+      reason: 'Expected to find "$value".',
+    );
+  }
+}
+
+String _normalizeOutput(String value) {
+  return value
+      .replaceAll(RegExp(r'(?<=[/-])\s+'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }
 
 Future<void> _addWorkspacePackage(

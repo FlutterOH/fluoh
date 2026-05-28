@@ -44,6 +44,8 @@ Use idiomatic Dart and keep formatting delegated to `dart format`. File names ar
 
 Keep command classes focused on argument parsing and user-visible output. Put reusable behavior in the matching domain helper under `lib/src/<domain>/`. Keep internal implementation under `lib/src/`; only export intentional public API from `lib/fluoh.dart`.
 
+User-facing CLI output should distinguish sentence text from field-like values. Do not add a trailing period to short status fragments, paths, URLs, versions, identifiers, command names, or values after labels such as `SDK path: ...`, `Dart version ...`, `Branch ...`, or `No SDK selected`. Use punctuation only for complete explanatory sentences, multi-sentence guidance, help text, and raw tool output that is intentionally preserved.
+
 Prefer structured parsing for YAML, lockfile, and source index data. Avoid ad hoc string edits when a local parser or helper already exists. When pubspec text must be rewritten, preserve unrelated user content and add regression tests for the exact layout being changed.
 
 Commands that modify a project or package repository must be conservative:
@@ -52,6 +54,11 @@ Commands that modify a project or package repository must be conservative:
 - Preserve local repositories and working trees on network, GitHub, or push failures.
 - Do not delete user-owned directories unless they are known `fluoh` artifacts.
 - Print concise summaries of changes and next steps.
+
+Commands that support `--json` must use the shared machine-output contract:
+write exactly one JSON object to stdout with top-level `schemaVersion`,
+`command`, `ok`, and `exitCode`, then keep command-specific fields at the top
+level. Keep human progress text off stdout/stderr while JSON mode is active.
 
 ## Testing Standards
 

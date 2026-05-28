@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../dependency_analyzer.dart';
@@ -43,13 +43,31 @@ class DepsCheckCommand extends FluohCommand<int> {
       purpose: DependencyPlanPurpose.fix,
     );
     if (argResults!.flag('json')) {
-      stdout(jsonEncode(plan.toJson()));
+      writeMachineOutput(
+        stdout,
+        command: 'deps check',
+        ok: _dependencyPlanOk(plan),
+        exitCode: 0,
+        fields: plan.toJson(),
+      );
       return 0;
     }
 
     _printCheckPlan(_output, plan);
     return 0;
   }
+}
+
+bool _dependencyPlanOk(DependencyPlan plan) {
+  return plan.entries.every((entry) {
+    if (!entry.dependency.direct) {
+      return true;
+    }
+    return const {
+      DependencyPlanStatus.alreadyCurrent,
+      DependencyPlanStatus.native,
+    }.contains(entry.status);
+  });
 }
 
 class DepsFixCommand extends FluohCommand<int> {
@@ -99,7 +117,7 @@ class DepsFixCommand extends FluohCommand<int> {
       changes: plan.changes,
     );
     _output.success(
-      'Updated pubspec.yaml with $applied dependency change${_s(applied)}.',
+      'Updated pubspec.yaml with $applied dependency change${_s(applied)}',
     );
     _printNextStep(_output);
     return 0;
@@ -108,11 +126,11 @@ class DepsFixCommand extends FluohCommand<int> {
 
 void _printCheckPlan(TerminalOutput output, DependencyPlan plan) {
   output.heading(
-    'Dependency OHOS support for Flutter OHOS SDK ${plan.sdkVersion}.',
+    'Dependency OHOS support for Flutter OHOS SDK ${plan.sdkVersion}',
   );
   output.info(
     'Policy: pubspecSection=${plan.policy.pubspecSection.yamlValue}, '
-    'versionChanges=${plan.policy.versionChanges.yamlValue}.',
+    'versionChanges=${plan.policy.versionChanges.yamlValue}',
   );
 
   final ready = plan.entries
@@ -171,15 +189,15 @@ void _printCheckPlan(TerminalOutput output, DependencyPlan plan) {
   output.info(
     'Summary: ${ready.length} ready, ${needsDecision.length} needs decision, '
     '${manual.length} manual, ${unavailable.length} unavailable, '
-    '${ok.length} already OK, ${transitive.length} transitive.',
+    '${ok.length} already OK, ${transitive.length} transitive',
   );
   if (ready.isNotEmpty) {
     output.next(
       'Next: run ${output.style.code('fluoh deps fix')}, then '
-      '${output.style.code('fluoh deps get')}.',
+      '${output.style.code('fluoh deps get')}',
     );
   } else {
-    output.skipped('No dependency changes are currently available.');
+    output.skipped('No dependency changes are currently available');
   }
 }
 
@@ -207,7 +225,7 @@ void _printMutationPlan(
 }) {
   final changes = plan.changes;
   if (changes.isEmpty) {
-    output.skipped('No dependency changes are currently available.');
+    output.skipped('No dependency changes are currently available');
   } else {
     for (final entry in plan.actionableEntries) {
       for (final change in entry.changes) {
@@ -246,11 +264,11 @@ void _printMutationPlan(
   }
 
   if (changes.isNotEmpty && dryRun) {
-    output.warning('Dry run only; pubspec.yaml was not modified.');
+    output.warning('Dry run only; pubspec.yaml was not modified');
   }
   if (changes.isNotEmpty && dryRun) {
     output.next(
-      'Run ${output.style.code('fluoh deps fix')} to apply these changes.',
+      'Run ${output.style.code('fluoh deps fix')} to apply these changes',
     );
   }
 }
@@ -323,7 +341,7 @@ List<String> _advisoryMessages(DependencyPlanEntry entry) {
     );
   }
   if (messages.isEmpty) {
-    messages.add('${entry.dependency.name}: advisory available.');
+    messages.add('${entry.dependency.name}: advisory available');
   }
   return messages;
 }
@@ -359,7 +377,7 @@ String _changeSummary(
 }
 
 void _printNextStep(TerminalOutput output) {
-  output.next('Next: run ${output.style.code('fluoh deps get')}.');
+  output.next('Next: run ${output.style.code('fluoh deps get')}');
 }
 
 String _s(int count) => count == 1 ? '' : 's';

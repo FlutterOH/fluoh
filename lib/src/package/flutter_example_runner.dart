@@ -120,8 +120,8 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       platform: platform,
       command: 'flutter devices --machine',
       code: '$platform.devices_failed',
-      message: 'Could not list Flutter devices.',
-      reason: 'flutter devices --machine failed.',
+      message: 'Could not list Flutter devices',
+      reason: 'flutter devices --machine failed',
       details: _commandDetails(devicesResult),
     );
   }
@@ -134,7 +134,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       platform: platform,
       command: 'flutter devices --machine',
       code: '$platform.devices_failed',
-      message: 'Could not parse Flutter devices.',
+      message: 'Could not parse Flutter devices',
       reason: error.toString(),
       details: _commandDetails(devicesResult),
     );
@@ -204,9 +204,9 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
         platform: platform,
         command: 'flutter devices --machine',
         code: '$platform.device_missing',
-        message: 'The requested emulator did not appear as a Flutter device.',
+        message: 'The requested emulator did not appear as a Flutter device',
         reason:
-            'Started $platform emulator ${emulatorName.trim()}, but no new matching Flutter device appeared.',
+            'Started $platform emulator ${emulatorName.trim()}, but no new matching Flutter device appeared',
         emulator: emulator,
         details: details,
       );
@@ -216,8 +216,8 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
         platform: platform,
         command: 'flutter devices --machine',
         code: '$platform.device_not_found',
-        message: 'The requested Flutter device was not found.',
-        reason: 'No $platform device matched ${deviceId.trim()}.',
+        message: 'The requested Flutter device was not found',
+        reason: 'No $platform device matched ${deviceId.trim()}',
         details: details,
       );
     }
@@ -226,9 +226,9 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
         platform: platform,
         command: 'flutter devices --machine',
         code: '$platform.device_missing',
-        message: 'No Flutter device was available for the platform.',
+        message: 'No Flutter device was available for the platform',
         reason:
-            'No $platform device was available. Connect a device or rerun with --start-emulator.',
+            'No $platform device was available. Connect a device or rerun with --emulator <name>',
         details: details,
       );
     }
@@ -236,8 +236,8 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       platform: platform,
       command: 'flutter devices --machine',
       code: '$platform.device_ambiguous',
-      message: 'Multiple Flutter devices matched the platform.',
-      reason: 'Multiple $platform devices are connected; rerun with --device.',
+      message: 'Multiple Flutter devices matched the platform',
+      reason: 'Multiple $platform devices are connected; rerun with --device',
       details: details,
     );
   }
@@ -341,8 +341,8 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
       platform: platform,
       command: '$platform native emulator list',
       code: '$platform.emulators_failed',
-      message: 'Could not list native emulators.',
-      reason: report.message ?? 'Native emulator listing failed.',
+      message: 'Could not list native emulators',
+      reason: report.message ?? 'Native emulator listing failed',
       details: report.toJson(),
     );
   }
@@ -359,8 +359,8 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
         platform: platform,
         command: '$platform native emulator list',
         code: '$platform.emulator_not_found',
-        message: 'The requested native emulator was not found.',
-        reason: 'No $platform emulator matched ${emulatorName.trim()}.',
+        message: 'The requested native emulator was not found',
+        reason: 'No $platform emulator matched ${emulatorName.trim()}',
         details: details,
       );
     }
@@ -369,8 +369,8 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
         platform: platform,
         command: '$platform native emulator list',
         code: '$platform.emulator_missing',
-        message: 'No native emulator was available for the platform.',
-        reason: 'No $platform emulator was available.',
+        message: 'No native emulator was available for the platform',
+        reason: 'No $platform emulator was available',
         details: details,
       );
     }
@@ -378,14 +378,14 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
       platform: platform,
       command: '$platform native emulator list',
       code: '$platform.emulator_ambiguous',
-      message: 'Multiple native emulators matched the platform.',
+      message: 'Multiple native emulators matched the platform',
       reason:
-          'Multiple $platform emulators are available; rerun with --emulator.',
+          'Multiple $platform emulators are available; rerun with --emulator',
       details: details,
     );
   }
 
-  output.step('Starting $platform emulator ${emulator.id}.');
+  output.step('Starting $platform emulator ${emulator.id}');
   final startResult = await startPlatformEmulator(
     environment: environment,
     platform: fluohPlatform,
@@ -399,7 +399,7 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
       platform: platform,
       command: command,
       code: '$platform.emulator_start_failed',
-      message: 'Could not start the native emulator.',
+      message: 'Could not start the native emulator',
       reason: startResult.message,
       emulator: _flutterEmulatorFromNative(emulator),
       details: startResult.toJson(),
@@ -490,8 +490,8 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
         platform: platform,
         command: 'flutter devices --machine',
         code: '$platform.devices_failed',
-        message: 'Could not list Flutter devices.',
-        reason: 'flutter devices --machine failed.',
+        message: 'Could not list Flutter devices',
+        reason: 'flutter devices --machine failed',
         details: _commandDetails(result),
       );
     }
@@ -503,7 +503,7 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
         platform: platform,
         command: 'flutter devices --machine',
         code: '$platform.devices_failed',
-        message: 'Could not parse Flutter devices.',
+        message: 'Could not parse Flutter devices',
         reason: error.toString(),
         details: _commandDetails(result),
       );
@@ -524,8 +524,8 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
     platform: platform,
     command: 'flutter devices --machine',
     code: '$platform.device_missing',
-    message: 'No Flutter device appeared before the timeout.',
-    reason: 'No $platform device appeared within ${deviceTimeout.inSeconds}s.',
+    message: 'No Flutter device appeared before the timeout',
+    reason: 'No $platform device appeared within ${deviceTimeout.inSeconds}s',
     details: {
       'timeoutSeconds': deviceTimeout.inSeconds,
       if (lastResult != null) ..._commandDetails(lastResult),
@@ -635,7 +635,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       emulator: emulator,
       outputLog: outputLog,
       code: '$platform.launch_timeout',
-      message: 'Flutter example launch did not complete before the timeout.',
+      message: 'Flutter example launch did not complete before the timeout',
       reason:
           'No Flutter launch signal was detected within ${launchTimeout.inSeconds}s.',
       details: {
@@ -663,7 +663,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       emulator: emulator,
       outputLog: outputLog,
       code: '$platform.runtime_crash',
-      message: 'Flutter example output indicates a runtime failure.',
+      message: 'Flutter example output indicates a runtime failure',
       reason: firstState.line,
       details: {
         'exitCodeAfterKill': exitCode,
@@ -690,8 +690,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
         emulator: emulator,
         outputLog: outputLog,
         code: '$platform.run_failed',
-        message: 'Flutter example run failed.',
-        reason: 'flutter run exited with code ${firstState.exitCode}.',
+        message: 'Flutter example run failed',
+        reason: 'flutter run exited with code ${firstState.exitCode}',
         details: {
           'exitCode': firstState.exitCode,
           'target': target.toJson(),
@@ -740,7 +740,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       emulator: emulator,
       outputLog: outputLog,
       code: '$platform.runtime_crash',
-      message: 'Flutter example output indicates a runtime failure.',
+      message: 'Flutter example output indicates a runtime failure',
       reason: secondState.line,
       details: {
         'exitCodeAfterKill': exitCode,
@@ -767,8 +767,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
         emulator: emulator,
         outputLog: outputLog,
         code: '$platform.run_failed',
-        message: 'Flutter example run failed.',
-        reason: 'flutter run exited with code ${secondState.exitCode}.',
+        message: 'Flutter example run failed',
+        reason: 'flutter run exited with code ${secondState.exitCode}',
         details: {
           'exitCode': secondState.exitCode,
           'target': target.toJson(),

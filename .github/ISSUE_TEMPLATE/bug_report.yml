@@ -25,6 +25,20 @@ body:
     validations:
       required: true
   - type: textarea
+    id: doctor
+    attributes:
+      label: Doctor output
+      description: Run `fluoh doctor -p` from the affected project when possible, or `fluoh doctor` outside a project, and paste the full output.
+      render: text
+      placeholder: |
+        [✓] fluoh (...)
+            • Dart version ...
+
+        [✓] Sources
+            • flutteroh: ...
+    validations:
+      required: true
+  - type: textarea
     id: steps
     attributes:
       label: Reproduction steps
@@ -54,15 +68,13 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Include OS, Dart version, FlutterOH SDK tag, and any relevant FLUOH_HOME/source configuration.
+      description: Add any environment details that are not visible in the doctor output.
       placeholder: |
-        OS:
-        Dart:
         FlutterOH SDK:
-        FLUOH_HOME:
-        Sources:
+        FLUOH_HOME override:
+        Private source or mirror notes:
     validations:
-      required: true
+      required: false
   - type: textarea
     id: context
     attributes:

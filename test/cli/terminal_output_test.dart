@@ -42,6 +42,42 @@ void main() {
     expect(stderr, ['\u001b[31m✗\u001b[0m No SDK selected.']);
   });
 
+  test('status messages wrap at the configured line length', () {
+    final stdout = <String>[];
+    final output = TerminalOutput(stdout: stdout.add, lineLength: 32);
+
+    output.warning(
+      'No FlutterOH SDK selected for this project; run fluoh sdk use 3.35.',
+    );
+
+    expect(stdout.length, greaterThan(1));
+    expect(stdout.every((line) => line.length <= 32), isTrue);
+  });
+
+  test('decorated wrapped messages align continuation lines', () {
+    final stdout = <String>[];
+    final output = TerminalOutput(
+      stdout: stdout.add,
+      lineLength: 36,
+      style: const TerminalStyle(
+        capabilities: TerminalCapabilities(
+          ansi: true,
+          decorated: true,
+          unicode: true,
+        ),
+      ),
+    );
+
+    output.warning(
+      'No FlutterOH SDK selected for this project; run fluoh sdk use 3.35.',
+    );
+
+    expect(stdout.length, greaterThan(1));
+    expect(stdout.first, startsWith('\u001b[33m!\u001b[0m '));
+    expect(stdout.skip(1).every((line) => line.startsWith('  ')), isTrue);
+    expect(stdout.map(_stripAnsi).every((line) => line.length <= 36), isTrue);
+  });
+
   test('style uses standard ANSI color codes', () {
     const style = TerminalStyle(
       capabilities: TerminalCapabilities(
@@ -165,4 +201,8 @@ void main() {
       expect(redirected.unicode, isTrue);
     },
   );
+}
+
+String _stripAnsi(String value) {
+  return value.replaceAll(RegExp('\u001b\\[[0-9;]*m'), '');
 }

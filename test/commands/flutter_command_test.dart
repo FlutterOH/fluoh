@@ -352,7 +352,7 @@ exit 1
     expect(
       stderr,
       contains(
-        'OHOS HAP build reached signing and failed on local signing configuration.',
+        'OHOS HAP build reached signing and failed on local signing configuration',
       ),
     );
     expect(
@@ -427,7 +427,7 @@ exit 1
       expect(
         output,
         contains(
-          'OHOS HAP build reached signing and failed on local signing configuration.',
+          'OHOS HAP build reached signing and failed on local signing configuration',
         ),
       );
       expect(output, contains('Configure DevEco Studio debug signing'));
@@ -477,7 +477,7 @@ exit 2
     );
 
     expect(stderr, contains('ArkTS compile failed before packaging'));
-    expect(stderr, contains('OHOS HAP build failed.'));
+    expect(stderr, contains('OHOS HAP build failed'));
     expect(stderr.join('\n'), contains('No signing-only failure was detected'));
     expect(stderr.join('\n'), isNot(contains('reached signing')));
   });

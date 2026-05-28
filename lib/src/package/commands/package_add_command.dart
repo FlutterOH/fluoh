@@ -115,7 +115,7 @@ class PackageAddCommand extends FluohCommand<int> {
       if (!exampleSetupResult.prepared && exampleSetupResult.reason != null) {
         _output.skipped(
           'Skipping example OHOS setup for ${exampleSetupResult.packageName}: '
-          '${exampleSetupResult.reason}.',
+          '${exampleSetupResult.reason}',
         );
       }
       await _writePackageDocs(
@@ -148,10 +148,10 @@ class PackageAddCommand extends FluohCommand<int> {
       await rollbackPackageAdd();
       rethrow;
     }
-    _output.success('Registered package ${package.name} at $packagePath.');
+    _output.success('Registered package ${package.name} at $packagePath');
     _output.next(
       'Implement OHOS support for ${package.name}, then release it with '
-      '"fluoh package release --package ${package.name}".',
+      '"fluoh package release --package ${package.name}"',
     );
     return 0;
   }

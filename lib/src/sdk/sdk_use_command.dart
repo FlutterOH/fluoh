@@ -58,22 +58,22 @@ class SdkUseCommand extends FluohCommand<int> {
     final manager = SdkManager(environment);
     final release = await manager.resolveRelease(rest.single);
     _output.step(
-      'Will modify ${_output.style.path(environment.workingDirectory.path)}/fluoh.yaml.',
+      'Will modify ${_output.style.path(environment.workingDirectory.path)}/fluoh.yaml',
     );
     final installed = await manager.sdkDirectory(release.tag).exists();
     final projectEnvironment = SdkProjectEnvironment(environment);
     await projectEnvironment.ensureIdeSdkLinkCanBeUpdated();
     final sdkDirectory = await _output.withProgress(
       installed
-          ? 'Configuring Flutter OHOS SDK ${release.tag}.'
+          ? 'Configuring Flutter OHOS SDK ${release.tag}'
           : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
       () => projectEnvironment.configure(release),
     );
     _output.info(
-      'Flutter OHOS SDK path: ${_output.style.path(sdkDirectory.path)}.',
+      'Flutter OHOS SDK path: ${_output.style.path(sdkDirectory.path)}',
     );
     final ideLink = await projectEnvironment.linkIdeSdk(sdkDirectory);
-    _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}.');
+    _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}');
     _output.next(
       'Use this link as your IDE Flutter SDK path; reload the IDE if it keeps the old SDK.',
     );
@@ -84,7 +84,7 @@ class SdkUseCommand extends FluohCommand<int> {
       await _runPubGet(sdkDirectory);
     }
 
-    _output.success('Using Flutter OHOS SDK ${release.tag}.');
+    _output.success('Using Flutter OHOS SDK ${release.tag}');
     return 0;
   }
 
@@ -141,7 +141,7 @@ class SdkUseCommand extends FluohCommand<int> {
   Future<void> _initOhosPlatform(Directory sdkDirectory) async {
     final ohos = Directory('${environment.workingDirectory.path}/ohos');
     if (await ohos.exists()) {
-      _output.skipped('OHOS platform directory already exists.');
+      _output.skipped('OHOS platform directory already exists');
       return;
     }
 
@@ -165,6 +165,6 @@ class SdkUseCommand extends FluohCommand<int> {
         '',
       );
     }
-    _output.success('Initialized OHOS platform directory.');
+    _output.success('Initialized OHOS platform directory');
   }
 }

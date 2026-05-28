@@ -4,7 +4,7 @@ import '../../cli/command_usage.dart';
 import '../../cli/fluoh_command_runner.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
-import 'deps_dependency_commands.dart';
+import 'dependency_plan_commands.dart';
 import 'deps_get_command.dart';
 import 'deps_upgrade_command.dart';
 

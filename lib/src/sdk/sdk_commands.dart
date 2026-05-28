@@ -158,10 +158,10 @@ class SdkInstallCommand extends FluohCommand<int> {
 
     final release = await manager.resolveRelease(rest.single);
     await _output.withProgress(
-      'Installing SDK ${release.tag}.',
+      'Installing SDK ${release.tag}',
       () => manager.install(release),
     );
-    _output.success('Installed SDK ${release.tag}.');
+    _output.success('Installed SDK ${release.tag}');
     return 0;
   }
 }
@@ -188,7 +188,7 @@ class SdkCurrentCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final version = await manager.currentSdkVersion();
     if (version == null || version.isEmpty) {
-      _output.warning('No SDK selected.');
+      _output.warning('No SDK selected');
       return 1;
     }
 
@@ -227,7 +227,7 @@ class SdkRemoveCommand extends FluohCommand<int> {
     );
 
     final tag = await manager.remove(rest.single);
-    _output.success('Removed SDK $tag.');
+    _output.success('Removed SDK $tag');
     return 0;
   }
 }
