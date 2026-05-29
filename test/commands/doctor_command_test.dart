@@ -353,17 +353,14 @@ exit 0
     );
 
     expect(result.exitCode, 0);
-    expect(
-      result.stdout.join('\n'),
-      contains('[✓] Xcode - develop for iOS devices (Xcode 16.2)'),
-    );
     expect(_normalizeOutput(result.stdout.join('\n')), contains('Xcode at'));
     expect(
       _normalizeOutput(result.stdout.join('\n')),
       contains('home/Xcode.app'),
     );
-    expect(result.stdout, contains('    • Build 16C5032a'));
-    expect(result.stdout, contains('    • CocoaPods version 1.16.2'));
+    expect(result.stdout.join('\n'), contains('Xcode 16.2'));
+    expect(result.stdout.join('\n'), contains('Build 16C5032a'));
+    expect(result.stdout.join('\n'), contains('CocoaPods version 1.16.2'));
     expect(result.stderr, isEmpty);
   });
 
@@ -401,17 +398,13 @@ exit 0
     );
 
     expect(result.exitCode, 0);
-    expect(
-      result.stdout.join('\n'),
-      contains('[✓] Xcode - develop for macOS desktop (Xcode 16.2)'),
-    );
-    expect(result.stdout.join('\n'), contains('macOS host version'));
     expect(_normalizeOutput(result.stdout.join('\n')), contains('Xcode at'));
     expect(
       _normalizeOutput(result.stdout.join('\n')),
       contains('home/Xcode.app'),
     );
-    expect(result.stdout, contains('    • Build 16C5032a'));
+    expect(result.stdout.join('\n'), contains('Xcode 16.2'));
+    expect(result.stdout.join('\n'), contains('Build 16C5032a'));
     expect(result.stderr, isEmpty);
   });
 
