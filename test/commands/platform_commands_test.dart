@@ -228,14 +228,18 @@ exit 1
         stdout: stdout.add,
         stderr: stderr.add,
       ),
-      0,
+      Platform.isMacOS ? 0 : 1,
     );
 
     final output = stdout.join('\n');
     expect(output, contains('- No devices found'));
     expect(output, contains('- Office iPhone    WIRELESS-DEVICE-UDID'));
-    expect(output, contains('- macOS    macos'));
-    expect(output, isNot(contains('macos    available')));
+    if (Platform.isMacOS) {
+      expect(output, contains('- macOS    macos'));
+      expect(output, isNot(contains('macos    available')));
+    } else {
+      expect(output, contains('macOS desktop targets require a macOS host'));
+    }
     expect(output, isNot(contains('Run on a target:')));
     expect(stderr, isEmpty);
   });
