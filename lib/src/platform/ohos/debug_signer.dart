@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:math';
 
-import '../cli/terminal_output.dart';
-import '../context/fluoh_environment.dart';
+import '../../cli/terminal_output.dart';
+import '../../context/fluoh_environment.dart';
 import 'build_profile_signing.dart';
 import 'ohos_toolchain.dart';
 import 'permission_profile.dart';

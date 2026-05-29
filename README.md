@@ -127,7 +127,7 @@ Then open the generated repository in an AI coding agent and ask it to read
 `FLUOH.md` give the agent a staged command flow:
 `fluoh doctor -p --json --strict` for repository and local toolchain
 state, `fluoh verify --json` for
-package and example tests, `fluoh run --platform ohos|android|ios --json` for
+package and example tests, `fluoh run --platform ohos|android|ios|macos --json` for
 diagnostics-driven implementation loops, JSON `nextCommand` for the next action,
 and `.fluoh/ai-report-...md` for the final release recommendation.
 Review the final diff and device-only behavior before release.

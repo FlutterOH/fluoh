@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:fluoh/src/ohos/build_profile_signing.dart';
+import 'package:fluoh/src/platform/ohos/build_profile_signing.dart';
 import 'package:test/test.dart';
 
 void main() {

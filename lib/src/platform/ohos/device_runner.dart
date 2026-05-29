@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
 
-import '../cli/terminal_output.dart';
-import '../context/fluoh_environment.dart';
+import '../../cli/terminal_output.dart';
+import '../../context/fluoh_environment.dart';
 import 'ohos_toolchain.dart';
 import 'permission_profile.dart';
 

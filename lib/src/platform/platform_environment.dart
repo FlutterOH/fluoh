@@ -3,16 +3,17 @@ import 'dart:convert';
 import 'dart:io' as io;
 
 import '../context/fluoh_environment.dart';
-import '../ohos/device_runner.dart';
-import '../ohos/ohos_toolchain.dart';
+import 'ohos/device_runner.dart';
+import 'ohos/ohos_toolchain.dart';
 
-enum FluohPlatform { android, ios, ohos }
+enum FluohPlatform { android, ios, macos, ohos }
 
 extension FluohPlatformName on FluohPlatform {
   String get cliName {
     return switch (this) {
       FluohPlatform.android => 'android',
       FluohPlatform.ios => 'ios',
+      FluohPlatform.macos => 'macos',
       FluohPlatform.ohos => 'ohos',
     };
   }
@@ -163,6 +164,7 @@ Future<List<PlatformDoctorReport>> inspectPlatformEnvironment({
       switch (platform) {
         FluohPlatform.android => await _inspectAndroid(environment),
         FluohPlatform.ios => await _inspectIos(environment),
+        FluohPlatform.macos => await _inspectMacos(environment),
         FluohPlatform.ohos => await _inspectOhos(environment),
       },
   ];
@@ -177,6 +179,7 @@ Future<List<PlatformTargetReport>> listPlatformDeviceReports({
       switch (platform) {
         FluohPlatform.android => await _listAndroidDevices(environment),
         FluohPlatform.ios => await _listIosDevices(environment),
+        FluohPlatform.macos => await _listMacosDevices(environment),
         FluohPlatform.ohos => await _listOhosDevices(environment),
       },
   ];
@@ -194,6 +197,7 @@ Future<List<PlatformTargetReport>> listPlatformEmulatorReports({
           environment,
           kind: 'emulator',
         ),
+        FluohPlatform.macos => _listMacosEmulators(),
         FluohPlatform.ohos => await _listOhosEmulators(environment),
       },
   ];
@@ -207,6 +211,7 @@ Future<PlatformStartResult> startPlatformEmulator({
   return switch (platform) {
     FluohPlatform.android => _startAndroidEmulator(environment, emulator),
     FluohPlatform.ios => _startIosSimulator(environment, emulator),
+    FluohPlatform.macos => _startMacosEmulator(emulator),
     FluohPlatform.ohos => _startOhosEmulator(environment, emulator),
   };
 }
@@ -431,6 +436,65 @@ Future<PlatformDoctorReport> _inspectIos(FluohEnvironment environment) async {
   );
 }
 
+Future<PlatformDoctorReport> _inspectMacos(FluohEnvironment environment) async {
+  final env = environment.processEnvironment;
+  final xcrun = await _xcrun(env);
+  final developerDir = await _xcodeDeveloperDirectory(env);
+  final xcrunVersion = await _toolVersion(
+    xcrun,
+    const ['--version'],
+    environment: env,
+    parser: _xcrunVersion,
+  );
+  final xcodeBuild = xcrun == null
+      ? null
+      : await _runTool(xcrun.path, const [
+          'xcodebuild',
+          '-version',
+        ], environment: env);
+  final xcodeOutput = xcodeBuild == null || xcodeBuild.exitCode != 0
+      ? ''
+      : '${xcodeBuild.stdout}\n${xcodeBuild.stderr}';
+  final xcodeVersion = xcodeOutput.isEmpty ? null : _xcodeVersion(xcodeOutput);
+  final xcodeBuildVersion = xcodeOutput.isEmpty
+      ? null
+      : _xcodeBuildVersion(xcodeOutput);
+
+  return PlatformDoctorReport(
+    platform: FluohPlatform.macos,
+    checks: [
+      PlatformToolCheck(
+        id: 'macos.host',
+        label: 'macOS host',
+        ok: io.Platform.isMacOS,
+        message: io.Platform.isMacOS
+            ? 'Running on macOS'
+            : 'macOS desktop builds require a macOS host',
+        version: io.Platform.operatingSystemVersion,
+      ),
+      _toolCheck(
+        id: 'macos.xcrun',
+        label: 'xcrun',
+        executable: xcrun,
+        version: xcrunVersion,
+        missingMessage:
+            'xcrun was not found; install Xcode command line tools.',
+      ),
+      PlatformToolCheck(
+        id: 'macos.xcode',
+        label: 'Xcode',
+        ok: developerDir != null,
+        message: developerDir == null
+            ? 'Xcode developer directory was not found'
+            : 'Xcode developer directory exists',
+        path: developerDir,
+        version: xcodeVersion,
+        details: _optionalDetail('buildVersion', xcodeBuildVersion),
+      ),
+    ],
+  );
+}
+
 Future<PlatformDoctorReport> _inspectOhos(FluohEnvironment environment) async {
   final checks = <PlatformToolCheck>[];
   try {
@@ -617,6 +681,44 @@ Future<PlatformTargetReport> _listIosDevices(
     kind: kind,
     ok: true,
     targets: [...physicalDevices, ...simulators],
+  );
+}
+
+Future<PlatformTargetReport> _listMacosDevices(
+  FluohEnvironment environment,
+) async {
+  if (!io.Platform.isMacOS) {
+    return const PlatformTargetReport(
+      platform: FluohPlatform.macos,
+      kind: 'device',
+      ok: false,
+      targets: [],
+      message: 'macOS desktop targets require a macOS host',
+    );
+  }
+  return PlatformTargetReport(
+    platform: FluohPlatform.macos,
+    kind: 'device',
+    ok: true,
+    targets: [
+      PlatformTarget(
+        platform: FluohPlatform.macos,
+        id: 'macos',
+        name: 'macOS',
+        kind: 'device',
+        state: 'available',
+        details: {'host': ?environment.processEnvironment['HOSTNAME']},
+      ),
+    ],
+  );
+}
+
+PlatformTargetReport _listMacosEmulators() {
+  return const PlatformTargetReport(
+    platform: FluohPlatform.macos,
+    kind: 'emulator',
+    ok: true,
+    targets: [],
   );
 }
 
@@ -828,6 +930,16 @@ Future<PlatformStartResult> _startIosSimulator(
     message: ok
         ? 'Started iOS simulator ${simulator.name}'
         : _commandFailureMessage(command.join(' '), result),
+  );
+}
+
+PlatformStartResult _startMacosEmulator(String? requested) {
+  return PlatformStartResult(
+    platform: FluohPlatform.macos,
+    ok: false,
+    emulator: requested ?? '',
+    command: const [],
+    message: 'macOS uses the local host and does not provide emulators',
   );
 }
 

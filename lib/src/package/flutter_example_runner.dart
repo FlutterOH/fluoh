@@ -286,6 +286,7 @@ String _platformForBuildTarget(String target) {
   return switch (target) {
     'apk' => 'android',
     'ios' => 'ios',
+    'macos' => 'macos',
     _ => throw ArgumentError.value(target, 'target', 'Unsupported target.'),
   };
 }
@@ -304,6 +305,11 @@ List<FlutterDeviceTarget> _devicesForPlatform(
 
 bool _matchesPlatform(String value, String platform) {
   final normalized = value.toLowerCase();
+  if (platform == 'macos') {
+    return normalized == 'macos' ||
+        normalized.startsWith('darwin-') ||
+        normalized.contains('macos');
+  }
   return normalized == platform || normalized.contains(platform);
 }
 
@@ -419,6 +425,7 @@ FluohPlatform _fluohPlatformForRunPlatform(String platform) {
   return switch (platform) {
     'android' => FluohPlatform.android,
     'ios' => FluohPlatform.ios,
+    'macos' => FluohPlatform.macos,
     _ => throw ArgumentError.value(platform, 'platform', 'Unsupported target.'),
   };
 }

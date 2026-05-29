@@ -367,6 +367,54 @@ exit 0
     expect(result.stderr, isEmpty);
   });
 
+  test('reports macOS native tooling details in plain output', () async {
+    final environment = await createTestEnvironment();
+    final xcode = Directory('${environment.homeDirectory.path}/Xcode.app');
+    await xcode.create(recursive: true);
+    final xcrun = File('${environment.homeDirectory.path}/bin/xcrun');
+    await _writeExecutable(xcrun, '''
+if [ "\$1" = "--version" ]; then
+  printf "xcrun version 70.\\n"
+  exit 0
+fi
+if [ "\$1" = "xcodebuild" ]; then
+  printf "Xcode 16.2\\nBuild version 16C5032a\\n"
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'DEVELOPER_DIR': xcode.path,
+        'FLUOH_XCRUN': xcrun.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'macos'],
+    );
+
+    expect(result.exitCode, 0);
+    expect(
+      result.stdout.join('\n'),
+      contains('[✓] Xcode - develop for macOS desktop (Xcode 16.2)'),
+    );
+    expect(result.stdout.join('\n'), contains('macOS host version'));
+    expect(_normalizeOutput(result.stdout.join('\n')), contains('Xcode at'));
+    expect(
+      _normalizeOutput(result.stdout.join('\n')),
+      contains('home/Xcode.app'),
+    );
+    expect(result.stdout, contains('    • Build 16C5032a'));
+    expect(result.stderr, isEmpty);
+  });
+
   test(
     'prints json and returns non-zero in strict mode when warnings exist',
     () async {

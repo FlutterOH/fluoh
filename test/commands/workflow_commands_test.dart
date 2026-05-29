@@ -328,6 +328,63 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('can build example macOS and emit json results', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['build', '--platform', 'macos', '--debug', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    expect(
+      File(
+        '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+      ).readAsStringSync(),
+      contains('$root/example::flutter build macos --debug'),
+    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-build-macos'),
+          containsPair('command', 'flutter build macos --debug'),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('emits platform diagnostics for failed example builds', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
@@ -1056,6 +1113,94 @@ void main() {
             'command',
             'flutter test integration_test -d emulator-5554',
           ),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('can run macOS example and integration tests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"macos","name":"macOS","targetPlatform":"darwin-arm64","isSupported":true}]',
+        'run -d macos --debug --no-pub':
+            'Flutter run key commands.\\nApplication running.',
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await Directory(
+      '${environment.workingDirectory.path}/example/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
+    ).writeAsString('void main() {}\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['run', '--platform', 'macos', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    final invocations = File(
+      '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+    ).readAsStringSync();
+    expect(invocations, contains('$root/example::flutter devices --machine'));
+    expect(invocations, contains('$root/example::flutter build macos --debug'));
+    expect(
+      invocations,
+      contains('$root/example::flutter run -d macos --debug --no-pub'),
+    );
+    expect(
+      invocations,
+      contains('$root/example::flutter test integration_test -d macos'),
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-run-macos'),
+          containsPair('command', 'flutter run -d macos --debug --no-pub'),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'example-integration-macos'),
+          containsPair('command', 'flutter test integration_test -d macos'),
           containsPair('status', 'passed'),
         ),
       ),

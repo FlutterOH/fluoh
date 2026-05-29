@@ -47,8 +47,8 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 | `fluoh build --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | Build a project or package example. |
 | `fluoh run --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | Build, install, launch, and diagnose an app. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose environment, native tools, and optional project state. |
-| `fluoh devices` | `lib/src/platform/platform_commands.dart` | List connected OHOS, Android, and iOS targets. |
-| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | List and launch local OHOS, Android, and iOS emulators or simulators. |
+| `fluoh devices` | `lib/src/platform/platform_commands.dart` | List connected OHOS, Android, iOS, and macOS targets. |
+| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | List and launch local OHOS, Android, iOS, and macOS emulators or simulators. |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | Upgrade the installed `fluoh` CLI. |
 
 ## Shared Runtime Rules
@@ -108,7 +108,7 @@ Design constraints:
 `doctor` is diagnostic and returns success after printing its findings unless
 `--strict` is used. Bare `fluoh doctor` checks the fluoh installation, Dart
 runtime, configured source snapshots, OpenHarmony tooling, Android SDK tools,
-Java, Xcode `xcrun`, `simctl`, and currently connected OHOS, Android, and iOS devices. The
+Java, Xcode `xcrun`, `simctl`, and currently connected OHOS, Android, iOS, and macOS devices. The
 default plain output prints the full doctor report: one row per category plus
 checked tools, source entries, emulator summaries, paths, command summaries,
 versions, and per-check timings. Source entries are listed under a stable
@@ -119,11 +119,11 @@ verbose flags as pub logging flags when a global executable falls back to pub,
 which can print dependency solver output before fluoh starts. When the current
 directory is a Flutter project, it also checks project shape, selected
 FlutterOH SDK, and the selected platform directories only when `-p` or
-`--project` is passed. Use `--platform ohos|android|ios` to narrow native
+`--project` is passed. Use `--platform ohos|android|ios|macos` to narrow native
 toolchain and project platform checks.
 
 Checks are organized into three groups: fluoh and source snapshot health,
-platform toolchains for OHOS, Android, and iOS, and optional current-project
+platform toolchains for OHOS, Android, iOS, and macOS, and optional current-project
 state. Platform titles name both sides of the mapping: OpenHarmony tooling
 develops for OHOS devices, Android tooling develops for Android devices, and
 Xcode develops for iOS devices.
@@ -318,6 +318,8 @@ The AI adaptation flow uses a small command set with clear ownership:
    `fluoh run --platform android --package <name> --json`.
    When `example/ios` exists, use the matching iOS doctor command and
    `fluoh run --platform ios --package <name> --json`.
+   When `example/macos` exists, use the matching macOS doctor command and
+   `fluoh run --platform macos --package <name> --json`.
 6. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
    `stderrTail`, and saved run logs from JSON output before editing. Fix
    `doctor` failures in local tooling, project warnings in
@@ -403,7 +405,7 @@ package repository it also verifies each top-level Flutter example when
 under `targets`, with target identity, phase, steps, diagnostics, and
 `nextCommand`.
 
-`fluoh build --platform ohos|android|ios` builds the current Flutter project or
+`fluoh build --platform ohos|android|ios|macos` builds the current Flutter project or
 the selected package example. iOS builds automatically add `--no-codesign`.
 OHOS builds can use `--auto-sign` to generate a temporary local debug signing
 profile from the project's or example's requested permissions, patch
@@ -412,26 +414,26 @@ the build. If Flutter leaves a fresh unsigned HAP after Hvigor signing fails,
 `fluoh` directly signs that HAP and reports `signingMode:
 direct-sign-fallback` plus the installable HAP paths. JSON failures use
 platform-specific diagnostic codes such as `ohos.hap_build_failed`,
-`android.apk_build_failed`, and `ios.build_failed` for both projects and
-package examples.
+`android.apk_build_failed`, `ios.build_failed`, and `macos.build_failed` for
+both projects and package examples.
 
-`fluoh run --platform ohos|android|ios` builds, installs, launches, and
+`fluoh run --platform ohos|android|ios|macos` builds, installs, launches, and
 diagnoses the current project or selected package example. For OHOS projects
 and package examples it signs the HAP, installs it with `hdc`, starts the
 ability, captures a short hilog, and reports runtime crash patterns. For
-Android and iOS package examples it launches through the selected SDK's
+Android, iOS, and macOS package examples it launches through the selected SDK's
 `flutter run`, captures smoke output under `$FLUOH_HOME/package-runs`, and runs
 `flutter test integration_test -d <device>` when the example has an
 `integration_test/` directory. Use `--device <id>` for an already connected
-target or `--emulator <name>` to select and start a local emulator or simulator.
-Android and iOS current-project runs use the same Flutter device discovery,
-platform filtering, emulator startup, run-smoke timeout, and saved output log
-path as package examples, but they do not run package example integration
-tests.
+target or `--emulator <name>` to select and start a local emulator or simulator
+where the platform provides one. Android, iOS, and macOS current-project runs
+use the same Flutter device discovery, platform filtering, run-smoke timeout,
+and saved output log path as package examples, but they do not run package
+example integration tests.
 JSON failures include platform run diagnostics such as `ohos.run_failed`,
-`android.run_failed`, and `ios.run_failed` for current-project runs, while
-package examples keep their more specific install, launch, runtime, and
-integration-test diagnostics where available.
+`android.run_failed`, `ios.run_failed`, and `macos.run_failed` for
+current-project runs, while package examples keep their more specific install,
+launch, runtime, and integration-test diagnostics where available.
 
 `fluoh package release` validates release metadata, verifies that the configured
 SDK version exists in sources, runs `fluoh verify`, ensures the working

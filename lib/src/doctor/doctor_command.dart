@@ -12,8 +12,8 @@ import '../cli/machine_output.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../cli/terminal_output.dart';
-import '../ohos/device_runner.dart';
-import '../ohos/ohos_toolchain.dart';
+import '../platform/ohos/device_runner.dart';
+import '../platform/ohos/ohos_toolchain.dart';
 import '../platform/platform_environment.dart';
 import '../sdk/sdk_project_config.dart';
 import '../source/source_sync.dart';
@@ -28,6 +28,7 @@ const _ohosToolchainBaseTitle =
 const _androidToolchainBaseTitle =
     'Android toolchain - develop for Android devices';
 const _iosToolchainBaseTitle = 'Xcode - develop for iOS devices';
+const _macosToolchainBaseTitle = 'Xcode - develop for macOS desktop';
 
 class DoctorVersionMetadata {
   const DoctorVersionMetadata({
@@ -90,13 +91,14 @@ class DoctorCommand extends FluohCommand<int> {
       )
       ..addOption(
         'platform',
-        allowed: const ['all', 'ohos', 'android', 'ios'],
+        allowed: const ['all', 'ohos', 'android', 'ios', 'macos'],
         help: 'Platforms to check. All platforms are checked by default.',
         allowedHelp: const {
-          'all': 'Check OHOS, Android, and iOS.',
+          'all': 'Check OHOS, Android, iOS, and macOS.',
           'ohos': 'Check OHOS local tooling.',
           'android': 'Check Android SDK, adb, emulator, avdmanager, and Java.',
           'ios': 'Check Xcode xcrun and simctl.',
+          'macos': 'Check macOS host and Xcode command line tools.',
         },
       );
   }
@@ -746,11 +748,18 @@ List<FluohPlatform> _platformsFromOption(String? value) {
       FluohPlatform.ohos,
       FluohPlatform.android,
       FluohPlatform.ios,
+      FluohPlatform.macos,
     ],
     'ohos' => const [FluohPlatform.ohos],
     'android' => const [FluohPlatform.android],
     'ios' => const [FluohPlatform.ios],
-    _ => const [FluohPlatform.ohos, FluohPlatform.android, FluohPlatform.ios],
+    'macos' => const [FluohPlatform.macos],
+    _ => const [
+      FluohPlatform.ohos,
+      FluohPlatform.android,
+      FluohPlatform.ios,
+      FluohPlatform.macos,
+    ],
   };
 }
 
@@ -913,6 +922,7 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
   final title = switch (report.platform) {
     FluohPlatform.android => _androidToolchainBaseTitle,
     FluohPlatform.ios => _iosToolchainBaseTitle,
+    FluohPlatform.macos => _macosToolchainBaseTitle,
     FluohPlatform.ohos => _ohosToolchainBaseTitle,
   };
   final version = switch (report.platform) {
@@ -920,6 +930,7 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
       _checkVersion(report, 'android.sdk') ??
           _checkVersion(report, 'android.adb'),
     FluohPlatform.ios => _checkVersion(report, 'ios.xcode'),
+    FluohPlatform.macos => _checkVersion(report, 'macos.xcode'),
     FluohPlatform.ohos => null,
   };
   if (version == null) {
@@ -931,6 +942,7 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
           ? 'adb'
           : 'Android SDK version',
     FluohPlatform.ios => 'Xcode',
+    FluohPlatform.macos => 'Xcode',
     FluohPlatform.ohos => '',
   };
   return '$title ($label $version)';
@@ -940,6 +952,7 @@ String _platformToolchainTitle(FluohPlatform platform) {
   return switch (platform) {
     FluohPlatform.android => 'Android toolchain',
     FluohPlatform.ios => 'iOS toolchain',
+    FluohPlatform.macos => 'macOS toolchain',
     FluohPlatform.ohos => 'OpenHarmony toolchain',
   };
 }
@@ -964,6 +977,8 @@ String _platformToolPlainDetail(PlatformToolCheck check) {
     'android.sdk' => 'Android SDK found',
     'ios.xcode' => 'Xcode found',
     'ios.simctl' => _sentence(check.message),
+    'macos.host' => _sentence(check.message),
+    'macos.xcode' => 'Xcode found',
     _ => '${check.label} found',
   };
 }
@@ -1019,6 +1034,7 @@ List<String> _platformToolDetails(PlatformDoctorReport report) {
   return switch (report.platform) {
     FluohPlatform.android => _androidToolDetails(report),
     FluohPlatform.ios => _iosToolDetails(report),
+    FluohPlatform.macos => _macosToolDetails(report),
     FluohPlatform.ohos => [
       for (final check in report.checks) _toolDetailLine(check),
     ],
@@ -1119,6 +1135,34 @@ List<String> _iosToolDetails(PlatformDoctorReport report) {
   ];
 }
 
+List<String> _macosToolDetails(PlatformDoctorReport report) {
+  final checks = _checksById(report);
+  final host = checks['macos.host'];
+  final xcode = checks['macos.xcode'];
+  final xcrun = checks['macos.xcrun'];
+  final details = <String>[];
+
+  if (host != null) {
+    details.add(_toolDetailLine(host));
+  }
+  if (xcode == null || !xcode.ok) {
+    details.add(_toolDetailLine(xcode));
+  } else {
+    details.add('Xcode at ${xcode.path}');
+    if (xcode.details['buildVersion'] case final buildVersion?) {
+      details.add('Build $buildVersion');
+    }
+  }
+  if (xcrun != null && !xcrun.ok) {
+    details.add(_toolDetailLine(xcrun));
+  }
+
+  return [
+    for (final detail in details)
+      if (detail.isNotEmpty) detail,
+  ];
+}
+
 Map<String, PlatformToolCheck> _checksById(PlatformDoctorReport report) {
   return {for (final check in report.checks) check.id: check};
 }
@@ -1150,6 +1194,7 @@ String _platformDisplayName(FluohPlatform platform) {
   return switch (platform) {
     FluohPlatform.android => 'Android',
     FluohPlatform.ios => 'iOS',
+    FluohPlatform.macos => 'macOS',
     FluohPlatform.ohos => 'OHOS',
   };
 }

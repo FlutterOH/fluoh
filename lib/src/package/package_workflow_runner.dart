@@ -5,9 +5,9 @@ import 'package:args/command_runner.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
-import '../ohos/build_profile_signing.dart';
-import '../ohos/device_runner.dart';
-import '../ohos/debug_signer.dart';
+import '../platform/ohos/build_profile_signing.dart';
+import '../platform/ohos/device_runner.dart';
+import '../platform/ohos/debug_signer.dart';
 import '../sdk/flutter_runner.dart';
 import '../workflow/workflow_result.dart';
 import 'flutter_example_runner.dart';
@@ -880,6 +880,7 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
     'package-test' || 'example-test' => 'dart.test_failed',
     'example-integration-android' => 'android.integration_test_failed',
     'example-integration-ios' => 'ios.integration_test_failed',
+    'example-integration-macos' => 'macos.integration_test_failed',
     _
         when arguments.length >= 2 &&
             arguments[0] == 'build' &&
@@ -895,6 +896,11 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
             arguments[0] == 'build' &&
             arguments[1] == 'ios' =>
       'ios.build_failed',
+    _
+        when arguments.length >= 2 &&
+            arguments[0] == 'build' &&
+            arguments[1] == 'macos' =>
+      'macos.build_failed',
     _ => 'command.failed',
   };
   final message = switch (code) {
@@ -903,9 +909,11 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
     'dart.test_failed' => 'Tests failed.',
     'android.integration_test_failed' => 'Android integration tests failed.',
     'ios.integration_test_failed' => 'iOS integration tests failed.',
+    'macos.integration_test_failed' => 'macOS integration tests failed.',
     'ohos.hap_build_failed' => 'OHOS HAP build failed.',
     'android.apk_build_failed' => 'Android APK build failed.',
     'ios.build_failed' => 'iOS build failed.',
+    'macos.build_failed' => 'macOS build failed.',
     _ => 'Command failed.',
   };
   return [
@@ -955,6 +963,7 @@ String? _nextCommandForDiagnosticCode(String code, String packageName) {
   final ohosRun = 'fluoh run --platform ohos --package $packageName';
   final androidRun = 'fluoh run --platform android --package $packageName';
   final iosRun = 'fluoh run --platform ios --package $packageName';
+  final macosRun = 'fluoh run --platform macos --package $packageName';
   return switch (code) {
     'dart.pub_get_failed' => 'fluoh deps get',
     'dart.analysis_failed' ||
@@ -1004,6 +1013,20 @@ String? _nextCommandForDiagnosticCode(String code, String packageName) {
     'ios.device_missing' => '$iosRun --json',
     'ios.device_not_found' ||
     'ios.device_ambiguous' => 'fluoh devices --platform ios',
+    'macos.build_failed' ||
+    'macos.launch_timeout' ||
+    'macos.run_failed' ||
+    'macos.runtime_crash' ||
+    'macos.integration_test_failed' => '$macosRun --json',
+    'macos.devices_failed' ||
+    'macos.emulators_failed' ||
+    'macos.emulator_missing' ||
+    'macos.emulator_start_failed' => 'fluoh doctor --platform macos --json',
+    'macos.emulator_not_found' ||
+    'macos.emulator_ambiguous' => '$macosRun --json',
+    'macos.device_missing' => '$macosRun --json',
+    'macos.device_not_found' ||
+    'macos.device_ambiguous' => 'fluoh devices --platform macos',
     _ => null,
   };
 }

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:fluoh/src/cli/terminal_output.dart';
 import 'package:fluoh/src/context/fluoh_environment.dart';
-import 'package:fluoh/src/ohos/device_runner.dart';
+import 'package:fluoh/src/platform/ohos/device_runner.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -15,7 +15,7 @@ class DevicesCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const ['all', 'ohos', 'android', 'ios'],
+        allowed: const ['all', 'ohos', 'android', 'ios', 'macos'],
         defaultsTo: 'all',
         help: 'Platforms to list.',
       )
@@ -80,7 +80,7 @@ class EmulatorsCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const ['all', 'ohos', 'android', 'ios'],
+        allowed: const ['all', 'ohos', 'android', 'ios', 'macos'],
         defaultsTo: 'all',
         help: 'Platforms to list or launch.',
       )
@@ -180,10 +180,12 @@ List<FluohPlatform> platformsFromCliOption(String? value) {
       FluohPlatform.ohos,
       FluohPlatform.android,
       FluohPlatform.ios,
+      FluohPlatform.macos,
     ],
     'ohos' => const [FluohPlatform.ohos],
     'android' => const [FluohPlatform.android],
     'ios' => const [FluohPlatform.ios],
+    'macos' => const [FluohPlatform.macos],
     _ => throw ArgumentError.value(value, 'value', 'Unsupported platform.'),
   };
 }
@@ -204,7 +206,7 @@ void _printTargetReports({
       continue;
     }
     if (report.targets.isEmpty) {
-      output.skipped(emptyLabel);
+      _writeWrappedTarget(output, '- $emptyLabel', lineLength: lineLength);
       continue;
     }
     for (final target in report.targets) {
@@ -224,7 +226,7 @@ String _targetLine(PlatformTarget target, {required String reportKind}) {
     if (target.details['details'] != null) target.details['details']!,
   ].map((item) => item.toString()).where((item) => item.isNotEmpty);
   return [
-    target.name,
+    '- ${target.name}',
     if (target.id != target.name) target.id,
     if (details.isNotEmpty) details.join(' '),
   ].join('    ');
@@ -232,6 +234,9 @@ String _targetLine(PlatformTarget target, {required String reportKind}) {
 
 bool _showTargetState(PlatformTarget target) {
   if (target.state == null || target.state!.trim().isEmpty) {
+    return false;
+  }
+  if (target.platform == FluohPlatform.macos) {
     return false;
   }
   return !(target.platform == FluohPlatform.ios && target.kind == 'emulator');
@@ -267,5 +272,6 @@ String _platformTitle(FluohPlatform platform) {
     FluohPlatform.ohos => 'OHOS',
     FluohPlatform.android => 'Android',
     FluohPlatform.ios => 'iOS',
+    FluohPlatform.macos => 'macOS',
   };
 }

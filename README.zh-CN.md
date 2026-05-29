@@ -123,7 +123,7 @@ fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-
 `AGENTS.md` 和 `FLUOH.md` 会给 AI agent 提供分阶段命令流：用
 `fluoh doctor -p --json --strict` 检查仓库和本机工具链状态，用
 `fluoh verify --json` 检查 package 和 example 测试，用
-`fluoh run --platform ohos|android|ios --json` 做 diagnostics 驱动的实现循环，用
+`fluoh run --platform ohos|android|ios|macos --json` 做 diagnostics 驱动的实现循环，用
 JSON `nextCommand` 判断下一步动作，最后生成 `.fluoh/ai-report-...md` 给出发布建议。
 发布前仍需要人工 review 最终 diff 和只能在设备上验证的行为。
 

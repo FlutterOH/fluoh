@@ -8,9 +8,9 @@ import '../cli/fluoh_command_runner.dart';
 import '../cli/machine_output.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
-import '../ohos/build_profile_signing.dart';
-import '../ohos/debug_signer.dart';
-import '../ohos/device_runner.dart';
+import '../platform/ohos/build_profile_signing.dart';
+import '../platform/ohos/debug_signer.dart';
+import '../platform/ohos/device_runner.dart';
 import '../package/manifest/package_manifest.dart';
 import '../package/flutter_example_runner.dart';
 import '../package/package_workflow_runner.dart';
@@ -92,7 +92,7 @@ class BuildCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const ['ohos', 'android', 'ios'],
+        allowed: const ['ohos', 'android', 'ios', 'macos'],
         mandatory: true,
         help: 'Platform to build.',
       )
@@ -181,7 +181,7 @@ class RunCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const ['ohos', 'android', 'ios'],
+        allowed: const ['ohos', 'android', 'ios', 'macos'],
         mandatory: true,
         help: 'Platform to run.',
       )
@@ -1132,6 +1132,7 @@ String _projectPlatformDiagnosticCode({
       'ohos' => 'ohos.run_failed',
       'android' => 'android.run_failed',
       'ios' => 'ios.run_failed',
+      'macos' => 'macos.run_failed',
       _ => 'command.failed',
     };
   }
@@ -1139,6 +1140,7 @@ String _projectPlatformDiagnosticCode({
     'ohos' => 'ohos.hap_build_failed',
     'android' => 'android.apk_build_failed',
     'ios' => 'ios.build_failed',
+    'macos' => 'macos.build_failed',
     _ => 'command.failed',
   };
 }
@@ -1152,6 +1154,7 @@ String _projectPlatformDiagnosticMessage({
       'ohos' => 'OHOS run failed.',
       'android' => 'Android run failed.',
       'ios' => 'iOS run failed.',
+      'macos' => 'macOS run failed.',
       _ => 'Command failed.',
     };
   }
@@ -1159,6 +1162,7 @@ String _projectPlatformDiagnosticMessage({
     'ohos' => 'OHOS HAP build failed.',
     'android' => 'Android APK build failed.',
     'ios' => 'iOS build failed.',
+    'macos' => 'macOS build failed.',
     _ => 'Command failed.',
   };
 }
@@ -1200,7 +1204,11 @@ String? _projectNextCommandForDiagnosticCode(
     'ios.build_failed' ||
     'ios.launch_timeout' ||
     'ios.run_failed' ||
-    'ios.runtime_crash' => runCommand,
+    'ios.runtime_crash' ||
+    'macos.build_failed' ||
+    'macos.launch_timeout' ||
+    'macos.run_failed' ||
+    'macos.runtime_crash' => runCommand,
     'ohos.devices_failed' ||
     'ohos.emulators_failed' ||
     'ohos.emulator_missing' ||
@@ -1212,13 +1220,19 @@ String? _projectNextCommandForDiagnosticCode(
     'ios.devices_failed' ||
     'ios.emulators_failed' ||
     'ios.emulator_missing' ||
-    'ios.emulator_start_failed' => 'fluoh doctor --platform $platform --json',
+    'ios.emulator_start_failed' ||
+    'macos.devices_failed' ||
+    'macos.emulators_failed' ||
+    'macos.emulator_missing' ||
+    'macos.emulator_start_failed' => 'fluoh doctor --platform $platform --json',
     'ohos.device_not_found' ||
     'ohos.device_ambiguous' ||
     'android.device_not_found' ||
     'android.device_ambiguous' ||
     'ios.device_not_found' ||
-    'ios.device_ambiguous' => 'fluoh devices --platform $platform',
+    'ios.device_ambiguous' ||
+    'macos.device_not_found' ||
+    'macos.device_ambiguous' => 'fluoh devices --platform $platform',
     'ohos.device_missing' ||
     'ohos.emulator_not_found' ||
     'ohos.emulator_ambiguous' ||
@@ -1227,7 +1241,10 @@ String? _projectNextCommandForDiagnosticCode(
     'android.emulator_ambiguous' ||
     'ios.device_missing' ||
     'ios.emulator_not_found' ||
-    'ios.emulator_ambiguous' => runCommand,
+    'ios.emulator_ambiguous' ||
+    'macos.device_missing' ||
+    'macos.emulator_not_found' ||
+    'macos.emulator_ambiguous' => runCommand,
     _ => null,
   };
 }
@@ -1238,7 +1255,7 @@ int _lastExitCode(List<WorkflowStepResult> steps) {
 
 String _platformFromBuildOption(String? value) {
   return switch (value) {
-    'ohos' || 'android' || 'ios' => value!,
+    'ohos' || 'android' || 'ios' || 'macos' => value!,
     _ => throw ArgumentError.value(value, 'platform', 'Unsupported platform.'),
   };
 }
@@ -1248,6 +1265,7 @@ String _buildTargetForPlatform(String platform) {
     'ohos' => 'hap',
     'android' => 'apk',
     'ios' => 'ios',
+    'macos' => 'macos',
     _ => throw ArgumentError.value(
       platform,
       'platform',

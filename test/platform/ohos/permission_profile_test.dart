@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:fluoh/src/ohos/permission_profile.dart';
+import 'package:fluoh/src/platform/ohos/permission_profile.dart';
 import 'package:test/test.dart';
 
 void main() {

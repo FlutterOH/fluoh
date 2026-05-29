@@ -192,6 +192,54 @@ exit 1
     },
   );
 
+  test('plain device output uses consistent list rows', () async {
+    final environment = await createTestEnvironment();
+    final androidSdk = await _writeAndroidSdkFixture(
+      environment.homeDirectory,
+      adbScript: '''
+if [ "\$1" = "devices" ]; then
+  printf "List of devices attached\\n"
+  exit 0
+fi
+exit 1
+''',
+    );
+    final xcrun = await _writeXcrunFixture(
+      environment.homeDirectory,
+      simctlDevicesJson: '{"devices":{}}',
+      devicectlDevicesJson: _devicectlDevicesJson,
+    );
+    final commandEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'ANDROID_HOME': androidSdk.path,
+        'FLUOH_XCRUN': xcrun.path,
+      },
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['devices', '--platform', 'all'],
+        environment: commandEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final output = stdout.join('\n');
+    expect(output, contains('- No devices found'));
+    expect(output, contains('- Office iPhone    WIRELESS-DEVICE-UDID'));
+    expect(output, contains('- macOS    macos'));
+    expect(output, isNot(contains('macos    available')));
+    expect(output, isNot(contains('Run on a target:')));
+    expect(stderr, isEmpty);
+  });
+
   test('emulators hides iOS simulator states in plain output', () async {
     final environment = await createTestEnvironment();
     final xcrun = await _writeXcrunFixture(
@@ -226,6 +274,7 @@ exit 1
     expect(output, isNot(contains('Booted')));
     expect(output, isNot(contains('Shutdown')));
     expect(stdout.where((line) => line.trim().endsWith('emulator')), isEmpty);
+    expect(output, isNot(contains('Run on a target:')));
     expect(stderr, isEmpty);
   });
 }
