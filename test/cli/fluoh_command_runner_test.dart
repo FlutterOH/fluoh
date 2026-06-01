@@ -546,7 +546,7 @@ dependencies:
     expect(stderr.join('\n'), contains('Unexpected argument: extra.'));
   });
 
-  test('prints top-level commands without grouping', () async {
+  test('prints top-level commands by workflow group', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -559,26 +559,25 @@ dependencies:
     expect(exitCode, 0);
     final help = stdout.join('\n');
     _expectInOrder(help, [
-      '  flutter',
+      'Fluoh',
+      '  doctor',
+      '  upgrade',
+      '  skill',
+      '\nSDK\n',
       '  source',
       '  sdk',
+      'Project',
+      '  flutter',
       '  deps',
-      '  package',
       '  verify',
       '  build',
       '  run',
-      '  doctor',
+      'Package',
+      '  package',
+      'Tools & Devices',
       '  devices',
       '  emulators',
-      '  upgrade',
-      '  skill',
     ]);
-    expect(help, isNot(contains('\nConfig:')));
-    expect(help, isNot(contains('\nSDK:')));
-    expect(help, isNot(contains('\nProject:')));
-    expect(help, isNot(contains('\nDeps:')));
-    expect(help, isNot(contains('\nPackage:')));
-    expect(help, isNot(contains('\nTool:')));
     expect(help, isNot(contains('  use')));
     expect(help, isNot(contains('  update')));
     expect(

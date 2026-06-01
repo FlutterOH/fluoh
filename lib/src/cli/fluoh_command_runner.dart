@@ -394,21 +394,11 @@ _MachineOutputRequest? _machineOutputRequest(ArgResults results) {
 }
 
 const _topLevelCommandSections = [
-  CommandUsageSection('', [
-    'flutter',
-    'source',
-    'sdk',
-    'deps',
-    'package',
-    'verify',
-    'build',
-    'run',
-    'doctor',
-    'devices',
-    'emulators',
-    'upgrade',
-    'skill',
-  ]),
+  CommandUsageSection('Fluoh', ['doctor', 'upgrade', 'skill']),
+  CommandUsageSection('SDK', ['source', 'sdk']),
+  CommandUsageSection('Project', ['flutter', 'deps', 'verify', 'build', 'run']),
+  CommandUsageSection('Package', ['package']),
+  CommandUsageSection('Tools & Devices', ['devices', 'emulators']),
 ];
 
 bool _usesSourceConfiguration(ArgResults results) {
