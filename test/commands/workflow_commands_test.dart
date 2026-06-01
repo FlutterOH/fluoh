@@ -1030,7 +1030,9 @@ void main() {
         'devices --machine':
             '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
         'run -d emulator-5554 --debug --no-pub':
-            'Flutter run key commands.\\nApplication running.',
+            'Flutter run key commands.\n'
+            'Debug service listening on http://127.0.0.1:12345/abc=/\n'
+            'Application running.',
       },
     );
     await _writePackageManifest(environment.workingDirectory);
@@ -1064,7 +1066,14 @@ void main() {
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--json'],
+        [
+          'run',
+          '--platform',
+          'android',
+          '--session-file',
+          '.fluoh/run-session.json',
+          '--json',
+        ],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1105,6 +1114,37 @@ void main() {
         ),
       ),
     );
+    final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-run-android',
+    );
+    final runDetails = runStep['details'] as Map<String, Object?>;
+    expect(
+      runDetails,
+      containsPair('vmServiceUri', 'http://127.0.0.1:12345/abc=/'),
+    );
+    expect(
+      runDetails,
+      containsPair(
+        'sessionFile',
+        '${environment.workingDirectory.path}/.fluoh/run-session.json',
+      ),
+    );
+    final session =
+        jsonDecode(
+              File(
+                '${environment.workingDirectory.path}/.fluoh/run-session.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    expect(session, containsPair('kind', 'flutterRunSession'));
+    expect(session, containsPair('status', 'passed'));
+    expect(session, containsPair('platform', 'android'));
+    expect(session, containsPair('launchDetected', true));
+    expect(
+      session,
+      containsPair('vmServiceUri', 'http://127.0.0.1:12345/abc=/'),
+    );
+    expect(session['processId'], isA<int>());
     expect(
       steps,
       contains(
@@ -1823,6 +1863,33 @@ void main() {
     expect(
       stderr.join('\n'),
       contains('Use a non-negative integer for --device-timeout.'),
+    );
+  });
+
+  test('validates run debug session options', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'run',
+          '--platform',
+          'ohos',
+          '--session-file',
+          '.fluoh/run-session.json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(
+      stderr.join('\n'),
+      contains('Use --session-file only with Android, iOS, or macOS runs.'),
     );
   });
 }

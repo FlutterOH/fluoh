@@ -39,10 +39,47 @@ const _fluohSkillScripts = {
     ],
     description: 'Create a structured AI delivery report.',
   ),
+  'newScenario': _FluohSkillScript(
+    relativePath: 'scripts/new_scenario.py',
+    arguments: [
+      '<workspace>',
+      '--scope',
+      '<scope>',
+      '--platform',
+      '<platform>',
+      '--name',
+      '<scenario-name>',
+    ],
+    description:
+        'Create a device-side functional interaction scenario skeleton.',
+  ),
+  'inspectSession': _FluohSkillScript(
+    relativePath: 'scripts/inspect_session.py',
+    arguments: [
+      '<session-file>',
+      '--wait',
+      '30',
+      '--expect-platform',
+      '<platform>',
+    ],
+    description: 'Inspect a live Flutter debug session JSON file.',
+  ),
   'checkReport': _FluohSkillScript(
     relativePath: 'scripts/check_report.py',
     arguments: ['<report-path>'],
     description: 'Validate the AI delivery report before final response.',
+  ),
+};
+const _fluohSkillReferences = {
+  'reportTemplate': _FluohSkillReference(
+    relativePath: 'references/report-template.md',
+    description: 'Structured AI delivery report template.',
+  ),
+  'interactionScenarioTemplate': _FluohSkillReference(
+    relativePath: 'references/interaction-scenario-template.md',
+    description:
+        'Device-side functional interaction scenario template for flows that '
+        'are not fully covered by integration tests.',
   ),
 };
 const fluohSkillExamplePrompts = [
@@ -115,7 +152,11 @@ class SkillCommand extends FluohCommand<int> {
       _output.write('${style.label('Local path')} ${location.localPath}');
       _output.write(
         '${style.label('Scripts')} preflight.py, new_report.py, '
-        'check_report.py',
+        'new_scenario.py, inspect_session.py, check_report.py',
+      );
+      _output.write(
+        '${style.label('References')} report-template.md, '
+        'interaction-scenario-template.md',
       );
     } else {
       _output.warning('Bundled local skill path was not found.');
@@ -165,6 +206,10 @@ class FluohSkillLocation {
     'scripts': _fluohSkillScripts.map(
       (name, script) => MapEntry(name, script.toJson(localPath: localPath)),
     ),
+    'references': _fluohSkillReferences.map(
+      (name, reference) =>
+          MapEntry(name, reference.toJson(localPath: localPath)),
+    ),
   };
 }
 
@@ -191,6 +236,27 @@ class _FluohSkillScript {
         path ?? '<localPath>${Platform.pathSeparator}$relativePath',
         ...arguments,
       ],
+      'description': description,
+    };
+  }
+}
+
+class _FluohSkillReference {
+  const _FluohSkillReference({
+    required this.relativePath,
+    required this.description,
+  });
+
+  final String relativePath;
+  final String description;
+
+  Map<String, Object?> toJson({required String? localPath}) {
+    final path = localPath == null
+        ? null
+        : [localPath, ...relativePath.split('/')].join(Platform.pathSeparator);
+    return {
+      'relativePath': relativePath,
+      'path': path,
       'description': description,
     };
   }

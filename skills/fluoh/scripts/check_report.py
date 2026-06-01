@@ -16,6 +16,7 @@ REQUIRED_SECTIONS = (
     "## Commands",
     "## Delivery Checklist",
     "## Platform Matrix",
+    "## Interaction Evidence",
     "## Diagnostics",
     "## Remaining Risks",
     "## Release Decision",
@@ -65,6 +66,33 @@ def command_rows(content: str) -> list[str]:
         if not in_commands:
             continue
         if re.match(r"^\|\s*`[^`]+`\s*\|", line):
+            rows.append(line)
+    return rows
+
+
+def section_content(content: str, heading: str) -> str:
+    start = content.find(heading)
+    if start == -1:
+        return ""
+    body_start = content.find("\n", start)
+    if body_start == -1:
+        return ""
+    next_heading = re.search(r"^## ", content[body_start + 1 :], re.MULTILINE)
+    if next_heading:
+        return content[body_start + 1 : body_start + 1 + next_heading.start()]
+    return content[body_start + 1 :]
+
+
+def interaction_rows(content: str) -> list[str]:
+    section = section_content(content, "## Interaction Evidence")
+    rows: list[str] = []
+    for line in section.splitlines():
+        columns = [column.strip() for column in line.strip().strip("|").split("|")]
+        if len(columns) >= 6 and columns[1].lower() in (
+            "integration_test",
+            "ai-assisted",
+            "manual",
+        ):
             rows.append(line)
     return rows
 
@@ -126,6 +154,23 @@ def validate(path: Path) -> dict[str, Any]:
     if not evidence_rows:
         errors.append("Commands table must include at least one concrete command row.")
 
+    interactions = interaction_rows(content)
+    concrete_interactions = [
+        row
+        for row in interactions
+        if "`...`" not in row and not re.search(r"\|\s*\.\.\.\s*$", row)
+    ]
+    interaction_section = section_content(content, "## Interaction Evidence")
+    no_interaction_required = re.search(
+        r"^\s*No interaction required\s*:\s*\S.+$",
+        interaction_section,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if not concrete_interactions and not no_interaction_required:
+        errors.append(
+            "Interaction Evidence must include a concrete row or 'No interaction required: <reason>'."
+        )
+
     placeholders = placeholder_hits(content)
     if placeholders:
         errors.append("Report still contains placeholder content.")
@@ -136,6 +181,7 @@ def validate(path: Path) -> dict[str, Any]:
         "report": str(path),
         "recommendation": recommendation,
         "commandRows": len(evidence_rows),
+        "interactionRows": len(concrete_interactions),
         "checklistTotal": len(checklist),
         "checklistDone": len(checklist) - len(unchecked),
         "unchecked": unchecked,

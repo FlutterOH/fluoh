@@ -98,6 +98,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
   String? deviceId,
   bool startEmulator = false,
   String? emulatorName,
+  File? sessionFile,
   Duration deviceTimeout = const Duration(seconds: 90),
   Duration runDuration = const Duration(seconds: 8),
   String usage = '',
@@ -257,6 +258,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
     output: output,
     runDuration: runDuration,
     launchTimeout: deviceTimeout,
+    sessionFile: sessionFile,
     usage: usage,
   );
   return runResult;
@@ -573,6 +575,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   required TerminalOutput output,
   required Duration runDuration,
   required Duration launchTimeout,
+  required File? sessionFile,
   required String usage,
 }) async {
   final flutter = await resolveFlutterExecutable(
@@ -586,15 +589,41 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     workingDirectory: workingDirectory.path,
     environment: environment.processEnvironment,
   );
+  final command = 'flutter ${arguments.join(' ')}';
   final stdoutBuffer = _LineBuffer();
   final stderrBuffer = _LineBuffer();
   final launchCompleter = Completer<void>();
   final failureCompleter = Completer<String>();
+  String? vmServiceUri;
+  var launchDetected = false;
+
+  Future<void> writeSession(String status, {File? outputLog, int? exitCode}) {
+    return _writeDebugSession(
+      sessionFile: sessionFile,
+      status: status,
+      platform: platform,
+      command: command,
+      processId: process.pid,
+      target: target,
+      emulator: emulator,
+      launchDetected: launchDetected,
+      vmServiceUri: vmServiceUri,
+      outputLog: outputLog,
+      exitCode: exitCode,
+    );
+  }
 
   void inspect(String line) {
+    final extractedVmServiceUri = _extractVmServiceUri(line);
+    if (vmServiceUri == null && extractedVmServiceUri != null) {
+      vmServiceUri = extractedVmServiceUri;
+      unawaited(writeSession('running'));
+    }
     final lower = line.toLowerCase();
     if (!launchCompleter.isCompleted && _looksLaunched(lower)) {
+      launchDetected = true;
       launchCompleter.complete();
+      unawaited(writeSession('running'));
     }
     if (!failureCompleter.isCompleted && _looksLikeRuntimeFailure(lower)) {
       failureCompleter.complete(line);
@@ -618,7 +647,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     },
   );
   final exitFuture = process.exitCode;
-  final command = 'flutter ${arguments.join(' ')}';
+  unawaited(writeSession('starting'));
   final firstState = await Future.any<Object>([
     launchCompleter.future.then((_) => const _RunLaunched()),
     failureCompleter.future.then((line) => _RunFailure(line)),
@@ -635,6 +664,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       stdoutBuffer.text,
       stderrBuffer.text,
     );
+    await writeSession('failed', outputLog: outputLog, exitCode: exitCode);
     return _failedRunResult(
       platform: platform,
       command: command,
@@ -649,6 +679,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
         'exitCodeAfterKill': exitCode,
         'target': target.toJson(),
         if (emulator != null) 'emulator': emulator.toJson(),
+        ..._sessionFileDetails(sessionFile),
+        ..._vmServiceDetails(vmServiceUri),
         ..._bufferDetails(stdoutBuffer.text, stderrBuffer.text),
       },
     );
@@ -663,6 +695,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       stdoutBuffer.text,
       stderrBuffer.text,
     );
+    await writeSession('failed', outputLog: outputLog, exitCode: exitCode);
     return _failedRunResult(
       platform: platform,
       command: command,
@@ -676,6 +709,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
         'exitCodeAfterKill': exitCode,
         'target': target.toJson(),
         if (emulator != null) 'emulator': emulator.toJson(),
+        ..._sessionFileDetails(sessionFile),
+        ..._vmServiceDetails(vmServiceUri),
         ..._bufferDetails(stdoutBuffer.text, stderrBuffer.text),
       },
     );
@@ -690,6 +725,11 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       stderrBuffer.text,
     );
     if (firstState.exitCode != 0) {
+      await writeSession(
+        'failed',
+        outputLog: outputLog,
+        exitCode: firstState.exitCode,
+      );
       return _failedRunResult(
         platform: platform,
         command: command,
@@ -703,10 +743,17 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
           'exitCode': firstState.exitCode,
           'target': target.toJson(),
           if (emulator != null) 'emulator': emulator.toJson(),
+          ..._sessionFileDetails(sessionFile),
+          ..._vmServiceDetails(vmServiceUri),
           ..._bufferDetails(stdoutBuffer.text, stderrBuffer.text),
         },
       );
     }
+    await writeSession(
+      'passed',
+      outputLog: outputLog,
+      exitCode: firstState.exitCode,
+    );
     return FlutterExampleRunResult(
       exitCode: 0,
       platform: platform,
@@ -719,6 +766,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
         'target': target.toJson(),
         if (emulator != null) 'emulator': emulator.toJson(),
         if (outputLog != null) 'outputLog': outputLog.path,
+        ..._sessionFileDetails(sessionFile),
+        ..._vmServiceDetails(vmServiceUri),
         'processExited': true,
         ..._bufferDetails(stdoutBuffer.text, stderrBuffer.text),
       },
@@ -740,6 +789,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       stdoutBuffer.text,
       stderrBuffer.text,
     );
+    await writeSession('failed', outputLog: outputLog, exitCode: exitCode);
     return _failedRunResult(
       platform: platform,
       command: command,
@@ -753,6 +803,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
         'exitCodeAfterKill': exitCode,
         'target': target.toJson(),
         if (emulator != null) 'emulator': emulator.toJson(),
+        ..._sessionFileDetails(sessionFile),
+        ..._vmServiceDetails(vmServiceUri),
         ..._bufferDetails(stdoutBuffer.text, stderrBuffer.text),
       },
     );
@@ -767,6 +819,11 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       stderrBuffer.text,
     );
     if (secondState.exitCode != 0) {
+      await writeSession(
+        'failed',
+        outputLog: outputLog,
+        exitCode: secondState.exitCode,
+      );
       return _failedRunResult(
         platform: platform,
         command: command,
@@ -780,10 +837,17 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
           'exitCode': secondState.exitCode,
           'target': target.toJson(),
           if (emulator != null) 'emulator': emulator.toJson(),
+          ..._sessionFileDetails(sessionFile),
+          ..._vmServiceDetails(vmServiceUri),
           ..._bufferDetails(stdoutBuffer.text, stderrBuffer.text),
         },
       );
     }
+    await writeSession(
+      'passed',
+      outputLog: outputLog,
+      exitCode: secondState.exitCode,
+    );
   } else {
     try {
       process.stdin.writeln('q');
@@ -805,6 +869,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   final processDetails = exitCode == null
       ? const {'terminatedAfterDuration': true}
       : {'processExitCode': exitCode};
+  await writeSession('passed', outputLog: outputLog, exitCode: exitCode);
   return FlutterExampleRunResult(
     exitCode: 0,
     platform: platform,
@@ -817,6 +882,8 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
       'target': target.toJson(),
       if (emulator != null) 'emulator': emulator.toJson(),
       if (outputLog != null) 'outputLog': outputLog.path,
+      ..._sessionFileDetails(sessionFile),
+      ..._vmServiceDetails(vmServiceUri),
       'launchDetected': true,
       'runDurationSeconds': runDuration.inSeconds,
       ...processDetails,
@@ -850,6 +917,76 @@ Future<void> _waitForCapturedOutput(List<Future<void>> futures) async {
   await Future.wait(
     futures,
   ).timeout(const Duration(seconds: 3), onTimeout: () => const <void>[]);
+}
+
+String? _extractVmServiceUri(String line) {
+  final match = RegExp(
+    r'((?:http|https|ws|wss)://[^\s]+)',
+    caseSensitive: false,
+  ).firstMatch(line);
+  if (match == null) {
+    return null;
+  }
+  final uri = match.group(1)!.replaceAll(RegExp(r'[),.;]+$'), '');
+  final lower = line.toLowerCase();
+  if (lower.contains('vm service') ||
+      lower.contains('observatory') ||
+      lower.contains('debug service listening')) {
+    return uri;
+  }
+  return null;
+}
+
+Map<String, Object?> _vmServiceDetails(String? uri) {
+  return uri == null ? const {} : {'vmServiceUri': uri};
+}
+
+Map<String, Object?> _sessionFileDetails(File? file) {
+  return file == null ? const {} : {'sessionFile': file.path};
+}
+
+Map<String, Object?> _exitCodeDetails(int? exitCode) {
+  return exitCode == null ? const {} : {'exitCode': exitCode};
+}
+
+Future<void> _writeDebugSession({
+  required File? sessionFile,
+  required String status,
+  required String platform,
+  required String command,
+  required int processId,
+  required FlutterDeviceTarget target,
+  required FlutterEmulatorTarget? emulator,
+  required bool launchDetected,
+  required String? vmServiceUri,
+  required File? outputLog,
+  required int? exitCode,
+}) async {
+  if (sessionFile == null) {
+    return;
+  }
+  try {
+    await sessionFile.parent.create(recursive: true);
+    const encoder = JsonEncoder.withIndent('  ');
+    final session = {
+      'schemaVersion': 1,
+      'kind': 'flutterRunSession',
+      'status': status,
+      'platform': platform,
+      'command': command,
+      'processId': processId,
+      'target': target.toJson(),
+      if (emulator != null) 'emulator': emulator.toJson(),
+      'launchDetected': launchDetected,
+      ..._vmServiceDetails(vmServiceUri),
+      if (outputLog != null) 'outputLog': outputLog.path,
+      ..._exitCodeDetails(exitCode),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    await sessionFile.writeAsString('${encoder.convert(session)}\n');
+  } on Object {
+    // Session files are best-effort debug hints and must not fail the run.
+  }
 }
 
 bool _looksLaunched(String lower) {

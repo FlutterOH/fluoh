@@ -45,6 +45,10 @@ bundled local skill path and helper script commands with:
 Run `fluoh skill --json`, install the returned localPath as a skill, then reload skills if needed.
 ```
 
+The JSON result also exposes helper script argv for preflight, report creation,
+report checking, and functional scenario creation, plus reference template paths
+for reports and interaction scenarios.
+
 The skill version follows the `fluoh` CLI package version. Updating the CLI with
 `fluoh upgrade` updates the bundled skill files; agents that copied the skill
 should rerun `fluoh skill --json` and reinstall or reload the returned path.
@@ -479,12 +483,47 @@ ability, captures a short hilog, and reports runtime crash patterns. For
 Android, iOS, and macOS package examples it launches through the selected SDK's
 `flutter run`, captures smoke output under `$FLUOH_HOME/package-runs`, and runs
 `flutter test integration_test -d <device>` when the example has an
-`integration_test/` directory. Use `--device <id>` for an already connected
-target or `--emulator <name>` to select and start a local emulator or simulator
-where the platform provides one. Android, iOS, and macOS current-project runs
-use the same Flutter device discovery, platform filtering, run-smoke timeout,
-and saved output log path as package examples, but they do not run package
-example integration tests.
+`integration_test/` directory. When `flutter run` prints a VM Service or debug
+service URI, `--json` includes it as `details.vmServiceUri` on the run step so
+an AI agent or external tool can attach. Pass `--session-file <path>` on
+Android, iOS, or macOS runs to write a live `flutterRunSession` JSON file while
+the app is still running; the file is updated with process id, target,
+`vmServiceUri`, launch status, final status, and output log path. AI agents can
+inspect that file with
+`python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>`
+to wait for launch, find the VM Service URI, and decide whether to attach,
+inspect logs, or route a failure. Use
+`--device <id>` for an already connected target or `--emulator <name>` to
+select and start a local emulator or simulator where the platform provides one.
+Android, iOS, and macOS current-project runs use the same Flutter device
+discovery, platform filtering, run-smoke timeout, and saved output log path as
+package examples, but they do not run package example integration tests.
+Run-smoke success is only launch evidence. Package workflows that require UI
+taps, permission prompts, files, camera, location, media playback, deep links,
+or external apps need functional scenario evidence from `integration_test/`
+where the platform runner supports it, or from AI-assisted interaction on the
+emulator or device. Store scenario notes under `.fluoh/scenarios/<package>-<platform>-<name>.md`
+when the flow is not already encoded as `integration_test`; the AI driver
+follows that scenario, operates the target with available device or UI tools,
+and records step results in `.fluoh/ai-report-...md`. OHOS `fluoh run`
+currently builds, signs, installs, launches, and captures hilog, but it does
+not automatically traverse example pages or press buttons; record the exercised
+functional path, expected result, actual result, device id, Flutter debug or VM
+service output when available, widget/component tree state, semantics or
+accessibility output, text/log evidence, and optional screenshots. AI-assisted
+verification must not depend on image recognition or knowing what the UI looks
+like; scenarios should expose component state, visible status text, semantic
+labels, stable test keys, command JSON, hilog, or app log markers that a
+non-vision agent can read. For most packages the example app is only an
+interactive harness for exercising APIs and platform behavior; the acceptance
+criteria should be functional results rather than visual layout.
+Use the bundled `skills/fluoh/references/interaction-scenario-template.md`
+shape for AI-assisted scenario files. Cover whichever classes apply:
+permission grant and denial, file or media picker, camera or microphone
+capture, location and sensors, maps, media playback or recording, deep links
+and external app callbacks, background or lifecycle behavior, multi-step forms,
+and negative/error paths. If none apply, the report must say
+`No interaction required: <reason>` instead of leaving the section empty.
 JSON failures include platform run diagnostics such as `ohos.run_failed`,
 `android.run_failed`, `ios.run_failed`, and `macos.run_failed` for
 current-project runs, while package examples keep their more specific install,

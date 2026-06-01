@@ -38,6 +38,7 @@
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [ ] Android, iOS, and macOS regression checks recorded when relevant.
+- [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
 
@@ -49,6 +50,18 @@
 | Android | not present | not present | n/a | n/a | ... |
 | iOS | not present | not present | n/a | n/a | ... |
 | macOS | not present | not present | n/a | n/a | ... |
+
+## Interaction Evidence
+
+Use `No interaction required: <reason>` only when the package has no
+device-side interaction flow such as permission, picker, camera, location,
+media, deep link, external app, or host-specific behavior.
+Otherwise include at least one concrete row. Scenario notes should live under
+`.fluoh/scenarios/`.
+
+| Scenario | Method | Platform | Target | Result | Evidence / blocker |
+| --- | --- | --- | --- | --- | --- |
+| `...` | integration_test \| AI-assisted \| manual | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |
 
 ## Diagnostics
 

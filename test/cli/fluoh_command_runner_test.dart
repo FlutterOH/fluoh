@@ -67,6 +67,10 @@ void main() {
     expect(output, contains('Local path'));
     expect(output, contains('skills/fluoh'));
     expect(output, contains('Scripts preflight.py, new_report.py'));
+    expect(output, contains('new_scenario.py'));
+    expect(output, contains('inspect_session.py'));
+    expect(output, contains('References report-template.md'));
+    expect(output, contains('interaction-scenario-template.md'));
     expect(
       output,
       contains(
@@ -167,7 +171,13 @@ void main() {
     final scripts = report['scripts'] as Map<String, Object?>;
     expect(
       scripts.keys,
-      containsAll(['preflight', 'newReport', 'checkReport']),
+      containsAll([
+        'preflight',
+        'newReport',
+        'newScenario',
+        'inspectSession',
+        'checkReport',
+      ]),
     );
     final preflight = scripts['preflight'] as Map<String, Object?>;
     expect(preflight['relativePath'], 'scripts/preflight.py');
@@ -184,11 +194,62 @@ void main() {
     );
     expect(newReport['argv'], isNot(contains('--root')));
     expect(newReport['argv'], isNot(contains('--type')));
+    final newScenario = scripts['newScenario'] as Map<String, Object?>;
+    expect(newScenario['relativePath'], 'scripts/new_scenario.py');
+    expect(
+      newScenario['argv'],
+      containsAllInOrder([
+        'python3',
+        contains('new_scenario.py'),
+        '<workspace>',
+        '--scope',
+        '<scope>',
+        '--platform',
+        '<platform>',
+        '--name',
+        '<scenario-name>',
+      ]),
+    );
+    final inspectSession = scripts['inspectSession'] as Map<String, Object?>;
+    expect(inspectSession['relativePath'], 'scripts/inspect_session.py');
+    expect(
+      inspectSession['argv'],
+      containsAllInOrder([
+        'python3',
+        contains('inspect_session.py'),
+        '<session-file>',
+        '--wait',
+        '30',
+        '--expect-platform',
+        '<platform>',
+      ]),
+    );
     final checkReport = scripts['checkReport'] as Map<String, Object?>;
     expect(checkReport['relativePath'], 'scripts/check_report.py');
     expect(
       checkReport['argv'],
       containsAllInOrder(['python3', contains('check_report.py')]),
+    );
+    final references = report['references'] as Map<String, Object?>;
+    expect(
+      references.keys,
+      containsAll(['reportTemplate', 'interactionScenarioTemplate']),
+    );
+    final reportTemplate = references['reportTemplate'] as Map<String, Object?>;
+    expect(reportTemplate['relativePath'], 'references/report-template.md');
+    expect(
+      reportTemplate['path'],
+      allOf(isA<String>(), contains('report-template.md')),
+    );
+    final scenarioTemplate =
+        references['interactionScenarioTemplate'] as Map<String, Object?>;
+    expect(
+      scenarioTemplate['relativePath'],
+      'references/interaction-scenario-template.md',
+    );
+    expect(
+      scenarioTemplate['path'],
+      allOf(isA<String>(), contains('interaction-scenario-template.md')),
     );
   });
 
@@ -206,6 +267,7 @@ void main() {
     expect(stderr, isEmpty);
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     final scripts = report['scripts'] as Map<String, Object?>;
+    final references = report['references'] as Map<String, Object?>;
 
     final workspace = await io.Directory.systemTemp.createTemp(
       'fluoh_skill_scripts_',
@@ -245,6 +307,64 @@ dependencies:
     expect(newReport.exitCode, 0, reason: newReport.stderr.toString());
     final reportPath = newReport.stdout.toString().trim();
     expect(await io.File(reportPath).exists(), isTrue);
+
+    final newScenario = await _runAdvertisedScript(
+      scripts,
+      'newScenario',
+      replacements: {
+        '<workspace>': workspace.path,
+        '<scope>': 'fixture_app',
+        '<platform>': 'ohos',
+        '<scenario-name>': 'permission flow',
+      },
+    );
+    expect(newScenario.exitCode, 0, reason: newScenario.stderr.toString());
+    final scenarioPath = newScenario.stdout.toString().trim();
+    final scenarioFile = io.File(scenarioPath);
+    expect(await scenarioFile.exists(), isTrue);
+    final scenarioContent = await scenarioFile.readAsString();
+    expect(scenarioContent, contains('# permission flow'));
+    expect(scenarioContent, contains('- Scope: fixture_app'));
+    expect(scenarioContent, contains('- Platform: ohos'));
+    expect(scenarioContent, contains('functional correctness'));
+    final scenarioTemplate =
+        references['interactionScenarioTemplate'] as Map<String, Object?>;
+    expect(
+      await io.File(scenarioTemplate['path']! as String).readAsString(),
+      contains('functional correctness'),
+    );
+
+    final sessionFile = io.File('${workspace.path}/session.json');
+    await sessionFile.writeAsString(
+      jsonEncode({
+        'schemaVersion': 1,
+        'kind': 'flutterRunSession',
+        'status': 'running',
+        'platform': 'android',
+        'processId': 42,
+        'launchDetected': true,
+        'vmServiceUri': 'http://127.0.0.1:12345/abc=/',
+        'target': {'id': 'emulator-5554'},
+        'updatedAt': '2026-06-01T00:00:00.000',
+      }),
+    );
+    final inspectSession = await _runAdvertisedScript(
+      scripts,
+      'inspectSession',
+      replacements: {
+        '<session-file>': sessionFile.path,
+        '<platform>': 'android',
+      },
+    );
+    expect(
+      inspectSession.exitCode,
+      0,
+      reason: inspectSession.stderr.toString(),
+    );
+    final sessionJson =
+        jsonDecode(inspectSession.stdout.toString()) as Map<String, Object?>;
+    expect(sessionJson, containsPair('ok', true));
+    expect(sessionJson, containsPair('recommendation', 'attach-vm-service'));
 
     final checkReport = await _runAdvertisedScript(
       scripts,

@@ -404,6 +404,36 @@ def report_check_command() -> str:
     return "python3 <skill-dir>/scripts/check_report.py <report-path>"
 
 
+def session_inspect_command() -> str:
+    return (
+        "python3 <skill-dir>/scripts/inspect_session.py <session-file> "
+        "--wait 30 --expect-platform <platform>"
+    )
+
+
+def scenario_command(project: dict[str, Any]) -> str:
+    if project["kind"] == "package-repository":
+        package = project["selectedPackage"] or "<name>"
+        return (
+            "python3 <skill-dir>/scripts/new_scenario.py . "
+            f"--scope {package} --package {package} "
+            "--platform <platform> --name <scenario-name>"
+        )
+    if project["kind"] == "flutter-package":
+        package = project["name"] or "<package-name>"
+        output = flutter_package_output(project)
+        return (
+            f"python3 <skill-dir>/scripts/new_scenario.py {output} "
+            f"--scope {package} --package {package} "
+            "--platform <platform> --name <scenario-name>"
+        )
+    scope = project["name"] or "app"
+    return (
+        "python3 <skill-dir>/scripts/new_scenario.py . "
+        f"--scope {scope} --app --platform <platform> --name <scenario-name>"
+    )
+
+
 def notes(project: dict[str, Any]) -> list[str]:
     if not project["pathExists"]:
         return ["Path does not exist."]
@@ -472,6 +502,8 @@ def main() -> int:
     info["deliveryChecks"] = delivery_checks(info)
     info["reportCommand"] = report_command(info["project"])
     info["reportCheckCommand"] = report_check_command()
+    info["sessionInspectCommand"] = session_inspect_command()
+    info["scenarioCommand"] = scenario_command(info["project"])
     info["notes"] = notes(info["project"])
     print(json.dumps(info, ensure_ascii=False, indent=2))
     return 0

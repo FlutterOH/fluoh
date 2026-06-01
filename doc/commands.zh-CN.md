@@ -42,6 +42,9 @@ skill 会在 `fluoh --version` 失败时安装 CLI：优先使用
 运行 `fluoh skill --json`，把返回的 localPath 安装为 skill，必要时重载 skills。
 ```
 
+JSON 结果也会暴露 preflight、创建报告、检查报告、创建功能场景的 helper script argv，
+以及报告模板和交互场景模板的 reference 路径。
+
 skill 版本跟随 `fluoh` CLI Package 版本。用 `fluoh upgrade` 更新 CLI 后，内置
 skill 文件也会更新；已复制 skill 的 AI agent 应重新运行 `fluoh skill --json`，
 再覆盖安装或重载返回的路径。AI agent 完成前会写入带交付清单的 `.fluoh/ai-report-...md`。
@@ -388,11 +391,35 @@ Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_fail
 example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
 hilog，并通过 JSON diagnostics 报告运行时 crash。Android、iOS 和 macOS Package example 会通过已选择
 SDK 的 `flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/package-runs`，并在 example
-存在 `integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。已有目标时用
-`--device <id>`，平台提供本地 emulator/simulator 时可用 `--emulator <name>` 选择并启动。Android、
-iOS 和 macOS 当前项目 run 也会使用同一套 Flutter device 发现、平台筛选、run-smoke
-超时和输出日志保存逻辑，但不会运行 Package example 的 integration tests。当前项目 run 的 JSON
-失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed` 等平台 diagnostic；
+存在 `integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。如果
+`flutter run` 输出 VM Service 或 debug service URI，`--json` 会在 run step 的
+`details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS 或 macOS run
+可以传 `--session-file <path>`，在 App 仍运行时写入实时 `flutterRunSession` JSON 文件；
+文件会更新进程 id、target、`vmServiceUri`、启动状态、最终状态和输出日志路径。AI agent 可以用
+`python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>`
+检查这个文件，等待启动、读取 VM Service URI，并决定 attach、查看日志或转入失败排查。已有目标时用
+`--device <id>`，平台提供本地 emulator/simulator 时可用 `--emulator <name>` 选择并启动。
+Android、iOS 和 macOS 当前项目 run 也会使用同一套 Flutter device 发现、平台筛选、run-smoke
+超时和输出日志保存逻辑，但不会运行 Package example 的 integration tests。
+
+run-smoke 成功只表示 App 已启动。需要点击 UI、处理权限弹窗、选择文件、调用相机、定位、
+播放媒体、deep link 或外部 App 的 Package 流程，必须有功能场景证据：优先用平台 runner 支持的
+`integration_test/`，否则用 AI 在 emulator 或真机上执行交互。没有写成 `integration_test`
+的流程，把场景记录到 `.fluoh/scenarios/<package>-<platform>-<name>.md`；AI driver 按场景操作
+目标设备或 UI 工具，并把步骤结果写入 `.fluoh/ai-report-...md`。OHOS 的 `fluoh run` 目前会构建、
+签名、安装、启动并采集 hilog，但不会自动遍历 example 页面或点击按钮；需要记录已验证的功能路径、
+预期结果、实际结果、设备 id、可用的 Flutter debug 或 VM service 输出、组件树状态、语义树或
+accessibility 输出、文本/日志证据，以及可选截图。AI 辅助验证不能依赖识图能力，也不应要求知道
+UI 长什么样；场景应暴露非视觉 agent 可读取的组件状态、状态文本、语义标签、稳定 test key、
+命令 JSON、hilog 或 App 日志标记。对绝大多数 Package，example 只是用于触发 API 和平台行为的
+可交互测试入口，验收标准应是功能结果，不是视觉布局。
+AI 辅助场景文件使用内置 `skills/fluoh/references/interaction-scenario-template.md`
+的结构。按 Package 实际能力覆盖权限允许/拒绝、文件或媒体选择器、相机或麦克风采集、定位和传感器、
+地图、媒体播放或录制、deep link 和外部 App 回调、后台或生命周期、多步骤表单，以及负向/错误路径。
+如果没有交互流程，报告的 `Interaction Evidence` 章节必须写明
+`No interaction required: <reason>`，不能留空。
+
+当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed` 等平台 diagnostic；
 Package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
 
 `fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行

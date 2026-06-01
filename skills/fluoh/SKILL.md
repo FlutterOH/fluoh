@@ -32,6 +32,20 @@ standard library and do not replace the `fluoh --json` diagnostic contract.
   `python3 <skill-dir>/scripts/check_report.py <report-path>` prints JSON and
   fails when a report is missing required sections, command evidence, delivery
   checklist state, or still contains placeholders.
+- Scenario skeleton:
+  `python3 <skill-dir>/scripts/new_scenario.py <project-path> --platform <platform>
+  --name <scenario-name> [--package <name>] [--app]` creates a local
+  `.fluoh/scenarios/...md` scenario from the bundled interaction template.
+- Session inspector:
+  `python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30
+  --expect-platform <platform> [--require-vm-service]` reads a live
+  `flutterRunSession` JSON file from `fluoh run --session-file` and reports
+  launch state, VM Service URI, target, output log, attach hints, and a
+  machine-readable recommendation.
+- Interaction scenario template:
+  copy `references/interaction-scenario-template.md` to
+  `.fluoh/scenarios/<package-or-app>-<platform>-<name>.md` when a UI or device
+  capability flow needs device-side functional verification.
 
 ## AI-Driven Default Flow
 
@@ -155,6 +169,41 @@ When using `scripts/preflight.py`, route by the returned JSON:
 - Use `finalCheckCommands` and `deliveryChecks` as the final acceptance checklist.
 - Use `reportCommand` to create the local completion report skeleton.
 - Use `reportCheckCommand` after filling the report.
+- Use `sessionInspectCommand` to wait for and inspect a live
+  `flutterRunSession` file created by `fluoh run --session-file`.
+- Use `scenarioCommand` when an interaction flow needs an AI-assisted scenario.
+
+## Complete AI Evidence Loop
+
+Use this loop when adapting a package or app to a release-ready state:
+
+1. Run preflight and pick exactly one package when selection is required.
+2. Run the suggested verify/build/run commands until diagnostics are clean or a
+   blocker is explicit.
+3. For OHOS, record the `fluoh run --platform ohos ... --json` result as build,
+   signing, install, launch, hilog, and crash-diagnostic evidence. If the
+   package has an interactive flow, perform a separate AI-assisted scenario on
+   the target and record functional assertions from hilog, logs, accessible
+   text, semantic labels, stable status text, or other machine-readable output.
+4. For Android, iOS, and macOS, run with a live session file when an agent needs
+   to inspect the running app:
+
+   ```sh
+   fluoh run --platform android --package <name> \
+     --session-file .fluoh/run-session-android.json --json
+   python3 <skill-dir>/scripts/inspect_session.py \
+     .fluoh/run-session-android.json --wait 30 \
+     --expect-platform android --require-vm-service
+   ```
+
+   Use the resulting `vmServiceUri`, output log, widget/component tree,
+   semantics tree, stable text, test keys, or log markers as primary evidence.
+5. Fill `.fluoh/ai-report-...md` with the exact commands, exit codes, platform
+   matrix, scenario path, interaction evidence, remaining risks, and release
+   recommendation.
+6. Run `check_report.py` and do not claim `ready` until it passes. If it fails,
+   either collect the missing evidence or mark the release decision as blocked
+   or needing a maintainer decision.
 
 ## App Project Flow
 
@@ -233,23 +282,49 @@ to edit, when to fix local environment, and when work can be handed back.
    tests pass.
 4. OHOS verification: use
    `fluoh run --platform ohos --package <name> --json`, or add `--device <id>`
-   for a connected hdc target. If no device is available, use
+   for a connected hdc target. This proves build, signing, install, launch, and
+   hilog diagnostics; it does not prove tappable example workflows by itself.
+   If no device is available, use
    `fluoh build --platform ohos --package <name> --auto-sign --json` as
    build-only evidence.
 5. Existing-platform regression: when `example/android` exists, run
    `fluoh doctor --platform android --json --strict`, then
    `fluoh run --platform android --package <name> --json`. Do the same for iOS
    and macOS when their example platform directories exist.
-6. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
+6. Interaction verification: for workflows that need UI taps, permission
+   prompts, file pickers, camera, location, media, deep links, or external
+   apps, run `integration_test/` when available. When deterministic tests do
+   not exist, perform an AI-assisted functional pass on the emulator/device:
+   follow a short scenario in `.fluoh/scenarios/<package>-<platform>-<name>.md`
+   or write the scenario before running it, interact with the app through the
+   available device/browser/computer-use tools, assert results through
+   Flutter debug or VM service output when available, widget/component tree
+   state, semantics tree, integration-test output, accessibility text, visible
+   status text, semantic labels, test keys, or structured log markers, and
+   record step results, target id, evidence path, and blockers in the report.
+   For Android, iOS, and macOS `fluoh run --json` exposes
+   `details.vmServiceUri` on the run step when Flutter prints a VM Service or
+   debug service URI. Pass `--session-file <path>` on those runs when an AI or
+   external inspector needs an attach point before final JSON is printed; fluoh
+   writes a live `flutterRunSession` JSON file while the app is still running.
+   Then run `inspect_session.py` or the preflight `sessionInspectCommand` to
+   wait for launch, read the VM Service URI, and decide whether to attach,
+   inspect logs, or route a failure.
+   Do not judge whether the UI looks right unless the package is specifically a
+   visual package. Do not assume the AI agent can inspect screenshots;
+   screenshots and recordings are optional supporting evidence. Use manual
+   interaction only as a fallback when AI automation cannot operate or observe
+   the target.
+7. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
    `stderrTail`, and saved run logs from JSON output before editing. Fix
    `doctor` failures in local tooling, project warnings in repository
    configuration, and verification failures in the code or example that
    produced the diagnostic.
-7. Completion report: write
+8. Completion report: write
    `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` with commands,
-   results, platform matrix, signing mode, logs, remaining risks, and release
-   recommendation.
-8. Release gate: run `fluoh package status --package <name>`, the final
+   results, platform matrix, interaction evidence, signing mode, logs,
+   remaining risks, and release recommendation.
+9. Release gate: run `fluoh package status --package <name>`, the final
    `fluoh verify --package <name>`, and
    `fluoh package release --package <name> --dry-run`. Commit only after the
    relevant gate succeeds; run the real release command only when the maintainer
@@ -266,9 +341,28 @@ Rules:
 - Establish a selected-SDK baseline before adding OHOS code. Fix non-OHOS
   regressions first when Android, iOS, macOS, tests, or examples already exist.
 - Implement OHOS code near the package path recorded in `fluoh.yaml`.
-- Extend package tests or examples when behavior changes. Example UI should
-  expose visible operations, expected results, pass/fail status, and failure
-  hints for manual platform checks.
+- Extend package tests or examples when behavior changes. Example apps are
+  functional harnesses: they should expose operations, expected results,
+  pass/fail status, and failure hints for automated or AI-assisted platform
+  checks. Prefer machine-readable evidence such as Flutter debug output,
+  widget/component tree state, semantics tree, semantic labels, stable text
+  status, test keys, and log markers so non-vision AI agents can verify the
+  flow without knowing what the UI looks like.
+- Treat `fluoh run` launch success as smoke evidence. Release-ready interaction
+  evidence must come from `integration_test`, AI-assisted scenario execution, or
+  an explicitly accepted manual fallback.
+- AI-assisted scenarios must be usable without screenshot recognition. Prefer
+  Flutter debug or VM service output, widget/component tree state,
+  integration-test assertions, accessibility or semantics tree output, visible
+  text, semantic labels, stable test keys, command JSON, hilog, or app log
+  markers as primary evidence; screenshots or screen recordings are supporting
+  artifacts only.
+- Cover the scenario classes that apply to the package: permission prompts,
+  file or media pickers, camera and microphone capture, location and sensors,
+  maps, media playback/recording, deep links and external app callbacks,
+  background or lifecycle behavior, error/denied-permission paths, and
+  multi-step forms. Mark irrelevant classes as not applicable in the report
+  rather than silently skipping them.
 - Use `fluoh run --platform ohos --package <name> --json` when a target exists.
   Use the `build --auto-sign` command as the fallback when no target is
   available.
@@ -308,10 +402,13 @@ the preflight `reportCommand` when available, or run
 `python3 <skill-dir>/scripts/new_report.py <project-path> --scope <scope>`;
 otherwise use `references/report-template.md` directly.
 Complete the report with command output summaries, exit codes, changed files,
-platform evidence, remaining risks, and release recommendation. Mark every
-applicable Delivery Checklist item as done, or leave it unchecked and explain
-the blocker. A ready recommendation requires all applicable checklist items to
-be done.
+platform evidence, interaction evidence, remaining risks, and release
+recommendation. Mark every applicable Delivery Checklist item as done, or leave
+it unchecked and explain the blocker. A ready recommendation requires all
+applicable checklist items to be done.
+If no interaction scenario applies, write `No interaction required: <reason>` in
+the report's `Interaction Evidence` section. Otherwise include at least one
+concrete interaction row; `check_report.py` enforces this before final delivery.
 Run `python3 <skill-dir>/scripts/check_report.py <report-path>` before the final
 response; if it fails, fix the report or explain why the remaining blocker is
 intentional.

@@ -126,6 +126,9 @@ void main() {
     final reportTemplate = File(
       'skills/fluoh/references/report-template.md',
     ).readAsStringSync();
+    final scenarioTemplate = File(
+      'skills/fluoh/references/interaction-scenario-template.md',
+    ).readAsStringSync();
     final preflight = File(
       'skills/fluoh/scripts/preflight.py',
     ).readAsStringSync();
@@ -135,12 +138,19 @@ void main() {
     final checkReport = File(
       'skills/fluoh/scripts/check_report.py',
     ).readAsStringSync();
+    final newScenario = File(
+      'skills/fluoh/scripts/new_scenario.py',
+    ).readAsStringSync();
+    final inspectSession = File(
+      'skills/fluoh/scripts/inspect_session.py',
+    ).readAsStringSync();
 
     expect(skill, contains('name: fluoh'));
     expect(skill, contains('adapting Flutter apps'));
     expect(skill, contains('## AI-Driven Default Flow'));
     expect(skill, contains('## App Project Flow'));
     expect(skill, contains('## Preflight Routing'));
+    expect(skill, contains('## Complete AI Evidence Loop'));
     expect(skill, contains('## Package Adaptation Flow'));
     expect(skill, contains('## Automatic Adaptation Command Flow'));
     expect(skill, contains('## User Request Routing'));
@@ -167,9 +177,16 @@ void main() {
     );
     expect(skill, contains('JSON Diagnostics'));
     expect(skill, contains('references/report-template.md'));
+    expect(skill, contains('references/interaction-scenario-template.md'));
     expect(skill, contains('scripts/preflight.py'));
     expect(skill, contains('scripts/new_report.py'));
     expect(skill, contains('scripts/check_report.py'));
+    expect(skill, contains('scripts/new_scenario.py'));
+    expect(skill, contains('scripts/inspect_session.py'));
+    expect(skill, contains('scenarioCommand'));
+    expect(skill, contains('sessionInspectCommand'));
+    expect(skill, contains('check_report.py'));
+    expect(skill, contains('--require-vm-service'));
     expect(skill, isNot(contains('Codex')));
 
     expect(openai, contains('display_name: "fluoh"'));
@@ -188,6 +205,28 @@ void main() {
     expect(reportTemplate, contains('## Public API / Compatibility'));
     expect(reportTemplate, contains('## Delivery Checklist'));
     expect(reportTemplate, contains('## Platform Matrix'));
+    expect(reportTemplate, contains('## Interaction Evidence'));
+    expect(reportTemplate, contains('No interaction required: <reason>'));
+    expect(reportTemplate, contains('.fluoh/scenarios/'));
+    expect(
+      reportTemplate,
+      contains('Flutter debug/widget/semantic/log evidence'),
+    );
+    expect(reportTemplate, contains('flutterRunSession/VM Service evidence'));
+    expect(reportTemplate, contains('screenshots optional'));
+
+    expect(scenarioTemplate, contains('# fluoh Interaction Scenario'));
+    expect(scenarioTemplate, contains('## Preconditions'));
+    expect(scenarioTemplate, contains('## Scenario'));
+    expect(scenarioTemplate, contains('## Assertions'));
+    expect(scenarioTemplate, contains('## Evidence To Record'));
+    expect(scenarioTemplate, contains('Observation mode'));
+    expect(scenarioTemplate, contains('Required Flutter debug output'));
+    expect(scenarioTemplate, contains('Session inspect command'));
+    expect(scenarioTemplate, contains('flutterRunSession JSON status'));
+    expect(scenarioTemplate, contains('functional correctness'));
+    expect(scenarioTemplate, contains('widget/component state'));
+    expect(scenarioTemplate, contains('screenshot-optional'));
     expect(reportTemplate, contains('## Local State'));
     expect(reportTemplate, contains('Diff reviewed'));
     expect(reportTemplate, contains('Release recommendation: ready'));
@@ -198,6 +237,8 @@ void main() {
       'finalCheckCommands',
       'deliveryChecks',
       'reportCommand',
+      'sessionInspectCommand',
+      'scenarioCommand',
       'pathIsDirectory',
       'needsPackageSelection',
       'selectedPackage',
@@ -213,9 +254,31 @@ void main() {
       'unique_report_path',
       'Release recommendation',
     ]);
+    expectContainsAll(newScenario, [
+      '.fluoh',
+      'scenarios',
+      'interaction-scenario-template.md',
+      'AI-assisted interaction scenario',
+      'Observation mode',
+      '--platform',
+      '--name',
+    ]);
+    expectContainsAll(inspectSession, [
+      'schemaVersion',
+      'flutterRunSession',
+      'vmServiceUri',
+      'attachHints',
+      'recommendation',
+      'wait-for-launch',
+      '--require-vm-service',
+      '--expect-platform',
+    ]);
     expectContainsAll(checkReport, [
       'schemaVersion',
       'Delivery checklist',
+      'Interaction Evidence',
+      'interactionRows',
+      'No interaction required',
       'commandRows',
       'Release recommendation',
       'Report still contains placeholder content',
@@ -496,6 +559,8 @@ void main() {
       'skills/fluoh',
       'Run `fluoh skill --json`',
       'returned localPath',
+      'helper script argv',
+      'reference template paths',
       'dart pub global activate fluoh',
       'fluoh upgrade',
       'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
@@ -520,6 +585,21 @@ void main() {
       'fluoh build --platform <platform>',
       '--no-codesign',
       'integration_test',
+      'AI-assisted interaction',
+      '.fluoh/scenarios',
+      'interaction-scenario-template.md',
+      'Flutter debug',
+      'details.vmServiceUri',
+      '--session-file <path>',
+      'flutterRunSession',
+      'inspect_session.py',
+      'component state',
+      'semantic',
+      'depend on image',
+      'visual layout',
+      'No interaction required',
+      'permission grant and denial',
+      'Run-smoke success',
       'emulator or simulator',
       '--auto-sign',
       'fluoh devices',
@@ -548,6 +628,8 @@ void main() {
       'skills/fluoh',
       '运行 `fluoh skill --json`',
       '返回的 localPath',
+      'helper script argv',
+      'reference 路径',
       'dart pub global activate fluoh',
       'fluoh upgrade',
       '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill。',
@@ -572,6 +654,21 @@ void main() {
       'fluoh build --platform <platform>',
       '--no-codesign',
       'integration_test',
+      'AI driver',
+      '.fluoh/scenarios',
+      'interaction-scenario-template.md',
+      'Flutter debug',
+      'details.vmServiceUri',
+      '--session-file <path>',
+      'flutterRunSession',
+      'inspect_session.py',
+      '组件状态',
+      '语义标签',
+      '识图能力',
+      '视觉布局',
+      'No interaction required',
+      '权限允许/拒绝',
+      'run-smoke 成功',
       'target',
       '--auto-sign',
       'fluoh devices',

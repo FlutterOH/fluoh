@@ -203,6 +203,12 @@ class RunCommand extends FluohCommand<int> {
         defaultsTo: '8',
         help: 'Seconds of run output or OHOS hilog to collect.',
       )
+      ..addOption(
+        'session-file',
+        valueHelp: 'path',
+        help:
+            'Write a live Flutter debug session JSON file for Android, iOS, or macOS runs.',
+      )
       ..addFlag(
         'json',
         negatable: false,
@@ -235,6 +241,18 @@ class RunCommand extends FluohCommand<int> {
     final platform = _platformFromBuildOption(argResults!.option('platform'));
     final deviceId = _trimmedOption(argResults!, 'device');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
+    final sessionFilePath = _trimmedOption(argResults!, 'session-file');
+    if (sessionFilePath != null && platform == 'ohos') {
+      usageException(
+        'Use --session-file only with Android, iOS, or macOS runs.',
+      );
+    }
+    if (sessionFilePath != null && argResults!.flag('all')) {
+      usageException('Use --session-file with one run target at a time.');
+    }
+    final sessionFile = sessionFilePath == null
+        ? null
+        : _resolveOutputFile(environment.workingDirectory, sessionFilePath);
     final json = argResults!.flag('json');
     final output = _outputFor(json, _output);
     final stdout = json ? (_) {} : _stdout;
@@ -248,6 +266,7 @@ class RunCommand extends FluohCommand<int> {
       deviceId: deviceId,
       startEmulator: emulatorName != null,
       emulatorName: emulatorName,
+      sessionFile: sessionFile,
     );
     final results = await _runPackageOrProject(
       environment: environment,
@@ -263,6 +282,7 @@ class RunCommand extends FluohCommand<int> {
         deviceId: deviceId,
         startEmulator: emulatorName != null,
         emulatorName: emulatorName,
+        sessionFile: sessionFile,
       ),
       deviceTimeout: deviceTimeout,
       logDuration: logDuration,
@@ -287,6 +307,14 @@ class RunCommand extends FluohCommand<int> {
     }
     return Duration(seconds: seconds);
   }
+}
+
+File _resolveOutputFile(Directory workingDirectory, String path) {
+  final file = File(path);
+  if (file.isAbsolute) {
+    return file;
+  }
+  return File('${workingDirectory.path}/$path');
 }
 
 void _addPackageSelectionOptions(ArgParser parser) {
@@ -371,6 +399,7 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
       deviceId: invocation.deviceId,
       startEmulator: invocation.startEmulator,
       emulatorName: invocation.emulatorName,
+      sessionFile: invocation.sessionFile,
       deviceTimeout: deviceTimeout,
       logDuration: logDuration,
       phase: invocation.phase,
@@ -410,6 +439,7 @@ class _PackageWorkflowInvocation {
     this.deviceId,
     this.startEmulator = false,
     this.emulatorName,
+    this.sessionFile,
   });
 
   final String phase;
@@ -420,6 +450,7 @@ class _PackageWorkflowInvocation {
   final String? deviceId;
   final bool startEmulator;
   final String? emulatorName;
+  final File? sessionFile;
 
   String stepMessage(String packageName) {
     if (phase == 'baseline') {
@@ -443,7 +474,8 @@ class _ProjectWorkflowInvocation {
       autoSign = false,
       deviceId = null,
       startEmulator = false,
-      emulatorName = null;
+      emulatorName = null,
+      sessionFile = null;
 
   const _ProjectWorkflowInvocation.build({
     required this.platform,
@@ -452,13 +484,15 @@ class _ProjectWorkflowInvocation {
   }) : kind = 'build',
        deviceId = null,
        startEmulator = false,
-       emulatorName = null;
+       emulatorName = null,
+       sessionFile = null;
 
   const _ProjectWorkflowInvocation.run({
     required this.platform,
     required this.deviceId,
     required this.startEmulator,
     required this.emulatorName,
+    required this.sessionFile,
   }) : kind = 'run',
        debug = true,
        autoSign = false;
@@ -470,6 +504,7 @@ class _ProjectWorkflowInvocation {
   final String? deviceId;
   final bool startEmulator;
   final String? emulatorName;
+  final File? sessionFile;
 }
 
 Future<WorkflowTargetResult> _runProjectWorkflow({
@@ -599,6 +634,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
       deviceId: invocation.deviceId,
       startEmulator: invocation.startEmulator,
       emulatorName: invocation.emulatorName,
+      sessionFile: invocation.sessionFile,
       deviceTimeout: deviceTimeout,
       runDuration: logDuration,
       usage: usage,
