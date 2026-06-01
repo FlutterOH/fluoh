@@ -101,7 +101,7 @@ class BuildCommand extends FluohCommand<int> {
         'auto-sign',
         negatable: false,
         help:
-            'Generate temporary OHOS debug signing when building a package example.',
+            'Generate temporary OHOS debug signing when building a project or package example.',
       )
       ..addFlag(
         'json',

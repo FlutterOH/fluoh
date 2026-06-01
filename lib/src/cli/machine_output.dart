@@ -1,9 +1,15 @@
 import 'dart:convert';
 
+/// Machine-output schema version shared by all `--json` commands.
 const machineOutputSchemaVersion = 1;
 
+/// Receives one JSON object produced by a machine-output command.
 typedef MachineOutputWriter = void Function(String message);
 
+/// Builds the standard top-level JSON object for `--json` command output.
+///
+/// The reserved keys `schemaVersion`, `command`, `ok`, and `exitCode` are owned
+/// by this helper so every machine-readable command has the same envelope.
 Map<String, Object?> machineOutput({
   required String command,
   required bool ok,
@@ -28,6 +34,7 @@ Map<String, Object?> machineOutput({
   };
 }
 
+/// Writes [machineOutput] to [stdout] as a single JSON line.
 void writeMachineOutput(
   MachineOutputWriter stdout, {
   required String command,
@@ -47,6 +54,7 @@ void writeMachineOutput(
   );
 }
 
+/// Builds a standard machine-readable error response.
 Map<String, Object?> machineErrorOutput({
   required String command,
   required int exitCode,
@@ -63,6 +71,7 @@ Map<String, Object?> machineErrorOutput({
   );
 }
 
+/// Writes [machineErrorOutput] to [stdout] as a single JSON line.
 void writeMachineErrorOutput(
   MachineOutputWriter stdout, {
   required String command,

@@ -795,6 +795,7 @@ void main() {
     final steps = target['steps'] as List<Object?>;
     final runStep = steps.cast<Map<String, Object?>>().singleWhere(
       (step) => step['name'] == 'project-run-ohos',
+      orElse: () => fail('Missing project-run-ohos step: ${jsonEncode(steps)}'),
     );
     expect(runStep, containsPair('status', 'failed'));
     final diagnostics = runStep['diagnostics'] as List<Object?>;
@@ -2184,51 +2185,44 @@ Future<Directory> _writeWorkflowDevEcoFixture(
     '${openHarmony.path}/previewer/common/resources/module.json',
   ).writeAsString('{"definePermissions": []}');
 
-  await _writeExecutable(File('${jbr.path}/keytool'), '''
-#!/bin/sh
-out=""
-while [ "\$#" -gt 0 ]; do
-  if [ "\$1" = "-file" ]; then
-    shift
-    out="\$1"
-  fi
-  shift
-done
-if [ -n "\$out" ]; then
-  printf "%s\\n%s\\n%s\\n" "-----BEGIN CERTIFICATE-----" "fixture" "-----END CERTIFICATE-----" > "\$out"
-fi
-exit 0
+  final fakeKeytool = File('${root.path}/fake_keytool');
+  await _writeExecutable(fakeKeytool, r'''
+#!/usr/bin/env python3
+import sys
+
+args = sys.argv[1:]
+if "-file" in args:
+    index = args.index("-file")
+    if index + 1 < len(args):
+        with open(args[index + 1], "w", encoding="utf-8") as out:
+            out.write("-----BEGIN CERTIFICATE-----\nfixture\n-----END CERTIFICATE-----\n")
 ''');
-  await _writeExecutable(File('${jbr.path}/java'), '''
-#!/bin/sh
-out=""
-store=""
-while [ "\$#" -gt 0 ]; do
-  case "\$1" in
-    -outFile)
-      shift
-      out="\$1"
-      ;;
-    -keystoreFile)
-      shift
-      store="\$1"
-      ;;
-  esac
-  shift
-done
-if [ -n "\$store" ]; then
-  printf "keystore\\n" > "\$store"
-fi
-if [ -n "\$out" ]; then
-  printf "%s\\n%s\\n%s\\n" "-----BEGIN CERTIFICATE-----" "fixture" "-----END CERTIFICATE-----" > "\$out"
-fi
-exit 0
+  await Link('${jbr.path}/keytool').create(fakeKeytool.path);
+  final fakeJava = File('${root.path}/fake_java');
+  await _writeExecutable(fakeJava, r'''
+#!/usr/bin/env python3
+import sys
+
+args = sys.argv[1:]
+if "-keystoreFile" in args:
+    index = args.index("-keystoreFile")
+    if index + 1 < len(args):
+        with open(args[index + 1], "w", encoding="utf-8") as store:
+            store.write("keystore\n")
+if "-outFile" in args:
+    index = args.index("-outFile")
+    if index + 1 < len(args):
+        with open(args[index + 1], "w", encoding="utf-8") as out:
+            out.write("-----BEGIN CERTIFICATE-----\nfixture\n-----END CERTIFICATE-----\n")
 ''');
-  await _writeExecutable(File('${node.path}/node'), '''
+  await Link('${jbr.path}/java').create(fakeJava.path);
+  final fakeNode = File('${root.path}/fake_node');
+  await _writeExecutable(fakeNode, '''
 #!/bin/sh
 printf "00112233445566778899aabbccddeeff\\n"
 exit 0
 ''');
+  await Link('${node.path}/node').create(fakeNode.path);
   await _writeExecutable(File('${toolchains.path}/hdc'), '''
 #!/bin/sh
 printf "%s\\n" "\$*" >> "${hdcLog.path}"

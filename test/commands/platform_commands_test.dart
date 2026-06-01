@@ -54,6 +54,10 @@ exit 1
           containsPair('id', 'android-1'),
           containsPair('name', 'Pixel 8'),
           containsPair('kind', 'device'),
+          containsPair('displayName', 'Pixel 8 (mobile)'),
+          containsPair('displayPlatform', 'android'),
+          containsPair('category', 'mobile'),
+          containsPair('summary', 'device'),
         ),
       ),
     );
@@ -105,13 +109,17 @@ exit 1
         allOf(
           containsPair('id', 'Pixel_8_API_35'),
           containsPair('kind', 'emulator'),
+          containsPair('displayName', 'Pixel 8 API 35'),
+          containsPair('displayPlatform', 'android'),
+          containsPair('category', 'mobile'),
+          containsPair('manufacturer', 'Google'),
         ),
       ),
     );
     expect(stderr, isEmpty);
   });
 
-  test('plain target output wraps long device rows', () async {
+  test('plain target output uses Flutter-style device rows', () async {
     final environment = await createTestEnvironment();
     final longId = 'android-${'x' * 120}';
     final androidSdk = await _writeAndroidSdkFixture(
@@ -146,8 +154,14 @@ exit 1
       0,
     );
 
-    expect(stdout.where((line) => line.length > 80), isEmpty);
-    expect(stdout.join('\n'), contains('Pixel 8 Pro Maximum Length'));
+    final output = stdout.join('\n');
+    expect(output, contains('Found 1 connected device:'));
+    expect(
+      output,
+      contains(
+        'Pixel 8 Pro Maximum Length (mobile) • $longId • android • device',
+      ),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -192,6 +206,91 @@ exit 1
     },
   );
 
+  test('devices discovers iOS wireless devices from xcdevice', () async {
+    final environment = await createTestEnvironment();
+    final xcrun = await _writeXcrunFixture(
+      environment.homeDirectory,
+      simctlDevicesJson: '{"devices":{}}',
+      devicectlDevicesJson: '{"result":{"devices":[]}}',
+      xcdeviceDevicesJson: _xcdeviceDevicesJson,
+    );
+    final commandEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_XCRUN': xcrun.path,
+      },
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['devices', '--platform', 'ios', '--json'],
+        environment: commandEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final platforms = report['platforms'] as List<Object?>;
+    final ios = platforms.single as Map<String, Object?>;
+    final targets = ios['targets'] as List<Object?>;
+    expect(
+      targets,
+      contains(
+        allOf(
+          containsPair('id', 'XCDEVICE-WIRELESS-UDID'),
+          containsPair('name', 'Desk iPhone'),
+          containsPair('kind', 'device'),
+        ),
+      ),
+    );
+    expect(
+      targets.cast<Map<String, Object?>>().map((target) => target['id']),
+      isNot(contains('MAC-UDID')),
+    );
+    final wireless = targets.cast<Map<String, Object?>>().firstWhere(
+      (target) => target['id'] == 'XCDEVICE-WIRELESS-UDID',
+    );
+    expect(
+      wireless,
+      allOf(
+        containsPair('displayName', 'Desk iPhone (wireless) (mobile)'),
+        containsPair('displayPlatform', 'ios'),
+        containsPair('category', 'mobile'),
+        containsPair('connection', 'wireless'),
+        containsPair('summary', 'iOS 18.5'),
+      ),
+    );
+    expect(
+      wireless['details'],
+      allOf(
+        containsPair('source', 'xcdevice'),
+        containsPair('transport', 'network'),
+      ),
+    );
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['devices', '--platform', 'ios'],
+        environment: commandEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      stdout.join('\n'),
+      contains('Desk iPhone (wireless) (mobile) • XCDEVICE-WIRELESS-UDID'),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('plain device output uses consistent list rows', () async {
     final environment = await createTestEnvironment();
     final androidSdk = await _writeAndroidSdkFixture(
@@ -208,6 +307,8 @@ exit 1
       environment.homeDirectory,
       simctlDevicesJson: '{"devices":{}}',
       devicectlDevicesJson: _devicectlDevicesJson,
+      devicectlStdoutJson: false,
+      xcdeviceDevicesJson: _duplicateXcdeviceOfficeIphoneJson,
     );
     final commandEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
@@ -232,15 +333,21 @@ exit 1
     );
 
     final output = stdout.join('\n');
-    expect(output, contains('- No devices found'));
-    expect(output, contains('- Office iPhone    WIRELESS-DEVICE-UDID'));
+    expect(output, isNot(contains('Checking for wireless devices...')));
+    expect(output, contains('Found 1 wirelessly connected device:'));
+    expect(
+      output,
+      contains('  Office iPhone (wireless) (mobile) • WIRELESS-DEVICE-UDID'),
+    );
+    expect(output, contains('iOS 17.5 21F79'));
+    expect(output, isNot(contains('XCTRACE-DUPLICATE-UDID')));
     if (Platform.isMacOS) {
-      expect(output, contains('- macOS    macos'));
-      expect(output, isNot(contains('macos    available')));
+      expect(output, contains('Found 1 connected device:'));
+      expect(output, contains('macOS (desktop)'));
+      expect(output, contains('macOS 26.5 25F71 darwin-'));
     } else {
       expect(output, contains('macOS desktop targets require a macOS host'));
     }
-    expect(output, isNot(contains('Run on a target:')));
     expect(stderr, isEmpty);
   });
 
@@ -273,12 +380,13 @@ exit 1
     );
 
     final output = stdout.join('\n');
+    expect(output, contains('Id'));
+    expect(output, contains('Manufacturer'));
+    expect(output, contains('Apple'));
     expect(output, contains('iPhone 15 Pro'));
     expect(output, contains('iPhone 15 Mini'));
     expect(output, isNot(contains('Booted')));
     expect(output, isNot(contains('Shutdown')));
-    expect(stdout.where((line) => line.trim().endsWith('emulator')), isEmpty);
-    expect(output, isNot(contains('Run on a target:')));
     expect(stderr, isEmpty);
   });
 }
@@ -307,8 +415,21 @@ Future<File> _writeXcrunFixture(
   Directory root, {
   required String simctlDevicesJson,
   required String devicectlDevicesJson,
+  bool devicectlStdoutJson = true,
+  String xcdeviceDevicesJson = '[]',
 }) async {
   final xcrun = File('${root.path}/bin/xcrun');
+  final devicectlStdoutJsonScript = devicectlStdoutJson
+      ? '''
+  cat <<'JSON'
+$devicectlDevicesJson
+JSON
+  exit 0
+'''
+      : '''
+  printf "Unknown option --json\\n" >&2
+  exit 64
+''';
   await _writeExecutable(xcrun, '''
 if [ "\$1" = "simctl" ] && [ "\$2" = "list" ]; then
   cat <<'JSON'
@@ -317,8 +438,17 @@ JSON
   exit 0
 fi
 if [ "\$1" = "devicectl" ] && [ "\$2" = "list" ]; then
-  cat <<'JSON'
+  if [ "\$4" = "--json-output" ]; then
+    cat > "\$5" <<'JSON'
 $devicectlDevicesJson
+JSON
+    exit 0
+  fi
+$devicectlStdoutJsonScript
+fi
+if [ "\$1" = "xcdevice" ] && [ "\$2" = "list" ]; then
+  cat <<'JSON'
+$xcdeviceDevicesJson
 JSON
   exit 0
 fi
@@ -348,6 +478,43 @@ const _simctlDevicesJson = '''
 }
 ''';
 
+const _xcdeviceDevicesJson = '''
+[
+  {
+    "identifier": "XCDEVICE-WIRELESS-UDID",
+    "name": "Desk iPhone",
+    "modelName": "iPhone 16",
+    "platform": "com.apple.platform.iphoneos",
+    "operatingSystemVersion": "18.5",
+    "interface": "network",
+    "available": true,
+    "simulator": false
+  },
+  {
+    "identifier": "MAC-UDID",
+    "name": "Work Mac",
+    "platform": "com.apple.platform.macosx",
+    "available": true,
+    "simulator": false
+  }
+]
+''';
+
+const _duplicateXcdeviceOfficeIphoneJson = '''
+[
+  {
+    "identifier": "XCTRACE-DUPLICATE-UDID",
+    "name": "Office iPhone",
+    "modelName": "iPhone 15",
+    "platform": "com.apple.platform.iphoneos",
+    "operatingSystemVersion": "17.5 (21F79)",
+    "interface": "usb",
+    "available": true,
+    "simulator": false
+  }
+]
+''';
+
 const _devicectlDevicesJson = '''
 {
   "result": {
@@ -363,7 +530,7 @@ const _devicectlDevicesJson = '''
           "marketingName": "iPhone 15"
         },
         "connectionProperties": {
-          "transportType": "network",
+          "transportType": "localNetwork",
           "pairingState": "paired",
           "tunnelState": "connected"
         }

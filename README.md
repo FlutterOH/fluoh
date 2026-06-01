@@ -1,154 +1,109 @@
 <h1 align="center">
-  <img src="docs/assets/svg/fluoh-logo.svg" alt="fluoh logo" width="82" align="absmiddle">
+  <img src="doc/assets/svg/fluoh-logo.svg" alt="fluoh logo" width="82" align="absmiddle">
   fluoh
 </h1>
 
 <p align="center">
-  Bring Flutter apps to OpenHarmony faster.
+  Adapt Flutter apps and packages to OHOS with AI.
 </p>
 
 <p align="center">
   <a href="https://pub.dev/packages/fluoh"><img src="https://img.shields.io/pub/v/fluoh.svg" alt="pub package"></a>
   <a href="https://github.com/FlutterOH/fluoh/actions/workflows/ci.yml"><img src="https://github.com/FlutterOH/fluoh/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="skills/fluoh/SKILL.md"><img src="https://img.shields.io/badge/AI%20skill-skills%2Ffluoh-6f42c1" alt="AI skill"></a>
+  <img src="https://img.shields.io/badge/diagnostics-JSON-blue" alt="JSON diagnostics">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/FlutterOH/fluoh.svg" alt="License"></a>
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="#maintenance-workflows">Maintenance</a> ·
-  <a href="docs/commands.md">Commands</a> ·
-  <a href="docs/schema.md">Schema</a> ·
+  <a href="skills/fluoh/SKILL.md">Skill</a> ·
+  <a href="doc/commands.md">Commands</a> ·
+  <a href="doc/schema.md">Schema</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/svg/readme-hero.svg" alt="fluoh terminal workflow preview" width="900">
+  <img src="doc/assets/svg/readme-hero.svg" alt="fluoh AI adaptation prompt preview" width="900">
 </p>
-
-`fluoh` helps FlutterOH projects keep SDK selection, IDE configuration,
-dependency replacements, and Flutter command execution in sync. It records the
-selected SDK in the project, exposes a stable IDE SDK link, and runs Flutter
-through the same toolchain from the terminal.
 
 ## Quick Start
 
+Ask your AI agent to install the skill first:
+
+```text
+Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.
+```
+
+Then type one request for an app or a package:
+
+```text
+Use $fluoh to install fluoh if needed and adapt this Flutter project for OHOS.
+Use $fluoh to adapt <upstream-git-url> for FlutterOH.
+Use $fluoh to continue adapting <package-name> for OHOS.
+```
+
+The skill checks `fluoh --version`, installs the CLI when it is missing, runs
+`fluoh` commands, follows JSON diagnostics, edits the project or package,
+verifies the result, and saves `.fluoh/ai-report-...md` with a delivery
+checklist.
+It prefers `dart pub global activate fluoh`, with Homebrew as the macOS
+fallback.
+
+If you already have the CLI installed, an agent can discover the bundled local
+skill path and helper script commands with:
+
+```text
+Run `fluoh skill --json`, install the returned localPath as a skill, then reload skills if needed.
+```
+
+The skill version follows the `fluoh` CLI version. To update it, run
+`fluoh upgrade`, then ask the agent to run `fluoh skill --json` again and
+reinstall or reload the returned path.
+
+## Manual Fallback
+
+When you need to install or drive the CLI yourself:
+
 ```sh
 dart pub global activate fluoh
-
-cd your_flutter_project
-fluoh source update
 fluoh sdk use 3.35 --pub-get
 fluoh deps check
 fluoh deps fix
-fluoh deps get
-fluohf build hap
+fluoh doctor -p --platform ohos
+fluoh build --platform ohos --auto-sign
 ```
 
-After setup, the project has an exact SDK version in `fluoh.yaml`, a stable IDE
-SDK link at `.fluoh/flutter_sdk`, an `ohos/` platform directory, and FlutterOH
-dependency replacements from the latest validated snapshot.
-Use `--no-init-ohos` when platform creation is handled by another workflow.
-
-## Install
-
-```sh
-dart pub global activate fluoh
-fluoh --version
-```
-
-Make sure Dart's global pub bin directory is on `PATH`:
-
-```sh
-export PATH="$HOME/.pub-cache/bin:$PATH"
-```
-
-macOS users can also install with Homebrew:
+macOS alternative:
 
 ```sh
 brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-## Common Workflows
-
-| Workflow | Command |
-| --- | --- |
-| Pick and pin a Flutter OHOS SDK | `fluoh sdk use 3.35 --pub-get` |
-| Run Flutter from the selected SDK | `fluohf pub get`, `fluohf run`, `fluohf build hap` |
-| Check FlutterOH dependency support | `fluoh deps check` |
-| Rewrite dependencies safely | `fluoh deps fix --dry-run`, `fluoh deps fix` |
-| Update existing FlutterOH dependency replacements | `fluoh deps upgrade` |
-| Diagnose native tools and optional project setup | `fluoh doctor`, `fluoh doctor -p` |
-| List local targets | `fluoh devices`, `fluoh emulators` |
-| Upgrade the CLI | `fluoh upgrade` |
-
-### Daily Loop
+For package maintainers:
 
 ```sh
-fluoh sdk list
-fluoh sdk use 3.35 --pub-get
+fluoh package create <upstream-git-url>
+fluoh verify
+fluoh package status
+```
 
-fluoh deps check
-fluoh deps fix --dry-run
-fluoh deps fix
-fluoh deps get
+Use `fluohf` to run Flutter through the selected FlutterOH SDK:
 
+```sh
+fluohf pub get
 fluohf run
 fluohf build hap
 ```
 
-## Maintenance Workflows
+## Links
 
-Most app projects only need the commands above. FlutterOH package maintainers
-can also create, sync, verify, and release third-party FlutterOH package repositories:
-
-```sh
-fluoh package create <upstream-git-url>
-fluoh package sync
-fluoh package status
-fluoh verify
-fluoh run --platform ohos
-fluoh package release
-fluoh source sync
-```
-
-### AI Assistance
-
-For maintainers adapting a third-party Flutter package, let `fluoh` create the
-repository contract first:
-
-```sh
-fluoh package create <upstream-git-url> --repository <flutteroh-repo-url> --git-author-name "<author-name>" --git-author-email "<author-email>"
-```
-
-Then open the generated repository in an AI coding agent and ask it to read
-`AGENTS.md` and complete the adaptation. The generated `AGENTS.md` and
-`FLUOH.md` give the agent a staged command flow:
-`fluoh doctor -p --json --strict` for repository and local toolchain
-state, `fluoh verify --json` for
-package and example tests, `fluoh run --platform ohos|android|ios|macos --json` for
-diagnostics-driven implementation loops, JSON `nextCommand` for the next action,
-and `.fluoh/ai-report-...md` for the final release recommendation.
-Review the final diff and device-only behavior before release.
-
-See [docs/commands.md](docs/commands.md) for the full command surface and
-[CONTRIBUTING.md](CONTRIBUTING.md) for repository, release, and publishing
-workflows.
-
-## Source Data
-
-`fluoh` uses the official FlutterOH source by default:
-
-```text
-https://github.com/FlutterOH/source.git
-```
-
-A Source is fluoh's metadata feed for Flutter OHOS SDK releases and package
-compatibility records. Most app projects only need `fluoh source update`.
-
-Source metadata and compatibility schema details are documented in
-[docs/schema.md](docs/schema.md).
+- [Command reference](doc/commands.md)
+- [Source schema](doc/schema.md)
+- [Contributing and release workflow](CONTRIBUTING.md)
+- Official source data: `https://github.com/FlutterOH/source.git`
 
 ## License
 

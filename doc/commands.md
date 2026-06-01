@@ -10,12 +10,79 @@ write, and preserve that data.
 Command implementations live mostly under `lib/src/<domain>/commands/`, with
 top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 
+## End-to-End Workflows
+
+AI-driven adaptation is the primary end-to-end path. The bundled
+`skills/fluoh` workflow decides whether the workspace is an app project or a
+package adaptation repository, then drives the deterministic `fluoh` commands.
+Those commands own the auditable steps: `sdk use` owns SDK selection, the stable
+IDE link, and default OHOS platform creation; `deps` owns FlutterOH dependency
+replacements; `doctor` owns environment and project diagnostics; and `build` or
+`run` owns signing, target selection, launch, logs, and JSON failure routing.
+
+### AI-Driven Adaptation
+
+Start by asking the agent to install the skill:
+
+```text
+Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.
+```
+
+Then hand work to the agent with a short request:
+
+```text
+Use $fluoh to install fluoh if needed and adapt this Flutter project for OHOS.
+Use $fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.
+Use $fluoh to continue adapting <package-name> for OHOS.
+```
+
+The skill installs the CLI when `fluoh --version` fails, preferring
+`dart pub global activate fluoh` and falling back to Homebrew on macOS when Dart
+is not available. If the CLI is already installed, agents can discover the
+bundled local skill path and helper script commands with:
+
+```text
+Run `fluoh skill --json`, install the returned localPath as a skill, then reload skills if needed.
+```
+
+The skill version follows the `fluoh` CLI package version. Updating the CLI with
+`fluoh upgrade` updates the bundled skill files; agents that copied the skill
+should rerun `fluoh skill --json` and reinstall or reload the returned path.
+The agent writes `.fluoh/ai-report-...md` with a delivery checklist before
+finishing. Review the diff, the report, and any device-only behavior before
+release.
+
+### Add OHOS to an App Project Manually
+
+Use this path from an existing Flutter project when the goal is to make the
+project build or run on OHOS without an AI agent:
+
+```sh
+fluoh source update
+fluoh sdk use 3.35 --pub-get
+fluoh deps check
+fluoh deps fix --dry-run
+fluoh deps fix
+fluoh deps get
+fluoh doctor -p --platform ohos
+fluoh build --platform ohos --auto-sign
+fluoh devices --platform ohos
+fluoh run --platform ohos --device <id>
+```
+
+`fluoh sdk use` creates `ohos/` by default when the project does not already
+have one. Use `--no-init-ohos` only when another workflow owns platform
+creation. If no device or emulator is available, keep
+`fluoh build --platform ohos --auto-sign --json` as build-only evidence and use
+the JSON diagnostic `nextCommand` for the next local setup step.
+
 ## Command Surface
 
 | Command | Implementation | Purpose |
 | --- | --- | --- |
 | `fluoh --version` | `lib/src/cli/fluoh_command_runner.dart` | Print the `fluoh` version, Dart version, platform, and repository URL. |
 | `fluoh help [command]` | `package:args` command runner | Print global or command-specific usage. |
+| `fluoh skill` | `lib/src/cli/skill_command.dart` | Print local path, version, update, and prompt details for the bundled AI skill. |
 | `fluoh flutter <args>` | `lib/src/sdk/flutter_command.dart` | Run `flutter` from the SDK selected by the nearest project `fluoh.yaml`. |
 | `fluohf <args>` | `bin/fluohf.dart` | Shortcut for `fluoh flutter <args>`. |
 | `fluoh source` | `lib/src/source/source_commands.dart` | Command group for data source use and maintenance. |
@@ -62,7 +129,7 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
   snapshot, repairs snapshots when possible, rebuilds the merged lock, and only
   then commits the new local Source state.
 - Commands that consume Source data access it only through the Source runtime's
-  load-index API. That API bootstraps the first default Source configuration and
+  load-index API. That API initializes the first default Source configuration and
   returns a fresh `sources.lock.json` when its recorded fingerprint still
   matches. When the lock is missing, stale, or incompatible, the runtime
   verifies or repairs configured source snapshots and regenerates the lock
@@ -106,27 +173,29 @@ Design constraints:
 ### `fluoh doctor`
 
 `doctor` is diagnostic and returns success after printing its findings unless
-`--strict` is used. Bare `fluoh doctor` checks the fluoh installation, Dart
-runtime, configured source snapshots, OpenHarmony tooling, Android SDK tools,
-Java, Xcode `xcrun`, `simctl`, and currently connected OHOS, Android, iOS, and macOS devices. The
-default plain output prints the full doctor report: one row per category plus
-checked tools, source entries, emulator summaries, paths, command summaries,
-versions, and per-check timings. Source entries are listed under a stable
-`Sources` heading instead of being embedded in the heading. The command
-intentionally has no
-`-v`, `--verbose`, or `--details` alias because Dart's `pub global run` treats
-verbose flags as pub logging flags when a global executable falls back to pub,
-which can print dependency solver output before fluoh starts. When the current
-directory is a Flutter project, it also checks project shape, selected
-FlutterOH SDK, and the selected platform directories only when `-p` or
-`--project` is passed. Use `--platform ohos|android|ios|macos` to narrow native
-toolchain and project platform checks.
+`--strict` is used. Bare `fluoh doctor` checks the fluoh installation, Git and
+Dart, configured source snapshots, OpenHarmony SDK tooling, Android SDK and
+Java tooling, Apple Xcode tooling, and currently connected OHOS, Android, iOS,
+and macOS devices. Plain output streams each check as soon as it completes, so
+long device discovery does not make the command appear idle. JSON mode waits
+for all checks and writes one machine-readable object.
 
-Checks are organized into three groups: fluoh and source snapshot health,
-platform toolchains for OHOS, Android, iOS, and macOS, and optional current-project
-state. Platform titles name both sides of the mapping: OpenHarmony tooling
-develops for OHOS devices, Android tooling develops for Android devices, and
-Xcode develops for iOS devices.
+OpenHarmony toolchain output focuses on SDK path/version, `hdc`, and emulator
+version or missing state. When both iOS and macOS are selected, Xcode is checked
+and printed once as a combined iOS/macOS toolchain; selecting only one platform
+keeps the platform-specific Xcode title. Connected devices use Flutter-style
+aligned rows with name, id, platform, and details.
+
+The command intentionally has no `-v` or `--verbose` alias because Dart's
+`pub global run` treats verbose flags as pub logging flags when a global
+executable falls back to pub, which can print dependency solver output before
+fluoh starts. `doctor` also has no separate `--details` mode; plain output
+already prints the full human-readable checks, and machine-readable details are
+available with `--json`. When the current directory is a Flutter project, it
+also checks project shape, selected FlutterOH SDK, and the selected platform
+directories only when `-p` or `--project` is passed. Use
+`--platform ohos|android|ios|macos` to narrow native toolchain and project
+platform checks.
 
 Missing or stale state is reported as warnings rather than immediate
 remediation. Use `fluoh doctor --json --strict` when automation needs a native
@@ -134,7 +203,20 @@ toolchain gate, and `fluoh doctor -p --json --strict` when it also needs
 a current-project gate. Project JSON includes `platformDirectories` data for
 the selected platform set so automation can decide whether to create or skip
 OHOS, Android, or iOS platform projects. `--json` prints the same checks as
-machine-readable JSON and includes each check's stable `id` and `group`.
+machine-readable JSON and includes each check's `id`, `group`, and structured
+data when the check has it.
+
+### `fluoh devices` and `fluoh emulators`
+
+`fluoh devices` lists connected OHOS, Android, iOS, and macOS targets. It
+accepts `--platform all|ohos|android|ios|macos` and `--json`. Plain output uses
+Flutter-style `Name • id • platform • details` rows and prints platform
+warnings after discovered targets.
+
+`fluoh emulators` lists local OHOS, Android, iOS simulator, and macOS emulator
+targets with `Id • Name • Manufacturer • Platform` rows. It accepts the same
+`--platform` and `--json` options. `--launch <id-or-name>` starts a local
+emulator or simulator and requires selecting a single platform.
 
 ### `fluoh upgrade`
 
@@ -142,6 +224,9 @@ machine-readable JSON and includes each check's stable `id` and `group`.
 `brew upgrade fluoh` for Homebrew installs or
 `dart pub global activate fluoh` for Dart global installs. Local source
 checkouts are refused because replacing a checkout is a user-owned decision.
+The bundled skill is versioned with the CLI; after upgrading, rerun
+`fluoh skill --json` and reinstall or reload the returned skill path in the
+agent that copied it.
 
 ## Source Commands
 
@@ -191,7 +276,9 @@ the Source runtime.
 Git sources are cloned again, and selected `file:` sources are copied again from
 their configured local directories. The Source runtime then validates every
 configured source snapshot because the lock is a merged index over all
-configured sources.
+configured sources. Git transport failures are reported as sync failures with
+retry guidance, while cloned source content that fails schema validation keeps
+the source validation diagnostic.
 
 Source mutation commands pass the candidate config or snapshot state to the
 Source runtime. If validation or lock generation fails, the runtime preserves
@@ -280,7 +367,10 @@ lockfile. `--json` prints the same plan as machine-readable JSON.
 dependency plan. It writes to either `dependency_overrides` or direct dependency
 declarations according to `dependencyPolicy.pubspecSection`. Version mismatches
 are skipped unless `dependencyPolicy.versionChanges` is `any`. `--dry-run` or
-`-n` prints the plan without modifying `pubspec.yaml`.
+`-n` prints the plan without modifying `pubspec.yaml`. `--json` prints the same
+plan as machine-readable JSON with change summaries, applied count, and dry-run
+flag. Before writing, it validates the generated YAML and restores the original
+`pubspec.yaml` if validation or writing fails.
 
 `fluoh deps upgrade` is narrower than `deps fix`: it upgrades existing FlutterOH
 dependency replacements and does not add new replacements. It uses the same
@@ -291,48 +381,9 @@ version-change policy and dry-run behavior.
 These commands maintain FlutterOH package repositories. They assume Git
 repositories and are intentionally strict about branch and working tree state.
 
-### Automatic Adaptation Command Flow
-
-The AI adaptation flow uses a small command set with clear ownership:
-
-1. Repository setup: use `fluoh package create <upstream>` for a new package
-   repository, `fluoh package add <package-path>` for additional packages, and
-   `fluoh package sync` only after a completed, committed checkpoint when
-   upstream needs to be merged.
-2. Baseline gates: run `fluoh deps get`,
-   `fluoh doctor -p --json --strict`,
-   `fluoh flutter analyze`, and the relevant existing package or example tests
-   before adding OHOS code. Project warnings point to repository files;
-   environment warnings point to local tool or Source setup.
-3. Implementation loop: after each meaningful code or metadata change, rerun
-   `fluoh deps get` when dependencies or SDK metadata changed, then use
-   `fluoh verify --package <name> --json` until pub get, analysis, and
-   existing tests pass.
-4. OHOS verification: use
-   `fluoh run --platform ohos --package <name> --json`, or add
-   `--device <id>` for a connected hdc target. If no device is available, use
-   `fluoh build --platform ohos --package <name> --auto-sign --json`
-   as build-only evidence.
-5. Existing-platform regression: when `example/android` exists, run
-   `fluoh doctor --platform android --json --strict`, then
-   `fluoh run --platform android --package <name> --json`.
-   When `example/ios` exists, use the matching iOS doctor command and
-   `fluoh run --platform ios --package <name> --json`.
-   When `example/macos` exists, use the matching macOS doctor command and
-   `fluoh run --platform macos --package <name> --json`.
-6. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
-   `stderrTail`, and saved run logs from JSON output before editing. Fix
-   `doctor` failures in local tooling, project warnings in
-   repository configuration, and verification failures in the code or example
-   that produced the diagnostic.
-7. Completion report: write `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md`
-   with commands, results, platform matrix, signing mode, logs, remaining risks,
-   and release recommendation.
-8. Release gate: run `fluoh package status --package <name>`, the final
-   `fluoh verify --package <name>`, and
-   `fluoh package release --package <name> --dry-run`. Commit only after the
-   relevant gate succeeds; run `fluoh package release --package <name>` when
-   the maintainer approves tagging.
+The AI implementation loop for these commands is intentionally kept in
+`skills/fluoh/SKILL.md`, so user documentation stays short and every agent uses
+one maintained workflow.
 
 ### Adaptation Workflow
 
@@ -393,7 +444,11 @@ updates upstream metadata in `fluoh.yaml`, stages it, and
 commits `Sync upstream packages` when changes are present. Merge conflicts are
 left for the user to resolve, then `fluoh package sync --continue` validates staged
 resolution and finishes. `--abort` runs `git merge --abort` for an in-progress
-sync. `--json` prints the completed sync action list and commit status.
+sync. `--json` prints the completed sync action list and commit status. Fetch
+failures emit `sync.fetch_failed`; merge conflicts emit `sync.merge_conflict`
+with conflicted files and the `--continue` next command; merge failures that do
+not leave resolvable conflicts emit `sync.merge_failed`. JSON diagnostics
+include trimmed stdout and stderr tails when Git produced useful output.
 
 `fluoh verify` runs automated verification for either the current
 project or packages registered in Package `fluoh.yaml`. It runs selected-SDK
@@ -454,9 +509,9 @@ contain the local fluoh home path. Use `--package <name>` for one package,
 
 | State | Owner / Maintenance Entry |
 | --- | --- |
-| `$FLUOH_HOME/config.json` | `source add`, `source remove`, `source update`, first default Source bootstrap |
+| `$FLUOH_HOME/config.json` | `source add`, `source remove`, `source update`, first default Source initialization |
 | `$FLUOH_HOME/sources/<name>` | `source add`, `source update` |
-| `$FLUOH_HOME/sources.lock.json` | Source runtime in `lib/src/source/`; rebuilt after Source mutations, first default Source bootstrap, and load-index checks when stale or when selected-SDK installation needs SDK metadata |
+| `$FLUOH_HOME/sources.lock.json` | Source runtime in `lib/src/source/`; rebuilt after Source mutations, first default Source initialization, and load-index checks when stale or when selected-SDK installation needs SDK metadata |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
 | Project `fluoh.yaml` | `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
 | Project `pubspec.yaml` | `deps fix`, `deps upgrade` |

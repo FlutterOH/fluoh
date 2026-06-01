@@ -446,5 +446,48 @@ dependencies:
       );
       expect(plan.toJson()['pubspecSection'], 'dependency_overrides');
     });
+
+    test('parses and rewrites hyphenated package names', () {
+      const implementation = PackageImplementation(
+        sdkLine: '3.35',
+        upstreamVersion: '2.0.0',
+        repository: 'https://github.com/FlutterOH/foo-bar.git',
+        tag: 'foo-bar-2.0.0-ohos-3.35-1',
+        version: '1',
+      );
+      final state = parsePubspecDependencyState('''
+dependencies:
+  foo-bar: ^2.0.0
+dependency_overrides:
+  foo-bar:
+    git:
+      url: https://github.com/FlutterOH/foo-bar.git
+      ref: foo-bar-1.0.0-ohos-3.35-1
+''');
+      expect(state.overrideNames, contains('foo-bar'));
+      expect(state.overrideRefs['foo-bar']!.value, 'foo-bar-1.0.0-ohos-3.35-1');
+
+      final result = applyPubspecDependencyChangesToContent(
+        content: '''
+dependencies:
+  foo-bar: ^2.0.0
+dependency_overrides:
+  foo-bar:
+    git:
+      url: https://github.com/FlutterOH/foo-bar.git
+      ref: foo-bar-1.0.0-ohos-3.35-1
+''',
+        changes: [
+          const PubspecDependencyChange.updateRef(
+            packageName: 'foo-bar',
+            implementation: implementation,
+            section: PubspecDependencySection.dependencyOverrides,
+            currentRef: 'foo-bar-1.0.0-ohos-3.35-1',
+          ),
+        ],
+      );
+      expect(result.applied, 1);
+      expect(result.content, contains('ref: foo-bar-2.0.0-ohos-3.35-1'));
+    });
   });
 }

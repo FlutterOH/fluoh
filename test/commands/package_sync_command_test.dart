@@ -612,6 +612,244 @@ environment:
     expect(subject.stdout.toString().trim(), 'Sync upstream packages');
   });
 
+  test('package sync emits json diagnostics on fetch failure', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_sync_fetch_json'),
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_sync_fetch_json',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    await runGit(packageRepository, [
+      'remote',
+      'set-url',
+      'upstream',
+      '${environment.homeDirectory.path}/missing_upstream',
+    ]);
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['package', 'sync', '--json'],
+        environment: FluohEnvironment(
+          homeDirectory: environment.homeDirectory,
+          workingDirectory: packageRepository,
+        ),
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'package sync'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 1));
+    expect(report, containsPair('status', 'fetch_failed'));
+    final diagnostics = report['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'sync.fetch_failed'));
+    expect(
+      diagnostic,
+      containsPair('nextCommand', 'fluoh package sync --json'),
+    );
+    expect(diagnostic['stderrTail'], isNotNull);
+    expect(stderr, isEmpty);
+  });
+
+  test('package sync emits json diagnostics on merge conflict', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory(
+        '${environment.homeDirectory.path}/upstream_sync_conflict_json',
+      ),
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_sync_conflict_json',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+
+    // Create divergent changes on both local and upstream.
+    await File(
+      '${packageRepository.path}/README.md',
+    ).writeAsString('# camera\n\nLocal OHOS notes.\n');
+    await runGit(packageRepository, ['add', 'README.md']);
+    await runGit(packageRepository, ['commit', '-m', 'Local README']);
+    await File(
+      '${upstream.path}/README.md',
+    ).writeAsString('# camera\n\nUpstream notes.\n');
+    await runGit(upstream, ['add', 'README.md']);
+    await runGit(upstream, ['commit', '-m', 'Upstream README']);
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['package', 'sync', '--json'],
+        environment: FluohEnvironment(
+          homeDirectory: environment.homeDirectory,
+          workingDirectory: packageRepository,
+        ),
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    final report = jsonDecode(stdout.last) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'package sync'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 1));
+    expect(report, containsPair('status', 'merge_conflict'));
+    final diagnostics = report['diagnostics'] as List<Object?>;
+    expect(diagnostics, hasLength(1));
+    final diagnostic = diagnostics.first as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'sync.merge_conflict'));
+    expect(
+      diagnostic,
+      containsPair('nextCommand', 'fluoh package sync --continue'),
+    );
+    final conflictedFiles = diagnostic['conflictedFiles'] as List<Object?>;
+    expect(conflictedFiles, contains('README.md'));
+    expect(stderr, isEmpty);
+
+    // Clean up the merge state.
+    await runGit(packageRepository, ['merge', '--abort']);
+  });
+
+  test(
+    'package sync emits json diagnostics on non-conflict merge failure',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamPackageRepository(
+        Directory(
+          '${environment.homeDirectory.path}/upstream_sync_merge_failed_json',
+        ),
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_sync_merge_failed_json',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await commitGeneratedPackageRepository(packageRepository);
+      await runGit(packageRepository, ['checkout', '--orphan', 'orphan-sync']);
+      await runGit(packageRepository, ['add', '.']);
+      await runGit(packageRepository, [
+        'commit',
+        '-m',
+        'Create unrelated package branch',
+      ]);
+      await runGit(packageRepository, ['branch', '-M', 'ohos/3.35']);
+
+      stdout.clear();
+      expect(
+        await runFluoh(
+          ['package', 'sync', '--json'],
+          environment: FluohEnvironment(
+            homeDirectory: environment.homeDirectory,
+            workingDirectory: packageRepository,
+          ),
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        1,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('command', 'package sync'));
+      expect(report, containsPair('ok', false));
+      expect(report, containsPair('exitCode', 1));
+      expect(report, containsPair('status', 'merge_failed'));
+      final diagnostics = report['diagnostics'] as List<Object?>;
+      final diagnostic = diagnostics.single as Map<String, Object?>;
+      expect(diagnostic, containsPair('code', 'sync.merge_failed'));
+      expect(
+        diagnostic,
+        containsPair('nextCommand', 'fluoh package sync --json'),
+      );
+      expect(
+        diagnostic['stderrTail'].toString(),
+        contains('refusing to merge unrelated histories'),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
   test(
     'package sync preserves separate upstream and dependency paths',
     () async {

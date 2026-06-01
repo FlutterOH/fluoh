@@ -12,7 +12,6 @@ import '../cli/machine_output.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
 import '../cli/terminal_output.dart';
-import '../platform/ohos/device_runner.dart';
 import '../platform/ohos/ohos_toolchain.dart';
 import '../platform/platform_environment.dart';
 import '../sdk/sdk_project_config.dart';
@@ -29,6 +28,7 @@ const _androidToolchainBaseTitle =
     'Android toolchain - develop for Android devices';
 const _iosToolchainBaseTitle = 'Xcode - develop for iOS devices';
 const _macosToolchainBaseTitle = 'Xcode - develop for macOS desktop';
+const _appleToolchainBaseTitle = 'Xcode - develop for iOS and macOS';
 
 class DoctorVersionMetadata {
   const DoctorVersionMetadata({
@@ -146,10 +146,9 @@ class DoctorCommand extends FluohCommand<int> {
 
   Future<int> _run(ArgResults results) async {
     final options = _DoctorOptions.fromArgResults(results);
-    final report = await _buildReport(options);
-    final exitCode = options.strict && report.issueCount > 0 ? 1 : 0;
-
     if (options.json) {
+      final report = await _buildReport(options);
+      final exitCode = options.strict && report.issueCount > 0 ? 1 : 0;
       writeMachineOutput(
         _output.write,
         command: name,
@@ -157,17 +156,35 @@ class DoctorCommand extends FluohCommand<int> {
         exitCode: exitCode,
         fields: report.toJsonFields(),
       );
-    } else {
-      _printReport(report);
+      return exitCode;
     }
+
+    var printedChecks = 0;
+    final report = await _buildReport(
+      options,
+      onCheck: (check) {
+        _printCheck(check, leadingBlank: printedChecks > 0);
+        printedChecks += 1;
+      },
+    );
+    _printSummary(report);
+    final exitCode = options.strict && report.issueCount > 0 ? 1 : 0;
     return exitCode;
   }
 
-  Future<_DoctorReport> _buildReport(_DoctorOptions options) async {
-    final checks = await _environmentChecks(options.platforms);
+  Future<_DoctorReport> _buildReport(
+    _DoctorOptions options, {
+    void Function(_DoctorCheck check)? onCheck,
+  }) async {
+    final checks = await _environmentChecks(
+      options.platforms,
+      onCheck: onCheck,
+    );
     if (options.includeProject) {
-      checks.add(
-        await _timedCheck(() => _checkFlutterProject(options.platforms)),
+      await _addTimedCheck(
+        checks,
+        () => _checkFlutterProject(options.platforms),
+        onCheck: onCheck,
       );
     }
 
@@ -179,14 +196,29 @@ class DoctorCommand extends FluohCommand<int> {
   }
 
   Future<List<_DoctorCheck>> _environmentChecks(
-    List<FluohPlatform> platforms,
-  ) async {
-    return [
-      await _timedCheck(_checkFluohInstallation),
-      await _timedCheck(_checkSources),
-      ...await _checkPlatformToolchains(platforms),
-      await _timedCheck(() => _checkConnectedDevices(platforms)),
-    ];
+    List<FluohPlatform> platforms, {
+    void Function(_DoctorCheck check)? onCheck,
+  }) async {
+    final checks = <_DoctorCheck>[];
+    await _addTimedCheck(checks, _checkFluohInstallation, onCheck: onCheck);
+    await _addTimedCheck(checks, _checkSources, onCheck: onCheck);
+    checks.addAll(await _checkPlatformToolchains(platforms, onCheck: onCheck));
+    await _addTimedCheck(
+      checks,
+      () => _checkConnectedDevices(platforms),
+      onCheck: onCheck,
+    );
+    return checks;
+  }
+
+  Future<void> _addTimedCheck(
+    List<_DoctorCheck> checks,
+    Future<_DoctorCheck> Function() check, {
+    void Function(_DoctorCheck check)? onCheck,
+  }) async {
+    final result = await _timedCheck(check);
+    checks.add(result);
+    onCheck?.call(result);
   }
 
   Future<_DoctorCheck> _timedCheck(
@@ -201,71 +233,121 @@ class DoctorCommand extends FluohCommand<int> {
   Future<_DoctorCheck> _checkFluohInstallation() async {
     final installation = resolveFluohInstallation(_scriptUriProvider());
     final title = _fluohSummaryTitle();
-    final details = [
-      _installationDescription(installation),
-      'fluoh home at ${environment.homeDirectory.path}',
-      'Dart version ${_dartVersion()}',
-      'Dart executable at ${Platform.resolvedExecutable}',
+    final git = await _checkGitAvailable();
+    final details = <_DoctorDetail>[
+      _DoctorDetail.ok(_installationDescription(installation)),
+      _DoctorDetail.ok('fluoh home at ${environment.homeDirectory.path}'),
+      _DoctorDetail.ok('Dart version ${_dartVersion()}'),
+      _DoctorDetail.ok('Dart executable at ${Platform.resolvedExecutable}'),
+      git.detail,
     ];
     DoctorVersionMetadata? versionMetadata;
     try {
       versionMetadata = await _versionMetadataProvider();
     } on Exception catch (error) {
       details.add(
-        'Could not check the latest version from pub.dev: ${error.toString()}',
+        _DoctorDetail.ok(
+          'Could not check the latest version from pub.dev: ${error.toString()}',
+        ),
       );
-      return _DoctorCheck.ok(
-        _DoctorCheckGroup.environment,
-        'fluoh',
-        details,
-        id: 'fluoh.installation',
-        summaryTitle: title,
-      );
+      return _fluohCheck(title, details, gitOk: git.ok);
     }
 
     if (versionMetadata?.currentVersionPublished case final published?) {
-      details.add('Current version published: $published');
+      details.add(_DoctorDetail.ok('Current version published: $published'));
     }
     final latestVersion = versionMetadata?.latestVersion;
     if (latestVersion == null || latestVersion.isEmpty) {
-      details.add('Could not check the latest version from pub.dev.');
-      return _DoctorCheck.ok(
-        _DoctorCheckGroup.environment,
-        'fluoh',
-        details,
-        id: 'fluoh.installation',
-        summaryTitle: title,
+      details.add(
+        _DoctorDetail.ok('Could not check the latest version from pub.dev.'),
       );
+      return _fluohCheck(title, details, gitOk: git.ok);
     }
 
     if (_compareVersions(latestVersion, packageVersion) > 0) {
-      details.add('Latest version: $latestVersion');
+      details.add(_DoctorDetail.ok('Latest version: $latestVersion'));
       if (installation.method == FluohInstallMethod.localSourceCheckout) {
         details.add(
-          'Upgrade available, but local source checkouts cannot be upgraded '
-          'automatically.',
+          _DoctorDetail.warning(
+            'Upgrade available, but local source checkouts cannot be upgraded '
+            'automatically.',
+          ),
         );
       } else {
-        details.add('Upgrade available: $latestVersion; run `fluoh upgrade`');
+        details.add(
+          _DoctorDetail.warning(
+            'Upgrade available: $latestVersion; run `fluoh upgrade`',
+          ),
+        );
       }
-      return _DoctorCheck.warning(
-        _DoctorCheckGroup.environment,
-        'fluoh',
-        details,
-        id: 'fluoh.installation',
-        summaryTitle: title,
-      );
+      return _fluohCheck(title, details, gitOk: git.ok, upgradeAvailable: true);
     }
 
-    details.add('Latest version: $latestVersion');
-    details.add('Up to date');
-    return _DoctorCheck.ok(
-      _DoctorCheckGroup.environment,
-      'fluoh',
-      details,
-      id: 'fluoh.installation',
-      summaryTitle: title,
-    );
+    details.add(_DoctorDetail.ok('Latest version: $latestVersion'));
+    details.add(_DoctorDetail.ok('Up to date'));
+    return _fluohCheck(title, details, gitOk: git.ok);
+  }
+
+  _DoctorCheck _fluohCheck(
+    String title,
+    List<_DoctorDetail> details, {
+    required bool gitOk,
+    bool upgradeAvailable = false,
+  }) {
+    final textDetails = details.map((detail) => detail.text).toList();
+    final healthy = gitOk && !upgradeAvailable;
+    return healthy
+        ? _DoctorCheck.ok(
+            _DoctorCheckGroup.environment,
+            'fluoh',
+            textDetails,
+            id: 'fluoh.installation',
+            summaryTitle: title,
+            detailItems: details,
+          )
+        : _DoctorCheck.warning(
+            _DoctorCheckGroup.environment,
+            'fluoh',
+            textDetails,
+            id: 'fluoh.installation',
+            summaryTitle: title,
+            detailItems: details,
+          );
+  }
+
+  Future<_GitAvailability> _checkGitAvailable() async {
+    try {
+      final result = await Process.run('git', [
+        '--version',
+      ], environment: environment.processEnvironment);
+      final version = result.stdout.toString().trim();
+      if (result.exitCode != 0) {
+        final detail =
+            _firstNonEmptyLine(result.stderr.toString()) ??
+            _firstNonEmptyLine(result.stdout.toString()) ??
+            'git --version exited with code ${result.exitCode}.';
+        return _GitAvailability(
+          ok: false,
+          detail: _DoctorDetail.warning('Git unavailable: $detail'),
+        );
+      }
+      final displayVersion = version.startsWith('git version ')
+          ? 'Git version ${version.substring('git version '.length)}'
+          : version;
+      return _GitAvailability(
+        ok: true,
+        detail: _DoctorDetail.ok(
+          displayVersion.isNotEmpty ? displayVersion : 'Git is available',
+        ),
+      );
+    } on ProcessException {
+      return const _GitAvailability(
+        ok: false,
+        detail: _DoctorDetail.warning(
+          'Git unavailable: install Git and make sure it is on PATH.',
+        ),
+      );
+    }
   }
 
   Future<_DoctorCheck> _checkFlutterProject(
@@ -434,20 +516,19 @@ class DoctorCommand extends FluohCommand<int> {
         _DoctorCheckGroup.environment,
         'OpenHarmony toolchain',
         [
-          'DevEco Studio OpenHarmony tools were not found',
-          'Set FLUOH_DEVECO_STUDIO to the DevEco Studio .app path if it is not installed in the default location.',
+          'OpenHarmony SDK toolchains were not found',
+          'Set FLUOH_DEVECO_STUDIO if the SDK is installed outside the default location.',
         ],
         summaryTitle: _ohosToolchainBaseTitle,
         jsonDetails: [
-          'DevEco Studio OpenHarmony tools were not found',
+          'OpenHarmony SDK toolchains were not found',
           ?message,
-          'Set FLUOH_DEVECO_STUDIO to the DevEco Studio .app path if it is not installed in the default location.',
+          'Set FLUOH_DEVECO_STUDIO if the SDK is installed outside the default location.',
         ],
         id: 'ohos.toolchain',
       );
     }
 
-    final devEcoVersion = await _readDevEcoVersion(toolchain.devEcoStudio);
     final openHarmonyVersion = await _readOpenHarmonySdkVersion(
       toolchain.openHarmonySdk,
     );
@@ -456,91 +537,99 @@ class DoctorCommand extends FluohCommand<int> {
         '-v',
       ], environment: environment.processEnvironment),
     );
+    final emulatorExists = await toolchain.emulator.exists();
+    final emulatorVersion = emulatorExists
+        ? _normalizeOhosEmulatorVersion(
+            await _commandVersion(toolchain.emulator, const [
+              '-version',
+            ], environment: environment.processEnvironment),
+          )
+        : null;
     final details = <String>[
-      _foundDetail('DevEco Studio', devEcoVersion),
-      _foundDetail('OpenHarmony SDK', openHarmonyVersion),
-      'Signing tools found',
-      _foundDetail('hdc', hdcVersion),
+      'OpenHarmony SDK at ${toolchain.openHarmonySdk.path}',
+      hdcVersion == null ? 'hdc found' : 'hdc version $hdcVersion',
+      !emulatorExists
+          ? 'Emulator was not found at ${toolchain.emulator.path}'
+          : emulatorVersion == null
+          ? 'Emulator version unknown'
+          : 'Emulator version $emulatorVersion',
     ];
-    final jsonDetails = <String>[
-      _pathDetail('DevEco Studio', toolchain.devEcoStudio.path, devEcoVersion),
-      _pathDetail(
-        'OpenHarmony SDK',
-        toolchain.openHarmonySdk.path,
-        openHarmonyVersion,
-      ),
-      'hap-sign-tool at ${toolchain.hapSignTool.path}',
-      _pathDetail('hdc', toolchain.hdc.path, hdcVersion),
-    ];
-    var healthy = true;
-
-    if (await toolchain.emulator.exists()) {
-      details.add('DevEco emulator found');
-      jsonDetails.add('Emulator at ${toolchain.emulator.path}');
-    } else {
-      healthy = false;
-      details.add('DevEco emulator binary is missing');
-      jsonDetails.add(
-        'DevEco emulator binary is missing: ${toolchain.emulator.path}',
-      );
-    }
-
-    final emulators = await discoverOhosLocalEmulators(
-      environment: environment,
-    );
-    if (emulators.isEmpty) {
-      healthy = false;
-      details.add(
-        'No local DevEco emulator HVD was found; create one in Device Manager or use --device <id> with a connected target.',
-      );
-    } else {
-      final emulatorNames = emulators.map((item) => item.name).join(', ');
-      details.add('Local emulators: $emulatorNames');
-      jsonDetails.add('Local emulators: $emulatorNames');
-    }
 
     return _checkForStatus(
-      healthy: healthy,
+      healthy: emulatorExists,
       group: _DoctorCheckGroup.environment,
       id: 'ohos.toolchain',
       title: 'OpenHarmony toolchain',
       details: details,
-      summaryTitle: healthy
-          ? _ohosToolchainSummaryTitle(version: devEcoVersion)
-          : _ohosToolchainBaseTitle,
-      jsonDetails: jsonDetails,
+      summaryTitle: _ohosToolchainSummaryTitle(version: openHarmonyVersion),
       data: {
         'tools': {
-          'devEcoStudio': _toolData(toolchain.devEcoStudio.path, devEcoVersion),
           'openHarmonySdk': _toolData(
             toolchain.openHarmonySdk.path,
             openHarmonyVersion,
           ),
-          'hapSignTool': toolchain.hapSignTool.path,
           'hdc': _toolData(toolchain.hdc.path, hdcVersion),
-          'emulator': toolchain.emulator.path,
+          'emulator': emulatorExists
+              ? _toolData(toolchain.emulator.path, emulatorVersion)
+              : {'path': toolchain.emulator.path, 'missing': true},
         },
-        'localEmulators': [for (final emulator in emulators) emulator.name],
       },
     );
   }
 
   Future<List<_DoctorCheck>> _checkPlatformToolchains(
-    List<FluohPlatform> platforms,
-  ) async {
+    List<FluohPlatform> platforms, {
+    void Function(_DoctorCheck check)? onCheck,
+  }) async {
     final checks = <_DoctorCheck>[];
     if (platforms.contains(FluohPlatform.ohos)) {
-      checks.add(await _timedCheck(_checkOhosToolchain));
+      await _addTimedCheck(checks, _checkOhosToolchain, onCheck: onCheck);
     }
     final nativePlatforms = [
       for (final platform in platforms)
         if (platform != FluohPlatform.ohos) platform,
     ];
-    checks.addAll([
-      for (final platform in nativePlatforms)
-        await _timedCheck(() => _checkNativePlatformToolchain(platform)),
-    ]);
+    final hasIos = nativePlatforms.contains(FluohPlatform.ios);
+    final hasMacos = nativePlatforms.contains(FluohPlatform.macos);
+    var checkedApplePlatforms = false;
+    for (final platform in nativePlatforms) {
+      if ((platform == FluohPlatform.ios || platform == FluohPlatform.macos) &&
+          hasIos &&
+          hasMacos) {
+        if (!checkedApplePlatforms) {
+          await _addTimedCheck(
+            checks,
+            () => _checkApplePlatformToolchain(),
+            onCheck: onCheck,
+          );
+          checkedApplePlatforms = true;
+        }
+        continue;
+      }
+      await _addTimedCheck(
+        checks,
+        () => _checkNativePlatformToolchain(platform),
+        onCheck: onCheck,
+      );
+    }
     return checks;
+  }
+
+  Future<_DoctorCheck> _checkApplePlatformToolchain() async {
+    final reports = await inspectPlatformEnvironment(
+      environment: environment,
+      platforms: const [FluohPlatform.ios, FluohPlatform.macos],
+    );
+    return _checkForStatus(
+      healthy: reports.every((report) => report.ok),
+      group: _DoctorCheckGroup.environment,
+      id: 'apple.toolchain',
+      title: 'Apple toolchain',
+      details: _appleToolDetails(reports),
+      summaryTitle: _appleToolSummaryTitle(reports),
+      jsonDetails: _appleToolDetails(reports),
+      data: {'reports': reports.map((report) => report.toJson()).toList()},
+    );
   }
 
   Future<_DoctorCheck> _checkConnectedDevices(
@@ -551,18 +640,18 @@ class DoctorCommand extends FluohCommand<int> {
       platforms: platforms,
     );
     final details = <_DoctorDetail>[];
+    final jsonDetails = <String>[];
     final targets = <PlatformTarget>[];
     var failedReports = 0;
 
     for (final report in reports) {
       if (!report.ok) {
         failedReports += 1;
-        details.add(
-          _DoctorDetail.warning(
+        final message =
             '${_platformDisplayName(report.platform)} devices unavailable: '
-            '${report.message ?? 'could not list devices'}',
-          ),
-        );
+            '${report.message ?? 'could not list devices'}';
+        details.add(_DoctorDetail.warning(message));
+        jsonDetails.add(message);
         continue;
       }
       targets.addAll(report.targets);
@@ -573,23 +662,30 @@ class DoctorCommand extends FluohCommand<int> {
       return platform == 0 ? left.name.compareTo(right.name) : platform;
     });
 
-    for (final target in targets) {
-      details.add(_DoctorDetail.ok(_targetDetail(target)));
+    final targetRows = _targetDisplayRows(targets);
+    for (final detail in _formatTargetRows(targetRows)) {
+      details.add(_DoctorDetail.ok(detail, wrap: false));
     }
+    jsonDetails.addAll(targetRows.map((row) => row.plainText));
     if (targets.isEmpty && failedReports == 0) {
-      details.add(_DoctorDetail.ok('No connected devices detected'));
+      const message = 'No connected devices detected';
+      details.add(_DoctorDetail.ok(message));
+      jsonDetails.add(message);
     }
 
     final title = targets.isEmpty
         ? 'Connected devices'
-        : 'Connected devices (${targets.length} available)';
-    final data = {'reports': reports.map((report) => report.toJson()).toList()};
-    final detailText = details.map((detail) => detail.text).toList();
+        : 'Connected device${targets.length == 1 ? '' : 's'} '
+              '(${targets.length} available)';
+    final data = {
+      'reports': reports.map((report) => report.toJson()).toList(),
+      'targets': targetRows.map((row) => row.toJson()).toList(),
+    };
     return failedReports == 0
         ? _DoctorCheck.ok(
             _DoctorCheckGroup.environment,
             'Connected devices',
-            detailText,
+            jsonDetails,
             id: 'connected.devices',
             summaryTitle: title,
             detailItems: details,
@@ -598,7 +694,7 @@ class DoctorCommand extends FluohCommand<int> {
         : _DoctorCheck.warning(
             _DoctorCheckGroup.environment,
             'Connected devices',
-            detailText,
+            jsonDetails,
             id: 'connected.devices',
             summaryTitle: title,
             detailItems: details,
@@ -626,21 +722,20 @@ class DoctorCommand extends FluohCommand<int> {
     );
   }
 
-  void _printReport(_DoctorReport report) {
-    for (var index = 0; index < report.checks.length; index += 1) {
-      if (index > 0) {
-        _output.blank();
-      }
-      final check = report.checks[index];
-      final timing = check.elapsed != null
-          ? ' [${_formatElapsed(check.elapsed!)}]'
-          : '';
-      _writeDoctorHeading(check.status, '${check.summaryTitle}$timing');
-      for (final detail in check.displayDetails) {
-        _writeDoctorDetail(check.status, detail);
-      }
+  void _printCheck(_DoctorCheck check, {required bool leadingBlank}) {
+    if (leadingBlank) {
+      _output.blank();
     }
+    final timing = check.elapsed != null
+        ? ' [${_formatElapsed(check.elapsed!)}]'
+        : '';
+    _writeDoctorHeading(check.status, '${check.summaryTitle}$timing');
+    for (final detail in check.displayDetails) {
+      _writeDoctorDetail(check.status, detail);
+    }
+  }
 
+  void _printSummary(_DoctorReport report) {
     final issueCount = report.issueCount;
     if (issueCount == 0) {
       _output.success('Doctor found no issues.');
@@ -677,6 +772,10 @@ class DoctorCommand extends FluohCommand<int> {
           : TerminalStatus.warning,
       _style.symbols.bullet,
     );
+    if (!detail.wrap) {
+      _output.write('    $bullet ${_style.paint(detail.text, bold: true)}');
+      return;
+    }
     final lines = _wrapDoctorDetail(detail.text, width: fluohUsageLineLength());
     if (lines.isEmpty) {
       return;
@@ -768,21 +867,8 @@ List<String> _platformToolSummary(PlatformDoctorReport report) {
 }
 
 String _ohosToolchainSummaryTitle({String? version}) {
-  final suffix = version == null ? '' : ' (DevEco Studio $version)';
+  final suffix = version == null ? '' : ' (OpenHarmony SDK version $version)';
   return '$_ohosToolchainBaseTitle$suffix';
-}
-
-Future<String?> _readDevEcoVersion(Directory devEcoStudio) async {
-  final infoPlist = File('${devEcoStudio.path}/Contents/Info.plist');
-  if (!await infoPlist.exists()) {
-    return null;
-  }
-  final text = await infoPlist.readAsString();
-  final match = RegExp(
-    r'<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>',
-    multiLine: true,
-  ).firstMatch(text);
-  return match?.group(1)?.trim();
 }
 
 Future<String?> _readOpenHarmonySdkVersion(Directory sdk) async {
@@ -832,15 +918,6 @@ Future<String?> _commandVersion(
   }
 }
 
-String _foundDetail(String label, String? version) {
-  return version == null ? '$label found' : '$label $version';
-}
-
-String _pathDetail(String label, String path, String? version) {
-  final versionPrefix = version == null ? '' : ' $version';
-  return '$label$versionPrefix at $path';
-}
-
 String _fluohSummaryTitle() {
   return 'fluoh ($packageVersion, on ${_hostDescription()}, '
       'locale ${Platform.localeName})';
@@ -850,7 +927,9 @@ String _dartVersion() => Platform.version.split(' ').first;
 
 String _hostDescription() {
   final os = _hostOperatingSystemName();
-  final version = Platform.operatingSystemVersion.trim();
+  final version = normalizeAppleOperatingSystemVersion(
+    Platform.operatingSystemVersion,
+  );
   final dartArch = _dartRuntimeArchitecture();
   final parts = <String>[os, if (version.isNotEmpty) version, ?dartArch];
   return parts.join(' ');
@@ -948,6 +1027,17 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
   return '$title ($label $version)';
 }
 
+String _appleToolSummaryTitle(List<PlatformDoctorReport> reports) {
+  final ios = _reportFor(reports, FluohPlatform.ios);
+  final macos = _reportFor(reports, FluohPlatform.macos);
+  final version =
+      (ios == null ? null : _checkVersion(ios, 'ios.xcode')) ??
+      (macos == null ? null : _checkVersion(macos, 'macos.xcode'));
+  return version == null
+      ? _appleToolchainBaseTitle
+      : '$_appleToolchainBaseTitle (Xcode $version)';
+}
+
 String _platformToolchainTitle(FluohPlatform platform) {
   return switch (platform) {
     FluohPlatform.android => 'Android toolchain',
@@ -961,6 +1051,18 @@ String? _checkVersion(PlatformDoctorReport report, String id) {
   for (final check in report.checks) {
     if (check.id == id && check.version != null) {
       return check.version;
+    }
+  }
+  return null;
+}
+
+PlatformDoctorReport? _reportFor(
+  List<PlatformDoctorReport> reports,
+  FluohPlatform platform,
+) {
+  for (final report in reports) {
+    if (report.platform == platform) {
+      return report;
     }
   }
   return null;
@@ -1010,6 +1112,13 @@ String? _normalizeHdcVersion(String? value) {
   }
   final match = RegExp(r'^Ver:\s*(.+)$').firstMatch(value.trim());
   return match?.group(1)?.trim() ?? value;
+}
+
+String? _normalizeOhosEmulatorVersion(String? value) {
+  if (value == null) {
+    return null;
+  }
+  return normalizeOhosEmulatorVersion(value);
 }
 
 String? _firstNonEmptyLine(String value) {
@@ -1076,13 +1185,7 @@ List<String> _androidToolDetails(PlatformDoctorReport report) {
   if (java == null || !java.ok) {
     details.add(_toolDetailLine(java));
   } else {
-    details.add('Java binary at ${java.path}');
-    if (java.details['androidStudioBundledJdk'] == true) {
-      details.add(
-        'This is the JDK bundled with the latest Android Studio installation on this machine.',
-      );
-    }
-    details.add('To override the JDK path, set JAVA_HOME or FLUOH_JAVA.');
+    details.add('Java binary at: ${java.path}');
     if (java.version != null) {
       details.add('Java version ${java.version}');
     }
@@ -1135,6 +1238,53 @@ List<String> _iosToolDetails(PlatformDoctorReport report) {
   ];
 }
 
+List<String> _appleToolDetails(List<PlatformDoctorReport> reports) {
+  final ios = _reportFor(reports, FluohPlatform.ios);
+  final macos = _reportFor(reports, FluohPlatform.macos);
+  final iosChecks = ios == null
+      ? const <String, PlatformToolCheck>{}
+      : _checksById(ios);
+  final macosChecks = macos == null
+      ? const <String, PlatformToolCheck>{}
+      : _checksById(macos);
+  final xcode = iosChecks['ios.xcode'] ?? macosChecks['macos.xcode'];
+  final xcrun = iosChecks['ios.xcrun'] ?? macosChecks['macos.xcrun'];
+  final simctl = iosChecks['ios.simctl'];
+  final cocoaPods = iosChecks['ios.cocoapods'];
+  final host = macosChecks['macos.host'];
+  final details = <String>[];
+
+  if (xcode == null || !xcode.ok) {
+    details.add(_toolDetailLine(xcode));
+  } else {
+    details.add('Xcode at ${xcode.path}');
+    if (xcode.details['buildVersion'] case final buildVersion?) {
+      details.add('Build $buildVersion');
+    }
+  }
+  if (xcrun != null && !xcrun.ok) {
+    details.add(_toolDetailLine(xcrun));
+  }
+  if (simctl != null && !simctl.ok) {
+    details.add(_toolDetailLine(simctl));
+  }
+  if (cocoaPods != null) {
+    details.add(
+      cocoaPods.ok && cocoaPods.version != null
+          ? 'CocoaPods version ${cocoaPods.version}'
+          : _toolDetailLine(cocoaPods),
+    );
+  }
+  if (host != null && !host.ok) {
+    details.add(_toolDetailLine(host));
+  }
+
+  return [
+    for (final detail in details)
+      if (detail.isNotEmpty) detail,
+  ];
+}
+
 List<String> _macosToolDetails(PlatformDoctorReport report) {
   final checks = _checksById(report);
   final host = checks['macos.host'];
@@ -1142,7 +1292,7 @@ List<String> _macosToolDetails(PlatformDoctorReport report) {
   final xcrun = checks['macos.xcrun'];
   final details = <String>[];
 
-  if (host != null) {
+  if (host != null && !host.ok) {
     details.add(_toolDetailLine(host));
   }
   if (xcode == null || !xcode.ok) {
@@ -1199,20 +1349,38 @@ String _platformDisplayName(FluohPlatform platform) {
   };
 }
 
-String _targetDetail(PlatformTarget target) {
-  final parts = <String>[
-    target.name,
-    '(${_platformDisplayName(target.platform)})',
-    target.kind,
-    target.id,
-    if (target.state != null) target.state!,
-    if (target.details['details'] != null)
-      target.details['details']!.toString(),
-    if (target.details['osVersion'] != null)
-      'OS ${target.details['osVersion']}',
-    if (target.details['model'] != null) target.details['model']!.toString(),
+List<_TargetDisplayRow> _targetDisplayRows(List<PlatformTarget> targets) {
+  return [
+    for (final target in targets)
+      _TargetDisplayRow(
+        name: platformTargetDisplayName(target),
+        id: target.id,
+        platform: platformTargetDisplayPlatform(target),
+        details: platformTargetSummary(target),
+      ),
   ];
-  return parts.where((part) => part.trim().isNotEmpty).join(' - ');
+}
+
+List<String> _formatTargetRows(List<_TargetDisplayRow> rows) {
+  if (rows.isEmpty) {
+    return const [];
+  }
+  final nameWidth = rows.map((row) => row.name.length).reduce(_max);
+  final idWidth = rows.map((row) => row.id.length).reduce(_max);
+  final platformWidth = rows.map((row) => row.platform.length).reduce(_max);
+  return [
+    for (final row in rows)
+      [
+        row.name.padRight(nameWidth),
+        row.id.padRight(idWidth),
+        row.platform.padRight(platformWidth),
+        row.details,
+      ].where((part) => part.trim().isNotEmpty).join(' • '),
+  ];
+}
+
+int _max(int left, int right) {
+  return left > right ? left : right;
 }
 
 String _installationDescription(FluohInstallation installation) {
@@ -1227,16 +1395,56 @@ String _installationDescription(FluohInstallation installation) {
 }
 
 class _DoctorDetail {
-  const _DoctorDetail(this.text, {this.status});
+  const _DoctorDetail(this.text, {this.status, this.wrap = true});
 
-  const _DoctorDetail.ok(String text)
-    : this(text, status: _DoctorCheckStatus.ok);
+  const _DoctorDetail.ok(String text, {bool wrap = true})
+    : this(text, status: _DoctorCheckStatus.ok, wrap: wrap);
 
-  const _DoctorDetail.warning(String text)
-    : this(text, status: _DoctorCheckStatus.warning);
+  const _DoctorDetail.warning(String text, {bool wrap = true})
+    : this(text, status: _DoctorCheckStatus.warning, wrap: wrap);
 
   final String text;
   final _DoctorCheckStatus? status;
+  final bool wrap;
+}
+
+class _GitAvailability {
+  const _GitAvailability({required this.ok, required this.detail});
+
+  final bool ok;
+  final _DoctorDetail detail;
+}
+
+class _TargetDisplayRow {
+  const _TargetDisplayRow({
+    required this.name,
+    required this.id,
+    required this.platform,
+    required this.details,
+  });
+
+  final String name;
+  final String id;
+  final String platform;
+  final String details;
+
+  String get plainText {
+    return [
+      name,
+      id,
+      platform,
+      details,
+    ].where((part) => part.trim().isNotEmpty).join(' • ');
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'name': name,
+      'id': id,
+      'platform': platform,
+      if (details.isNotEmpty) 'summary': details,
+    };
+  }
 }
 
 class _DoctorCheck {

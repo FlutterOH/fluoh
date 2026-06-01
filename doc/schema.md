@@ -18,13 +18,11 @@ schema from the execution context, not from the filename alone.
 | Source | Records Source metadata, installable SDK versions, and Manifest routing. |
 | Manifest | Records released FlutterOH package adaptation records consumable by projects. |
 
-### Compatibility
+### Schema Version
 
 `schema` is a forward-safety boundary. When a file declares a schema newer than
 the running `fluoh` supports, commands stop and ask the user to upgrade `fluoh`
-instead of guessing. The package has not published these schemas yet, so
-commands validate the current canonical layout directly instead of carrying
-backward-compatibility migrations for older draft layouts.
+instead of guessing. Commands validate only the current canonical layout.
 
 ### Project
 
@@ -538,8 +536,8 @@ Example shape:
 
 Rules:
 
-- The lock does not contain a `schema` field. It is disposable generated state,
-  and incompatible or stale locks are rebuilt instead of migrated.
+- The lock does not contain a `schema` field. It is disposable generated state;
+  incompatible or stale locks are rebuilt.
 - Source root and Manifest YAML remain the only human-edited Source data.
 - Source lock maintenance is owned by the Source runtime in `lib/src/source/`.
   Commands must not assemble or partially update the lock themselves.
@@ -553,7 +551,7 @@ Rules:
   recalculates the snapshot hash and writes a fresh state file.
 - Source mutation entrypoints, including `fluoh source add`,
   `fluoh source remove`, `fluoh source update`, configured snapshot repairs,
-  configured-snapshot `fluoh source sync`, and first default Source bootstrap,
+  configured-snapshot `fluoh source sync`, and first default Source initialization,
   ask the Source runtime to rebuild the lock.
   Source-consuming flows use the same load-index API, which regenerates the lock
   on demand when it is missing or stale, or when selected-SDK installation needs

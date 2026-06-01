@@ -12,15 +12,15 @@
 | 所属 | 用途 |
 | --- | --- |
 | Project | 记录当前项目选择的 SDK 和依赖替换策略。 |
-| Package | 记录 FlutterOH package 适配仓库的当前维护状态。 |
+| Package | 记录 FlutterOH Package 适配仓库的当前维护状态。 |
 | Source | 记录 Source 元数据、可安装 SDK 版本和 Manifest 路由。 |
-| Manifest | 记录已发布、可被项目消费的 FlutterOH package 适配记录。 |
+| Manifest | 记录已发布、可被项目消费的 FlutterOH Package 适配记录。 |
 
-### 兼容性
+### Schema 版本
 
 `schema` 是面向未来版本的安全边界。当文件声明的 schema 高于当前 `fluoh`
-支持范围时，命令必须停止并提示用户升级 `fluoh`，不能猜测解析。当前这些 schema
-尚未正式发布，因此命令直接校验当前 canonical layout，不为旧草案 layout 保留向后兼容迁移。
+支持范围时，命令必须停止并提示用户升级 `fluoh`，不能猜测解析。命令只校验当前
+canonical layout。
 
 ### Project
 
@@ -44,18 +44,18 @@ dependencyPolicy:
 - `sdk.version` 是当前项目选择的完整 Flutter OHOS SDK 版本。
 - `dependencyPolicy.pubspecSection` 是 `fluoh deps fix` 写入的 pubspec section；
   支持 `dependency_overrides` 和 `dependencies`，默认 `dependency_overrides`。
-- `dependencyPolicy.versionChanges` 控制 upstream package 版本变化范围；
+- `dependencyPolicy.versionChanges` 控制 upstream Package 版本变化范围；
   `compatible` 只允许精确匹配和 pub 语义化版本兼容升级，`any` 也允许不兼容变化和降级。
 - Package example 在通过 `sdk use` 或 `package create` 固定到 Flutter OHOS SDK 时，
   可以拥有 project 风格的 `fluoh.yaml`。
 
 ### Package
 
-Package `fluoh.yaml` 记录 FlutterOH package 适配仓库的当前工作流状态。它不是历史索引，
+Package `fluoh.yaml` 记录 FlutterOH Package 适配仓库的当前工作流状态。它不是历史索引，
 只描述当前分支正在维护或准备发布的版本关系；历史发布记录由 release tag 固化，再由
 `fluoh source sync` 汇总进 Source Manifest。
 
-单包示例：
+单 Package 示例：
 
 ```yaml
 schema: 1
@@ -80,7 +80,7 @@ packages:
     upstreamVersion: "0.11.0"
 ```
 
-多 package 示例：
+多 Package 示例：
 
 ```yaml
 schema: 1
@@ -122,37 +122,37 @@ packages:
 
 - `schema` 必填，目前必须为 `1`。
 - Package 不使用 `kind`；命令在 `fluoh package ...` 上下文中解析这套 schema。
-- `name` 必填，表示适配仓库的逻辑名，不一定是 Dart package 名。只跟踪根 package
-  的仓库通常使用 package 名；跟踪多个 package 的仓库通常使用稳定的仓库别名，例如
+- `name` 必填，表示适配仓库的逻辑名，不一定是 Dart Package 名。只跟踪根 Package
+  的仓库通常使用 Package 名；跟踪多个 Package 的仓库通常使用稳定的仓库别名，例如
   `flutter_packages`。
-- `packages` 是单包和多包仓库共用的 package registry。只有一个已注册 package 时命令
-  默认选择它；注册多个 package 时需要 `--package <name>` 明确选择。
-- package path 默认是 `.`。单包仓库可以省略 `repository.path` 和 `upstream.path`；
-  嵌套 package 仓库可以在 package 级设置 path，或使用顶层 git `path` 默认值。
+- `packages` 是单 Package 和多 Package 仓库共用的 Package registry。只有一个已注册 Package 时命令
+  默认选择它；注册多个 Package 时需要 `--package <name>` 明确选择。
+- Package path 默认是 `.`。单 Package 仓库可以省略 `repository.path` 和 `upstream.path`；
+  嵌套 Package 仓库可以在 Package 级设置 path，或使用顶层 git `path` 默认值。
 - Package example 保持在 upstream 原路径。`fluoh package create` 和 `fluoh package add`
   会在已有顶层 Flutter example 时为其新增 OHOS 平台，而不是生成独立验证工作区。
-- `sdk.version` 必填，是适配、测试和发布当前 package 使用的完整 Flutter OHOS SDK 版本。
+- `sdk.version` 必填，是适配、测试和发布当前 Package 使用的完整 Flutter OHOS SDK 版本。
 - `repository.git.url` 必填，是 FlutterOH 适配仓库 URL 或本地路径。
 - `repository.git.branch` 必填，是维护分支。适配分支按 Flutter OHOS 大版本线创建，
   格式为 `ohos/<sdkLine>`，例如完整 SDK `3.35.8-ohos-0.0.3` 对应
   `ohos/3.35`。
-- `repository.git.path` 可选，作为所有 package 在适配仓库内的默认路径，默认 `.`。
+- `repository.git.path` 可选，作为所有 Package 在适配仓库内的默认路径，默认 `.`。
 - `upstream.git.url` 必填，是原始 upstream 仓库 URL 或本地路径。
 - `upstream.git.branch` 可选，是 `fluoh package sync` 拉取 upstream 变更时使用的分支，默认
   `main`。
-- `upstream.git.path` 可选，作为所有 package 在 upstream 仓库内的默认路径，默认 `.`。
+- `upstream.git.path` 可选，作为所有 Package 在 upstream 仓库内的默认路径，默认 `.`。
 - `packages.<name>.repository.path` 可选，覆盖 `repository.git.path`。
 - `packages.<name>.upstream.path` 可选，覆盖 `upstream.git.path`。
 - `packages.<name>.version` 必填，是 FlutterOH 适配发布版本，使用数字点分格式，例如
   `1` 或 `0.1.0`，不带 `v` 前缀。
-- `packages.<name>.upstreamVersion` 必填，是当前适配对应的 upstream package 版本。
+- `packages.<name>.upstreamVersion` 必填，是当前适配对应的 upstream Package 版本。
 - `packages.<name>.status` 可选；不写表示 `compatible`。只有适配中或已知不可用时才写
   `experimental` 或 `broken`。
 
 ### Source
 
 Source 根 `fluoh.yaml` 描述 Source 自身、可用 SDK 来源，以及 Manifest 文件路由。它不记录
-package 名称、package 路径、package 版本、upstream 版本、advisory 或 maintenance。
+Package 名称、Package 路径、Package 版本、upstream 版本、advisory 或 maintenance。
 
 目录结构：
 
@@ -206,16 +206,16 @@ manifests:
 - `sdk.versions` 记录可安装的完整稳定 SDK 版本。
 - `manifests` 可选；维护者准备 Source 时可以暂时为空列表。
 - `manifests[].name` 必填且唯一，映射到 `manifests/<name>/fluoh.yaml`。
-- Source 校验时从 Manifest 文件的 `packages` keys 派生 package 名。package 名不能跨多个
+- Source 校验时从 Manifest 文件的 `packages` keys 派生 Package 名。Package 名不能跨多个
   Manifest 重复出现。
 
 ### Manifest
 
-Manifest 记录已发布、可被项目消费的 FlutterOH package 适配记录。它可以由
+Manifest 记录已发布、可被项目消费的 FlutterOH Package 适配记录。它可以由
 `fluoh source sync` 从 Package release tags 汇总生成，也可以由维护者手动补充
 `advisory` 和 `maintenance`。
 
-单 package 示例：
+单 Package 示例：
 
 ```yaml
 schema: 1
@@ -240,7 +240,7 @@ packages:
             upstreamVersion: "0.11.0"
 ```
 
-多 package 示例：
+多 Package 示例：
 
 ```yaml
 schema: 1
@@ -301,23 +301,23 @@ packages:
 - `kind` 必填，固定为 `manifest`。
 - `name` 必填，必须和 Source 根配置的 `manifests[].name` 一致。
 - `repository.git.url` 必填，是 FlutterOH 适配仓库 URL 或本地路径。
-- `repository.git.path` 可选，作为所有 package 在适配仓库内的默认路径，默认 `.`。
+- `repository.git.path` 可选，作为所有 Package 在适配仓库内的默认路径，默认 `.`。
 - `upstream.git.url` 必填，是原始 upstream 仓库 URL 或本地路径。
 - `upstream.git.branch` 可选，默认 `main`；`fluoh source sync` 会从 Package 的
   `upstream.git.branch` 复制该值。
-- `upstream.git.path` 可选，作为所有 package 在 upstream 仓库内的默认路径，默认 `.`。
+- `upstream.git.path` 可选，作为所有 Package 在 upstream 仓库内的默认路径，默认 `.`。
 - `packages.<name>.repository.path` 可选，覆盖 `repository.git.path`。
 - `packages.<name>.upstream.path` 可选，覆盖 `upstream.git.path`。
 - `maintenance.status` 可选，默认 `active`；支持 `active` 和 `frozen`。
   `frozen` 只影响 Source 维护命令，消费侧仍可使用已有发布记录。
-- `advisory` 可选，是 package 级用户提示，会用于 `fluoh deps check`，但不改变机器
+- `advisory` 可选，是 Package 级用户提示，会用于 `fluoh deps check`，但不改变机器
   判定状态。
 - `sdks.<sdkLine>` 使用派生的 Flutter OHOS 大版本线，例如 `3.35`。项目选择完整 SDK
   版本后，消费侧从中推导 SDK 版本线，再查 Manifest。
 - `releases` 是当前 SDK 版本线下的历史发布记录列表。
 - `releases[].version` 必填，是 FlutterOH 适配发布版本，使用数字点分格式，例如
   `1` 或 `0.1.0`，不带 `v` 前缀。
-- `releases[].upstreamVersion` 必填，是对应的 upstream package 版本。
+- `releases[].upstreamVersion` 必填，是对应的 upstream Package 版本。
 - `releases[].tag` 可选。当前 canonical tag 不需要写；`fluoh source sync`
   只会在需要保留已有非 canonical release tag 时写入。
 - `releases[].status` 可选；不写表示 `compatible`。只有适配中或已知不可用时才写
@@ -342,14 +342,14 @@ release tag 字符串通常不在 Manifest 中重复保存，而是按约定派�
 <package>-<upstreamVersion>-ohos-<sdkLine>-<version>
 ```
 
-例如 package `path_provider`、upstream 版本 `2.1.5`、SDK 版本线 `3.35`、version
+例如 Package `path_provider`、upstream 版本 `2.1.5`、SDK 版本线 `3.35`、version
 `0.2.0` 会派生：
 
 ```text
 path_provider-2.1.5-ohos-3.35-0.2.0
 ```
 
-同一个 package、upstream 版本和 SDK 版本线下，只要适配内容发生变化，就必须递增
+同一个 Package、upstream 版本和 SDK 版本线下，只要适配内容发生变化，就必须递增
 `version`。
 
 ## 适配规则和流程
@@ -357,12 +357,12 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 1. 选择完整 Flutter OHOS SDK 版本，例如 `3.35.8-ohos-0.0.3`。
 2. 从完整 SDK 版本推导 SDK 版本线：取 `-ohos` 前语义化版本的前两个数字段，例如
    `3.35.8-ohos-0.0.3 -> 3.35`。
-3. 为适配库创建或切换分支 `ohos/<sdkLine>`，例如 `ohos/3.35`。分支按大版本线维护，
+3. 为 Package 适配仓库创建或切换分支 `ohos/<sdkLine>`，例如 `ohos/3.35`。分支按大版本线维护，
    不按 SDK patch 版本维护。
-4. Package `fluoh.yaml` 只记录当前分支正在维护或准备发布的 upstream package 版本
-   和 FlutterOH 适配 package 版本。
+4. Package `fluoh.yaml` 只记录当前分支正在维护或准备发布的 upstream Package 版本
+   和 FlutterOH 适配 Package 版本。
 5. 开始写 OHOS 代码前，先用已选择 SDK 做基线检查，包括 `fluoh deps get`、
-   `fluoh flutter analyze`、已有 package 测试或 example 构建；先修复非 OHOS 平台
+   `fluoh flutter analyze`、已有 Package 测试或 example 构建；先修复非 OHOS 平台
    因 SDK 切换暴露的问题。
 6. 适配中可以把 `packages.<name>.status` 或 `releases[].status` 写成 `experimental`；
    完成并可推荐给项目使用时省略 `status`，默认就是 `compatible`。
@@ -376,17 +376,17 @@ path_provider-2.1.5-ohos-3.35-0.2.0
 
 ## 依赖报告和计划
 
-`fluoh deps check` 读取项目 SDK 和 pub lockfile，然后通过 Source 运行时加载 package
-metadata。fresh `sources.lock.json` 提供 package 路由索引，用来缩小需要读取的 Manifest
-范围；完整 package metadata 仍然按需来自 Source Manifest YAML。source 输入变化、lock
+`fluoh deps check` 读取项目 SDK 和 pub lockfile，然后通过 Source 运行时加载 Package
+metadata。fresh `sources.lock.json` 提供 Package 路由索引，用来缩小需要读取的 Manifest
+范围；完整 Package metadata 仍然按需来自 Source Manifest YAML。source 输入变化、lock
 缺失时，lock 会从 Source root 和 Manifest YAML 重新生成。
 不需要提交生成的 matrix 文件。
 
 消费侧状态只由发布记录决定：
 
-- 精确匹配当前 lockfile 中 package 版本和 SDK 版本线的 `compatible` 发布记录 -> `ready`。
+- 精确匹配当前 lockfile 中 Package 版本和 SDK 版本线的 `compatible` 发布记录 -> `ready`。
 - 同一 SDK 版本线下存在 pub 语义化版本兼容的更新 upstream 版本 -> `version upgrade`。
-- 某个 package 有其它 SDK 版本线的发布记录，但没有当前 SDK 版本线 -> `SDK mismatch`。
+- 某个 Package 有其它 SDK 版本线的发布记录，但没有当前 SDK 版本线 -> `SDK mismatch`。
 - 版本变化策略不允许当前候选 -> `needs decision`。
 - 没有可推荐发布记录 -> `unavailable`。
 
@@ -426,10 +426,10 @@ metadata。fresh `sources.lock.json` 提供 package 路由索引，用来缩小�
 ## `sources.lock.json`
 
 `$FLUOH_HOME/sources.lock.json` 是机器生成、仅存在于本机的已解析 SDK lock manifest，
-同时包含轻量 package 路由索引。它由 `config.json` 和每个已校验 Source 快照派生，
-让命令读取稳定 JSON，而不是每次重新解析 Source YAML。完整 package entries 不写入
-lock；package 命令先用路由索引找到相关 Manifest 文件，再按需从已配置 Source 快照读取
-package metadata。
+同时包含轻量 Package 路由索引。它由 `config.json` 和每个已校验 Source 快照派生，
+让命令读取稳定 JSON，而不是每次重新解析 Source YAML。完整 Package entries 不写入
+lock；Package 命令先用路由索引找到相关 Manifest 文件，再按需从已配置 Source 快照读取
+Package metadata。
 
 结构示例：
 
@@ -482,7 +482,7 @@ package metadata。
 
 规则：
 
-- lock 不包含 `schema` 字段。它是可丢弃的生成状态，不兼容或过期时直接重建，不做迁移。
+- lock 不包含 `schema` 字段。它是可丢弃的生成状态；不兼容或过期时直接重建。
 - Source root 和 Manifest YAML 仍然是唯一需要人工编辑的 Source 数据。
 - Source lock 维护由 `lib/src/source/` 中的 Source 运行时统一负责。命令不应该自己组装
   或局部更新 lock。
@@ -493,20 +493,20 @@ package metadata。
   state 文件缺失时，运行时会重新计算快照 hash 并补写 state 文件。
 - Source 状态变更入口，包括 `fluoh source add`、`fluoh source remove`、
   `fluoh source update`、已配置快照 repair、目标是已配置快照的 `fluoh source sync`、
-  以及首次默认 Source bootstrap，都会请求 Source 运行时重建 lock。消费 source 的流程使用
+  以及首次默认 Source 初始化，都会请求 Source 运行时重建 lock。消费 source 的流程使用
   同一个 load-index API；发现 lock 缺失或过期时，或者已选择 SDK 缺失且需要 SDK 元数据来安装
   已选择的 SDK 时，会按需重新生成。
 - lock 保存已解析的 SDK release、胜出的 Source alias 以及最终 repository URL。能从对象
   key、默认值或 `fingerprint.sources` 推导的数据会省略：source priority 只保存在
   `fingerprint.sources`，SDK `versionSeries` 和 `flutterVersion` 由 SDK version key
   推导，SDK `tag` 默认等于 version key，SDK `channel` 默认为 `stable`。
-- `routes` 索引只保存 Source/Manifest/package 路由，以及该 route 下 package 出现过的
-  compatible SDK line。它不保存 package repository、path、upstream version、release
+- `routes` 索引只保存 Source/Manifest/Package 路由，以及该 route 下 Package 出现过的
+  compatible SDK line。它不保存 Package repository、path、upstream version、release
   version、tag、advisory、maintenance 或已选 implementation。
 - 生成的 lock 文件使用 compact-pretty JSON：根区段和大对象保持多行，短的叶子对象和数组压成单行。
-- SDK 命令读取 SDK lock。Package 命令使用 package 路由索引，只解析可能包含当前项目
-  package 的 Manifest 文件，然后在内存中执行 package priority 和冲突规则。
+- SDK 命令读取 SDK lock。Package 命令使用 Package 路由索引，只解析可能包含当前项目
+  Package 的 Manifest 文件，然后在内存中执行 Package priority 和冲突规则。
 - lock 生成使用 Source 命令文档中的 SDK priority 和冲突规则。Package priority 和冲突规则
-  在依赖工作流加载 package metadata 时执行。
+  在依赖工作流加载 Package metadata 时执行。
 - 写入使用临时文件加原子替换。生成失败时，除非原 lock 记录的 fingerprint 仍然匹配，
   否则原 lock 不会被当成新状态使用。

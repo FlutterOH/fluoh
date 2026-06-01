@@ -1,8 +1,12 @@
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
+/// Current schema version for Source root and Manifest YAML files.
 const sourceManifestSchema = 1;
 
+/// Parsed root `fluoh.yaml` for a FlutterOH Source repository.
+///
+/// A Source repository owns SDK releases and routes to package Manifest files.
 class SourceRootManifest {
   const SourceRootManifest({
     required this.schemaVersion,
@@ -15,19 +19,36 @@ class SourceRootManifest {
     this.fluohConstraint,
   });
 
+  /// Schema version from the root `fluoh.yaml`.
   final int schemaVersion;
+
+  /// Source name, such as `flutteroh`.
   final String name;
+
+  /// Optional human-readable Source description.
   final String? description;
+
+  /// Git URL for the Source repository itself.
   final String? repositoryGitUrl;
+
+  /// Manifest routes registered by this Source.
   final List<SourceManifestRoute> manifests;
+
+  /// Git repository that contains FlutterOH SDK releases.
   final String? sdkRepository;
+
+  /// SDK releases advertised by this Source.
   final List<SdkRelease> sdkReleases;
+
+  /// Optional version constraint for compatible `fluoh` clients.
   final String? fluohConstraint;
 
+  /// SDK-only view of this Source.
   SdkIndex get sdkIndex =>
       SdkIndex(schemaVersion: schemaVersion, releases: sdkReleases);
 }
 
+/// Data used to generate a Source root `fluoh.yaml` template.
 class SourceRootManifestTemplate {
   const SourceRootManifestTemplate({
     required this.name,
@@ -48,21 +69,28 @@ class SourceRootManifestTemplate {
   final List<SdkRelease> sdkReleases;
 }
 
+/// Route from a Source root to one package Manifest file.
 class SourceManifestRoute {
   const SourceManifestRoute({required this.name});
 
   final String name;
 }
 
+/// Parsed SDK release index.
 class SdkIndex {
   const SdkIndex({required this.schemaVersion, required this.releases});
 
+  /// Schema version used by the source data.
   final int schemaVersion;
+
+  /// SDK releases sorted and merged from configured Sources.
   final List<SdkRelease> releases;
 }
 
+/// Backwards-compatible alias for SDK index data.
 typedef SourceSdkIndex = SdkIndex;
 
+/// FlutterOH SDK release advertised by Source data.
 class SdkRelease {
   const SdkRelease({
     required this.version,
@@ -76,16 +104,34 @@ class SdkRelease {
     this.sourcePriority = 0,
   });
 
+  /// FlutterOH SDK package version.
   final String version;
+
+  /// Version line, such as `3.35`.
   final String versionSeries;
+
+  /// Upstream Flutter version this SDK line is based on.
   final String flutterVersion;
+
+  /// Release channel, such as `stable`.
   final String channel;
+
+  /// Git repository containing the SDK source.
   final String repository;
+
+  /// Git tag used to install this SDK.
   final String tag;
+
+  /// Optional publish timestamp from Source metadata.
   final String? publishedAt;
+
+  /// Source name that provided this release after merge.
   final String? sourceName;
+
+  /// Source priority used to resolve overlapping releases.
   final int sourcePriority;
 
+  /// Returns a copy annotated with Source merge metadata.
   SdkRelease withSource(String name, int priority) {
     return SdkRelease(
       version: version,
@@ -101,6 +147,7 @@ class SdkRelease {
   }
 }
 
+/// Parsed package Manifest file from `manifests/<name>/fluoh.yaml`.
 class SourceManifest {
   const SourceManifest({
     required this.schemaVersion,
@@ -113,16 +160,32 @@ class SourceManifest {
     this.upstreamPath = '.',
   });
 
+  /// Schema version from the Manifest file.
   final int schemaVersion;
+
+  /// Manifest name.
   final String name;
+
+  /// FlutterOH implementation repository URL.
   final String repositoryGitUrl;
+
+  /// Package root inside the FlutterOH implementation repository.
   final String repositoryPath;
+
+  /// Upstream repository URL.
   final String upstreamGitUrl;
+
+  /// Upstream branch used by package sync.
   final String upstreamBranch;
+
+  /// Package root inside the upstream repository.
   final String upstreamPath;
+
+  /// Package records keyed by package name.
   final Map<String, SourceManifestPackage> packages;
 }
 
+/// Package entry inside a Source Manifest.
 class SourceManifestPackage {
   const SourceManifestPackage({
     required this.name,
@@ -133,21 +196,37 @@ class SourceManifestPackage {
     this.advisory,
   });
 
+  /// Package name.
   final String name;
+
+  /// Package path inside the FlutterOH implementation repository.
   final String repositoryPath;
+
+  /// Package path inside the upstream repository.
   final String upstreamPath;
+
+  /// Optional maintenance status for this package.
   final SourcePackageMaintenance? maintenance;
+
+  /// Optional advisory shown by dependency commands.
   final SourcePackageAdvisory? advisory;
+
+  /// SDK-specific release records keyed by SDK line.
   final Map<String, SourceManifestSdk> sdks;
 }
 
+/// Manifest releases for one SDK line.
 class SourceManifestSdk {
   const SourceManifestSdk({required this.sdkLine, required this.releases});
 
+  /// SDK line, such as `3.35`.
   final String sdkLine;
+
+  /// Package implementation releases for this SDK line.
   final List<SourceManifestRelease> releases;
 }
 
+/// One package implementation release in a Source Manifest.
 class SourceManifestRelease {
   const SourceManifestRelease({
     required this.version,
@@ -156,28 +235,44 @@ class SourceManifestRelease {
     this.status = 'compatible',
   });
 
+  /// FlutterOH package version.
   final String version;
+
+  /// Upstream package version this implementation targets.
   final String upstreamVersion;
+
+  /// Optional implementation repository tag.
   final String? tag;
+
+  /// Compatibility status; only `compatible` releases are used by consumers.
   final String status;
 }
 
+/// Maintainer-provided package maintenance state.
 class SourcePackageMaintenance {
   const SourcePackageMaintenance({required this.status, this.reason});
 
+  /// Maintenance status, for example `maintained` or `deprecated`.
   final String status;
+
+  /// Optional explanation for the status.
   final String? reason;
 }
 
+/// Advisory shown when a package needs user or maintainer attention.
 class SourcePackageAdvisory {
   const SourcePackageAdvisory({
     this.message,
     this.alternatives = const <SourcePackageAlternative>[],
   });
 
+  /// Human-readable advisory message.
   final String? message;
+
+  /// Suggested alternative packages.
   final List<SourcePackageAlternative> alternatives;
 
+  /// Converts this advisory to JSON for command output.
   Map<String, Object?> toJson() {
     return {
       if (message != null) 'message': message,
@@ -189,13 +284,20 @@ class SourcePackageAdvisory {
   }
 }
 
+/// Alternative package suggested by a Source advisory.
 class SourcePackageAlternative {
   const SourcePackageAlternative({required this.name, this.reason, this.url});
 
+  /// Alternative package name.
   final String name;
+
+  /// Optional reason why this package is suggested.
   final String? reason;
+
+  /// Optional URL for the alternative.
   final String? url;
 
+  /// Converts this alternative to JSON for command output.
   Map<String, Object?> toJson() {
     return {
       'name': name,
@@ -205,6 +307,7 @@ class SourcePackageAlternative {
   }
 }
 
+/// Data used to generate a package Manifest template.
 class SourceManifestTemplate {
   const SourceManifestTemplate({
     required this.name,
@@ -225,6 +328,7 @@ class SourceManifestTemplate {
   final List<SourceManifestPackageTemplate> packages;
 }
 
+/// Data used to generate one package entry in a Manifest template.
 class SourceManifestPackageTemplate {
   const SourceManifestPackageTemplate({
     required this.name,
@@ -237,23 +341,43 @@ class SourceManifestPackageTemplate {
     this.status = 'compatible',
   });
 
+  /// Package name.
   final String name;
+
+  /// Package path inside the FlutterOH implementation repository.
   final String repositoryPath;
+
+  /// Package path inside the upstream repository.
   final String upstreamPath;
+
+  /// Upstream version targeted by the generated implementation release.
   final String upstreamVersion;
+
+  /// SDK line for the generated implementation release.
   final String sdkLine;
+
+  /// FlutterOH package version for the generated implementation release.
   final String version;
+
+  /// Optional implementation repository tag.
   final String? tag;
+
+  /// Compatibility status written to the Manifest.
   final String status;
 }
 
+/// Merged package index consumed by dependency commands.
 class PackageIndex {
   const PackageIndex({required this.schemaVersion, required this.packages});
 
+  /// Schema version used by the source data.
   final int schemaVersion;
+
+  /// Package entries keyed by package name.
   final Map<String, PackageEntry> packages;
 }
 
+/// Package-level Source record after merging configured Sources.
 class PackageEntry {
   const PackageEntry({
     required this.repository,
@@ -267,17 +391,35 @@ class PackageEntry {
     this.maintenance,
   });
 
+  /// FlutterOH implementation repository URL.
   final String repository;
+
+  /// Upstream repository URL.
   final String upstream;
+
+  /// Package path inside the implementation repository.
   final String? repositoryPath;
+
+  /// Package path inside the upstream repository.
   final String? upstreamPath;
+
+  /// Upstream branch used by package sync.
   final String upstreamBranch;
+
+  /// Compatible implementation releases for this package.
   final List<PackageImplementation> implementations;
+
+  /// Non-compatible compatibility records retained for reporting.
   final List<SourceCompatibilityStatus> compatibility;
+
+  /// Optional advisory shown by dependency commands.
   final SourcePackageAdvisory? advisory;
+
+  /// Optional maintenance state for this package.
   final SourcePackageMaintenance? maintenance;
 }
 
+/// Concrete FlutterOH implementation release for a package.
 class PackageImplementation {
   const PackageImplementation({
     required this.sdkLine,
@@ -292,19 +434,40 @@ class PackageImplementation {
     this.sourcePriority = 0,
   });
 
+  /// SDK line this implementation supports.
   final String sdkLine;
+
+  /// Upstream package version this implementation targets.
   final String upstreamVersion;
+
+  /// Implementation repository URL.
   final String repository;
+
+  /// Implementation repository tag.
   final String tag;
+
+  /// FlutterOH package version.
   final String version;
+
+  /// Package path inside the implementation repository.
   final String? path;
+
+  /// Package path inside the upstream repository.
   final String? upstreamPath;
+
+  /// Upstream branch used by package sync.
   final String upstreamBranch;
+
+  /// Source name that provided this implementation after merge.
   final String? sourceName;
+
+  /// Source priority used to resolve overlapping implementation records.
   final int sourcePriority;
 
+  /// Alias kept for command code that treats SDK line as a version selector.
   String get sdkVersion => sdkLine;
 
+  /// Returns a copy annotated with Source merge metadata.
   PackageImplementation withSource(String name, int priority) {
     return PackageImplementation(
       sdkLine: sdkLine,
@@ -321,6 +484,7 @@ class PackageImplementation {
   }
 }
 
+/// Non-compatible package status retained for diagnostics.
 class SourceCompatibilityStatus {
   const SourceCompatibilityStatus({
     required this.sdkLine,
@@ -328,13 +492,20 @@ class SourceCompatibilityStatus {
     required this.status,
   });
 
+  /// SDK line this status applies to.
   final String sdkLine;
+
+  /// Upstream package version this status applies to.
   final String upstreamVersion;
+
+  /// Status such as `experimental` or `broken`.
   final String status;
 
+  /// Alias kept for command code that treats SDK line as a version selector.
   String get sdkVersion => sdkLine;
 }
 
+/// Package-specific view derived from one Source Manifest.
 class SourcePackageManifest {
   const SourcePackageManifest({
     required this.name,
@@ -349,28 +520,52 @@ class SourcePackageManifest {
     this.advisory,
   });
 
+  /// Package name.
   final String name;
+
+  /// FlutterOH implementation repository URL.
   final String repository;
+
+  /// Upstream repository URL.
   final String upstream;
+
+  /// Package path inside the implementation repository.
   final String? repositoryPath;
+
+  /// Package path inside the upstream repository.
   final String? upstreamPath;
+
+  /// Upstream branch used by package sync.
   final String upstreamBranch;
+
+  /// Compatible implementation releases.
   final List<PackageImplementation> implementations;
+
+  /// Non-compatible compatibility records retained for reporting.
   final List<SourceCompatibilityStatus> compatibility;
+
+  /// Optional maintenance state for this package.
   final SourcePackageMaintenance? maintenance;
+
+  /// Optional advisory shown by dependency commands.
   final SourcePackageAdvisory? advisory;
 }
 
+/// Legacy compatibility matrix shape retained for schema parsing tests.
 class CompatibilityMatrix {
   const CompatibilityMatrix({
     required this.schemaVersion,
     required this.sdkVersions,
   });
 
+  /// Schema version for the matrix data.
   final int schemaVersion;
+
+  /// Compatibility data keyed by SDK version.
   final Map<String, CompatibilityVersion> sdkVersions;
 }
 
+/// Package compatibility buckets for one SDK version.
 class CompatibilityVersion {
   const CompatibilityVersion({
     required this.native,
@@ -378,11 +573,17 @@ class CompatibilityVersion {
     required this.blocked,
   });
 
+  /// Packages with native upstream support.
   final List<String> native;
+
+  /// Packages with FlutterOH implementations.
   final List<String> implemented;
+
+  /// Packages that are known blockers.
   final List<String> blocked;
 }
 
+/// Parses a Source root `fluoh.yaml`.
 SourceRootManifest parseSourceRootManifest(String content) {
   final yaml = parseYamlMap(content, label: 'fluoh.yaml');
   _ensureSourceSchema(yaml, 'fluoh.yaml');
@@ -426,10 +627,12 @@ SourceRootManifest parseSourceRootManifest(String content) {
   );
 }
 
+/// Parses the SDK release index from a Source root `fluoh.yaml`.
 SdkIndex parseSourceSdkIndex(String content) {
   return parseSourceRootManifest(content).sdkIndex;
 }
 
+/// Parses a package Manifest file.
 SourceManifest parseSourceManifest({
   required String content,
   required String label,
@@ -493,6 +696,7 @@ SourceManifest parseSourceManifest({
   );
 }
 
+/// Expands a Source Manifest into package-specific records.
 List<SourcePackageManifest> sourcePackageManifestsFromManifest(
   SourceManifest manifest, {
   Set<String>? packageNames,
@@ -557,6 +761,7 @@ List<SourcePackageManifest> sourcePackageManifestsFromManifest(
   return manifests;
 }
 
+/// Generates canonical YAML for a Source root Manifest.
 String sourceRootManifestContent(SourceRootManifestTemplate template) {
   final lines = [
     'schema: $sourceManifestSchema',
@@ -607,6 +812,7 @@ String sourceRootManifestContent(SourceRootManifestTemplate template) {
   return lines.join('\n');
 }
 
+/// Generates canonical YAML for a package Manifest template.
 String sourceManifestContent(SourceManifestTemplate template) {
   return sourceManifestToContent(
     SourceManifest(
@@ -642,6 +848,7 @@ String sourceManifestContent(SourceManifestTemplate template) {
   );
 }
 
+/// Serializes a parsed package Manifest back to canonical YAML.
 String sourceManifestToContent(SourceManifest manifest) {
   final lines = [
     'schema: $sourceManifestSchema',
@@ -710,6 +917,7 @@ String sourceManifestToContent(SourceManifest manifest) {
   return lines.join('\n');
 }
 
+/// Builds the merged package index consumed by dependency commands.
 PackageIndex packageIndexFromManifests(Iterable<SourcePackageManifest> items) {
   final packages = <String, PackageEntry>{};
   for (final manifest in items) {
@@ -746,6 +954,7 @@ PackageIndex packageIndexFromManifests(Iterable<SourcePackageManifest> items) {
   return PackageIndex(schemaVersion: 1, packages: packages);
 }
 
+/// Builds a compatibility matrix from package Manifest records.
 CompatibilityMatrix compatibilityMatrixFromManifests(
   Iterable<SourcePackageManifest> items,
 ) {

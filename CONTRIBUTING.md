@@ -2,7 +2,7 @@
 
 简体中文: [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)
 
-This document is for `fluoh` contributors and maintainers. General users should start with [README.md](README.md) or [README.zh-CN.md](README.zh-CN.md).
+This document is for `fluoh` contributors and maintainers. General users should start with [README.md](README.md).
 
 ## Local Development
 

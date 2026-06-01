@@ -59,11 +59,9 @@ class DevicesCommand extends FluohCommand<int> {
       );
     } else {
       _printTargetReports(
-        title: 'Connected devices',
-        emptyLabel: 'No devices found',
+        kind: _TargetReportKind.devices,
         reports: reports,
         output: _output,
-        lineLength: argParser.usageLineLength ?? fluohUsageLineLength(),
       );
     }
     return exitCode;
@@ -158,11 +156,9 @@ class EmulatorsCommand extends FluohCommand<int> {
       );
     } else {
       _printTargetReports(
-        title: 'Available emulators',
-        emptyLabel: 'No emulators found',
+        kind: _TargetReportKind.emulators,
         reports: reports,
         output: _output,
-        lineLength: argParser.usageLineLength ?? fluohUsageLineLength(),
       );
     }
     return exitCode;
@@ -190,81 +186,217 @@ List<FluohPlatform> platformsFromCliOption(String? value) {
   };
 }
 
+enum _TargetReportKind { devices, emulators }
+
 void _printTargetReports({
-  required String title,
-  required String emptyLabel,
+  required _TargetReportKind kind,
   required List<PlatformTargetReport> reports,
   required TerminalOutput output,
-  required int lineLength,
 }) {
-  output.section(title);
+  final targets = <PlatformTarget>[];
+  final warnings = <String>[];
   for (final report in reports) {
-    output.blank();
-    output.write(_platformTitle(report.platform));
     if (!report.ok) {
-      output.warning(report.message ?? 'Could not list targets');
-      continue;
-    }
-    if (report.targets.isEmpty) {
-      _writeWrappedTarget(output, '- $emptyLabel', lineLength: lineLength);
-      continue;
-    }
-    for (final target in report.targets) {
-      _writeWrappedTarget(
-        output,
-        _targetLine(target, reportKind: report.kind),
-        lineLength: lineLength,
+      warnings.add(
+        '${_platformTitle(report.platform)} ${kind.unavailableLabel}: '
+        '${report.message ?? 'could not list targets'}',
       );
+      continue;
+    }
+    targets.addAll(report.targets);
+  }
+
+  targets.sort((left, right) {
+    final platform = left.platform.cliName.compareTo(right.platform.cliName);
+    if (platform != 0) {
+      return platform;
+    }
+    final name = left.name.compareTo(right.name);
+    return name == 0 ? left.id.compareTo(right.id) : name;
+  });
+
+  if (targets.isEmpty) {
+    output.write(kind.emptyMessage);
+  } else {
+    switch (kind) {
+      case _TargetReportKind.devices:
+        _printDeviceTargets(targets, output);
+      case _TargetReportKind.emulators:
+        _printEmulatorTargets(targets, output);
+    }
+  }
+
+  if (warnings.isNotEmpty) {
+    if (targets.isNotEmpty) {
+      output.blank();
+    }
+    for (final warning in warnings) {
+      output.warning(warning);
     }
   }
 }
 
-String _targetLine(PlatformTarget target, {required String reportKind}) {
-  final details = [
-    if (target.kind != reportKind) target.kind,
-    if (_showTargetState(target)) target.state!,
-    if (target.details['details'] != null) target.details['details']!,
-  ].map((item) => item.toString()).where((item) => item.isNotEmpty);
-  return [
-    '- ${target.name}',
-    if (target.id != target.name) target.id,
-    if (details.isNotEmpty) details.join(' '),
-  ].join('    ');
+void _printDeviceTargets(List<PlatformTarget> targets, TerminalOutput output) {
+  final wiredTargets = [
+    for (final target in targets)
+      if (platformTargetConnection(target) != 'wireless') target,
+  ];
+  final wirelessTargets = [
+    for (final target in targets)
+      if (platformTargetConnection(target) == 'wireless') target,
+  ];
+
+  if (wiredTargets.isNotEmpty) {
+    output.write(_TargetReportKind.devices.heading(wiredTargets.length));
+    for (final row in _formatDeviceRows(wiredTargets)) {
+      _writeTargetRow(output, '  $row');
+    }
+  }
+
+  if (wirelessTargets.isNotEmpty) {
+    if (wiredTargets.isNotEmpty) {
+      output.blank();
+    }
+    output.write(_wirelessHeading(wirelessTargets.length));
+    for (final row in _formatDeviceRows(wirelessTargets)) {
+      _writeTargetRow(output, '  $row');
+    }
+  }
 }
 
-bool _showTargetState(PlatformTarget target) {
-  if (target.state == null || target.state!.trim().isEmpty) {
-    return false;
-  }
-  if (target.platform == FluohPlatform.macos) {
-    return false;
-  }
-  return !(target.platform == FluohPlatform.ios && target.kind == 'emulator');
-}
-
-void _writeWrappedTarget(
+void _printEmulatorTargets(
+  List<PlatformTarget> targets,
   TerminalOutput output,
-  String line, {
-  required int lineLength,
-}) {
-  const firstIndent = 2;
-  const continuationIndent = 4;
-  final firstWidth = (lineLength - firstIndent).clamp(20, lineLength).toInt();
-  final continuationWidth = (lineLength - continuationIndent)
-      .clamp(20, lineLength)
-      .toInt();
-  final lines = wrapTerminalText(line, width: firstWidth);
-  if (lines.isEmpty) {
-    output.indented('');
-    return;
+) {
+  output.write(_TargetReportKind.emulators.heading(targets.length));
+  output.blank();
+  final widths = _emulatorColumnWidths(targets);
+  _writeTargetRow(output, _formatTargetRow(_emulatorHeaderRow(), widths));
+  output.blank();
+  for (final row in _formatEmulatorRows(targets, widths)) {
+    _writeTargetRow(output, row);
   }
-  output.indented(lines.first, spaces: firstIndent);
-  for (final line in lines.skip(1)) {
-    final wrapped = wrapTerminalText(line, width: continuationWidth);
-    for (final continuation in wrapped) {
-      output.indented(continuation, spaces: continuationIndent);
-    }
+  output.blank();
+  output.write(
+    "To run an emulator, run 'fluoh emulators --launch <emulator id>'.",
+  );
+}
+
+String _wirelessHeading(int count) {
+  return 'Found $count wirelessly connected device${count == 1 ? '' : 's'}:';
+}
+
+extension on _TargetReportKind {
+  String heading(int count) {
+    return switch (this) {
+      _TargetReportKind.devices =>
+        'Found $count connected device${count == 1 ? '' : 's'}:',
+      _TargetReportKind.emulators =>
+        '$count available emulator${count == 1 ? '' : 's'}:',
+    };
   }
+
+  String get emptyMessage {
+    return switch (this) {
+      _TargetReportKind.devices => 'No connected devices detected.',
+      _TargetReportKind.emulators => 'No emulators available.',
+    };
+  }
+
+  String get unavailableLabel {
+    return switch (this) {
+      _TargetReportKind.devices => 'devices unavailable',
+      _TargetReportKind.emulators => 'emulators unavailable',
+    };
+  }
+}
+
+List<String> _formatDeviceRows(List<PlatformTarget> targets) {
+  final rows = [
+    for (final target in targets)
+      _TargetDisplayRow(
+        first: platformTargetDisplayName(target),
+        second: target.id,
+        third: platformTargetDisplayPlatform(target),
+        fourth: platformTargetSummary(target),
+      ),
+  ];
+  return _formatTargetRows(rows, _columnWidths(rows));
+}
+
+List<String> _formatEmulatorRows(
+  List<PlatformTarget> targets,
+  _TargetColumnWidths widths,
+) {
+  return [
+    for (final target in targets)
+      _formatTargetRow(
+        _TargetDisplayRow(
+          first: target.id,
+          second: platformTargetEmulatorName(target),
+          third: platformTargetManufacturer(target) ?? '',
+          fourth: target.platform.cliName,
+        ),
+        widths,
+      ),
+  ];
+}
+
+_TargetDisplayRow _emulatorHeaderRow() {
+  return const _TargetDisplayRow(
+    first: 'Id',
+    second: 'Name',
+    third: 'Manufacturer',
+    fourth: 'Platform',
+  );
+}
+
+_TargetColumnWidths _emulatorColumnWidths(List<PlatformTarget> targets) {
+  return _columnWidths([
+    _emulatorHeaderRow(),
+    for (final target in targets)
+      _TargetDisplayRow(
+        first: target.id,
+        second: platformTargetEmulatorName(target),
+        third: platformTargetManufacturer(target) ?? '',
+        fourth: target.platform.cliName,
+      ),
+  ]);
+}
+
+List<String> _formatTargetRows(
+  List<_TargetDisplayRow> rows,
+  _TargetColumnWidths widths,
+) {
+  return [for (final row in rows) _formatTargetRow(row, widths)];
+}
+
+String _formatTargetRow(_TargetDisplayRow row, _TargetColumnWidths widths) {
+  return [
+    row.first.padRight(widths.first),
+    row.second.padRight(widths.second),
+    row.third.padRight(widths.third),
+    row.fourth,
+  ].where((part) => part.trim().isNotEmpty).join(' • ');
+}
+
+_TargetColumnWidths _columnWidths(List<_TargetDisplayRow> rows) {
+  if (rows.isEmpty) {
+    return const _TargetColumnWidths(first: 0, second: 0, third: 0);
+  }
+  return _TargetColumnWidths(
+    first: rows.map((row) => row.first.length).reduce(_max),
+    second: rows.map((row) => row.second.length).reduce(_max),
+    third: rows.map((row) => row.third.length).reduce(_max),
+  );
+}
+
+void _writeTargetRow(TerminalOutput output, String line) {
+  output.write(line);
+}
+
+int _max(int left, int right) {
+  return left > right ? left : right;
 }
 
 String _platformTitle(FluohPlatform platform) {
@@ -274,4 +406,30 @@ String _platformTitle(FluohPlatform platform) {
     FluohPlatform.ios => 'iOS',
     FluohPlatform.macos => 'macOS',
   };
+}
+
+class _TargetDisplayRow {
+  const _TargetDisplayRow({
+    required this.first,
+    required this.second,
+    required this.third,
+    required this.fourth,
+  });
+
+  final String first;
+  final String second;
+  final String third;
+  final String fourth;
+}
+
+class _TargetColumnWidths {
+  const _TargetColumnWidths({
+    required this.first,
+    required this.second,
+    required this.third,
+  });
+
+  final int first;
+  final int second;
+  final int third;
 }

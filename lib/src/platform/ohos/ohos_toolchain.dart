@@ -65,7 +65,7 @@ Future<OhosToolchain> locateOhosToolchain({
   }
 
   throw UsageException(
-    'Could not locate DevEco Studio OpenHarmony signing tools. '
+    'Could not locate the OpenHarmony SDK toolchain. '
     'Install DevEco Studio or set FLUOH_DEVECO_STUDIO to its .app path.',
     usage,
   );

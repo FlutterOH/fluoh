@@ -82,6 +82,11 @@ class DepsFixCommand extends FluohCommand<int> {
       negatable: false,
       help: 'Show planned dependency rewrites without writing pubspec.yaml.',
     );
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print the dependency fix result as JSON.',
+    );
   }
 
   final FluohEnvironment environment;
@@ -99,15 +104,31 @@ class DepsFixCommand extends FluohCommand<int> {
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
+    final jsonMode = argResults!.flag('json');
     final policy = await readDependencyPolicy(environment.workingDirectory);
     final plan = await buildDependencyPlan(
       environment: environment,
       policy: policy,
       purpose: DependencyPlanPurpose.fix,
     );
-    _printMutationPlan(_output, plan, dryRun: dryRun);
 
     if (plan.changes.isEmpty || dryRun) {
+      if (jsonMode) {
+        writeMachineOutput(
+          stdout,
+          command: 'deps fix',
+          ok: plan.changes.isEmpty,
+          exitCode: 0,
+          fields: {
+            'changes': _changeSummaries(plan).toList(),
+            'applied': 0,
+            'dryRun': dryRun,
+            ...plan.toJson(),
+          },
+        );
+      } else {
+        _printMutationPlan(_output, plan, dryRun: dryRun);
+      }
       return 0;
     }
 
@@ -116,10 +137,26 @@ class DepsFixCommand extends FluohCommand<int> {
       pubspec: pubspec,
       changes: plan.changes,
     );
-    _output.success(
-      'Updated pubspec.yaml with $applied dependency change${_s(applied)}',
-    );
-    _printNextStep(_output);
+    if (jsonMode) {
+      writeMachineOutput(
+        stdout,
+        command: 'deps fix',
+        ok: true,
+        exitCode: 0,
+        fields: {
+          'changes': _changeSummaries(plan).toList(),
+          'applied': applied,
+          'dryRun': false,
+          ...plan.toJson(),
+        },
+      );
+    } else {
+      _printMutationPlan(_output, plan, dryRun: dryRun);
+      _output.success(
+        'Updated pubspec.yaml with $applied dependency change${_s(applied)}',
+      );
+      _printNextStep(_output);
+    }
     return 0;
   }
 }
@@ -378,6 +415,19 @@ String _changeSummary(
 
 void _printNextStep(TerminalOutput output) {
   output.next('Next: run ${output.style.code('fluoh deps get')}');
+}
+
+Iterable<Map<String, Object?>> _changeSummaries(DependencyPlan plan) {
+  return plan.actionableEntries.expand((entry) {
+    return entry.changes.map((change) {
+      return {
+        'packageName': change.packageName,
+        'kind': change.kind.name,
+        'nextRef': change.nextRef,
+        if (change.currentRef != null) 'currentRef': change.currentRef,
+      };
+    });
+  });
 }
 
 String _s(int count) => count == 1 ? '' : 's';

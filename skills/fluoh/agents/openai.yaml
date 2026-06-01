@@ -1,0 +1,4 @@
+interface:
+  display_name: "fluoh"
+  short_description: "FlutterOH/OHOS adaptation workflow"
+  default_prompt: "Use $fluoh to install fluoh if needed and adapt this Flutter project or package for OHOS."

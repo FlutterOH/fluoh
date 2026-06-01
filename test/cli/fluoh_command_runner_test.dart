@@ -10,6 +10,13 @@ void main() {
     final stdout = <String>[];
     final stderr = <String>[];
     final dartVersion = io.Platform.version.split(' ').first;
+    final platformVersion = io.Platform.operatingSystemVersion
+        .trim()
+        .replaceFirst(RegExp(r'^Version\s+', caseSensitive: false), '')
+        .replaceAllMapped(
+          RegExp(r'\s*\((?:Build\s+)?([^)]+)\)', caseSensitive: false),
+          (match) => ' ${match.group(1)}',
+        );
 
     final exitCode = await runFluoh(
       ['--version'],
@@ -21,7 +28,7 @@ void main() {
     expect(stdout, [
       'fluoh $packageVersion - CLI for Flutter OHOS SDKs and package workflows',
       'Dart $dartVersion',
-      startsWith('Platform ${io.Platform.operatingSystem} '),
+      'Platform ${io.Platform.operatingSystem} $platformVersion',
       'Repository https://github.com/FlutterOH/fluoh',
     ]);
     expect(stderr, isEmpty);
@@ -40,6 +47,220 @@ void main() {
     expect(exitCode, 64);
     expect(stdout, isEmpty);
     expect(stderr.join('\n'), contains('Could not find a command named'));
+  });
+
+  test('prints bundled AI skill details', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['skill'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    expect(stderr, isEmpty);
+    final output = stdout.join('\n');
+    expect(output, contains('fluoh skill bundled AI workflow'));
+    expect(output, contains('Version $packageVersion'));
+    expect(output, contains('Local path'));
+    expect(output, contains('skills/fluoh'));
+    expect(output, contains('Scripts preflight.py, new_report.py'));
+    expect(
+      output,
+      contains(
+        'Install the fluoh skill from '
+        'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
+      ),
+    );
+    expect(output, contains('fluoh skill --json'));
+    expect(output, contains('fluoh upgrade'));
+  });
+
+  test('prints AI skill path only', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['skill', '--path'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    expect(stdout.single, endsWith('skills/fluoh'));
+    expect(io.Directory(stdout.single).existsSync(), isTrue);
+  });
+
+  test('prints bundled AI skill details as json', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['skill', '--json'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    expect(stderr, isEmpty);
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'skill'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('available', true));
+    expect(report, containsPair('skillName', 'fluoh'));
+    expect(report, containsPair('skillVersion', packageVersion));
+    expect(report['localPath'], isA<String>());
+    expect(report['localPath'], contains('skills/fluoh'));
+    expect(report, containsPair('repository', 'FlutterOH/fluoh'));
+    expect(
+      report,
+      containsPair('repositoryUrl', 'https://github.com/FlutterOH/fluoh'),
+    );
+    expect(report, containsPair('repositoryPath', 'skills/fluoh'));
+    expect(
+      report,
+      containsPair(
+        'skillUrl',
+        'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh',
+      ),
+    );
+    expect(
+      report,
+      containsPair(
+        'defaultPrompt',
+        'Use \$fluoh to install fluoh if needed and adapt this Flutter project '
+            'or package for OHOS.',
+      ),
+    );
+    expect(
+      report['examplePrompts'],
+      containsAll([
+        'Use \$fluoh to install fluoh if needed and adapt this Flutter project '
+            'for OHOS.',
+        'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
+        'Use \$fluoh to continue adapting <package-name> for OHOS.',
+      ]),
+    );
+    expect(
+      report,
+      containsPair(
+        'installPrompt',
+        'Install the fluoh skill from '
+            'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
+      ),
+    );
+    expect(report, containsPair('upgradeCommand', 'fluoh upgrade'));
+    expect(
+      report,
+      containsPair(
+        'upgradePrompt',
+        'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --json` '
+            'and reinstall or reload the returned localPath.',
+      ),
+    );
+    final scripts = report['scripts'] as Map<String, Object?>;
+    expect(
+      scripts.keys,
+      containsAll(['preflight', 'newReport', 'checkReport']),
+    );
+    final preflight = scripts['preflight'] as Map<String, Object?>;
+    expect(preflight['relativePath'], 'scripts/preflight.py');
+    expect(preflight['path'], allOf(isA<String>(), contains('preflight.py')));
+    expect(
+      preflight['argv'],
+      containsAllInOrder(['python3', contains('preflight.py'), '<workspace>']),
+    );
+    final newReport = scripts['newReport'] as Map<String, Object?>;
+    expect(newReport['relativePath'], 'scripts/new_report.py');
+    expect(
+      newReport['argv'],
+      containsAllInOrder(['python3', contains('new_report.py'), '--scope']),
+    );
+    expect(newReport['argv'], isNot(contains('--root')));
+    expect(newReport['argv'], isNot(contains('--type')));
+    final checkReport = scripts['checkReport'] as Map<String, Object?>;
+    expect(checkReport['relativePath'], 'scripts/check_report.py');
+    expect(
+      checkReport['argv'],
+      containsAllInOrder(['python3', contains('check_report.py')]),
+    );
+  });
+
+  test('advertised AI skill script argv can be executed', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['skill', '--json'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    expect(stderr, isEmpty);
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final scripts = report['scripts'] as Map<String, Object?>;
+
+    final workspace = await io.Directory.systemTemp.createTemp(
+      'fluoh_skill_scripts_',
+    );
+    addTearDown(() async {
+      if (await workspace.exists()) {
+        await workspace.delete(recursive: true);
+      }
+    });
+    await io.File('${workspace.path}/pubspec.yaml').writeAsString('''
+name: fixture_app
+
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+
+    final preflight = await _runAdvertisedScript(
+      scripts,
+      'preflight',
+      replacements: {'<workspace>': workspace.path},
+    );
+    expect(preflight.exitCode, 0, reason: preflight.stderr.toString());
+    final preflightJson =
+        jsonDecode(preflight.stdout.toString()) as Map<String, Object?>;
+    expect(preflightJson['project'], containsPair('kind', 'app-project'));
+
+    final newReport = await _runAdvertisedScript(
+      scripts,
+      'newReport',
+      replacements: {
+        '<workspace>': workspace.path,
+        '<scope>': 'fixture_app',
+        '<ready|needs-maintainer-decision|blocked>': 'blocked',
+      },
+    );
+    expect(newReport.exitCode, 0, reason: newReport.stderr.toString());
+    final reportPath = newReport.stdout.toString().trim();
+    expect(await io.File(reportPath).exists(), isTrue);
+
+    final checkReport = await _runAdvertisedScript(
+      scripts,
+      'checkReport',
+      replacements: {'<report-path>': reportPath},
+    );
+    expect(checkReport.exitCode, 1);
+    final checkJson =
+        jsonDecode(checkReport.stdout.toString()) as Map<String, Object?>;
+    expect(checkJson, containsPair('ok', false));
+    expect(
+      checkJson['errors'],
+      contains(
+        'Commands table must include at least one concrete command row.',
+      ),
+    );
   });
 
   test('prints machine-readable usage errors when json is requested', () async {
@@ -350,6 +571,7 @@ void main() {
       '  devices',
       '  emulators',
       '  upgrade',
+      '  skill',
     ]);
     expect(help, isNot(contains('\nConfig:')));
     expect(help, isNot(contains('\nSDK:')));
@@ -419,6 +641,21 @@ void main() {
     expect(help, contains('--package=<name>'));
     expect(help, isNot(contains('  baseline')));
     expect(help, isNot(contains('  release')));
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['build', '--help'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    help = stdout.join('\n');
+    expect(help, contains('Usage: fluoh build'));
+    expect(help, contains('Build a FlutterOH project or package example.'));
+    expect(help, contains('Generate temporary OHOS debug signing'));
+    expect(help, contains('project or package example.'));
     expect(stderr, isEmpty);
   });
 
@@ -550,4 +787,19 @@ void _expectInOrder(String text, List<String> needles) {
     expect(index, greaterThan(previous), reason: 'Expected "$needle" later.');
     previous = index;
   }
+}
+
+Future<io.ProcessResult> _runAdvertisedScript(
+  Map<String, Object?> scripts,
+  String name, {
+  required Map<String, String> replacements,
+}) {
+  final script = scripts[name] as Map<String, Object?>;
+  final argv = (script['argv'] as List<Object?>)
+      .cast<String>()
+      .map((value) {
+        return replacements[value] ?? value;
+      })
+      .toList(growable: false);
+  return io.Process.run(argv.first, argv.skip(1).toList());
 }

@@ -23,26 +23,40 @@ export '../schema/schema.dart'
         SourcePackageManifest,
         SourceSdkIndex;
 
+/// File-backed reader for a FlutterOH Source repository.
+///
+/// A Source repository contains a root `fluoh.yaml` and package Manifests under
+/// `manifests/<name>/fluoh.yaml`. This class validates and expands that data
+/// into the indexes consumed by SDK and dependency commands.
 class SourceIndex {
+  /// Creates a Source reader rooted at [root].
   const SourceIndex.directory(this.root);
 
+  /// Source repository root directory.
   final Directory root;
 
+  /// Whether the root Source manifest exists.
   bool get hasRootManifest => File('${root.path}/fluoh.yaml').existsSync();
 
+  /// Whether SDK index data can be read from this Source.
   bool get hasSdkIndex => hasRootManifest;
 
+  /// Whether package index data can be read from this Source.
   bool get hasPackageIndex => hasRootManifest;
 
+  /// Whether compatibility matrix data can be read from this Source.
   bool get hasCompatibilityMatrix => hasRootManifest;
 
+  /// Loads and validates the root Source manifest.
   Future<SourceRootManifest> loadRootManifest() async =>
       parseSourceRootManifest(
         await File('${root.path}/fluoh.yaml').readAsString(),
       );
 
+  /// Loads SDK release data from the root Source manifest.
   Future<SdkIndex> loadSdkIndex() async => (await loadRootManifest()).sdkIndex;
 
+  /// Loads package implementation data from registered Manifests.
   Future<PackageIndex> loadPackageIndex({
     Set<String>? packageNames,
     Set<String>? manifestNames,
@@ -55,6 +69,7 @@ class SourceIndex {
     );
   }
 
+  /// Loads package compatibility buckets from registered Manifests.
   Future<CompatibilityMatrix> loadCompatibilityMatrix({
     Set<String>? packageNames,
     Set<String>? manifestNames,
@@ -67,6 +82,7 @@ class SourceIndex {
     );
   }
 
+  /// Loads a compact route index of Manifest names to package SDK lines.
   Future<SourcePackageRouteIndex> loadPackageRouteIndex() async {
     final source = await loadRootManifest();
     final manifests = <String, SourcePackageRouteManifest>{};
@@ -156,18 +172,24 @@ class SourceIndex {
   }
 }
 
+/// Index of package route data for all Manifests in a Source.
 class SourcePackageRouteIndex {
   const SourcePackageRouteIndex({required this.manifests});
 
+  /// Manifests keyed by route name.
   final Map<String, SourcePackageRouteManifest> manifests;
 }
 
+/// Package route data for one Manifest.
 class SourcePackageRouteManifest {
   const SourcePackageRouteManifest({
     required this.name,
     required this.packages,
   });
 
+  /// Manifest route name.
   final String name;
+
+  /// Package names mapped to SDK lines with compatible releases.
   final Map<String, List<String>> packages;
 }

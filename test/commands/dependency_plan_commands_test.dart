@@ -248,6 +248,75 @@ void main() {
     },
   );
 
+  test('deps fix emits json with change summaries', () async {
+    final environment = await _preparedEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['deps', 'fix', '--dry-run', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    // --json mode outputs only JSON on stdout, no human-readable text.
+    expect(stdout, hasLength(1));
+    final dryRunReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(dryRunReport, containsPair('schemaVersion', 1));
+    expect(dryRunReport, containsPair('command', 'deps fix'));
+    expect(dryRunReport, containsPair('ok', false));
+    expect(dryRunReport, containsPair('exitCode', 0));
+    expect(dryRunReport, containsPair('applied', 0));
+    expect(dryRunReport, containsPair('dryRun', true));
+    final dryRunChanges = dryRunReport['changes'] as List<Object?>;
+    expect(dryRunChanges, isNotEmpty);
+    final cameraChange = dryRunChanges.first as Map<String, Object?>;
+    expect(cameraChange, containsPair('packageName', 'camera'));
+    expect(cameraChange, containsPair('kind', 'writeOverride'));
+    expect(cameraChange, containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1'));
+    expect(
+      File(
+        '${environment.workingDirectory.path}/pubspec.yaml',
+      ).readAsStringSync(),
+      isNot(contains('dependency_overrides')),
+    );
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['deps', 'fix', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, hasLength(1));
+    final fixReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(fixReport, containsPair('schemaVersion', 1));
+    expect(fixReport, containsPair('command', 'deps fix'));
+    expect(fixReport, containsPair('ok', true));
+    expect(fixReport, containsPair('exitCode', 0));
+    expect(fixReport, containsPair('applied', 1));
+    expect(fixReport, containsPair('dryRun', false));
+    final fixChanges = fixReport['changes'] as List<Object?>;
+    expect(fixChanges, hasLength(1));
+    final appliedChange = fixChanges.first as Map<String, Object?>;
+    expect(appliedChange, containsPair('packageName', 'camera'));
+    expect(appliedChange, containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1'));
+    final pubspec = File(
+      '${environment.workingDirectory.path}/pubspec.yaml',
+    ).readAsStringSync();
+    expect(pubspec, contains('dependency_overrides:'));
+    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+    expect(stderr, isEmpty);
+  });
+
   test('prints package advisories from source manifests', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -956,6 +1025,34 @@ manifests:
       expect(stderr, isEmpty);
     },
   );
+
+  test('restores pubspec.yaml when dependency rewrite fails', () async {
+    final environment = await _preparedEnvironment();
+    final pubspecFile = File(
+      '${environment.workingDirectory.path}/pubspec.yaml',
+    );
+
+    // Remove the dependencies section so the rewrite target cannot be found.
+    await pubspecFile.writeAsString(
+      pubspecFile.readAsStringSync().replaceFirst('dependencies:\n', ''),
+    );
+    final modifiedContent = pubspecFile.readAsStringSync();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['deps', 'fix'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    // The file should be restored to the state before the failed fix attempt.
+    final content = pubspecFile.readAsStringSync();
+    expect(content, equals(modifiedContent));
+    expect(content, isNot(contains('dependency_overrides')));
+    expect(content, isNot(contains('camera-0.11.0-ohos-3.35-1')));
+  });
 
   test(
     'preserves implementation repository URLs when reading the lock',

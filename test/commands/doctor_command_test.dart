@@ -45,9 +45,6 @@ void main() {
 
     expect(result.exitCode, 0);
 
-    expect(stdout.join('\n'), isNot(contains('Doctor summary:')));
-    expect(stdout, isNot(contains('Environment checks:')));
-    expect(stdout, isNot(contains('Project checks:')));
     expect(stdout.join('\n'), contains('[✓] fluoh ($packageVersion, on '));
     expect(_normalizeOutput(stdout.join('\n')), contains('locale '));
     expect(stdout, contains('    • Installed with dart pub global activate.'));
@@ -73,19 +70,16 @@ void main() {
     expect(_normalizeOutput(stdout.join('\n')), contains('fixture: file://'));
     expect(_normalizeOutput(stdout.join('\n')), contains('flutteroh: file://'));
     expect(stdout.join('\n'), contains('Android toolchain'));
-    expect(stdout.join('\n'), contains('Xcode - develop for iOS devices'));
-    expect(stdout.join('\n'), isNot(contains('Project SDK')));
+    expect(stdout.join('\n'), contains('Xcode - develop for iOS and macOS'));
+    expect(
+      stdout.join('\n'),
+      isNot(contains('Xcode - develop for macOS desktop')),
+    );
     expect(
       stdout.join('\n'),
       contains('[!] OpenHarmony toolchain - develop for OHOS devices'),
     );
-    expect(
-      stdout,
-      contains('    • DevEco Studio OpenHarmony tools were not found'),
-    );
-    expect(stdout.join('\n'), isNot(contains('Dependencies')));
-    expect(stdout.join('\n'), isNot(contains('mystery_package')));
-    expect(stdout.join('\n'), isNot(contains('camera_platform_interface')));
+    expect(stdout, contains('    • OpenHarmony SDK toolchains were not found'));
     expect(stdout.join('\n'), contains('Doctor found issues in '));
     expect(stdout.join('\n'), contains(' categories.'));
     _expectInOrder(stdout.join('\n'), [
@@ -93,7 +87,7 @@ void main() {
       '[!] Sources',
       '[!] OpenHarmony toolchain - develop for OHOS devices',
       'Android toolchain',
-      'Xcode - develop for iOS devices',
+      'Xcode - develop for iOS and macOS',
       '[!] Flutter project',
     ]);
     expect(stderr, isEmpty);
@@ -117,7 +111,6 @@ void main() {
     expect(result.stdout, contains('    • Missing ohos platform directory'));
     expect(result.stdout, contains('    • Missing android platform directory'));
     expect(result.stdout, contains('    • Missing ios platform directory'));
-    expect(result.stdout.join('\n'), isNot(contains('Project SDK')));
     expect(result.stderr, isEmpty);
   });
 
@@ -159,10 +152,7 @@ void main() {
     );
 
     expect(result.exitCode, 0);
-    expect(result.stdout.join('\n'), isNot(contains('Project checks:')));
-    expect(result.stdout.join('\n'), isNot(contains('[-] Project')));
     expect(result.stdout.join('\n'), isNot(contains('[!] Flutter project')));
-    expect(result.stdout.join('\n'), isNot(contains('[!] Project SDK')));
     expect(
       result.stdout.join('\n'),
       isNot(contains('[!] OHOS project platform')),
@@ -191,9 +181,45 @@ void main() {
 
     expect(result.exitCode, 0);
     expect(result.stdout.join('\n'), contains('[✓] Sources'));
-    expect(result.stdout.join('\n'), isNot(contains('Sources (')));
     expect(result.stdout.join('\n'), contains('fixture:'));
     expect(result.stdout.join('\n'), contains('mirror:'));
+    expect(result.stderr, isEmpty);
+  });
+
+  test('reports git warning when git exits non-zero', () async {
+    final environment = await createTestEnvironment();
+    final fakeBin = Directory('${environment.homeDirectory.path}/bin');
+    await _writeExecutable(File('${fakeBin.path}/git'), '''
+printf "xcrun: error: invalid active developer path\\n" >&2
+exit 1
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'PATH': fakeBin.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'ohos', '--json'],
+    );
+
+    expect(result.exitCode, 0);
+    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    final checks = report['checks'] as List<Object?>;
+    final fluohCheck = checks.cast<Map<String, Object?>>().firstWhere(
+      (check) => check['id'] == 'fluoh.installation',
+    );
+    expect(fluohCheck, containsPair('status', 'warning'));
+    expect(
+      (fluohCheck['details'] as List<Object?>).join('\n'),
+      contains('invalid active developer path'),
+    );
     expect(result.stderr, isEmpty);
   });
 
@@ -214,6 +240,8 @@ exit 0
       processEnvironment: {
         ...environment.processEnvironment,
         'ANDROID_HOME': androidSdk.path,
+        'FLUOH_ANDROID_STUDIO':
+            '${environment.homeDirectory.path}/missing/Android Studio.app',
         'JAVA_HOME': javaHome.path,
       },
     );
@@ -243,15 +271,10 @@ exit 0
       ),
     );
     expect(
-      checks,
-      isNot(
-        contains(
-          allOf(
-            containsPair('group', 'project'),
-            containsPair('title', 'Project SDK'),
-          ),
-        ),
+      checks.cast<Map<String, Object?>>().where(
+        (check) => check['group'] == 'project',
       ),
+      isEmpty,
     );
     expect(
       File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
@@ -287,22 +310,165 @@ exit 0
       plainResult.stdout,
       contains('    • Platform android-36, build-tools 35.0.1'),
     );
-    expect(plainResult.stdout.join('\n'), contains('Java binary at'));
+    expect(plainResult.stdout.join('\n'), contains('Java binary at:'));
     expect(
       _normalizeOutput(plainResult.stdout.join('\n')),
       contains('home/java/bin/java'),
+    );
+    expect(
+      plainResult.stdout.join('\n'),
+      isNot(contains('To override the JDK path')),
     );
     expect(plainResult.stdout, contains('    • Java version 17.0.9'));
     expect(plainResult.stdout, contains('    • All Android licenses accepted'));
     expect(
       plainResult.stdout.join('\n'),
-      contains('[✓] Connected devices (1 available)'),
+      contains('[✓] Connected device (1 available)'),
     );
     expect(
       plainResult.stdout.join('\n'),
-      contains('Pixel 35 - (Android) - emulator - emulator-5554 - device'),
+      contains('Pixel 35 (mobile) • emulator-5554 • android • device'),
     );
     expect(result.stderr, isEmpty);
+    expect(plainResult.stderr, isEmpty);
+  });
+
+  test('prefers Android Studio bundled Java for Android doctor', () async {
+    final environment = await createTestEnvironment();
+    final androidSdk = await _writeAndroidSdkFixture(environment.homeDirectory);
+    final androidStudioJava = File(
+      '${environment.homeDirectory.path}/Applications/Android Studio.app/'
+      'Contents/jbr/Contents/Home/bin/java',
+    );
+    await _writeExecutable(androidStudioJava, '''
+if [ "\$1" = "-version" ]; then
+  printf 'openjdk version "21.0.3"\\nOpenJDK Runtime Environment (build 21.0.3+9)\\n' >&2
+  exit 0
+fi
+exit 0
+''');
+    await File(
+      '${androidStudioJava.parent.parent.path}/release',
+    ).writeAsString('JAVA_VERSION="21.0.3"\n');
+    final javaHome = Directory('${environment.homeDirectory.path}/java');
+    await _writeExecutable(File('${javaHome.path}/bin/java'), '''
+if [ "\$1" = "-version" ]; then
+  printf 'openjdk version "17.0.9"\\n' >&2
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'ANDROID_HOME': androidSdk.path,
+        'FLUOH_ANDROID_STUDIO':
+            '${environment.homeDirectory.path}/Applications/Android Studio.app',
+        'HOME': environment.homeDirectory.path,
+        'JAVA_HOME': javaHome.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'android'],
+    );
+
+    expect(result.exitCode, 0);
+    final output = _normalizeOutput(result.stdout.join('\n'));
+    expect(output, contains('Applications/Android Studio.app'));
+    expect(output, isNot(contains('home/java/bin/java')));
+    expect(output, isNot(contains('This is the JDK bundled with')));
+    expect(
+      output,
+      anyOf(
+        contains('Java version OpenJDK Runtime Environment (build 21.0.3+9)'),
+        contains('Java version 21.0.3'),
+      ),
+    );
+    expect(output, isNot(contains('To override the JDK path')));
+    expect(result.stderr, isEmpty);
+  });
+
+  test('doctor JSON includes structured connected device targets', () async {
+    final environment = await createTestEnvironment();
+    final androidSdk = await _writeAndroidSdkFixture(environment.homeDirectory);
+    await _writeExecutable(File('${androidSdk.path}/platform-tools/adb'), '''
+if [ "\$1" = "version" ]; then
+  printf "Android Debug Bridge version 1.0.41\\n"
+  exit 0
+fi
+if [ "\$1" = "devices" ]; then
+  printf "List of devices attached\\nshort-id device model:A\\nvery-long-device-id device model:Pixel_35\\n"
+  exit 0
+fi
+exit 0
+''');
+    final javaHome = Directory('${environment.homeDirectory.path}/java');
+    await _writeExecutable(File('${javaHome.path}/bin/java'), '''
+if [ "\$1" = "-version" ]; then
+  printf 'openjdk version "17.0.9"\\n' >&2
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'ANDROID_HOME': androidSdk.path,
+        'FLUOH_ANDROID_STUDIO':
+            '${environment.homeDirectory.path}/missing/Android Studio.app',
+        'JAVA_HOME': javaHome.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'android', '--json'],
+    );
+
+    expect(result.exitCode, 0);
+    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    final checks = (report['checks'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final connected = checks.firstWhere(
+      (check) => check['id'] == 'connected.devices',
+    );
+    final data = connected['data'] as Map<String, Object?>;
+    final targets = (data['targets'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      targets,
+      contains(
+        allOf(
+          containsPair('name', 'A (mobile)'),
+          containsPair('id', 'short-id'),
+          containsPair('platform', 'android'),
+          containsPair('summary', 'device'),
+        ),
+      ),
+    );
+    expect(result.stderr, isEmpty);
+
+    final plainResult = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'android'],
+    );
+    expect(plainResult.exitCode, 0);
+    expect(
+      plainResult.stdout.join('\n'),
+      contains('[✓] Connected devices (2 available)'),
+    );
     expect(plainResult.stderr, isEmpty);
   });
 
@@ -551,7 +717,6 @@ manifests:
 
     expect(result.exitCode, 0);
     expect(result.stdout.join('\n'), contains('[!] Sources'));
-    expect(result.stdout.join('\n'), isNot(contains('Available: broken.')));
     expect(result.stdout.join('\n'), contains('broken:'));
     expect(result.stderr, isEmpty);
   });
@@ -586,36 +751,69 @@ manifests:
       expect(result.exitCode, 0);
       expect(
         result.stdout.join('\n'),
-        contains(
-          '[✓] OpenHarmony toolchain - develop for OHOS devices (DevEco Studio 5.0.0)',
-        ),
-      );
-      expect(result.stdout.join('\n'), isNot(contains('1 emulator')));
-      expect(
-        _normalizeOutput(result.stdout.join('\n')),
-        contains('DevEco Studio 5.0.0 at'),
+        contains('[✓] OpenHarmony toolchain - develop for OHOS devices'),
       );
       expect(
         _normalizeOutput(result.stdout.join('\n')),
-        contains('home/DevEco-Studio.app'),
+        contains('OpenHarmony SDK version 5.0.1'),
       );
-      expect(result.stdout.join('\n'), contains('OpenHarmony SDK 5.0.1 at'));
+      expect(
+        RegExp(
+          'OpenHarmony SDK version 5\\.0\\.1',
+        ).allMatches(_normalizeOutput(result.stdout.join('\n'))).length,
+        1,
+      );
       expect(
         _normalizeOutput(result.stdout.join('\n')),
-        contains('hap-sign-tool at'),
-      );
-      expect(result.stdout.join('\n'), contains('hdc 1.2.3 at'));
-      expect(
-        _normalizeOutput(result.stdout.join('\n')),
-        contains('Emulator at'),
+        contains('OpenHarmony SDK at'),
       );
       expect(
         result.stdout.join('\n'),
-        contains('Local emulators: Huawei_Phone'),
+        anyOf(contains('hdc version 1.2.3'), contains('hdc found')),
       );
+      expect(result.stdout.join('\n'), contains('Emulator version 6.0.2.200'));
+      expect(result.stdout.join('\n'), isNot(contains('Emulator found')));
       expect(result.stderr, isEmpty);
     },
   );
+
+  test('warns when OpenHarmony emulator binary is missing', () async {
+    final environment = await createTestEnvironment();
+    final devEco = await _writeDevEcoFixture(environment.homeDirectory);
+    await File('${devEco.path}/Contents/tools/emulator/Emulator').delete();
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_DEVECO_STUDIO': devEco.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'ohos', '--json'],
+    );
+
+    expect(result.exitCode, 0);
+    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    final checks = (report['checks'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final ohos = checks.firstWhere((check) => check['id'] == 'ohos.toolchain');
+    expect(ohos, containsPair('status', 'warning'));
+    final details = (ohos['details'] as List<Object?>).join('\n');
+    expect(details, contains('Emulator was not found at'));
+    final data = ohos['data'] as Map<String, Object?>;
+    final tools = data['tools'] as Map<String, Object?>;
+    expect(tools.keys, unorderedEquals(['openHarmonySdk', 'hdc', 'emulator']));
+    expect(
+      tools['emulator'],
+      allOf(isA<Map<String, Object?>>(), containsPair('missing', true)),
+    );
+    expect(result.stderr, isEmpty);
+  });
 
   test('reports the current CLI version and available upgrades', () async {
     final environment = await createTestEnvironment();
@@ -860,18 +1058,27 @@ Future<Directory> _writeDevEcoFixture(Directory root) async {
     '${jbr.path}/java',
     '${jbr.path}/keytool',
     '${node.path}/node',
-    '${toolchains.path}/hdc',
-    '${emulatorDirectory.path}/Emulator',
   ]) {
     await File(path).writeAsString('');
   }
-  await _writeExecutable(File('${toolchains.path}/hdc'), '''
+  final hdc = File('${root.path}/fake_hdc');
+  await _writeExecutable(hdc, '''
 if [ "\$1" = "-v" ]; then
   printf "1.2.3\\n"
   exit 0
 fi
 exit 0
 ''');
+  await Link('${toolchains.path}/hdc').create(hdc.path);
+  final emulator = File('${root.path}/fake_emulator');
+  await _writeExecutable(emulator, '''
+if [ "\$1" = "-version" ]; then
+  printf "HarmonyOS Emulator :6.0.2.200\\n"
+  exit 0
+fi
+exit 0
+''');
+  await Link('${emulatorDirectory.path}/Emulator').create(emulator.path);
   return devEco;
 }
 

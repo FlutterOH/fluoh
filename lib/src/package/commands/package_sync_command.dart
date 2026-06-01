@@ -82,7 +82,22 @@ class PackageSyncCommand extends FluohCommand<int> {
     final startingBranch = await currentBranch(repository);
     _ensurePackageBranch(startingBranch, manifest);
     if (json) {
-      await runGit(['fetch', 'upstream'], workingDirectory: repository);
+      final fetch = await runGit(
+        ['fetch', 'upstream'],
+        workingDirectory: repository,
+        allowFailure: true,
+      );
+      if (fetch.exitCode != 0) {
+        return _writeJsonFailure(
+          status: 'fetch_failed',
+          code: 'sync.fetch_failed',
+          message:
+              'Could not fetch upstream. Verify network access to the '
+              'upstream repository, then retry.',
+          nextCommand: 'fluoh package sync --json',
+          result: fetch,
+        );
+      }
     } else {
       await _output.withProgress(
         'Fetching upstream',
@@ -182,6 +197,37 @@ class PackageSyncCommand extends FluohCommand<int> {
       allowFailure: true,
     );
     if (merge.exitCode != 0) {
+      final conflictedFiles = await _conflictedFiles(repository);
+      if (json) {
+        if (conflictedFiles.isNotEmpty) {
+          return _writeJsonFailure(
+            status: 'merge_conflict',
+            code: 'sync.merge_conflict',
+            message:
+                'Upstream merge produced file conflicts. Resolve conflicts, '
+                'stage files, then run "fluoh package sync --continue".',
+            nextCommand: 'fluoh package sync --continue',
+            result: merge,
+            details: {'conflictedFiles': conflictedFiles},
+          );
+        }
+        return _writeJsonFailure(
+          status: 'merge_failed',
+          code: 'sync.merge_failed',
+          message:
+              'Upstream merge failed before producing resolvable conflicts. '
+              'Inspect git output, fix the repository state, then retry.',
+          nextCommand: 'fluoh package sync --json',
+          result: merge,
+        );
+      }
+      if (conflictedFiles.isEmpty) {
+        throw UsageException(
+          'git merge --no-ff --no-commit $defaultBranch failed:\n'
+              '${merge.stderr}',
+          '',
+        );
+      }
       throw UsageException(
         'git merge --no-ff --no-commit $defaultBranch failed:\n'
             '${merge.stderr}\n'
@@ -300,6 +346,49 @@ class PackageSyncCommand extends FluohCommand<int> {
     );
   }
 
+  int _writeJsonFailure({
+    required String status,
+    required String code,
+    required String message,
+    required String nextCommand,
+    ProcessResult? result,
+    Map<String, Object?> details = const {},
+  }) {
+    writeMachineOutput(
+      stdout,
+      command: 'package sync',
+      ok: false,
+      exitCode: 1,
+      fields: {
+        'status': status,
+        'diagnostics': [
+          {
+            'code': code,
+            'message': message,
+            'nextCommand': nextCommand,
+            ...details,
+            if (result != null) ..._processOutputFields(result),
+          },
+        ],
+      },
+    );
+    return 1;
+  }
+
+  Future<List<String>> _conflictedFiles(Directory repository) async {
+    final result = await runGit(
+      ['diff', '--name-only', '--diff-filter=U'],
+      workingDirectory: repository,
+      allowFailure: true,
+    );
+    return result.stdout
+        .toString()
+        .trim()
+        .split('\n')
+        .where((line) => line.isNotEmpty)
+        .toList();
+  }
+
   Future<bool> _isMergeInProgress(Directory repository) async {
     final mergeHeadPath = (await runGit([
       'rev-parse',
@@ -321,4 +410,28 @@ class PackageSyncCommand extends FluohCommand<int> {
       );
     }
   }
+}
+
+Map<String, Object?> _processOutputFields(ProcessResult result) {
+  return {
+    if (_outputTail(result.stdout) case final stdoutTail?) ...{
+      'stdoutTail': stdoutTail,
+    },
+    if (_outputTail(result.stderr) case final stderrTail?) ...{
+      'stderrTail': stderrTail,
+    },
+  };
+}
+
+String? _outputTail(Object output) {
+  final text = output.toString().trim();
+  if (text.isEmpty) {
+    return null;
+  }
+  final lines = text.split('\n');
+  const maxLines = 20;
+  if (lines.length <= maxLines) {
+    return text;
+  }
+  return lines.sublist(lines.length - maxLines).join('\n');
 }

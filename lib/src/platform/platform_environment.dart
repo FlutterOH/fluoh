@@ -9,6 +9,7 @@ import 'ohos/ohos_toolchain.dart';
 enum FluohPlatform { android, ios, macos, ohos }
 
 extension FluohPlatformName on FluohPlatform {
+  /// Lowercase command-line name for this platform.
   String get cliName {
     return switch (this) {
       FluohPlatform.android => 'android',
@@ -19,14 +20,20 @@ extension FluohPlatformName on FluohPlatform {
   }
 }
 
+/// Native toolchain diagnostics for one platform.
 class PlatformDoctorReport {
   const PlatformDoctorReport({required this.platform, required this.checks});
 
+  /// Platform this report describes.
   final FluohPlatform platform;
+
+  /// Tool checks collected for the platform.
   final List<PlatformToolCheck> checks;
 
+  /// Whether all checks passed.
   bool get ok => checks.every((check) => check.ok);
 
+  /// Converts this report to the command JSON contract.
   Map<String, Object?> toJson() {
     return {
       'platform': platform.cliName,
@@ -36,6 +43,7 @@ class PlatformDoctorReport {
   }
 }
 
+/// Result of one native toolchain check.
 class PlatformToolCheck {
   const PlatformToolCheck({
     required this.id,
@@ -48,15 +56,31 @@ class PlatformToolCheck {
     this.details = const {},
   });
 
+  /// Stable check identifier.
   final String id;
+
+  /// User-facing tool label.
   final String label;
+
+  /// Whether the check passed.
   final bool ok;
+
+  /// Human-readable check result.
   final String message;
+
+  /// Tool or SDK path, when available.
   final String? path;
+
+  /// Tool or SDK version, when available.
   final String? version;
+
+  /// Command used for this check, when relevant.
   final List<String>? command;
+
+  /// Additional structured check data.
   final Map<String, Object?> details;
 
+  /// Converts this check to the command JSON contract.
   Map<String, Object?> toJson() {
     return {
       'id': id,
@@ -71,6 +95,7 @@ class PlatformToolCheck {
   }
 }
 
+/// Target listing report for devices or emulators on one platform.
 class PlatformTargetReport {
   const PlatformTargetReport({
     required this.platform,
@@ -80,23 +105,36 @@ class PlatformTargetReport {
     this.message,
   });
 
+  /// Platform this report describes.
   final FluohPlatform platform;
+
+  /// Listing kind, usually `device` or `emulator`.
   final String kind;
+
+  /// Whether target discovery succeeded.
   final bool ok;
+
+  /// Targets found for this platform.
   final List<PlatformTarget> targets;
+
+  /// Warning or error message when discovery failed.
   final String? message;
 
+  /// Converts this report to the command JSON contract.
   Map<String, Object?> toJson() {
     return {
       'platform': platform.cliName,
       'kind': kind,
       'ok': ok,
-      'targets': targets.map((target) => target.toJson()).toList(),
+      'targets': targets
+          .map((target) => target.toJson(listingKind: kind))
+          .toList(),
       if (message != null) 'message': message,
     };
   }
 }
 
+/// Connected device, simulator, or emulator discovered by platform tooling.
 class PlatformTarget {
   const PlatformTarget({
     required this.platform,
@@ -107,25 +145,52 @@ class PlatformTarget {
     this.details = const {},
   });
 
+  /// Platform that owns this target.
   final FluohPlatform platform;
+
+  /// Stable target identifier used by platform tools.
   final String id;
+
+  /// User-facing target name.
   final String name;
+
+  /// Target kind, usually `device` or `emulator`.
   final String kind;
+
+  /// Raw target state reported by platform tooling.
   final String? state;
+
+  /// Platform-specific target details.
   final Map<String, Object?> details;
 
-  Map<String, Object?> toJson() {
+  /// Converts this target to the machine-output shape used by target reports.
+  ///
+  /// The optional [listingKind] lets display fields match the command context.
+  /// For example, Android `emulator-*` targets discovered by `devices` are
+  /// rendered as connected mobile devices, while AVDs discovered by
+  /// `emulators` are rendered as emulator rows.
+  Map<String, Object?> toJson({String? listingKind}) {
+    final connection = platformTargetConnection(this);
+    final manufacturer = platformTargetManufacturer(this);
+    final summary = platformTargetSummary(this);
     return {
       'platform': platform.cliName,
       'id': id,
       'name': name,
       'kind': kind,
+      'displayName': platformTargetDisplayName(this, listingKind: listingKind),
+      'displayPlatform': platformTargetDisplayPlatform(this),
+      'category': platformTargetCategory(this),
+      if (summary.isNotEmpty) 'summary': summary,
+      'connection': ?connection,
+      'manufacturer': ?manufacturer,
       if (state != null) 'state': state,
       if (details.isNotEmpty) 'details': details,
     };
   }
 }
 
+/// Result of starting an emulator or simulator.
 class PlatformStartResult {
   const PlatformStartResult({
     required this.platform,
@@ -136,13 +201,25 @@ class PlatformStartResult {
     this.pid,
   });
 
+  /// Platform that handled the start request.
   final FluohPlatform platform;
+
+  /// Whether the start command succeeded.
   final bool ok;
+
+  /// Emulator or simulator id/name requested by the user.
   final String emulator;
+
+  /// Command used to start the target.
   final List<String> command;
+
+  /// User-facing result message.
   final String message;
+
+  /// Started process id, when available.
   final int? pid;
 
+  /// Converts this result to the command JSON contract.
   Map<String, Object?> toJson() {
     return {
       'platform': platform.cliName,
@@ -155,21 +232,34 @@ class PlatformStartResult {
   }
 }
 
+/// Inspects native toolchains for the requested [platforms].
 Future<List<PlatformDoctorReport>> inspectPlatformEnvironment({
   required FluohEnvironment environment,
   required List<FluohPlatform> platforms,
 }) async {
+  final appleToolchain =
+      platforms.contains(FluohPlatform.ios) &&
+          platforms.contains(FluohPlatform.macos)
+      ? await _inspectAppleToolchain(environment.processEnvironment)
+      : null;
   return [
     for (final platform in platforms)
       switch (platform) {
         FluohPlatform.android => await _inspectAndroid(environment),
-        FluohPlatform.ios => await _inspectIos(environment),
-        FluohPlatform.macos => await _inspectMacos(environment),
+        FluohPlatform.ios => await _inspectIos(
+          environment,
+          appleToolchain: appleToolchain,
+        ),
+        FluohPlatform.macos => await _inspectMacos(
+          environment,
+          appleToolchain: appleToolchain,
+        ),
         FluohPlatform.ohos => await _inspectOhos(environment),
       },
   ];
 }
 
+/// Lists connected device targets for the requested [platforms].
 Future<List<PlatformTargetReport>> listPlatformDeviceReports({
   required FluohEnvironment environment,
   required List<FluohPlatform> platforms,
@@ -185,6 +275,7 @@ Future<List<PlatformTargetReport>> listPlatformDeviceReports({
   ];
 }
 
+/// Lists local emulator or simulator targets for the requested [platforms].
 Future<List<PlatformTargetReport>> listPlatformEmulatorReports({
   required FluohEnvironment environment,
   required List<FluohPlatform> platforms,
@@ -203,6 +294,7 @@ Future<List<PlatformTargetReport>> listPlatformEmulatorReports({
   ];
 }
 
+/// Starts an emulator or simulator for one platform.
 Future<PlatformStartResult> startPlatformEmulator({
   required FluohEnvironment environment,
   required FluohPlatform platform,
@@ -247,6 +339,7 @@ Future<PlatformDoctorReport> _inspectAndroid(
     environment: env,
     environmentKey: 'FLUOH_JAVA',
     candidates: [
+      ..._androidStudioBundledJavaCandidates(env),
       if (_nonEmpty(env['JAVA_HOME'])) '${env['JAVA_HOME']!.trim()}/bin/java',
     ],
     fallbackName: 'java',
@@ -266,12 +359,14 @@ Future<PlatformDoctorReport> _inspectAndroid(
   final avdManagerVersion = await _toolVersion(avdManager, const [
     '--version',
   ], environment: env);
-  final javaVersion = await _toolVersion(
-    java,
-    const ['-version'],
-    environment: env,
-    parser: _javaVersion,
-  );
+  final javaVersion =
+      await _toolVersion(
+        java,
+        const ['-version'],
+        environment: env,
+        parser: _javaVersion,
+      ) ??
+      await _javaReleaseFileVersion(java);
   final androidPlatform = await _latestAndroidPlatform(sdkRoot);
   final buildToolsVersion = await _latestBuildToolsVersion(sdkRoot);
   final licensesAccepted = await _androidLicensesAccepted(sdkRoot);
@@ -331,7 +426,8 @@ Future<PlatformDoctorReport> _inspectAndroid(
         label: 'Java',
         executable: java,
         version: javaVersion,
-        missingMessage: 'Java was not found through JAVA_HOME or PATH',
+        missingMessage:
+            'Java was not found in Android Studio, JAVA_HOME, or PATH',
         details: {
           if (java != null)
             'androidStudioBundledJdk': _isAndroidStudioBundledJdk(java.path),
@@ -349,8 +445,7 @@ Future<PlatformDoctorReport> _inspectAndroid(
   );
 }
 
-Future<PlatformDoctorReport> _inspectIos(FluohEnvironment environment) async {
-  final env = environment.processEnvironment;
+Future<_AppleToolchain> _inspectAppleToolchain(Map<String, String> env) async {
   final xcrun = await _xcrun(env);
   final developerDir = await _xcodeDeveloperDirectory(env);
   final xcrunVersion = await _toolVersion(
@@ -368,10 +463,40 @@ Future<PlatformDoctorReport> _inspectIos(FluohEnvironment environment) async {
   final xcodeOutput = xcodeBuild == null || xcodeBuild.exitCode != 0
       ? ''
       : '${xcodeBuild.stdout}\n${xcodeBuild.stderr}';
-  final xcodeVersion = xcodeOutput.isEmpty ? null : _xcodeVersion(xcodeOutput);
-  final xcodeBuildVersion = xcodeOutput.isEmpty
-      ? null
-      : _xcodeBuildVersion(xcodeOutput);
+  return _AppleToolchain(
+    xcrun: xcrun,
+    developerDir: developerDir,
+    xcrunVersion: xcrunVersion,
+    xcodeVersion: xcodeOutput.isEmpty ? null : _xcodeVersion(xcodeOutput),
+    xcodeBuildVersion: xcodeOutput.isEmpty
+        ? null
+        : _xcodeBuildVersion(xcodeOutput),
+  );
+}
+
+class _AppleToolchain {
+  const _AppleToolchain({
+    required this.xcrun,
+    required this.developerDir,
+    required this.xcrunVersion,
+    required this.xcodeVersion,
+    required this.xcodeBuildVersion,
+  });
+
+  final io.File? xcrun;
+  final String? developerDir;
+  final String? xcrunVersion;
+  final String? xcodeVersion;
+  final String? xcodeBuildVersion;
+}
+
+Future<PlatformDoctorReport> _inspectIos(
+  FluohEnvironment environment, {
+  _AppleToolchain? appleToolchain,
+}) async {
+  final env = environment.processEnvironment;
+  final apple = appleToolchain ?? await _inspectAppleToolchain(env);
+  final xcrun = apple.xcrun;
   final simctl = xcrun == null
       ? _CommandRun(exitCode: 1, stdout: '', stderr: 'xcrun not found')
       : await _runTool(xcrun.path, const [
@@ -398,20 +523,20 @@ Future<PlatformDoctorReport> _inspectIos(FluohEnvironment environment) async {
         id: 'ios.xcrun',
         label: 'xcrun',
         executable: xcrun,
-        version: xcrunVersion,
+        version: apple.xcrunVersion,
         missingMessage:
             'xcrun was not found; install Xcode command line tools.',
       ),
       PlatformToolCheck(
         id: 'ios.xcode',
         label: 'Xcode',
-        ok: developerDir != null,
-        message: developerDir == null
+        ok: apple.developerDir != null,
+        message: apple.developerDir == null
             ? 'Xcode developer directory was not found'
             : 'Xcode developer directory exists',
-        path: developerDir,
-        version: xcodeVersion,
-        details: _optionalDetail('buildVersion', xcodeBuildVersion),
+        path: apple.developerDir,
+        version: apple.xcodeVersion,
+        details: _optionalDetail('buildVersion', apple.xcodeBuildVersion),
       ),
       PlatformToolCheck(
         id: 'ios.simctl',
@@ -436,29 +561,13 @@ Future<PlatformDoctorReport> _inspectIos(FluohEnvironment environment) async {
   );
 }
 
-Future<PlatformDoctorReport> _inspectMacos(FluohEnvironment environment) async {
-  final env = environment.processEnvironment;
-  final xcrun = await _xcrun(env);
-  final developerDir = await _xcodeDeveloperDirectory(env);
-  final xcrunVersion = await _toolVersion(
-    xcrun,
-    const ['--version'],
-    environment: env,
-    parser: _xcrunVersion,
-  );
-  final xcodeBuild = xcrun == null
-      ? null
-      : await _runTool(xcrun.path, const [
-          'xcodebuild',
-          '-version',
-        ], environment: env);
-  final xcodeOutput = xcodeBuild == null || xcodeBuild.exitCode != 0
-      ? ''
-      : '${xcodeBuild.stdout}\n${xcodeBuild.stderr}';
-  final xcodeVersion = xcodeOutput.isEmpty ? null : _xcodeVersion(xcodeOutput);
-  final xcodeBuildVersion = xcodeOutput.isEmpty
-      ? null
-      : _xcodeBuildVersion(xcodeOutput);
+Future<PlatformDoctorReport> _inspectMacos(
+  FluohEnvironment environment, {
+  _AppleToolchain? appleToolchain,
+}) async {
+  final apple =
+      appleToolchain ??
+      await _inspectAppleToolchain(environment.processEnvironment);
 
   return PlatformDoctorReport(
     platform: FluohPlatform.macos,
@@ -470,26 +579,28 @@ Future<PlatformDoctorReport> _inspectMacos(FluohEnvironment environment) async {
         message: io.Platform.isMacOS
             ? 'Running on macOS'
             : 'macOS desktop builds require a macOS host',
-        version: io.Platform.operatingSystemVersion,
+        version: normalizeAppleOperatingSystemVersion(
+          io.Platform.operatingSystemVersion,
+        ),
       ),
       _toolCheck(
         id: 'macos.xcrun',
         label: 'xcrun',
-        executable: xcrun,
-        version: xcrunVersion,
+        executable: apple.xcrun,
+        version: apple.xcrunVersion,
         missingMessage:
             'xcrun was not found; install Xcode command line tools.',
       ),
       PlatformToolCheck(
         id: 'macos.xcode',
         label: 'Xcode',
-        ok: developerDir != null,
-        message: developerDir == null
+        ok: apple.developerDir != null,
+        message: apple.developerDir == null
             ? 'Xcode developer directory was not found'
             : 'Xcode developer directory exists',
-        path: developerDir,
-        version: xcodeVersion,
-        details: _optionalDetail('buildVersion', xcodeBuildVersion),
+        path: apple.developerDir,
+        version: apple.xcodeVersion,
+        details: _optionalDetail('buildVersion', apple.xcodeBuildVersion),
       ),
     ],
   );
@@ -501,38 +612,45 @@ Future<PlatformDoctorReport> _inspectOhos(FluohEnvironment environment) async {
     final toolchain = await locateOhosToolchain(
       environment: environment.processEnvironment,
     );
+    final openHarmonyVersion = await _openHarmonySdkVersion(
+      toolchain.openHarmonySdk,
+    );
+    final hdcVersion = await _toolVersion(
+      toolchain.hdc,
+      const ['-v'],
+      environment: environment.processEnvironment,
+      parser: _ohosHdcVersion,
+      timeout: const Duration(seconds: 5),
+    );
+    final emulatorVersion = await _toolVersion(
+      toolchain.emulator,
+      const ['-version'],
+      environment: environment.processEnvironment,
+      parser: _ohosEmulatorVersion,
+      timeout: const Duration(seconds: 5),
+    );
     checks.addAll([
-      PlatformToolCheck(
-        id: 'ohos.deveco',
-        label: 'DevEco Studio',
-        ok: true,
-        message: 'DevEco Studio was found',
-        path: toolchain.devEcoStudio.path,
-      ),
       PlatformToolCheck(
         id: 'ohos.sdk',
         label: 'OpenHarmony SDK',
         ok: true,
         message: 'OpenHarmony SDK was found',
         path: toolchain.openHarmonySdk.path,
+        version: openHarmonyVersion,
       ),
       _fileCheck(
         id: 'ohos.hdc',
         label: 'hdc',
         file: toolchain.hdc,
         missingMessage: 'hdc was not found in the OpenHarmony toolchain',
-      ),
-      _fileCheck(
-        id: 'ohos.sign',
-        label: 'hap-sign-tool',
-        file: toolchain.hapSignTool,
-        missingMessage: 'hap-sign-tool was not found',
+        version: hdcVersion,
       ),
       _fileCheck(
         id: 'ohos.emulator',
-        label: 'DevEco emulator',
+        label: 'Emulator',
         file: toolchain.emulator,
-        missingMessage: 'DevEco emulator binary was not found',
+        missingMessage: 'Emulator was not found at ${toolchain.emulator.path}',
+        version: emulatorVersion,
       ),
     ]);
   } on Object catch (error) {
@@ -545,18 +663,6 @@ Future<PlatformDoctorReport> _inspectOhos(FluohEnvironment environment) async {
       ),
     );
   }
-
-  final emulators = await _safeOhosEmulators(environment);
-  checks.add(
-    PlatformToolCheck(
-      id: 'ohos.local_emulators',
-      label: 'Local DevEco emulators',
-      ok: emulators.isNotEmpty,
-      message: emulators.isEmpty
-          ? 'No local DevEco emulator HVD was found'
-          : 'Local emulators: ${emulators.map((item) => item.name).join(', ')}',
-    ),
-  );
   return PlatformDoctorReport(platform: FluohPlatform.ohos, checks: checks);
 }
 
@@ -707,10 +813,30 @@ Future<PlatformTargetReport> _listMacosDevices(
         name: 'macOS',
         kind: 'device',
         state: 'available',
-        details: {'host': ?environment.processEnvironment['HOSTNAME']},
+        details: {
+          'runtime': ?_hostRuntimeIdentifier(),
+          if (io.Platform.operatingSystemVersion.trim() case final version
+              when version.isNotEmpty)
+            'osVersion': normalizeAppleOperatingSystemVersion(version),
+          'host': ?environment.processEnvironment['HOSTNAME'],
+        },
       ),
     ],
   );
+}
+
+String? _hostRuntimeIdentifier() {
+  final match = RegExp(r'on "([^"]+)"').firstMatch(io.Platform.version);
+  final value = match?.group(1)?.trim();
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  final normalized = value.replaceAll('_', '-');
+  if (io.Platform.operatingSystem == 'macos' &&
+      normalized.startsWith('macos-')) {
+    return 'darwin-${normalized.substring('macos-'.length)}';
+  }
+  return normalized;
 }
 
 PlatformTargetReport _listMacosEmulators() {
@@ -726,30 +852,87 @@ Future<List<PlatformTarget>> _listIosPhysicalDevices(
   String xcrun,
   Map<String, String> environment,
 ) async {
-  final devicectl = await _runTool(xcrun, const [
-    'devicectl',
-    'list',
-    'devices',
-    '--json',
-  ], environment: environment);
-  if (devicectl.exitCode == 0) {
+  final targets = <PlatformTarget>[];
+  final devicectlOutput = await _devicectlListDevicesJson(xcrun, environment);
+  if (devicectlOutput != null) {
     try {
-      return parseDevicectlDevices(devicectl.stdout);
+      _addUniqueTargets(targets, parseDevicectlDevices(devicectlOutput));
     } on Object {
-      // Fall through to xctrace; devicectl JSON has changed across Xcode
-      // versions, while xctrace gives a stable text fallback for paired devices.
+      // Fall through to xcdevice; devicectl JSON has changed across Xcode
+      // versions, while xcdevice covers paired wireless devices in practice.
     }
   }
 
-  final xctrace = await _runTool(xcrun, const [
-    'xctrace',
-    'list',
-    'devices',
-  ], environment: environment);
-  if (xctrace.exitCode != 0) {
-    return const [];
+  final xcdevice = await _runTool(
+    xcrun,
+    const ['xcdevice', 'list', '--timeout', '2'],
+    environment: environment,
+    timeout: const Duration(seconds: 5),
+  );
+  if (xcdevice.exitCode == 0) {
+    try {
+      _addUniqueTargets(targets, parseXcdeviceDevices(xcdevice.stdout));
+    } on Object {
+      // Keep the older xctrace fallback below for Xcode variants that do not
+      // emit parseable xcdevice JSON.
+    }
   }
-  return parseXctraceDevices(xctrace.stdout);
+
+  if (targets.isEmpty) {
+    final xctrace = await _runTool(xcrun, const [
+      'xctrace',
+      'list',
+      'devices',
+    ], environment: environment);
+    if (xctrace.exitCode == 0) {
+      _addUniqueTargets(targets, parseXctraceDevices(xctrace.stdout));
+    }
+  }
+
+  targets.sort((left, right) => left.name.compareTo(right.name));
+  return targets;
+}
+
+Future<String?> _devicectlListDevicesJson(
+  String xcrun,
+  Map<String, String> environment,
+) async {
+  final stdoutJson = await _runTool(
+    xcrun,
+    const ['devicectl', 'list', 'devices', '--json'],
+    environment: environment,
+    timeout: const Duration(seconds: 5),
+  );
+  if (stdoutJson.exitCode == 0 && stdoutJson.stdout.trim().isNotEmpty) {
+    return stdoutJson.stdout;
+  }
+
+  io.Directory? temp;
+  try {
+    temp = await io.Directory.systemTemp.createTemp('fluoh_devicectl_');
+    final output = io.File('${temp.path}/devices.json');
+    final fileJson = await _runTool(
+      xcrun,
+      ['devicectl', 'list', 'devices', '--json-output', output.path],
+      environment: environment,
+      timeout: const Duration(seconds: 5),
+    );
+    if (fileJson.exitCode != 0 || !await output.exists()) {
+      return null;
+    }
+    final content = await output.readAsString();
+    return content.trim().isEmpty ? null : content;
+  } on Object {
+    return null;
+  } finally {
+    if (temp != null) {
+      try {
+        await temp.delete(recursive: true);
+      } on Object {
+        // Best-effort cleanup for temporary devicectl JSON output.
+      }
+    }
+  }
 }
 
 Future<PlatformTargetReport> _listOhosDevices(
@@ -974,6 +1157,7 @@ Future<PlatformStartResult> _startOhosEmulator(
   }
 }
 
+/// Parses `adb devices -l` output into platform targets.
 List<PlatformTarget> parseAdbDevices(String output) {
   final targets = <PlatformTarget>[];
   for (final rawLine in const LineSplitter().convert(output)) {
@@ -1001,6 +1185,7 @@ List<PlatformTarget> parseAdbDevices(String output) {
   return targets;
 }
 
+/// Parses `xcrun simctl list devices --json` output.
 List<PlatformTarget> parseSimctlDevices(
   String output, {
   bool onlyBooted = false,
@@ -1053,6 +1238,7 @@ List<PlatformTarget> parseSimctlDevices(
   return targets;
 }
 
+/// Parses `xcrun devicectl list devices` JSON output.
 List<PlatformTarget> parseDevicectlDevices(String output) {
   final decoded = jsonDecode(output);
   if (decoded is! Map<String, Object?>) {
@@ -1116,6 +1302,74 @@ List<PlatformTarget> parseDevicectlDevices(String output) {
   return targets;
 }
 
+/// Parses `xcrun xcdevice list --timeout` JSON output.
+List<PlatformTarget> parseXcdeviceDevices(String output) {
+  final decoded = _decodeJsonOutput(output);
+  final devicesObject = switch (decoded) {
+    List<Object?> list => list,
+    Map<Object?, Object?> map when map['devices'] is List => map['devices'],
+    _ => const <Object?>[],
+  };
+  if (devicesObject is! List) {
+    return const [];
+  }
+
+  final targets = <PlatformTarget>[];
+  for (final device in devicesObject) {
+    if (device is! Map) {
+      continue;
+    }
+    if (_isTruthy(device['simulator']) || _isTruthy(device['ignored'])) {
+      continue;
+    }
+    if (_isFalsey(device['available'])) {
+      continue;
+    }
+    final platformName = _stringValue(device['platform']);
+    final platform = platformName?.toLowerCase();
+    if (platform != null &&
+        (platform.contains('simulator') || !_isIosDevicePlatform(platform))) {
+      continue;
+    }
+
+    final id =
+        _stringValue(device['identifier']) ??
+        _stringValue(device['udid']) ??
+        '';
+    if (id.isEmpty) {
+      continue;
+    }
+    final name =
+        _stringValue(device['name']) ?? _stringValue(device['modelName']) ?? id;
+    final osVersion =
+        _stringValue(device['operatingSystemVersion']) ??
+        _stringValue(device['osVersion']);
+    final model = _stringValue(device['modelName']);
+    final transport =
+        _stringValue(device['interface']) ??
+        _stringValue(device['transport']) ??
+        _stringValue(device['connectionType']);
+    targets.add(
+      PlatformTarget(
+        platform: FluohPlatform.ios,
+        id: id,
+        name: name,
+        kind: 'device',
+        details: {
+          'source': 'xcdevice',
+          'platform': ?platformName,
+          'osVersion': ?osVersion,
+          'model': ?model,
+          'transport': ?transport,
+        },
+      ),
+    );
+  }
+  targets.sort((left, right) => left.name.compareTo(right.name));
+  return targets;
+}
+
+/// Parses `xcrun xctrace list devices` text output.
 List<PlatformTarget> parseXctraceDevices(String output) {
   final targets = <PlatformTarget>[];
   var inDevicesSection = false;
@@ -1155,6 +1409,122 @@ List<PlatformTarget> parseXctraceDevices(String output) {
   }
   targets.sort((left, right) => left.name.compareTo(right.name));
   return targets;
+}
+
+void _addUniqueTargets(
+  List<PlatformTarget> targets,
+  Iterable<PlatformTarget> additions,
+) {
+  final ids = {
+    for (final target in targets) '${target.platform.cliName}:${target.id}',
+  };
+  for (final target in additions) {
+    final duplicateIndex = targets.indexWhere(
+      (existing) => _samePhysicalIosDevice(existing, target),
+    );
+    if (duplicateIndex != -1) {
+      final duplicate = targets[duplicateIndex];
+      final merged = _mergePhysicalIosDevice(duplicate, target);
+      if (merged.id != duplicate.id) {
+        ids.remove('${duplicate.platform.cliName}:${duplicate.id}');
+        ids.add('${merged.platform.cliName}:${merged.id}');
+      }
+      targets[duplicateIndex] = merged;
+      continue;
+    }
+    if (ids.add('${target.platform.cliName}:${target.id}')) {
+      targets.add(target);
+    }
+  }
+}
+
+bool _samePhysicalIosDevice(PlatformTarget left, PlatformTarget right) {
+  if (left.platform != FluohPlatform.ios ||
+      right.platform != FluohPlatform.ios ||
+      left.kind != 'device' ||
+      right.kind != 'device') {
+    return false;
+  }
+  if (left.name.trim().toLowerCase() != right.name.trim().toLowerCase()) {
+    return false;
+  }
+  final leftVersion = left.details['osVersion']?.toString();
+  final rightVersion = right.details['osVersion']?.toString();
+  if (_nonEmpty(leftVersion) &&
+      _nonEmpty(rightVersion) &&
+      _comparableOsVersion(leftVersion!) !=
+          _comparableOsVersion(rightVersion!)) {
+    return false;
+  }
+  final leftModel = left.details['model']?.toString();
+  final rightModel = right.details['model']?.toString();
+  if (_nonEmpty(leftModel) &&
+      _nonEmpty(rightModel) &&
+      leftModel != rightModel) {
+    return false;
+  }
+  return true;
+}
+
+bool _hasConnectionDetails(PlatformTarget target) {
+  return target.details.containsKey('transport') ||
+      target.details.containsKey('pairingState') ||
+      target.details.containsKey('tunnelState');
+}
+
+PlatformTarget _mergePhysicalIosDevice(
+  PlatformTarget existing,
+  PlatformTarget incoming,
+) {
+  final base =
+      _hasConnectionDetails(incoming) && !_hasConnectionDetails(existing)
+      ? incoming
+      : existing;
+  final secondary = identical(base, incoming) ? existing : incoming;
+  final details = <String, Object?>{...secondary.details, ...base.details};
+  final osVersion = _richerOsVersion(
+    existing.details['osVersion']?.toString(),
+    incoming.details['osVersion']?.toString(),
+  );
+  if (osVersion != null) {
+    details['osVersion'] = osVersion;
+  }
+  return PlatformTarget(
+    platform: base.platform,
+    id: base.id,
+    name: base.name,
+    kind: base.kind,
+    state: base.state ?? secondary.state,
+    details: details,
+  );
+}
+
+String? _richerOsVersion(String? left, String? right) {
+  if (!_nonEmpty(left)) {
+    return _nonEmpty(right) ? right!.trim() : null;
+  }
+  if (!_nonEmpty(right)) {
+    return left!.trim();
+  }
+  final leftValue = left!.trim();
+  final rightValue = right!.trim();
+  final leftHasBuild = RegExp(
+    r'\([^)]*\)|\s+[A-Za-z0-9]{4,}$',
+  ).hasMatch(leftValue);
+  final rightHasBuild = RegExp(
+    r'\([^)]*\)|\s+[A-Za-z0-9]{4,}$',
+  ).hasMatch(rightValue);
+  if (rightHasBuild && !leftHasBuild) {
+    return rightValue;
+  }
+  return leftValue;
+}
+
+String _comparableOsVersion(String value) {
+  return value
+      .replaceFirst(RegExp(r'\s*\([^)]*\)\s*$'), '')
+      .trim()
+      .toLowerCase();
 }
 
 Future<String?> _latestAndroidPlatform(io.Directory? sdkRoot) async {
@@ -1353,6 +1723,7 @@ Future<String?> _toolVersion(
   List<String> arguments, {
   required Map<String, String> environment,
   String? Function(String output)? parser,
+  Duration timeout = const Duration(seconds: 3),
 }) async {
   if (executable == null) {
     return null;
@@ -1362,6 +1733,7 @@ Future<String?> _toolVersion(
     arguments,
     environment: environment,
     parser: parser,
+    timeout: timeout,
   );
 }
 
@@ -1370,12 +1742,13 @@ Future<String?> _commandVersion(
   List<String> arguments, {
   required Map<String, String> environment,
   String? Function(String output)? parser,
+  Duration timeout = const Duration(seconds: 3),
 }) async {
   final result = await _runTool(
     executable,
     arguments,
     environment: environment,
-    timeout: const Duration(seconds: 3),
+    timeout: timeout,
   );
   if (result.exitCode != 0) {
     return null;
@@ -1398,9 +1771,79 @@ String? _androidEmulatorVersion(String output) {
   return match?.group(1) ?? _firstNonEmptyLine(output);
 }
 
+Future<String?> _openHarmonySdkVersion(io.Directory sdk) async {
+  for (final path in [
+    '${sdk.path}/oh-uni-package.json',
+    '${sdk.path}/ets/oh-uni-package.json',
+  ]) {
+    final file = io.File(path);
+    if (!await file.exists()) {
+      continue;
+    }
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is Map<String, Object?>) {
+        final version = decoded['version']?.toString().trim();
+        if (_nonEmpty(version)) {
+          return version;
+        }
+      }
+    } on Object {
+      return null;
+    }
+  }
+  return null;
+}
+
+String? _ohosHdcVersion(String output) {
+  final value = _firstNonEmptyLine(output);
+  if (value == null) {
+    return null;
+  }
+  final match = RegExp(r'^Ver:\s*(.+)$').firstMatch(value.trim());
+  return match?.group(1)?.trim() ?? value;
+}
+
+String? _ohosEmulatorVersion(String output) {
+  final value = _firstNonEmptyLine(output);
+  if (value == null) {
+    return null;
+  }
+  return normalizeOhosEmulatorVersion(value);
+}
+
 String? _javaVersion(String output) {
+  final runtime = RegExp(
+    r'^(.+Runtime Environment .+)$',
+    multiLine: true,
+  ).firstMatch(output);
+  if (runtime != null) {
+    return runtime.group(1)?.trim();
+  }
   final match = RegExp(r'version "([^"]+)"').firstMatch(output);
   return match?.group(1) ?? _firstNonEmptyLine(output);
+}
+
+Future<String?> _javaReleaseFileVersion(io.File? java) async {
+  if (java == null) {
+    return null;
+  }
+  final release = io.File('${java.parent.parent.path}/release');
+  if (!await release.exists()) {
+    return null;
+  }
+  final content = await release.readAsString().catchError((_) => '');
+  final runtime = RegExp(
+    r'^JAVA_RUNTIME_VERSION="([^"]+)"$',
+    multiLine: true,
+  ).firstMatch(content)?.group(1)?.trim();
+  if (_nonEmpty(runtime)) {
+    return runtime;
+  }
+  return RegExp(
+    r'^JAVA_VERSION="([^"]+)"$',
+    multiLine: true,
+  ).firstMatch(content)?.group(1)?.trim();
 }
 
 String? _xcrunVersion(String output) {
@@ -1431,16 +1874,6 @@ String? _firstNonEmptyLine(String output) {
     }
   }
   return null;
-}
-
-Future<List<OhosLocalEmulator>> _safeOhosEmulators(
-  FluohEnvironment environment,
-) async {
-  try {
-    return discoverOhosLocalEmulators(environment: environment);
-  } on Object {
-    return const [];
-  }
 }
 
 PlatformTarget? _selectTarget(List<PlatformTarget> targets, String? requested) {
@@ -1524,6 +1957,28 @@ bool _isAndroidStudioBundledJdk(String path) {
       normalized.contains('android studio.app/contents/jre/');
 }
 
+List<String> _androidStudioBundledJavaCandidates(Map<String, String> env) {
+  final configured = env['FLUOH_ANDROID_STUDIO'];
+  final roots = _nonEmpty(configured)
+      ? <String>[configured!.trim()]
+      : <String>[
+          if (io.Platform.isMacOS) ...[
+            '/Applications/Android Studio.app',
+            '/Applications/Android Studio Preview.app',
+            if (_nonEmpty(env['HOME']))
+              '${env['HOME']!.trim()}/Applications/Android Studio.app',
+            if (_nonEmpty(env['HOME']))
+              '${env['HOME']!.trim()}/Applications/Android Studio Preview.app',
+          ],
+        ];
+  return [
+    for (final root in roots) ...[
+      '$root/Contents/jbr/Contents/Home/bin/java',
+      '$root/Contents/jre/Contents/Home/bin/java',
+    ],
+  ];
+}
+
 Future<_CommandRun> _runTool(
   String executable,
   List<String> arguments, {
@@ -1564,6 +2019,184 @@ Map<String, Object?> _optionalDetail(String key, Object? value) {
 
 Map<Object?, Object?> _objectMap(Object? value) {
   return value is Map ? value : const {};
+}
+
+Object? _decodeJsonOutput(String output) {
+  try {
+    return jsonDecode(output);
+  } on FormatException {
+    final start = output.indexOf('[');
+    final end = output.lastIndexOf(']');
+    if (start == -1 || end <= start) {
+      rethrow;
+    }
+    return jsonDecode(output.substring(start, end + 1));
+  }
+}
+
+bool _isIosDevicePlatform(String platform) {
+  return platform == 'ios' ||
+      platform.contains('iphoneos') ||
+      platform.contains('ipados');
+}
+
+/// Normalizes Apple OS versions to the compact form used by Flutter tooling.
+///
+/// macOS and Xcode tools can report values such as
+/// `Version 26.5 (Build 25F71)` or `26.5 (23F77)`. User-facing output keeps the
+/// version and build number, but drops the extra labels and parentheses.
+String normalizeAppleOperatingSystemVersion(String value) {
+  return value
+      .trim()
+      .replaceFirst(RegExp(r'^Version\s+', caseSensitive: false), '')
+      .replaceAllMapped(
+        RegExp(r'\s*\((?:Build\s+)?([^)]+)\)', caseSensitive: false),
+        (match) => ' ${match.group(1)}',
+      );
+}
+
+/// Returns the Flutter-style target name used in human output and JSON.
+String platformTargetDisplayName(PlatformTarget target, {String? listingKind}) {
+  if (listingKind == 'emulator' && target.kind == 'emulator') {
+    return platformTargetEmulatorName(target);
+  }
+  final connection = platformTargetConnection(target);
+  final qualifiers = [?connection, platformTargetCategory(target)];
+  return '${target.name} ${qualifiers.map((item) => '($item)').join(' ')}';
+}
+
+/// Returns the platform column value for a target row.
+String platformTargetDisplayPlatform(PlatformTarget target) {
+  if (target.platform == FluohPlatform.macos) {
+    return target.details['runtime']?.toString() ?? target.platform.cliName;
+  }
+  return target.platform.cliName;
+}
+
+/// Returns the broad device category shown as a target name qualifier.
+String platformTargetCategory(PlatformTarget target) {
+  return switch (target.platform) {
+    FluohPlatform.android ||
+    FluohPlatform.ios ||
+    FluohPlatform.ohos => 'mobile',
+    FluohPlatform.macos => 'desktop',
+  };
+}
+
+/// Returns a connection qualifier such as `wireless`, when one is relevant.
+String? platformTargetConnection(PlatformTarget target) {
+  if (target.platform != FluohPlatform.ios || target.kind != 'device') {
+    return null;
+  }
+  return isWirelessTransport(target.details['transport']) ? 'wireless' : null;
+}
+
+/// Returns the final details column used for device rows.
+String platformTargetSummary(PlatformTarget target) {
+  return switch (target.platform) {
+    FluohPlatform.android => target.state ?? '',
+    FluohPlatform.ios => _iosTargetSummary(target),
+    FluohPlatform.macos => _macosTargetSummary(target),
+    FluohPlatform.ohos =>
+      target.details['details']?.toString() ?? target.state ?? '',
+  };
+}
+
+/// Returns the display name used by `fluoh emulators`.
+String platformTargetEmulatorName(PlatformTarget target) {
+  if (target.platform == FluohPlatform.android) {
+    return target.name.replaceAll('_', ' ');
+  }
+  return target.name;
+}
+
+/// Returns the manufacturer column for emulator rows, when known.
+String? platformTargetManufacturer(PlatformTarget target) {
+  if (target.kind != 'emulator') {
+    return null;
+  }
+  return switch (target.platform) {
+    FluohPlatform.ios => 'Apple',
+    FluohPlatform.ohos => 'Huawei',
+    FluohPlatform.android => 'Google',
+    FluohPlatform.macos => null,
+  };
+}
+
+String _iosTargetSummary(PlatformTarget target) {
+  if (target.kind == 'emulator') {
+    final runtime = target.details['runtime']?.toString();
+    return runtime == null || runtime.isEmpty
+        ? 'simulator'
+        : '$runtime (simulator)';
+  }
+  final osVersion = target.details['osVersion']?.toString();
+  return osVersion == null || osVersion.isEmpty
+      ? 'iOS'
+      : 'iOS ${normalizeAppleOperatingSystemVersion(osVersion)}';
+}
+
+String _macosTargetSummary(PlatformTarget target) {
+  final osVersion = target.details['osVersion']?.toString();
+  final runtime = target.details['runtime']?.toString();
+  final version = osVersion == null || osVersion.isEmpty
+      ? 'macOS'
+      : 'macOS ${normalizeAppleOperatingSystemVersion(osVersion)}';
+  return runtime == null || runtime.isEmpty ? version : '$version $runtime';
+}
+
+/// Whether a raw Apple device transport value represents a wireless target.
+bool isWirelessTransport(Object? value) {
+  final transport = _stringValue(value)?.toLowerCase();
+  if (transport == null || transport.isEmpty) {
+    return false;
+  }
+  return transport == 'network' ||
+      transport == 'wifi' ||
+      transport == 'wi-fi' ||
+      transport == 'wireless' ||
+      transport.contains('network') ||
+      transport.contains('wifi') ||
+      transport.contains('wireless');
+}
+
+/// Extracts the compact OpenHarmony Emulator version from tool output.
+String? normalizeOhosEmulatorVersion(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  for (final pattern in [
+    RegExp(r'Emulator\s*:\s*(.+)$', caseSensitive: false),
+    RegExp(r'Emulator\s+version\s*:?\s*(.+)$', caseSensitive: false),
+    RegExp(r'Version\s*:?\s*(.+)$', caseSensitive: false),
+  ]) {
+    final match = pattern.firstMatch(trimmed);
+    final parsed = match?.group(1)?.trim();
+    if (parsed != null && parsed.isNotEmpty) {
+      return parsed;
+    }
+  }
+  final version = RegExp(
+    r'\d+(?:\.\d+){1,}(?:[-+][0-9A-Za-z.-]+)?',
+  ).firstMatch(trimmed)?.group(0);
+  return version ?? trimmed;
+}
+
+bool _isTruthy(Object? value) {
+  if (value is bool) {
+    return value;
+  }
+  final text = _stringValue(value)?.toLowerCase();
+  return text == 'true' || text == 'yes' || text == '1';
+}
+
+bool _isFalsey(Object? value) {
+  if (value is bool) {
+    return !value;
+  }
+  final text = _stringValue(value)?.toLowerCase();
+  return text == 'false' || text == 'no' || text == '0';
 }
 
 String? _stringValue(Object? value) {

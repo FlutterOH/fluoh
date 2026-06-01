@@ -2,7 +2,7 @@
 
 English: [CONTRIBUTING.md](CONTRIBUTING.md)
 
-本文档面向 `fluoh` 的贡献者和维护者。普通用户优先阅读 [README.zh-CN.md](README.zh-CN.md) 或 [README.md](README.md)。
+本文档面向 `fluoh` 的贡献者和维护者。普通用户优先阅读 [README.zh-CN.md](README.zh-CN.md)。
 
 ## 本地开发
 

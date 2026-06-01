@@ -1,8 +1,12 @@
 import 'dart:io';
 
+import 'package:args/command_runner.dart';
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/config/fluoh_config.dart';
 import 'package:fluoh/src/source/source_sync.dart';
 import 'package:test/test.dart';
+
+import '../helpers/fluoh_command_context.dart';
 
 void main() {
   test('loads the fixture pub source indexes', () async {
@@ -197,6 +201,48 @@ void main() {
     expect(
       localSourceDirectoryFromUrl('file:///tmp/package_source')!.path,
       '/tmp/package_source',
+    );
+  });
+
+  test('preserves validation errors from cloned git sources', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_git_source_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final source = Directory('${root.path}/broken_source');
+    await source.create(recursive: true);
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Broken source
+repository:
+  git: {}
+''');
+    await initializeGitRepository(source);
+
+    expect(
+      () => prepareGitSourceSnapshot(
+        'broken',
+        SourceConfig(
+          path: '${root.path}/cache/broken',
+          url: Uri.file(source.path).toString(),
+        ),
+      ),
+      throwsA(
+        isA<UsageException>()
+            .having(
+              (error) => error.message,
+              'message',
+              contains('Source broken is not valid'),
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              isNot(contains('Check your network connection')),
+            ),
+      ),
     );
   });
 }

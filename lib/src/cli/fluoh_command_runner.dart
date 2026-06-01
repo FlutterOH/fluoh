@@ -18,10 +18,13 @@ import '../workflow/workflow_commands.dart';
 import 'command_suggestions.dart';
 import 'command_usage.dart';
 import 'machine_output.dart';
+import 'skill_command.dart';
 import 'terminal_output.dart';
 
+/// Callback used by commands to emit one complete output line.
 typedef OutputWriter = void Function(String message);
 
+/// Returns the line length used for help text in the current terminal.
 int fluohUsageLineLength() {
   try {
     if (io.stdout.hasTerminal) {
@@ -34,6 +37,11 @@ int fluohUsageLineLength() {
   return defaultTerminalLineLength;
 }
 
+/// Base class for `fluoh` commands.
+///
+/// It centralizes argument parser construction and routes usage text through
+/// [FluohCommandRunner] so tests and embedded callers can capture output
+/// without relying on global stdout.
 abstract class FluohCommand<T> extends Command<T> {
   FluohCommand({int? usageLineLength})
     : _argParser = ArgParser(
@@ -56,6 +64,11 @@ abstract class FluohCommand<T> extends Command<T> {
   }
 }
 
+/// Command runner for the `fluoh` executable.
+///
+/// The runner wires all top-level commands, handles global options, keeps
+/// machine-readable error output consistent, and repairs Source snapshots before
+/// commands that consume Source data.
 class FluohCommandRunner extends CommandRunner<int> {
   FluohCommandRunner({
     String executableName = 'fluoh',
@@ -155,6 +168,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     addCommand(
       UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
     );
+    addCommand(SkillCommand(stdout: _stdout, output: _output));
 
     argParser.addFlag(
       'version',
@@ -180,6 +194,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     _output.write(usage);
   }
 
+  /// Writes command-specific usage text through the configured output writer.
   void writeCommandUsage(String usage) {
     _output.write(usage);
   }
@@ -237,6 +252,25 @@ class FluohCommandRunner extends CommandRunner<int> {
       }
       _output.error(error.message);
       return 64;
+    } on io.ProcessException catch (error) {
+      if (machineOutputRequest != null) {
+        writeMachineErrorOutput(
+          _stdout,
+          command: machineOutputRequest.command,
+          exitCode: 1,
+          type: 'process',
+          message: 'Failed to run ${error.executable}: ${error.message}',
+        );
+        return 1;
+      }
+      if (error.executable == 'git') {
+        _output.error(
+          'git is not available. Install Git and make sure it is on PATH.',
+        );
+      } else {
+        _output.error('Failed to run ${error.executable}: ${error.message}');
+      }
+      return 1;
     }
   }
 
@@ -250,7 +284,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     _output.write('${style.label('Dart')} $dartVersion');
     _output.write(
       '${style.label('Platform')} ${io.Platform.operatingSystem} '
-      '${io.Platform.operatingSystemVersion}',
+      '${_normalizedOperatingSystemVersion(io.Platform.operatingSystemVersion)}',
     );
     _output.write(
       '${style.label('Repository')} '
@@ -325,6 +359,17 @@ class FluohCommandRunner extends CommandRunner<int> {
   }
 }
 
+/// Normalizes platform version strings to match doctor and device output.
+String _normalizedOperatingSystemVersion(String value) {
+  return value
+      .trim()
+      .replaceFirst(RegExp(r'^Version\s+', caseSensitive: false), '')
+      .replaceAllMapped(
+        RegExp(r'\s*\((?:Build\s+)?([^)]+)\)', caseSensitive: false),
+        (match) => ' ${match.group(1)}',
+      );
+}
+
 class _MachineOutputRequest {
   const _MachineOutputRequest(this.command);
 
@@ -362,6 +407,7 @@ const _topLevelCommandSections = [
     'devices',
     'emulators',
     'upgrade',
+    'skill',
   ]),
 ];
 
@@ -415,6 +461,10 @@ int _outputLineLength(OutputWriter? stdout) {
   return stdout == null ? fluohUsageLineLength() : 1 << 30;
 }
 
+/// Runs `fluoh` with [arguments].
+///
+/// This helper is primarily used by tests and small embedding scenarios where
+/// callers want to provide an isolated [environment] and capture stdout/stderr.
 Future<int> runFluoh(
   List<String> arguments, {
   OutputWriter? stdout,
@@ -428,6 +478,9 @@ Future<int> runFluoh(
   ).run(arguments);
 }
 
+/// Runs the `fluohf` shortcut with [arguments].
+///
+/// `fluohf` delegates to the selected FlutterOH SDK's `flutter` executable.
 Future<int> runFluohFlutter(
   List<String> arguments, {
   OutputWriter? stdout,

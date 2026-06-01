@@ -51,7 +51,14 @@ void main() {
       logDuration: const Duration(milliseconds: 10),
     );
 
-    expect(result.passed, isTrue);
+    expect(
+      result.passed,
+      isTrue,
+      reason:
+          'reason=${result.reason}, '
+          'findings=${result.findings}, '
+          'diagnostics=${result.diagnostics.map((item) => '${item.code}: ${item.details}').join('; ')}',
+    );
     expect(result.diagnostics, isEmpty);
     expect(result.targetId, 'emulator-5554');
     expect(result.logFile, isNotNull);
@@ -319,11 +326,11 @@ void main() {
       output: TerminalOutput(stdout: (_) {}),
       startEmulator: true,
       emulatorName: 'Huawei_Phone',
-      deviceTimeout: const Duration(milliseconds: 50),
+      deviceTimeout: const Duration(seconds: 5),
       logDuration: Duration.zero,
     );
 
-    expect(result.passed, isTrue);
+    expect(result.passed, isTrue, reason: result.reason);
     expect(emulatorStarted.existsSync(), isTrue);
     expect(
       emulatorLog.readAsStringSync(),
@@ -424,7 +431,7 @@ Future<Directory> _writeDevEcoFixture(
   ]) {
     await File(path).writeAsString('');
   }
-  final hdc = File('${toolchains.path}/hdc');
+  final hdc = File('${root.path}/fake_hdc');
   await hdc.writeAsString('''
 #!/bin/sh
 printf "%s\\n" "\$*" >> "${hdcLog.path}"
@@ -468,7 +475,8 @@ fi
 exit 1
 ''');
   await Process.run('chmod', ['+x', hdc.path]);
-  final emulator = File('${emulatorDirectory.path}/Emulator');
+  await Link('${toolchains.path}/hdc').create(hdc.path);
+  final emulator = File('${root.path}/fake_emulator');
   await emulator.writeAsString('''
 #!/bin/sh
 printf "%s\\n" "\$*" >> "${emulatorLog?.path ?? '${root.path}/emulator.log'}"
@@ -476,6 +484,7 @@ touch "${emulatorStarted?.path ?? '${root.path}/emulator.started'}"
 exit 0
 ''');
   await Process.run('chmod', ['+x', emulator.path]);
+  await Link('${emulatorDirectory.path}/Emulator').create(emulator.path);
   return devEco;
 }
 

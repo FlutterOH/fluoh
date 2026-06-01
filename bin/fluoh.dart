@@ -3,5 +3,8 @@ import 'dart:io' as io;
 import 'package:fluoh/fluoh.dart';
 
 Future<void> main(List<String> arguments) async {
-  io.exitCode = await runFluoh(arguments);
+  final exitCode = await runFluoh(arguments);
+  await io.stdout.flush();
+  await io.stderr.flush();
+  io.exit(exitCode);
 }

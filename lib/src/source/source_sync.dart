@@ -105,7 +105,6 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   }
 
   try {
-    await _rejectUnreadableLegacySourceSidecars(sourceConfig.directory);
     await _validateSourceEnvironment(source);
     for (final entry in present) {
       await entry.validate();
@@ -120,29 +119,6 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
       '',
     );
   }
-}
-
-Future<void> _rejectUnreadableLegacySourceSidecars(Directory source) async {
-  final hasLegacySdkSidecars = await File(
-    '${source.path}/sdk/releases.yaml',
-  ).exists();
-  final hasLegacyPackageSidecars =
-      await Directory('${source.path}/packages/manifests').exists() ||
-      await File('${source.path}/packages/repositories.yaml').exists();
-  if (!hasLegacySdkSidecars && !hasLegacyPackageSidecars) {
-    return;
-  }
-
-  final manifest = await SourceIndex.directory(source).loadRootManifest();
-  if ((!hasLegacySdkSidecars || manifest.sdkRepository != null) &&
-      (!hasLegacyPackageSidecars || manifest.manifests.isNotEmpty)) {
-    return;
-  }
-  throw const FormatException(
-    'legacy source layout stores SDK or package indexes outside source '
-    'fluoh.yaml. Recreate the source with current fluoh source init and '
-    'source sync.',
-  );
 }
 
 Future<void> _validateSourceEnvironment(SourceIndex source) async {
@@ -260,10 +236,25 @@ Future<Directory> prepareGitSourceSnapshot(
         temp.path,
       ]),
     );
+  } on UsageException catch (error) {
+    await deleteIfExists(temp);
+    throw UsageException(
+      'Could not sync source $name from ${source.url}.\n'
+      '${error.message}\n'
+      'Check your network connection and try '
+      '`fluoh source update` again.',
+      error.usage,
+    );
+  } on Object {
+    await deleteIfExists(temp);
+    rethrow;
+  }
+
+  try {
     await deleteIfExists(Directory('${temp.path}/.git'));
     await validateSource(name, SourceConfig(path: temp.path));
     return temp;
-  } catch (_) {
+  } on Object {
     await deleteIfExists(temp);
     rethrow;
   }

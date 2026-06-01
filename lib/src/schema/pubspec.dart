@@ -317,7 +317,7 @@ Set<String> _parseSectionPackageNames(
   final end = _sectionEnd(lines, sectionIndex);
   return lines
       .sublist(sectionIndex + 1, end)
-      .map((line) => RegExp(r'^  ([A-Za-z0-9_]+):').firstMatch(line))
+      .map((line) => RegExp(r'^  ([A-Za-z0-9_-]+):').firstMatch(line))
       .whereType<RegExpMatch>()
       .map((match) => match.group(1)!)
       .toSet();
@@ -468,7 +468,7 @@ _LineRange? _dependencyBlockRange(
   return null;
 }
 
-final _anyPackageBlockKeyPattern = RegExp(r'^  ([A-Za-z0-9_]+):\s*(?:#.*)?$');
+final _anyPackageBlockKeyPattern = RegExp(r'^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$');
 
 RegExp _packageBlockKeyPattern(String packageName) {
   return RegExp('^  ${RegExp.escape(packageName)}:\\s*(?:#.*)?\$');
