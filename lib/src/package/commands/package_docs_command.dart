@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import '../../cli/argument_validation.dart';
 import '../../cli/command_usage.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../git/package_git.dart';
@@ -21,7 +22,11 @@ class PackageDocsCommand extends FluohCommand<int> {
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
     addSubcommand(
-      PackageDocsRefreshCommand(environment: environment, output: _output),
+      PackageDocsRefreshCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
     );
   }
 
@@ -71,18 +76,27 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
   /// Creates the package docs refresh command.
   PackageDocsRefreshCommand({
     required FluohEnvironment environment,
+    required OutputWriter stdout,
     required TerminalOutput output,
   }) : _environment = environment,
+       _stdout = stdout,
        _output = output {
-    argParser.addFlag(
-      'dry-run',
-      abbr: 'n',
-      negatable: false,
-      help: 'Show documentation changes without writing files.',
-    );
+    argParser
+      ..addFlag(
+        'dry-run',
+        abbr: 'n',
+        negatable: false,
+        help: 'Show documentation changes without writing files.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the docs refresh result as JSON.',
+      );
   }
 
   final FluohEnvironment _environment;
+  final OutputWriter _stdout;
   final TerminalOutput _output;
 
   @override
@@ -105,12 +119,27 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
     );
 
     final dryRun = argResults!.flag('dry-run');
+    final json = argResults!.flag('json');
+    final files = updates.map((update) => update.path).toList();
     if (updates.isEmpty) {
+      if (json) {
+        _writeJson(
+          dryRun: dryRun,
+          changed: false,
+          applied: false,
+          files: files,
+        );
+        return 0;
+      }
       _output.success('Package docs are current');
       return 0;
     }
 
     if (dryRun) {
+      if (json) {
+        _writeJson(dryRun: true, changed: true, applied: false, files: files);
+        return 0;
+      }
       _output.info('Package docs would be refreshed');
       for (final update in updates) {
         _output.detail(update.path);
@@ -152,11 +181,36 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
       rethrow;
     }
 
+    if (json) {
+      _writeJson(dryRun: false, changed: true, applied: true, files: files);
+      return 0;
+    }
+
     _output.success('Refreshed package docs');
     for (final update in updates) {
       _output.detail(update.path);
     }
     return 0;
+  }
+
+  void _writeJson({
+    required bool dryRun,
+    required bool changed,
+    required bool applied,
+    required List<String> files,
+  }) {
+    writeMachineOutput(
+      _stdout,
+      command: 'package docs refresh',
+      ok: true,
+      exitCode: 0,
+      fields: {
+        'dryRun': dryRun,
+        'changed': changed,
+        'applied': applied,
+        'files': files,
+      },
+    );
   }
 
   Future<List<_DocUpdate>> _plannedUpdates({

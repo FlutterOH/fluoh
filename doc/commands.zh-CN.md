@@ -221,7 +221,8 @@ Source 本机副本。
 
 `fluoh source list` 会先要求 Source 运行时确保已配置 source 快照和 `sources.lock.json`
 可用，然后读取 `$FLUOH_HOME/config.json`，输出每个已配置 source 的名称和显示值。
-空配置是 warning，不是错误。
+空配置是 warning，不是错误。`--json` 输出同一份 source 列表，包含 source 名称、
+显示值、缓存路径、URL 和优先级。
 
 `fluoh source add <name> <url-or-path>` 校验 source 名称，拒绝替换官方 source
 名称，并把缓存路径固定为 `$FLUOH_HOME/sources/<name>`。普通本地路径会在
@@ -277,14 +278,15 @@ sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合�
 ## SDK 命令
 
 `fluoh sdk list` 合并远端 source release 和本地已安装 SDK 缓存。source index 不可用
-但本地已有 SDK 时，仍会列出本地条目。
+但本地已有 SDK 时，仍会列出本地条目。`--json` 输出 SDK 版本、channel、安装状态和
+status。
 
 `fluoh sdk install <version-or-series>` 支持精确 SDK 版本，也支持 `3.35`
 这样的版本系列。版本系列优先选择最新 stable 版本。管理器会把 SDK 仓库 clone 到
 `$FLUOH_HOME/sdks/<version>`，checkout 对应 Git tag；失败时删除未完成的目标目录。
 
 `fluoh sdk current` 读取当前项目 SDK 版本。未选择 SDK 时输出 warning，并返回退出码
-`1`。
+`1`。`--json` 会报告是否已选择 SDK，以及已选择时的版本。
 
 `fluoh sdk remove <version-or-series>` 解析请求的 release 或精确本地缓存版本，只删除
 `$FLUOH_HOME/sdks` 下匹配的 SDK 目录。
@@ -318,7 +320,8 @@ transitive 和 advisory。fresh Source lock 会提供 Package 路由提示；命
 会恢复原始 `pubspec.yaml`。
 
 `fluoh deps upgrade` 比 `deps fix` 更窄：只升级已有 FlutterOH 依赖替换，不新增替换。它使用
-同样的版本变化策略和 dry-run 行为。
+同样的版本变化策略和 dry-run 行为。`--json` 输出依赖计划、变更摘要、已应用数量和
+dry-run 标记，并且不会输出人类可读进度文本。
 
 ## Package 仓库命令
 
@@ -451,7 +454,8 @@ Package example 则在可判断时继续使用更细的安装、启动、runtime
 保留手写内容。已有非空 `FLUOH_CHANGELOG.md` 不会被整体重写；如果 changelog 缺失或为空，
 命令会根据当前 Package metadata 创建初始 release heading。`--dry-run` 只报告会变化的文件，
 不要求干净工作树。实际写入要求当前分支匹配 `fluoh.yaml` 记录的 Package 分支且工作树干净，
-不会 stage 文件，也不会修改 `fluoh.yaml`。
+不会 stage 文件，也不会修改 `fluoh.yaml`。`--json` 输出 `changed`、`applied`、`files`
+和 `dryRun`。
 
 `fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送

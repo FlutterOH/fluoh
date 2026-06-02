@@ -256,7 +256,8 @@ snapshot is the validated local copy of a Source stored under
 `fluoh source list` first asks the Source runtime to ensure configured source
 snapshots and `sources.lock.json` are usable, then reads `$FLUOH_HOME/config.json`
 and prints each configured source name and display value. Empty configuration is
-a warning, not an error.
+a warning, not an error. `--json` prints the same configured source list with
+source names, display values, cache paths, URLs, and priorities.
 
 `fluoh source add <name> <url-or-path>` validates the source name, refuses to
 replace the official source name, and stores a cache path under
@@ -337,7 +338,8 @@ configured snapshot. `--json` prints synced and skipped package records as JSON.
 
 `fluoh sdk list` merges remote source releases with locally installed SDK
 caches. If source indexes are unavailable but local SDKs exist, it still lists
-the local entries.
+the local entries. `--json` prints SDK entries with version, channel,
+installation state, and status.
 
 `fluoh sdk install <version-or-series>` accepts an exact SDK version or a series
 such as `3.35`. Series selection prefers the latest stable version. The manager
@@ -345,7 +347,8 @@ clones the SDK repository into `$FLUOH_HOME/sdks/<version>`, checks out the
 matching Git tag, and deletes a partial destination on failure.
 
 `fluoh sdk current` reads the current project SDK version. If no SDK is selected
-it prints a warning and returns exit code `1`.
+it prints a warning and returns exit code `1`. `--json` reports whether a
+selection exists and the selected version when present.
 
 `fluoh sdk remove <version-or-series>` resolves the requested release or exact
 local cache version and deletes only the matching SDK directory under
@@ -390,7 +393,8 @@ flag. Before writing, it validates the generated YAML and restores the original
 
 `fluoh deps upgrade` is narrower than `deps fix`: it upgrades existing FlutterOH
 dependency replacements and does not add new replacements. It uses the same
-version-change policy and dry-run behavior.
+version-change policy and dry-run behavior. `--json` prints the dependency plan,
+change summaries, applied count, and dry-run flag without human progress text.
 
 ## Package Repository Commands
 
@@ -470,7 +474,8 @@ the owned section while preserving hand-written content. Existing non-empty
 empty, the command creates initial release headings from current package
 metadata. `--dry-run` reports files that would change without requiring a clean
 working tree. Writing requires the recorded package branch and a clean working
-tree, does not stage files, and does not change `fluoh.yaml`.
+tree, does not stage files, and does not change `fluoh.yaml`. `--json` reports
+`changed`, `applied`, `files`, and `dryRun`.
 
 `fluoh package sync` fetches upstream, fast-forwards the upstream branch recorded
 in Package `upstream.git.branch`, returns to the `repository.git.branch` branch

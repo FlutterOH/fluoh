@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../dependency_plan.dart';
@@ -15,7 +16,8 @@ class DepsUpgradeCommand extends FluohCommand<int> {
     required this.environment,
     required OutputWriter stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+  }) : _stdout = stdout,
+       _output = output ?? TerminalOutput(stdout: stdout) {
     argParser.addFlag(
       'dry-run',
       abbr: 'n',
@@ -23,10 +25,16 @@ class DepsUpgradeCommand extends FluohCommand<int> {
       help:
           'Show planned FlutterOH dependency replacement upgrades without writing pubspec.yaml.',
     );
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print the dependency upgrade result as JSON.',
+    );
   }
 
   /// Runtime environment containing the project and Source config.
   final FluohEnvironment environment;
+  final OutputWriter _stdout;
   final TerminalOutput _output;
 
   @override
@@ -40,6 +48,7 @@ class DepsUpgradeCommand extends FluohCommand<int> {
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
+    final json = argResults!.flag('json');
     final policy = await readDependencyPolicy(environment.workingDirectory);
     final plan = await buildDependencyPlan(
       environment: environment,
@@ -52,6 +61,21 @@ class DepsUpgradeCommand extends FluohCommand<int> {
           (entry) => entry.status == DependencyPlanStatus.incompatibleVersion,
         )
         .toList(growable: false);
+    if (json) {
+      if (changes.isEmpty || dryRun) {
+        _writeUpgradeJson(plan: plan, dryRun: dryRun, applied: 0);
+        return 0;
+      }
+
+      final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
+      final applied = await applyPubspecDependencyChanges(
+        pubspec: pubspec,
+        changes: changes,
+      );
+      _writeUpgradeJson(plan: plan, dryRun: false, applied: applied);
+      return 0;
+    }
+
     if (changes.isEmpty) {
       if (skippedIncompatibleVersion.isEmpty) {
         _output.skipped(
@@ -93,6 +117,25 @@ class DepsUpgradeCommand extends FluohCommand<int> {
     return 0;
   }
 
+  void _writeUpgradeJson({
+    required DependencyPlan plan,
+    required bool dryRun,
+    required int applied,
+  }) {
+    writeMachineOutput(
+      _stdout,
+      command: 'deps upgrade',
+      ok: dryRun ? plan.changes.isEmpty : true,
+      exitCode: 0,
+      fields: {
+        'changes': _changeSummaries(plan).toList(),
+        'applied': applied,
+        'dryRun': dryRun,
+        ...plan.toJson(),
+      },
+    );
+  }
+
   void _printSkippedIncompatibleVersion(List<DependencyPlanEntry> entries) {
     for (final entry in entries) {
       _output.skipped('Skipped ${entry.dependency.name}: ${entry.reason}');
@@ -104,4 +147,17 @@ class DepsUpgradeCommand extends FluohCommand<int> {
       );
     }
   }
+}
+
+Iterable<Map<String, Object?>> _changeSummaries(DependencyPlan plan) {
+  return plan.actionableEntries.expand((entry) {
+    return entry.changes.map((change) {
+      return {
+        'packageName': change.packageName,
+        'kind': change.kind.name,
+        'nextRef': change.nextRef,
+        if (change.currentRef != null) 'currentRef': change.currentRef,
+      };
+    });
+  });
 }

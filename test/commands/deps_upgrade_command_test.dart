@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -72,6 +73,92 @@ void main() {
       expect(stderr, isEmpty);
     },
   );
+
+  test('emits json for dry-run and applied upgrades', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    await writeFlutterProjectWithImplementationOverrideFixture(
+      environment.workingDirectory,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['deps', 'upgrade', '--dry-run', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, hasLength(1));
+    final dryRunReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(dryRunReport, containsPair('schemaVersion', 1));
+    expect(dryRunReport, containsPair('command', 'deps upgrade'));
+    expect(dryRunReport, containsPair('ok', false));
+    expect(dryRunReport, containsPair('exitCode', 0));
+    expect(dryRunReport, containsPair('applied', 0));
+    expect(dryRunReport, containsPair('dryRun', true));
+    final dryRunChanges = dryRunReport['changes'] as List<Object?>;
+    expect(dryRunChanges, hasLength(1));
+    expect(
+      dryRunChanges.single,
+      allOf(
+        containsPair('packageName', 'camera'),
+        containsPair('kind', 'updateRef'),
+        containsPair('currentRef', 'camera-0.11.0-ohos-3.35-0'),
+        containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1'),
+      ),
+    );
+    expect(
+      File(
+        '${environment.workingDirectory.path}/pubspec.yaml',
+      ).readAsStringSync(),
+      contains('camera-0.11.0-ohos-3.35-0'),
+    );
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['deps', 'upgrade', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, hasLength(1));
+    final applyReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(applyReport, containsPair('schemaVersion', 1));
+    expect(applyReport, containsPair('command', 'deps upgrade'));
+    expect(applyReport, containsPair('ok', true));
+    expect(applyReport, containsPair('exitCode', 0));
+    expect(applyReport, containsPair('applied', 1));
+    expect(applyReport, containsPair('dryRun', false));
+    final pubspec = File(
+      '${environment.workingDirectory.path}/pubspec.yaml',
+    ).readAsStringSync();
+    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+    expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-0')));
+    expect(stderr, isEmpty);
+  });
 
   test('updates only the matching override block', () async {
     final environment = await createTestEnvironment();

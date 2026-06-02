@@ -219,7 +219,11 @@ class FluohCommandRunner extends CommandRunner<int> {
       if (_usesSourceConfiguration(results) &&
           _repairsSourceSnapshots(results)) {
         await SourceRuntime(_environment).rebuildLock(
-          output: _output.style.capabilities.decorated ? _output : null,
+          output:
+              machineOutputRequest == null &&
+                  _output.style.capabilities.decorated
+              ? _output
+              : null,
         );
       }
 

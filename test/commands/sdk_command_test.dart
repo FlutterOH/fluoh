@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -207,6 +208,66 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('lists SDKs as json', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final localSdk = Directory(
+      '${environment.homeDirectory.path}/sdks/3.34.0-ohos-0.0.1',
+    );
+    await localSdk.create(recursive: true);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['sdk', 'list', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'sdk list'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('count', 2));
+    expect(
+      report['sdks'],
+      contains(
+        allOf(
+          containsPair('version', '3.35.8-ohos-0.0.3'),
+          containsPair('channel', 'stable'),
+          containsPair('installed', false),
+          containsPair('status', 'remote'),
+        ),
+      ),
+    );
+    expect(
+      report['sdks'],
+      contains(
+        allOf(
+          containsPair('version', '3.34.0-ohos-0.0.1'),
+          containsPair('channel', 'unknown'),
+          containsPair('installed', true),
+          containsPair('status', 'installed'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('removes installed SDKs that are missing from source indexes', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -275,6 +336,32 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('reports missing current SDK as json', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['sdk', 'current', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'sdk current'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 1));
+    expect(report, containsPair('selected', false));
+    expect(report, containsPair('version', null));
+    expect(stderr, isEmpty);
+  });
+
   test('reads SDK selection from pub manifests', () async {
     final environment = await createTestEnvironment();
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
@@ -298,6 +385,39 @@ sdk:
     );
 
     expect(stdout, contains('Current SDK: 3.35.8-ohos-0.0.3'));
+    expect(stderr, isEmpty);
+  });
+
+  test('reports current SDK as json', () async {
+    final environment = await createTestEnvironment();
+    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
+      '''
+schema: 1
+sdk:
+  version: 3.35.8-ohos-0.0.3
+''',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['sdk', 'current', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'sdk current'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('selected', true));
+    expect(report, containsPair('version', '3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
   });
 

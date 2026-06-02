@@ -3,6 +3,7 @@ import 'package:args/command_runner.dart';
 import '../cli/argument_validation.dart';
 import '../cli/command_usage.dart';
 import '../cli/fluoh_command_runner.dart';
+import '../cli/machine_output.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
@@ -84,7 +85,13 @@ class SdkListCommand extends FluohCommand<int> {
     required this.manager,
     required this.stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print SDK versions as JSON.',
+    );
+  }
 
   /// SDK manager used to load Source and cache data.
   final SdkManager manager;
@@ -103,6 +110,20 @@ class SdkListCommand extends FluohCommand<int> {
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final entries = await manager.listEntries();
+    if (argResults!.flag('json')) {
+      writeMachineOutput(
+        stdout,
+        command: 'sdk list',
+        ok: true,
+        exitCode: 0,
+        fields: {
+          'count': entries.length,
+          'sdks': entries.map((entry) => entry.toJson()).toList(),
+        },
+      );
+      return 0;
+    }
+
     if (_output.style.capabilities.decorated) {
       _output.table(
         columns: const [
@@ -185,7 +206,13 @@ class SdkCurrentCommand extends FluohCommand<int> {
     required this.manager,
     required this.stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print the current SDK selection as JSON.',
+    );
+  }
 
   /// SDK manager used to read project SDK state.
   final SdkManager manager;
@@ -205,8 +232,29 @@ class SdkCurrentCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final version = await manager.currentSdkVersion();
     if (version == null || version.isEmpty) {
+      if (argResults!.flag('json')) {
+        writeMachineOutput(
+          stdout,
+          command: 'sdk current',
+          ok: false,
+          exitCode: 1,
+          fields: {'selected': false, 'version': null},
+        );
+        return 1;
+      }
       _output.warning('No SDK selected');
       return 1;
+    }
+
+    if (argResults!.flag('json')) {
+      writeMachineOutput(
+        stdout,
+        command: 'sdk current',
+        ok: true,
+        exitCode: 0,
+        fields: {'selected': true, 'version': version},
+      );
+      return 0;
     }
 
     _output.info('Current SDK: $version');

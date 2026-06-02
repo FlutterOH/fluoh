@@ -133,7 +133,13 @@ class SourceListCommand extends FluohCommand<int> {
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print configured sources as JSON.',
+    );
+  }
 
   /// Runtime environment containing persisted config paths.
   final FluohEnvironment environment;
@@ -152,12 +158,34 @@ class SourceListCommand extends FluohCommand<int> {
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final config = await FluohConfigStore(environment).load();
+    final sources = config.sources.entries.toList(growable: false);
+    if (argResults!.flag('json')) {
+      writeMachineOutput(
+        stdout,
+        command: 'source list',
+        ok: true,
+        exitCode: 0,
+        fields: {
+          'count': sources.length,
+          'sources': [
+            for (final entry in sources)
+              {
+                'name': entry.key,
+                'source': entry.value.displayValue,
+                'path': entry.value.path,
+                if (entry.value.url != null) 'url': entry.value.url,
+                'priority': entry.value.priority,
+              },
+          ],
+        },
+      );
+      return 0;
+    }
     if (config.sources.isEmpty) {
       _output.warning('No sources configured');
       return 0;
     }
 
-    final sources = config.sources.entries.toList(growable: false);
     if (_output.style.capabilities.decorated) {
       _output.table(
         columns: const [

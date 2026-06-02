@@ -210,6 +210,94 @@ repository:
     },
   );
 
+  test('lists configured sources as json', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPackageSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await environment.homeDirectory.delete(recursive: true);
+
+    expect(
+      await runFluoh(
+        ['source', 'list', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'source list'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('count', 1));
+    final sources = report['sources'] as List<Object?>;
+    expect(
+      sources.single,
+      allOf(
+        containsPair('name', 'flutteroh'),
+        containsPair('source', 'file://${defaultSource.path}'),
+        containsPair('url', 'file://${defaultSource.path}'),
+        containsPair(
+          'path',
+          '${environment.homeDirectory.path}/sources/flutteroh',
+        ),
+        containsPair('priority', 0),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('lists sources as json without decorated repair progress', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_cli_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final home = Directory('${root.path}/home');
+    final source = await createPackageSourceFixture(root);
+    await initializeGitRepository(source);
+
+    final result = await Process.run(
+      Platform.resolvedExecutable,
+      ['bin/fluoh.dart', 'source', 'list', '--json'],
+      workingDirectory: Directory.current.path,
+      environment: {
+        ...Platform.environment,
+        'FLUOH_HOME': home.path,
+        'FLUOH_DEFAULT_SOURCE_URL': source.path,
+        'FORCE_COLOR': '1',
+        'TERM': 'xterm-256color',
+      },
+    );
+
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    expect(result.stderr, isEmpty);
+    final output = result.stdout.toString();
+    expect(output, isNot(contains('Syncing source')));
+    final report = jsonDecode(output) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'source list'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('count', 1));
+  });
+
   test(
     'validates source configuration when source has no subcommand',
     () async {

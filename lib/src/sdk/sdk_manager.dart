@@ -234,6 +234,16 @@ class SdkListEntry {
 
   /// Whether the SDK is installed locally.
   final bool installed;
+
+  /// Converts this entry to command JSON.
+  Map<String, Object?> toJson() {
+    return {
+      'version': tag,
+      'channel': channel,
+      'installed': installed,
+      'status': installed ? 'installed' : 'remote',
+    };
+  }
 }
 
 int _compareSdkReleasesDescending(SdkRelease a, SdkRelease b) {

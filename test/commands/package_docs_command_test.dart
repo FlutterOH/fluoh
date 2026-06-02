@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
@@ -107,6 +108,43 @@ Keep this footer.
     expect(result, 0);
     expect(stdout, contains('Package docs would be refreshed'));
     expect(stdout.join('\n'), contains('FLUOH.md'));
+    expect(guide.readAsStringSync(), staleContent);
+    expect(stderr, isEmpty);
+  });
+
+  test('dry-run reports stale docs as json', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final guide = File('${packageRepository.path}/FLUOH.md');
+    const staleContent = '''
+# Stale Guide
+''';
+    await guide.writeAsString(staleContent);
+    final stdout = <String>[];
+    final stderr = <String>[];
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+
+    final result = await runFluoh(
+      ['package', 'docs', 'refresh', '--dry-run', '--json'],
+      environment: packageEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(result, 0);
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'package docs refresh'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('dryRun', true));
+    expect(report, containsPair('changed', true));
+    expect(report, containsPair('applied', false));
+    expect(report['files'], contains('FLUOH.md'));
     expect(guide.readAsStringSync(), staleContent);
     expect(stderr, isEmpty);
   });
