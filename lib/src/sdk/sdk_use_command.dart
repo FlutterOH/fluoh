@@ -8,6 +8,7 @@ import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../config/fluoh_yaml_schema.dart';
 import '../context/fluoh_environment.dart';
+import 'flutter_runner.dart';
 import 'sdk_manager.dart';
 import 'sdk_project_environment.dart';
 
@@ -146,12 +147,7 @@ class SdkUseCommand extends FluohCommand<int> {
   }
 
   Future<void> _runPubGet(Directory sdkDirectory) async {
-    final sdkFlutter = File('${sdkDirectory.path}/bin/flutter');
-    final executable = await sdkFlutter.exists() ? sdkFlutter.path : 'flutter';
-    final result = await Process.run(executable, [
-      'pub',
-      'get',
-    ], workingDirectory: environment.workingDirectory.path);
+    final result = await _runSdkFlutter(sdkDirectory, const ['pub', 'get']);
     if (result.exitCode != 0) {
       throw UsageException('flutter pub get failed:\n${result.stderr}', '');
     }
@@ -164,14 +160,12 @@ class SdkUseCommand extends FluohCommand<int> {
       return;
     }
 
-    final sdkFlutter = File('${sdkDirectory.path}/bin/flutter');
-    final executable = await sdkFlutter.exists() ? sdkFlutter.path : 'flutter';
-    final result = await Process.run(executable, const [
+    final result = await _runSdkFlutter(sdkDirectory, const [
       'create',
       '--no-pub',
       '--platforms=ohos',
       '.',
-    ], workingDirectory: environment.workingDirectory.path);
+    ]);
     if (result.exitCode != 0) {
       throw UsageException(
         'flutter create --platforms=ohos failed:\n${result.stderr}',
@@ -185,5 +179,27 @@ class SdkUseCommand extends FluohCommand<int> {
       );
     }
     _output.success('Initialized OHOS platform directory');
+  }
+
+  Future<ProcessResult> _runSdkFlutter(
+    Directory sdkDirectory,
+    List<String> arguments,
+  ) async {
+    final flutter = File('${sdkDirectory.path}/bin/flutter');
+    if (!await flutter.exists()) {
+      throw UsageException(
+        'Selected SDK does not contain bin/flutter: ${sdkDirectory.path}',
+        '',
+      );
+    }
+    return Process.run(
+      flutter.path,
+      arguments,
+      workingDirectory: environment.workingDirectory.path,
+      environment: selectedToolProcessEnvironment(
+        environment: environment,
+        tool: flutter,
+      ),
+    );
   }
 }

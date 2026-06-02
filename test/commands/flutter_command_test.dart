@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/sdk/flutter_runner.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
@@ -47,6 +48,50 @@ void main() {
     );
     expect(stdout, contains('flutter stdout'));
     expect(stderr, contains('flutter stderr'));
+  });
+
+  test('puts the selected SDK bin before the inherited path', () async {
+    final environment = await createTestEnvironment();
+    final tool = File(
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3/bin/flutter',
+    );
+
+    final processEnvironment = selectedToolProcessEnvironment(
+      environment: FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: environment.workingDirectory,
+        processEnvironment: {'PATH': '/external/flutter/bin:/usr/bin'},
+      ),
+      tool: tool,
+    );
+
+    final separator = Platform.isWindows ? ';' : ':';
+    final pathEntries = processEnvironment['PATH']!.split(separator);
+    expect(
+      pathEntries.first,
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3/bin',
+    );
+    expect(pathEntries.skip(1), ['/external/flutter/bin', '/usr/bin']);
+
+    final fallbackEnvironment = selectedToolProcessEnvironment(
+      environment: FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: environment.workingDirectory,
+        processEnvironment: const {},
+      ),
+      tool: tool,
+      fallbackEnvironment: {
+        'Path': ['/fallback/flutter/bin', '/fallback/bin'].join(separator),
+      },
+    );
+
+    expect(fallbackEnvironment, isNot(contains('PATH')));
+    final fallbackEntries = fallbackEnvironment['Path']!.split(separator);
+    expect(
+      fallbackEntries.first,
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3/bin',
+    );
+    expect(fallbackEntries.skip(1), ['/fallback/flutter/bin', '/fallback/bin']);
   });
 
   test('runs flutter through the fluohf executable helper', () async {

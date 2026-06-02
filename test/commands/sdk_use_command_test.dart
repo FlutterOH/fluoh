@@ -439,6 +439,13 @@ custom:
       ).readAsStringSync(),
       'pub get',
     );
+    final pathEntries = File(
+      '${environment.workingDirectory.path}/flutter_dependency_get_path.txt',
+    ).readAsStringSync().trim().split(Platform.isWindows ? ';' : ':');
+    expect(
+      pathEntries.first,
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3/bin',
+    );
     expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
   });
@@ -548,6 +555,7 @@ if [ "\$1" = "create" ]; then
   exit 0
 fi
 printf "%s %s" "\$1" "\$2" > "${project.path}/flutter_dependency_get_args.txt"
+printf "%s\\n" "\$PATH" > "${project.path}/flutter_dependency_get_path.txt"
 exit 0
 ''');
   await _runProcess('chmod', ['+x', flutter.path], sdkRepository);

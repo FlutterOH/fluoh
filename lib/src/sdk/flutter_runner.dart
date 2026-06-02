@@ -120,7 +120,10 @@ Future<SelectedToolResult> runSelectedFlutterResult({
     flutter.path,
     arguments,
     workingDirectory: workingDirectory.path,
-    environment: environment.processEnvironment,
+    environment: selectedToolProcessEnvironment(
+      environment: environment,
+      tool: flutter,
+    ),
     mode: inheritStdio && !captureInheritedStdio
         ? io.ProcessStartMode.inheritStdio
         : io.ProcessStartMode.normal,
@@ -200,7 +203,10 @@ Future<SelectedToolResult> runSelectedDartResult({
     dart.path,
     arguments,
     workingDirectory: workingDirectory.path,
-    environment: environment.processEnvironment,
+    environment: selectedToolProcessEnvironment(
+      environment: environment,
+      tool: dart,
+    ),
   );
   final stdoutLines = _LineBuffer();
   final stderrLines = _LineBuffer();
@@ -221,6 +227,65 @@ Future<SelectedToolResult> runSelectedDartResult({
     stdout: stdoutLines.text,
     stderr: stderrLines.text,
   );
+}
+
+Map<String, String> selectedToolProcessEnvironment({
+  required FluohEnvironment environment,
+  required io.File tool,
+  Map<String, String>? fallbackEnvironment,
+}) {
+  final processEnvironment = Map<String, String>.of(
+    environment.processEnvironment,
+  );
+  final inheritedEnvironment = fallbackEnvironment ?? io.Platform.environment;
+  final sdkBin = tool.parent.path;
+  final pathKey = _pathEnvironmentKey(processEnvironment, inheritedEnvironment);
+  final currentPath =
+      _pathEnvironmentValue(processEnvironment, pathKey) ??
+      _pathEnvironmentValue(inheritedEnvironment, pathKey);
+  processEnvironment[pathKey] = currentPath == null || currentPath.isEmpty
+      ? sdkBin
+      : '$sdkBin$_pathListSeparator$currentPath';
+  return processEnvironment;
+}
+
+String get _pathListSeparator => io.Platform.isWindows ? ';' : ':';
+
+String _pathEnvironmentKey(
+  Map<String, String> environment,
+  Map<String, String> fallbackEnvironment,
+) {
+  if (environment.containsKey('PATH') ||
+      fallbackEnvironment.containsKey('PATH')) {
+    return 'PATH';
+  }
+  return _caseInsensitivePathKey(environment) ??
+      _caseInsensitivePathKey(fallbackEnvironment) ??
+      'PATH';
+}
+
+String? _caseInsensitivePathKey(Map<String, String> environment) {
+  for (final key in environment.keys) {
+    if (key.toLowerCase() == 'path') {
+      return key;
+    }
+  }
+  return null;
+}
+
+String? _pathEnvironmentValue(Map<String, String> environment, String key) {
+  return environment[key] ??
+      environment.entries
+          .where((entry) => entry.key.toLowerCase() == key.toLowerCase())
+          .map((entry) => entry.value)
+          .firstOrNull;
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    return iterator.moveNext() ? iterator.current : null;
+  }
 }
 
 Future<void> _forwardStdin(io.IOSink sink) async {

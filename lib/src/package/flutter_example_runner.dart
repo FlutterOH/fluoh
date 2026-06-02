@@ -587,7 +587,10 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     flutter.path,
     arguments,
     workingDirectory: workingDirectory.path,
-    environment: environment.processEnvironment,
+    environment: selectedToolProcessEnvironment(
+      environment: environment,
+      tool: flutter,
+    ),
   );
   final command = 'flutter ${arguments.join(' ')}';
   final stdoutBuffer = _LineBuffer();
