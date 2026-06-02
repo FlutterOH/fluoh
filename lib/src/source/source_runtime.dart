@@ -618,7 +618,7 @@ class _ResolvedSourceLock {
             release.version: _sdkReleaseToJson(release),
         },
       },
-      'routes': packageRoutes.toJson(),
+      'packageRoutes': packageRoutes.toJson(),
     };
   }
 }
@@ -630,7 +630,7 @@ _ResolvedSourceLock _resolvedSourceLockFromJson(Map<String, Object?> json) {
       'sources.lock.json fingerprint',
     ),
     sdkIndex: _sdkIndexFromLock(json),
-    packageRoutes: _packageRouteLockFromJson(json['routes']),
+    packageRoutes: _packageRouteLockFromJson(json['packageRoutes']),
   );
 }
 
@@ -668,13 +668,13 @@ class _PackageRouteLock {
 }
 
 _PackageRouteLock _packageRouteLockFromJson(Object? value) {
-  final manifests = _jsonObject(value, 'sources.lock.json routes');
+  final manifests = _jsonObject(value, 'sources.lock.json packageRoutes');
   return _PackageRouteLock(
     manifests: {
       for (final sourceEntry in manifests.entries)
         sourceEntry.key: _packageManifestRoutesFromJson(
           sourceEntry.value,
-          'sources.lock.json routes.${sourceEntry.key}',
+          'sources.lock.json packageRoutes.${sourceEntry.key}',
         ),
     },
   );

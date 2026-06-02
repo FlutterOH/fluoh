@@ -510,7 +510,7 @@ void main() {
       '`config.json`',
       '`sources.lock.json`',
       '"fingerprint"',
-      '"routes"',
+      '"packageRoutes"',
       'FlutterOH/source',
     ]);
     expectContainsNone(schema, [
@@ -539,7 +539,7 @@ void main() {
       '`config.json`',
       '`sources.lock.json`',
       '"fingerprint"',
-      '"routes"',
+      '"packageRoutes"',
       'FlutterOH/source',
     ]);
     expectContainsNone(chineseSchema, [

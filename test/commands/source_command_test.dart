@@ -610,8 +610,8 @@ repository:
     final lock = File('${environment.homeDirectory.path}/sources.lock.json');
     expect(lock.existsSync(), isTrue);
     final lockJson = _readJsonObject(lock);
-    final routes = lockJson['routes'] as Map<String, Object?>;
-    final fixtureManifests = routes['fixture'] as Map<String, Object?>;
+    final packageRoutes = lockJson['packageRoutes'] as Map<String, Object?>;
+    final fixtureManifests = packageRoutes['fixture'] as Map<String, Object?>;
     final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
     expect(cameraManifest, contains('camera'));
     expect(Directory('${cachedSource.path}/packages').existsSync(), isFalse);
@@ -762,8 +762,8 @@ environment:
     expect(sdkRelease, isNot(contains('flutterVersion')));
     expect(sdkRelease, isNot(contains('channel')));
     expect(sdkRelease, isNot(contains('tag')));
-    final routes = lock['routes'] as Map<String, Object?>;
-    final fixtureManifests = routes['fixture'] as Map<String, Object?>;
+    final packageRoutes = lock['packageRoutes'] as Map<String, Object?>;
+    final fixtureManifests = packageRoutes['fixture'] as Map<String, Object?>;
     final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
     expect(cameraManifest, containsPair('camera', ['3.35']));
     expect(lockContent, isNot(contains('"packages"')));
@@ -869,7 +869,7 @@ environment:
     final sdk = lock['sdk'] as Map<String, Object?>;
     final versions = sdk['versions'] as Map<String, Object?>;
     expect(versions, isEmpty);
-    expect(lock['routes'], isEmpty);
+    expect(lock['packageRoutes'], isEmpty);
 
     expect(stdout, contains('Created local source template at ${source.path}'));
     expect(stdout, contains('Added source empty: ${source.path}'));

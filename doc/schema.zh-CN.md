@@ -490,7 +490,7 @@ Package metadata。
       }
     }
   },
-  "routes": {
+  "packageRoutes": {
     "flutteroh": {
       "flutter_packages": {
         "camera": ["3.35", "3.36"],
@@ -526,7 +526,7 @@ Package metadata。
   key、默认值或 `fingerprint.sources` 推导的数据会省略：source priority 只保存在
   `fingerprint.sources`，SDK `versionSeries` 和 `flutterVersion` 由 SDK version key
   推导，SDK `tag` 默认等于 version key，SDK `channel` 默认为 `stable`。
-- `routes` 索引只保存 Source/Manifest/Package 路由，以及该 route 下 Package 出现过的
+- `packageRoutes` 索引只保存 Source/Manifest/Package 路由，以及该 route 下 Package 出现过的
   compatible SDK line。它不保存 Package repository、path、upstream version、release
   version、tag、advisory、maintenance 或已选 implementation。
 - 生成的 lock 文件使用 compact-pretty JSON：根区段和大对象保持多行，短的叶子对象和数组压成单行。

@@ -550,7 +550,7 @@ Example shape:
       }
     }
   },
-  "routes": {
+  "packageRoutes": {
     "flutteroh": {
       "flutter_packages": {
         "camera": ["3.35", "3.36"],
@@ -594,7 +594,7 @@ Rules:
   `fingerprint.sources`, SDK `versionSeries` and `flutterVersion` derive from
   the SDK version key, SDK `tag` defaults to the version key, and SDK `channel`
   defaults to `stable`.
-- The `routes` index stores only Source/Manifest/package routing and the
+- The `packageRoutes` index stores only Source/Manifest/package routing and the
   compatible SDK lines seen for each package at that route. It does not store
   package repositories, paths, upstream versions, release versions, tags,
   advisories, maintenance notes, or selected implementations.

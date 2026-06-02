@@ -104,7 +104,7 @@ void main() {
       );
       final lock =
           jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-      lock['routes'] = {'fixture': 'not a source manifest object'};
+      lock['packageRoutes'] = {'fixture': 'not a source manifest object'};
       await lockFile.writeAsString(
         '${const JsonEncoder.withIndent('  ').convert(lock)}\n',
       );
@@ -124,8 +124,9 @@ void main() {
       expect(stdout, anyElement(contains('camera 0.11.0')));
       final repairedLock =
           jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
-      final routes = repairedLock['routes'] as Map<String, Object?>;
-      final fixtureManifests = routes['fixture'] as Map<String, Object?>;
+      final packageRoutes =
+          repairedLock['packageRoutes'] as Map<String, Object?>;
+      final fixtureManifests = packageRoutes['fixture'] as Map<String, Object?>;
       final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
       expect(cameraManifest, containsPair('camera', ['3.35']));
       expect(stderr, isEmpty);
