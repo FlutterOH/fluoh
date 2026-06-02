@@ -22,6 +22,25 @@
 支持范围时，命令必须停止并提示用户升级 `fluoh`，不能猜测解析。命令只校验当前
 canonical layout。
 
+### 生成 Markdown 段
+
+Package 仓库生成指导文档的版本和 YAML schema 分开管理。`FLUOH.md` 和
+`AGENTS.md` 中由 fluoh 拥有的段落使用 Markdown 注释包起来：
+
+```text
+<!-- fluoh:generated:start id=<section> version=<templateVersion> -->
+...
+<!-- fluoh:generated:end id=<section> -->
+```
+
+`id` 表示生成段身份，`version` 表示模板结构版本，不是 Package 数据 schema。
+`fluoh package docs refresh`、`fluoh package create` 和 `fluoh package add`
+只能替换匹配的生成段。生成段前后的手写内容属于用户，必须保留。生成段内部也会写明
+不要直接编辑该 block；修改 `fluoh.yaml` 或升级 `fluoh` 后应运行
+`fluoh package docs refresh`。非空 `FLUOH_CHANGELOG.md` 属于用户；命令可以提示
+缺少 release 条目，或在文件不存在/为空时创建初始 changelog，但不能因为模板升级而
+重写已有 release notes。
+
 ### Project
 
 项目配置保持很小：

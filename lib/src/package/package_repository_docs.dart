@@ -85,6 +85,26 @@ class PackageRepositoryDocPackage {
       packagePath == '.' ? 'example' : '$packagePath/example';
 }
 
+/// Template version for generated `FLUOH.md` package guidance.
+const int packageImplementationGuideTemplateVersion = 1;
+
+/// Template version for generated `AGENTS.md` package guidance.
+const int packageAgentsInstructionsTemplateVersion = 1;
+
+/// Builds documentation package descriptors from a package manifest.
+List<PackageRepositoryDocPackage> packageRepositoryDocPackagesForManifest(
+  PackageManifest manifest,
+) {
+  return [
+    for (final package in manifest.packages)
+      PackageRepositoryDocPackage(
+        name: package.name,
+        version: package.upstreamVersion,
+        packagePath: package.repositoryPath,
+      ),
+  ];
+}
+
 /// Writes or updates the generated `FLUOH.md` implementation guide section.
 Future<void> writeOrReplacePackageImplementationGuide({
   required Directory destination,
@@ -92,11 +112,29 @@ Future<void> writeOrReplacePackageImplementationGuide({
 }) async {
   final file = File('${destination.path}/FLUOH.md');
   final existing = await file.exists() ? await file.readAsString() : null;
+  await file.writeAsString(
+    updatedPackageImplementationGuideContent(
+      packages: packages,
+      existing: existing,
+    ),
+  );
+}
+
+/// Returns `FLUOH.md` content with the generated implementation guide refreshed.
+String updatedPackageImplementationGuideContent({
+  required List<PackageRepositoryDocPackage> packages,
+  required String? existing,
+}) {
   final generated = packageImplementationGuideContent(
     packages: packages,
     includeTitle: true,
   );
-  await _writeOrReplaceGeneratedSection(file, generated, existing: existing);
+  return _contentWithGeneratedSection(
+    existing,
+    generated,
+    sectionId: _implementationGuideSectionId,
+    templateVersion: packageImplementationGuideTemplateVersion,
+  );
 }
 
 /// Writes or updates the generated package instructions in `AGENTS.md`.
@@ -106,12 +144,32 @@ Future<void> writeOrReplacePackageAgentsInstructions({
 }) async {
   final file = File('${destination.path}/AGENTS.md');
   final existing = await file.exists() ? await file.readAsString() : null;
+  await file.writeAsString(
+    updatedPackageAgentsInstructionsContent(
+      packages: packages,
+      existing: existing,
+    ),
+  );
+}
+
+/// Returns `AGENTS.md` content with the generated package instructions refreshed.
+String updatedPackageAgentsInstructionsContent({
+  required List<PackageRepositoryDocPackage> packages,
+  required String? existing,
+}) {
   final generated = packageAgentsInstructionsContent(
     packages: packages,
-    includeTitle: _generatedSectionOwnsFile(existing),
+    includeTitle: _generatedSectionOwnsFile(
+      existing,
+      sectionId: _agentsInstructionsSectionId,
+    ),
   );
-
-  await _writeOrReplaceGeneratedSection(file, generated, existing: existing);
+  return _contentWithGeneratedSection(
+    existing,
+    generated,
+    sectionId: _agentsInstructionsSectionId,
+    templateVersion: packageAgentsInstructionsTemplateVersion,
+  );
 }
 
 /// Builds generated `AGENTS.md` guidance for one or more package entries.
@@ -225,6 +283,7 @@ String _singlePackageAgentsInstructionsContent({
     'This repository contains the OHOS implementation for `${package.name}`. Treat `fluoh.yaml` as the source of truth for the current SDK, repository URL, branch, package path, upstream version, release version, and status.',
     '',
     '- Package metadata: `packages.${package.name}` in `fluoh.yaml`.',
+    '- Upstream version: `${package.version}`.',
     '- Package path: `packages.${package.name}.repository.path` when present; otherwise `repository.git.path` or `.` in `fluoh.yaml`.',
     '- Repository branch: `repository.git.branch` in `fluoh.yaml`.',
     '- Upstream repository: `upstream.git` in `fluoh.yaml`.',
@@ -571,6 +630,7 @@ String _singlePackageImplementationGuideContent({
     '',
     '- `fluoh.yaml` records the upstream package, FlutterOH repository, SDK target, and release metadata.',
     '- Package metadata: `packages.${package.name}` in `fluoh.yaml`',
+    '- Upstream version: `${package.version}`',
     '- Package path: `packages.${package.name}.repository.path` when present; otherwise `repository.git.path` or `.` in `fluoh.yaml`',
     '- Repository branch: `repository.git.branch` in `fluoh.yaml`',
     '- Upstream repository: `upstream.git` in `fluoh.yaml`',
@@ -678,73 +738,145 @@ String markdownAppendSeparator(String content) {
   return '\n\n';
 }
 
-const _generatedSectionStart = '<!-- fluoh:generated:start -->';
-const _generatedSectionEnd = '<!-- fluoh:generated:end -->';
+const _implementationGuideSectionId = 'package-implementation-guide';
+const _agentsInstructionsSectionId = 'package-agents-instructions';
+const _legacyGeneratedSectionStart = '<!-- fluoh:generated:start -->';
+const _legacyGeneratedSectionEnd = '<!-- fluoh:generated:end -->';
 
-bool _generatedSectionOwnsFile(String? existing) {
+bool _generatedSectionOwnsFile(String? existing, {required String sectionId}) {
   if (existing == null || existing.trim().isEmpty) {
     return true;
   }
-  return _contentWithoutGeneratedSection(existing).trim().isEmpty;
+  return _contentWithoutGeneratedSection(
+    existing,
+    sectionId: sectionId,
+  ).trim().isEmpty;
 }
 
-Future<void> _writeOrReplaceGeneratedSection(
-  File file,
+String _contentWithGeneratedSection(
+  String? existing,
   String generated, {
-  required String? existing,
-}) async {
-  final block = _generatedSectionBlock(generated);
+  required String sectionId,
+  required int templateVersion,
+}) {
+  final block = _generatedSectionBlock(
+    generated,
+    sectionId: sectionId,
+    templateVersion: templateVersion,
+  );
   if (existing == null || existing.trim().isEmpty) {
-    await file.writeAsString(block);
-    return;
+    return block;
   }
 
-  final replaced = _replaceGeneratedSection(existing, block);
+  final replaced = _replaceGeneratedSection(
+    existing,
+    block,
+    sectionId: sectionId,
+  );
   if (replaced != null) {
-    await file.writeAsString(replaced);
-    return;
+    return replaced;
   }
 
-  await file.writeAsString(
-    '$existing${markdownAppendSeparator(existing)}$block',
+  return '$existing${markdownAppendSeparator(existing)}$block';
+}
+
+String _generatedSectionBlock(
+  String content, {
+  required String sectionId,
+  required int templateVersion,
+}) {
+  final normalized = content.endsWith('\n') ? content : '$content\n';
+  return '${_generatedSectionStart(sectionId, templateVersion)}\n'
+      '<!-- This section is generated by fluoh. Do not edit inside this block; '
+      'run `fluoh package docs refresh` after updating fluoh.yaml or upgrading '
+      'fluoh. -->\n'
+      '$normalized${_generatedSectionEnd(sectionId)}\n';
+}
+
+String _generatedSectionStart(String sectionId, int templateVersion) =>
+    '<!-- fluoh:generated:start id=$sectionId version=$templateVersion -->';
+
+String _generatedSectionEnd(String sectionId) =>
+    '<!-- fluoh:generated:end id=$sectionId -->';
+
+String? _replaceGeneratedSection(
+  String content,
+  String replacement, {
+  required String sectionId,
+}) {
+  final match = _findGeneratedSection(content, sectionId: sectionId);
+  if (match == null) {
+    return null;
+  }
+  final afterEnd = match.end + match.endMarker.length;
+  final suffixStart =
+      afterEnd < content.length && content.codeUnitAt(afterEnd) == 10
+      ? afterEnd + 1
+      : afterEnd;
+  return '${content.substring(0, match.start)}$replacement'
+      '${content.substring(suffixStart)}';
+}
+
+String _contentWithoutGeneratedSection(
+  String content, {
+  required String sectionId,
+}) {
+  final match = _findGeneratedSection(content, sectionId: sectionId);
+  if (match == null) {
+    return content;
+  }
+  final afterEnd = match.end + match.endMarker.length;
+  final suffixStart =
+      afterEnd < content.length && content.codeUnitAt(afterEnd) == 10
+      ? afterEnd + 1
+      : afterEnd;
+  return '${content.substring(0, match.start)}${content.substring(suffixStart)}';
+}
+
+_GeneratedSectionMatch? _findGeneratedSection(
+  String content, {
+  required String sectionId,
+}) {
+  final startPattern = RegExp(
+    '<!-- fluoh:generated:start id=${RegExp.escape(sectionId)} '
+    r'version=\d+ -->',
+  );
+  final startMatch = startPattern.firstMatch(content);
+  if (startMatch != null) {
+    final endMarker = _generatedSectionEnd(sectionId);
+    final end = content.indexOf(endMarker, startMatch.end);
+    if (end >= 0) {
+      return _GeneratedSectionMatch(
+        start: startMatch.start,
+        end: end,
+        endMarker: endMarker,
+      );
+    }
+  }
+
+  final legacyStart = content.indexOf(_legacyGeneratedSectionStart);
+  if (legacyStart < 0) {
+    return null;
+  }
+  final legacyEnd = content.indexOf(_legacyGeneratedSectionEnd, legacyStart);
+  if (legacyEnd < 0) {
+    return null;
+  }
+  return _GeneratedSectionMatch(
+    start: legacyStart,
+    end: legacyEnd,
+    endMarker: _legacyGeneratedSectionEnd,
   );
 }
 
-String _generatedSectionBlock(String content) {
-  final normalized = content.endsWith('\n') ? content : '$content\n';
-  return '$_generatedSectionStart\n$normalized$_generatedSectionEnd\n';
-}
+class _GeneratedSectionMatch {
+  const _GeneratedSectionMatch({
+    required this.start,
+    required this.end,
+    required this.endMarker,
+  });
 
-String? _replaceGeneratedSection(String content, String replacement) {
-  final start = content.indexOf(_generatedSectionStart);
-  if (start < 0) {
-    return null;
-  }
-  final end = content.indexOf(_generatedSectionEnd, start);
-  if (end < 0) {
-    return null;
-  }
-  final afterEnd = end + _generatedSectionEnd.length;
-  final suffixStart =
-      afterEnd < content.length && content.codeUnitAt(afterEnd) == 10
-      ? afterEnd + 1
-      : afterEnd;
-  return '${content.substring(0, start)}$replacement${content.substring(suffixStart)}';
-}
-
-String _contentWithoutGeneratedSection(String content) {
-  final start = content.indexOf(_generatedSectionStart);
-  if (start < 0) {
-    return content;
-  }
-  final end = content.indexOf(_generatedSectionEnd, start);
-  if (end < 0) {
-    return content;
-  }
-  final afterEnd = end + _generatedSectionEnd.length;
-  final suffixStart =
-      afterEnd < content.length && content.codeUnitAt(afterEnd) == 10
-      ? afterEnd + 1
-      : afterEnd;
-  return '${content.substring(0, start)}${content.substring(suffixStart)}';
+  final int start;
+  final int end;
+  final String endMarker;
 }

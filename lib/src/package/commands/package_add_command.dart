@@ -165,7 +165,7 @@ class PackageAddCommand extends FluohCommand<int> {
     required PackageManifest manifest,
     required String addedPackageName,
   }) async {
-    final packages = _docPackagesForManifest(manifest);
+    final packages = packageRepositoryDocPackagesForManifest(manifest);
     await writeOrReplacePackageImplementationGuide(
       destination: repository,
       packages: packages,
@@ -204,19 +204,6 @@ class PackageAddCommand extends FluohCommand<int> {
       destination: repository,
       packages: packages,
     );
-  }
-
-  List<PackageRepositoryDocPackage> _docPackagesForManifest(
-    PackageManifest manifest,
-  ) {
-    return [
-      for (final package in manifest.packages)
-        PackageRepositoryDocPackage(
-          name: package.name,
-          version: package.upstreamVersion,
-          packagePath: package.repositoryPath,
-        ),
-    ];
   }
 
   Future<Map<String, String?>> _snapshotFiles(

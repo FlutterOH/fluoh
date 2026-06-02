@@ -6,6 +6,7 @@ import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import 'package_add_command.dart';
 import 'package_create_command.dart';
+import 'package_docs_command.dart';
 import 'package_release_command.dart';
 import 'package_status_command.dart';
 import 'package_sync_command.dart';
@@ -70,6 +71,14 @@ class PackageCommand extends FluohCommand<int> {
       ),
     );
     addSubcommand(
+      PackageDocsCommand(
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
+        output: _output,
+      ),
+    );
+    addSubcommand(
       PackageReleaseCommand(
         kind: PackageReleaseCommandKind.release,
         environment: environment,
@@ -126,6 +135,7 @@ const _packageCommandSections = [
     'sync',
     'status',
     'version',
+    'docs',
     'check',
     'release',
   ]),

@@ -20,8 +20,8 @@ standard library and do not replace the `fluoh --json` diagnostic contract.
   `python3 <skill-dir>/scripts/preflight.py <project-path> [--package <name>]`
   prints one JSON object with the installed `fluoh --version` result, workspace
   kind, Git state, registered packages, package example platforms, selected
-  package, selected SDK, suggested next commands, and `reportCommand`. It is
-  read-only.
+  package, selected SDK, upgrade checks, suggested next commands, and
+  `reportCommand`. It is read-only.
 - Report skeleton:
   `python3 <skill-dir>/scripts/new_report.py <project-path> --scope <scope>
   [--package <name>] [--recommendation ready|needs-maintainer-decision|blocked]`
@@ -62,14 +62,19 @@ Then:
 
 1. Install the `fluoh` CLI if it is missing.
 2. Run preflight when possible.
-3. Create a package repository with `fluoh package create <upstream>` only when
+3. Inspect preflight `upgradeChecks`. Stop for schema migration blockers. If
+   package generated docs are stale, or preflight could not confirm them with
+   dry-run, run `fluoh package docs refresh --dry-run`; then run
+   `fluoh package docs refresh` before implementation edits when the worktree is
+   clean and the task is not review-only.
+4. Create a package repository with `fluoh package create <upstream>` only when
    the user provided an upstream Git URL and no package repository exists.
-4. Route to the app or package flow from preflight JSON.
-5. Run `fluoh` commands in JSON mode whenever supported, then inspect
+5. Route to the app or package flow from preflight JSON.
+6. Run `fluoh` commands in JSON mode whenever supported, then inspect
    `nextCommand`, `diagnostics`, and log tails before editing.
-6. Make the smallest code or project-file changes needed for the next clean
+7. Make the smallest code or project-file changes needed for the next clean
    verification result.
-7. Verify and write the completion report before the final response.
+8. Verify and write the completion report before the final response.
 
 ## User Request Routing
 
@@ -115,17 +120,34 @@ Then:
 4. If preflight reports `needsPackageSelection: true`, select one package for
    the current iteration and rerun preflight with `--package <name>` before
    running package commands.
-5. Use preflight `suggestedCommands` for the implementation loop and
+5. Inspect preflight `upgradeChecks` before implementation edits:
+   - If `upgradeChecks.schema.status` is `requires-newer-fluoh`, run
+     `fluoh upgrade`, rerun `fluoh skill --json` when the agent copied the
+     skill, then rerun preflight.
+   - If `upgradeChecks.needsMigration` is true for any other schema status,
+     stop and report the migration blocker instead of editing project or
+     package code.
+   - If `upgradeChecks.packageDocs.hasNewerTemplate` is true, upgrade fluoh,
+     refresh copied skill files when needed, and rerun preflight before any
+     generated-doc refresh.
+   - If `upgradeChecks.packageDocs.needsRefresh` is true, run
+     `fluoh package docs refresh --dry-run`. In full adaptation requests,
+     run `fluoh package docs refresh` before code edits when the worktree is
+     clean; in review-only requests, report the refresh as a proposed change.
+   - If `upgradeChecks.packageDocs.needsRefreshUnknown` is true, fix the
+     reported dry-run failure and rerun `fluoh package docs refresh --dry-run`
+     before assuming generated docs are current.
+6. Use preflight `suggestedCommands` for the implementation loop and
    `finalCheckCommands` plus `deliveryChecks` as the final acceptance gate.
    Do not give a ready recommendation until those checks have evidence or an
    explicit blocker in the report.
-6. Prefer exact commands shown by generated `AGENTS.md` and `FLUOH.md` in a
+7. Prefer exact commands shown by generated `AGENTS.md` and `FLUOH.md` in a
    package repository. Use this skill only to choose the next step and keep the
    loop short.
-7. If the user specified an SDK version or line, use it. Otherwise keep the SDK
+8. If the user specified an SDK version or line, use it. Otherwise keep the SDK
    already recorded in `fluoh.yaml`; when none is recorded, run `fluoh sdk list`
    and choose the latest stable FlutterOH SDK line.
-8. Treat a request to "adapt", "fix", "make it support OHOS", or "hand it to
+9. Treat a request to "adapt", "fix", "make it support OHOS", or "hand it to
    AI" as authorization to make local code and project-file changes. Still ask
    before public API breaks, release version changes, real releases, pushes, or
    destructive Git operations.
@@ -164,6 +186,9 @@ When using `scripts/preflight.py`, route by the returned JSON:
 - `project.kind: package-repository`: run the Package Adaptation Flow. When
   `needsPackageSelection` is true, choose one `project.packages[].name` before
   running package commands.
+- `upgradeChecks`: handle schema and generated-doc upgrade checks before
+  implementation edits. Generated `FLUOH.md` and `AGENTS.md` sections are
+  tool-owned; do not edit inside `fluoh:generated` blocks by hand.
 - Use `project.packages[].examplePlatforms` to decide which Android, iOS, and
   macOS regression checks are relevant.
 - Use `finalCheckCommands` and `deliveryChecks` as the final acceptance checklist.

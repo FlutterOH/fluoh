@@ -14,13 +14,23 @@ void main() {
     return Directory.systemTemp.createTemp('fluoh_skill_script_');
   }
 
-  Future<File> writeFakeFluoh(Directory root) async {
+  Future<File> writeFakeFluoh(
+    Directory root, {
+    String docsDryRunOutput = 'Package docs are current',
+    int docsDryRunExitCode = 0,
+  }) async {
     final tool = File('${root.path}/fluoh');
     await tool.writeAsString('''
 #!/bin/sh
 if [ "\$1" = "--version" ]; then
   echo "fluoh 9.9.9"
   exit 0
+fi
+if [ "\$1" = "package" ] && [ "\$2" = "docs" ] && [ "\$3" = "refresh" ] && [ "\$4" = "--dry-run" ]; then
+cat <<'EOF'
+$docsDryRunOutput
+EOF
+  exit $docsDryRunExitCode
 fi
 echo "unexpected args: \$@" >&2
 exit 64
@@ -91,6 +101,8 @@ sdk:
       final project = report['project'] as Map<String, Object?>;
       final fluohResult = report['fluoh'] as Map<String, Object?>;
       final platforms = project['platformDirectories'] as Map<String, Object?>;
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final schema = upgradeChecks['schema'] as Map<String, Object?>;
 
       expect(project['kind'], 'app-project');
       expect(project['name'], 'example_app');
@@ -102,6 +114,8 @@ sdk:
       expect(platforms['android'], isTrue);
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 9.9.9');
+      expect(schema['status'], 'current');
+      expect(upgradeChecks['needsMigration'], isFalse);
       expect(stringList(report['suggestedCommands']), [
         'fluoh source update',
         'fluoh sdk use 3.35.8-ohos-0.0.3 --pub-get',
@@ -347,6 +361,8 @@ packages:
       final package = packages.single as Map<String, Object?>;
       final examplePlatforms =
           package['examplePlatforms'] as Map<String, Object?>;
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
 
       expect(project['kind'], 'package-repository');
       expect(project['packageNames'], ['camera']);
@@ -357,8 +373,20 @@ packages:
       expect(examplePlatforms['ohos'], isTrue);
       expect(examplePlatforms['android'], isTrue);
       expect(
+        (upgradeChecks['schema'] as Map<String, Object?>)['status'],
+        'current',
+      );
+      expect(upgradeChecks['needsMigration'], isFalse);
+      expect(packageDocs['needsRefresh'], isTrue);
+      expect(
+        packageDocs['dryRunCommand'],
+        'fluoh package docs refresh --dry-run',
+      );
+      expect(
         stringList(report['suggestedCommands']),
         containsAll([
+          'fluoh package docs refresh --dry-run',
+          'fluoh package docs refresh',
           'fluoh verify --package camera --json',
           'fluoh run --platform ohos --package camera --json',
           'fluoh package check --package camera --json',
@@ -392,6 +420,212 @@ packages:
       expect(
         report['sessionInspectCommand'],
         'python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>',
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight reports schema migration blockers before adaptation',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(root);
+
+      await File('${root.path}/pubspec.yaml').writeAsString('''
+name: old_app
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+      await File('${root.path}/fluoh.yaml').writeAsString('''
+sdk:
+  version: 3.35.8-ohos-0.0.3
+''');
+
+      final report = await runPreflight(root, fluohCommand: fluoh.path);
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final schema = upgradeChecks['schema'] as Map<String, Object?>;
+
+      expect(schema['status'], 'missing');
+      expect(upgradeChecks['needsMigration'], isTrue);
+      expect(
+        stringList(upgradeChecks['notes']),
+        contains(contains('current canonical schema')),
+      );
+      expect(
+        stringList(report['deliveryChecks']),
+        contains(contains('upgradeChecks has no migration blocker')),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight reports current-marker package docs when dry-run finds changes',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(
+        root,
+        docsDryRunOutput: '''
+Package docs would be refreshed
+    - FLUOH.md
+    - AGENTS.md
+''',
+      );
+
+      await File('${root.path}/fluoh.yaml').writeAsString('''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+''');
+      await File('${root.path}/FLUOH.md').writeAsString('''
+<!-- fluoh:generated:start id=package-implementation-guide version=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-implementation-guide -->
+''');
+      await File('${root.path}/AGENTS.md').writeAsString('''
+<!-- fluoh:generated:start id=package-agents-instructions version=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+
+      final report = await runPreflight(root, fluohCommand: fluoh.path);
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
+      final dryRun = packageDocs['dryRun'] as Map<String, Object?>;
+
+      expect(packageDocs['needsRefresh'], isTrue);
+      expect(dryRun['ok'], isTrue);
+      expect(dryRun['needsRefresh'], isTrue);
+      expect(dryRun['files'], ['FLUOH.md', 'AGENTS.md']);
+      expect(
+        stringList(report['suggestedCommands']),
+        containsAll([
+          'fluoh package docs refresh --dry-run',
+          'fluoh package docs refresh',
+        ]),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight upgrades before refreshing newer-template package docs',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(
+        root,
+        docsDryRunOutput: '''
+Package docs would be refreshed
+    - FLUOH.md
+    - AGENTS.md
+''',
+      );
+
+      await File('${root.path}/fluoh.yaml').writeAsString('''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+''');
+      await File('${root.path}/FLUOH.md').writeAsString('''
+<!-- fluoh:generated:start id=package-implementation-guide version=2 -->
+Generated content.
+<!-- fluoh:generated:end id=package-implementation-guide -->
+''');
+      await File('${root.path}/AGENTS.md').writeAsString('''
+<!-- fluoh:generated:start id=package-agents-instructions version=2 -->
+Generated content.
+<!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+
+      final report = await runPreflight(root, fluohCommand: fluoh.path);
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
+
+      expect(packageDocs['hasNewerTemplate'], isTrue);
+      expect(packageDocs['needsRefresh'], isFalse);
+      expect(stringList(upgradeChecks['commands']), ['fluoh upgrade']);
+      expect(stringList(report['suggestedCommands']).take(3).toList(), [
+        'fluoh upgrade',
+        'fluoh deps get',
+        'fluoh doctor -p --json --strict',
+      ]);
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight reports unknown package docs state when dry-run fails',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(
+        root,
+        docsDryRunOutput: 'dry-run failed',
+        docsDryRunExitCode: 64,
+      );
+
+      await File('${root.path}/fluoh.yaml').writeAsString('''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+''');
+      await File('${root.path}/FLUOH.md').writeAsString('''
+<!-- fluoh:generated:start id=package-implementation-guide version=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-implementation-guide -->
+''');
+      await File('${root.path}/AGENTS.md').writeAsString('''
+<!-- fluoh:generated:start id=package-agents-instructions version=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+
+      final report = await runPreflight(root, fluohCommand: fluoh.path);
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
+      final dryRun = packageDocs['dryRun'] as Map<String, Object?>;
+
+      expect(packageDocs['needsRefresh'], isFalse);
+      expect(packageDocs['needsRefreshUnknown'], isTrue);
+      expect(dryRun['ok'], isFalse);
+      expect(
+        stringList(upgradeChecks['commands']),
+        contains('fluoh package docs refresh --dry-run'),
+      );
+      expect(
+        stringList(upgradeChecks['notes']),
+        contains(contains('dry-run did not complete')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,

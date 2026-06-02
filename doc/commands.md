@@ -49,6 +49,14 @@ The JSON result also exposes helper script argv for preflight, report creation,
 report checking, and functional scenario creation, plus reference template paths
 for reports and interaction scenarios.
 
+Before implementation edits, agents must inspect preflight `upgradeChecks`.
+Schema blockers stop the flow until `fluoh` is upgraded or metadata is migrated.
+Package repositories with missing, legacy, or stale generated docs should run
+`fluoh package docs refresh --dry-run`, then `fluoh package docs refresh` when
+the worktree is clean and the request is not review-only. If preflight reports
+that the docs refresh state is unknown because dry-run failed, run the dry-run
+successfully before assuming generated docs are current.
+
 The skill version follows the `fluoh` CLI package version. Updating the CLI with
 `fluoh upgrade` updates the bundled skill files; agents that copied the skill
 should rerun `fluoh skill --json` and reinstall or reload the returned path.
@@ -114,6 +122,7 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | Summarize package release readiness. |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | Update package release version metadata. |
+| `fluoh package docs refresh` | `lib/src/package/commands/package_docs_command.dart` | Refresh generated package repository documentation. |
 | `fluoh package check` | `lib/src/package/commands/package_release_command.dart` | Run release checks without creating tags. |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Complete a FlutterOH package release. |
 | `fluoh verify` | `lib/src/workflow/workflow_commands.dart` | Run pub get, analysis, and tests for a project or package repository. |
@@ -446,6 +455,17 @@ maintenance branch recorded by Package `repository.git.branch`, validates
 stages generated files. File snapshots protect local state when the command
 fails.
 
+`fluoh package docs refresh` regenerates the fluoh-owned sections of
+`FLUOH.md` and `AGENTS.md` from the current Package `fluoh.yaml`. Generated
+sections are identified by `fluoh:generated` markers that include a stable
+section id and template version, so future template upgrades can replace only
+the owned section while preserving hand-written content. Existing non-empty
+`FLUOH_CHANGELOG.md` content is not rewritten; when the changelog is missing or
+empty, the command creates initial release headings from current package
+metadata. `--dry-run` reports files that would change without requiring a clean
+working tree. Writing requires the recorded package branch and a clean working
+tree, does not stage files, and does not change `fluoh.yaml`.
+
 `fluoh package sync` fetches upstream, fast-forwards the upstream branch recorded
 in Package `upstream.git.branch`, returns to the `repository.git.branch` branch
 recorded in `fluoh.yaml`, merges the upstream branch without committing first,
@@ -580,6 +600,7 @@ contain the local fluoh home path. Use `--package <name>` for one package,
 | Project `fluoh.yaml` | `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
 | Project `pubspec.yaml` | `deps fix`, `deps upgrade` |
 | FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package status`, `package version`, `package check`, `package release` validation |
+| Package generated docs | `package create`, `package add`, `package docs refresh` |
 | Source root and Manifest files | `source init`, `source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`, `package create` SDK setup |
 | Package examples | `package create`, `package add`, `deps get`, `verify`, `package check`, `package release` |

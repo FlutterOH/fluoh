@@ -18,6 +18,11 @@ from pathlib import Path
 from typing import Any
 
 
+PACKAGE_DOC_TEMPLATE_VERSION = 1
+PACKAGE_IMPLEMENTATION_GUIDE_SECTION = "package-implementation-guide"
+PACKAGE_AGENTS_INSTRUCTIONS_SECTION = "package-agents-instructions"
+
+
 def run(command: list[str], cwd: Path, timeout: int = 20) -> dict[str, Any]:
     try:
         result = subprocess.run(
@@ -121,6 +126,90 @@ def top_level_scalar(content: str, key: str) -> str | None:
     if not match:
         return None
     return clean_scalar(match.group(1)) or None
+
+
+def generated_section_state(content: str, section_id: str) -> dict[str, Any]:
+    version_match = re.search(
+        rf"<!--\s*fluoh:generated:start\s+id={re.escape(section_id)}\s+version=(\d+)\s*-->",
+        content,
+    )
+    if version_match:
+        version = int(version_match.group(1))
+        if version < PACKAGE_DOC_TEMPLATE_VERSION:
+            status = "stale"
+        elif version > PACKAGE_DOC_TEMPLATE_VERSION:
+            status = "newer"
+        else:
+            status = "current"
+        return {
+            "sectionId": section_id,
+            "status": status,
+            "version": version,
+            "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+        }
+    if "<!-- fluoh:generated:start -->" in content:
+        return {
+            "sectionId": section_id,
+            "status": "legacy",
+            "version": None,
+            "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+        }
+    return {
+        "sectionId": section_id,
+        "status": "missing",
+        "version": None,
+        "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+    }
+
+
+def schema_state(fluoh_yaml: Path, content: str) -> dict[str, Any]:
+    if not fluoh_yaml.exists():
+        return {"status": "missing-file", "version": None, "currentVersion": 1}
+    value = top_level_scalar(content, "schema")
+    if value is None:
+        return {"status": "missing", "version": None, "currentVersion": 1}
+    try:
+        version = int(value)
+    except ValueError:
+        return {"status": "invalid", "version": value, "currentVersion": 1}
+    if version < 1:
+        return {"status": "unsupported-old", "version": version, "currentVersion": 1}
+    if version > 1:
+        return {"status": "requires-newer-fluoh", "version": version, "currentVersion": 1}
+    return {"status": "current", "version": version, "currentVersion": 1}
+
+
+def package_docs_dry_run_state(root: Path, fluoh_command: list[str]) -> dict[str, Any]:
+    result = run(
+        [*fluoh_command, "package", "docs", "refresh", "--dry-run"],
+        root,
+        timeout=30,
+    )
+    state: dict[str, Any] = {
+        "ok": result["ok"],
+        "exitCode": result["exitCode"],
+        "needsRefresh": None,
+        "files": [],
+    }
+    stdout = result["stdout"]
+    if result["ok"]:
+        if "Package docs would be refreshed" in stdout:
+            state["needsRefresh"] = True
+            state["files"] = [
+                line.split("-", 1)[1].strip()
+                for line in stdout.splitlines()
+                if line.strip().startswith("-")
+            ]
+        elif "Package docs are current" in stdout:
+            state["needsRefresh"] = False
+    else:
+        state["stderr"] = result["stderr"]
+    return state
+
+
+def append_command(checks: dict[str, Any], command: str) -> None:
+    if command not in checks["commands"]:
+        checks["commands"].append(command)
 
 
 def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
@@ -260,12 +349,98 @@ def project_info(root: Path, requested_package: str | None = None) -> dict[str, 
     }
 
 
+def upgrade_checks(
+    root: Path, project: dict[str, Any], fluoh_command: list[str]
+) -> dict[str, Any]:
+    fluoh_yaml = root / "fluoh.yaml"
+    content = read_text(fluoh_yaml) if fluoh_yaml.exists() else ""
+    schema = schema_state(fluoh_yaml, content)
+    checks: dict[str, Any] = {
+        "schema": schema,
+        "needsMigration": schema["status"]
+        not in {"current", "missing-file"}
+        and project["kind"] in {"app-project", "package-repository"},
+        "commands": [],
+        "notes": [],
+    }
+    if schema["status"] == "requires-newer-fluoh":
+        append_command(checks, "fluoh upgrade")
+        checks["notes"].append(
+            "fluoh.yaml declares a newer schema; upgrade fluoh before editing."
+        )
+    elif checks["needsMigration"]:
+        checks["notes"].append(
+            "fluoh.yaml is not in the current canonical schema; stop before editing and migrate or regenerate metadata."
+        )
+
+    if project["kind"] == "package-repository":
+        guide_content = read_text(root / "FLUOH.md")
+        agents_content = read_text(root / "AGENTS.md")
+        docs = {
+            "templateVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+            "refreshCommand": "fluoh package docs refresh",
+            "dryRunCommand": "fluoh package docs refresh --dry-run",
+            "sections": [
+                {
+                    "file": "FLUOH.md",
+                    **generated_section_state(
+                        guide_content, PACKAGE_IMPLEMENTATION_GUIDE_SECTION
+                    ),
+                },
+                {
+                    "file": "AGENTS.md",
+                    **generated_section_state(
+                        agents_content, PACKAGE_AGENTS_INSTRUCTIONS_SECTION
+                    ),
+                },
+            ],
+        }
+        refresh_statuses = {"missing", "legacy", "stale"}
+        marker_needs_refresh = any(
+            section["status"] in refresh_statuses for section in docs["sections"]
+        )
+        docs["hasNewerTemplate"] = any(
+            section["status"] == "newer" for section in docs["sections"]
+        )
+        docs["dryRun"] = package_docs_dry_run_state(root, fluoh_command)
+        docs["needsRefresh"] = not docs["hasNewerTemplate"] and (
+            marker_needs_refresh or docs["dryRun"].get("needsRefresh") is True
+        )
+        docs["needsRefreshUnknown"] = (
+            not docs["hasNewerTemplate"]
+            and not marker_needs_refresh
+            and docs["dryRun"].get("ok") is False
+        )
+        checks["packageDocs"] = docs
+        if docs["hasNewerTemplate"]:
+            append_command(checks, "fluoh upgrade")
+            checks["notes"].append(
+                "Generated package docs were created by a newer template; upgrade fluoh before refreshing."
+            )
+        elif docs["needsRefresh"]:
+            checks["commands"].extend(
+                ["fluoh package docs refresh --dry-run", "fluoh package docs refresh"]
+            )
+            checks["notes"].append(
+                "Generated package docs are missing, legacy, or stale; refresh them before implementation edits."
+            )
+        if docs["needsRefreshUnknown"]:
+            checks["commands"].append("fluoh package docs refresh --dry-run")
+            checks["notes"].append(
+                "Package docs dry-run did not complete; run it successfully before assuming generated docs are current."
+            )
+    return checks
+
+
 def suggested_commands(info: dict[str, Any]) -> list[str]:
     project = info["project"]
     kind = project["kind"]
+    upgrade = info.get("upgradeChecks", {})
+    upgrade_commands = upgrade.get("commands", [])
     if kind == "app-project":
         sdk = project["sdkVersion"] or "<sdk-version-or-line>"
         return [
+            *upgrade_commands,
             "fluoh source update",
             f"fluoh sdk use {sdk} --pub-get",
             "fluoh deps check --json",
@@ -280,6 +455,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
         return [
+            *upgrade_commands,
             "fluoh deps get",
             "fluoh doctor -p --json --strict",
             f"fluoh verify --package {package} --json",
@@ -339,6 +515,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
     kind = project["kind"]
     if kind == "app-project":
         return [
+            "Confirm preflight upgradeChecks has no migration blocker before editing.",
             "Create or update .fluoh/ai-report-...md before the final response.",
             "Record deps, doctor, build, and run command results with exit codes.",
             "If no OHOS target is available, record the signed build as build-only evidence and explain the missing target.",
@@ -348,6 +525,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
         return [
+            "Confirm preflight upgradeChecks has no schema migration blocker and generated docs are current or refreshed before editing.",
             f"Create or update .fluoh/ai-report-{package}-...md before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
@@ -497,6 +675,7 @@ def main() -> int:
         "project": project_info(root, requested_package=requested_package),
         "git": git_state(root),
     }
+    info["upgradeChecks"] = upgrade_checks(root, info["project"], fluoh_command)
     info["suggestedCommands"] = suggested_commands(info)
     info["finalCheckCommands"] = final_check_commands(info)
     info["deliveryChecks"] = delivery_checks(info)

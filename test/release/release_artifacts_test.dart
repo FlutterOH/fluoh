@@ -157,6 +157,7 @@ void main() {
     expect(skill, contains('## CLI Setup'));
     expect(skill, contains('finalCheckCommands'));
     expect(skill, contains('deliveryChecks'));
+    expect(skill, contains('upgradeChecks'));
     expect(skill, contains('final acceptance gate'));
     expect(skill, contains('dart pub global activate fluoh'));
     expect(skill, contains('brew install fluoh'));
@@ -166,6 +167,7 @@ void main() {
     expect(skill, contains('skillVersion'));
     expect(skill, contains('upgradePrompt'));
     expect(skill, contains('fluoh deps check --json'));
+    expect(skill, contains('fluoh package docs refresh'));
     expect(skill, contains('fluoh build --platform ohos --auto-sign --json'));
     expect(
       skill,
@@ -233,6 +235,9 @@ void main() {
 
     expectContainsAll(preflight, [
       'schemaVersion',
+      'upgradeChecks',
+      'PACKAGE_DOC_TEMPLATE_VERSION',
+      'fluoh package docs refresh --dry-run',
       'suggestedCommands',
       'finalCheckCommands',
       'deliveryChecks',

@@ -24,6 +24,30 @@ schema from the execution context, not from the filename alone.
 the running `fluoh` supports, commands stop and ask the user to upgrade `fluoh`
 instead of guessing. Commands validate only the current canonical layout.
 
+### Generated Markdown Sections
+
+Generated package repository guidance is versioned separately from YAML schema.
+`FLUOH.md` and `AGENTS.md` contain fluoh-owned sections delimited by Markdown
+comments:
+
+```text
+<!-- fluoh:generated:start id=<section> version=<templateVersion> -->
+...
+<!-- fluoh:generated:end id=<section> -->
+```
+
+The `id` identifies the generated section and the `version` identifies the
+template shape, not the package data schema. `fluoh package docs refresh`,
+`fluoh package create`, and `fluoh package add` may replace only the matching
+generated section. Hand-written content before or after the generated section is
+user-owned and must be preserved. Generated sections also include an in-block
+comment that tells maintainers not to edit inside the block and to run
+`fluoh package docs refresh` after changing `fluoh.yaml` or upgrading `fluoh`.
+Non-empty `FLUOH_CHANGELOG.md` content is user-owned; commands may warn about
+missing release entries or create an initial changelog when the file is absent
+or empty, but they must not rewrite existing release notes as a template
+upgrade.
+
 ### Project
 
 Project config stays small:

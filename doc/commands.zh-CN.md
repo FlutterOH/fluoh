@@ -45,6 +45,13 @@ skill 会在 `fluoh --version` 失败时安装 CLI：优先使用
 JSON 结果也会暴露 preflight、创建报告、检查报告、创建功能场景的 helper script argv，
 以及报告模板和交互场景模板的 reference 路径。
 
+实现代码前，AI agent 必须先检查 preflight 的 `upgradeChecks`。schema blocker
+会暂停流程，直到升级 `fluoh` 或迁移 metadata。Package 仓库如果缺少生成文档、仍使用旧
+生成段，或生成文档模板已过期，应先运行 `fluoh package docs refresh --dry-run`；
+当工作树干净且不是 review-only 请求时，再运行 `fluoh package docs refresh`。如果
+preflight 因 dry-run 失败而无法确认生成文档是否最新，应先让 dry-run 成功，再假定生成文档
+是当前版本。
+
 skill 版本跟随 `fluoh` CLI Package 版本。用 `fluoh upgrade` 更新 CLI 后，内置
 skill 文件也会更新；已复制 skill 的 AI agent 应重新运行 `fluoh skill --json`，
 再覆盖安装或重载返回的路径。AI agent 完成前会写入带交付清单的 `.fluoh/ai-report-...md`。
@@ -106,6 +113,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS Package 分支。 |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 Package 发布就绪状态。 |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | 更新 Package 发布版本元数据。 |
+| `fluoh package docs refresh` | `lib/src/package/commands/package_docs_command.dart` | 刷新 Package 仓库生成文档。 |
 | `fluoh package check` | `lib/src/package/commands/package_release_command.dart` | 运行发布前检查，不创建 tag。 |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 完成 FlutterOH Package release。 |
 | `fluoh verify` | `lib/src/workflow/workflow_commands.dart` | 为项目或 Package 仓库运行 pub get、分析和测试。 |
@@ -432,6 +440,14 @@ Package example 则在可判断时继续使用更细的安装、启动、runtime
 设置发布状态。`compatible` 会移除 status 字段，因为 compatible 是默认状态。
 `--bump` 和 `--set` 互斥。`--dry-run` 只打印计划不写入，`--json` 输出机器可读结果。
 
+`fluoh package docs refresh` 根据当前 Package `fluoh.yaml` 重新生成
+`FLUOH.md` 和 `AGENTS.md` 中 fluoh 拥有的生成段。生成段使用包含稳定 section id
+和 template version 的 `fluoh:generated` marker，因此后续模板升级只会替换被工具拥有的段落，
+保留手写内容。已有非空 `FLUOH_CHANGELOG.md` 不会被整体重写；如果 changelog 缺失或为空，
+命令会根据当前 Package metadata 创建初始 release heading。`--dry-run` 只报告会变化的文件，
+不要求干净工作树。实际写入要求当前分支匹配 `fluoh.yaml` 记录的 Package 分支且工作树干净，
+不会 stage 文件，也不会修改 `fluoh.yaml`。
+
 `fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送
 tag。使用 `--package <name>` 检查单个 Package，或用 `--all` 检查所有已注册 Package。
@@ -464,6 +480,7 @@ Flutter example、example OHOS 平台、example 测试，以及 tracked 文件�
 | 项目 `fluoh.yaml` | `sdk use`、`deps check`、`deps fix`、`deps upgrade` |
 | 项目 `pubspec.yaml` | `deps fix`、`deps upgrade` |
 | FlutterOH Package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package status`、`package version`、`package check`、`package release` 校验 |
+| Package 生成文档 | `package create`、`package add`、`package docs refresh` |
 | Source root 和 Manifest 文件 | `source init`、`source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`、`package create` 的 SDK 设置 |
 | Package examples | `package create`、`package add`、`deps get`、`verify`、`package check`、`package release` |
