@@ -2,13 +2,16 @@ import 'dependency_policy.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
+/// Parsed project-level `fluoh.yaml` configuration.
 class ProjectFluohConfig {
+  /// Creates a project configuration value.
   const ProjectFluohConfig({
     required this.schemaVersion,
     this.sdkVersion,
     this.dependencyPolicy = const DependencyPolicy(),
   });
 
+  /// Parses project `fluoh.yaml` content.
   factory ProjectFluohConfig.parse(String content) {
     final yaml = parseYamlMap(content, label: 'fluoh.yaml');
     ensureSupportedSchema(yaml);
@@ -26,11 +29,17 @@ class ProjectFluohConfig {
     );
   }
 
+  /// Schema version declared by the project config.
   final int schemaVersion;
+
+  /// Selected FlutterOH SDK version, when configured.
   final String? sdkVersion;
+
+  /// Dependency rewrite policy for this project.
   final DependencyPolicy dependencyPolicy;
 }
 
+/// Creates a new project `fluoh.yaml` for [sdkVersion].
 String newProjectFluohConfigContent(String sdkVersion) {
   return [
     'schema: 1',
@@ -51,6 +60,7 @@ String newProjectFluohConfigContent(String sdkVersion) {
   ].join('\n');
 }
 
+/// Inserts or updates `sdk.version` in project `fluoh.yaml` content.
 String upsertProjectSdkVersion(String content, String sdkVersion) {
   final lines = content.split('\n');
   if (content.endsWith('\n')) {

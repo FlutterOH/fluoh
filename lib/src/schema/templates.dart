@@ -1,3 +1,4 @@
+/// Built-in schema template content keyed by template name.
 const fluohSchemaTemplates = <String, String>{
   'project': projectFluohYamlTemplate,
   'package-repository': packageRepositoryFluohYamlTemplate,
@@ -6,6 +7,7 @@ const fluohSchemaTemplates = <String, String>{
   'tool-config': toolConfigJsonTemplate,
 };
 
+/// Template for a project-level `fluoh.yaml`.
 const projectFluohYamlTemplate = '''
 schema: 1
 
@@ -17,6 +19,7 @@ dependencyPolicy:
   versionChanges: compatible
 ''';
 
+/// Template for a package repository `fluoh.yaml`.
 const packageRepositoryFluohYamlTemplate = '''
 schema: 1
 name: camera
@@ -45,6 +48,7 @@ packages:
     status: experimental
 ''';
 
+/// Template for a Source root `fluoh.yaml`.
 const sourceRootYamlTemplate = '''
 schema: 1
 kind: source
@@ -68,6 +72,7 @@ manifests:
   - name: camera
 ''';
 
+/// Template for a Source package Manifest YAML file.
 const sourcePackageManifestYamlTemplate = '''
 schema: 1
 kind: manifest
@@ -95,6 +100,7 @@ packages:
             status: experimental
 ''';
 
+/// Template for persisted tool configuration JSON.
 const toolConfigJsonTemplate = '''
 {
   "sources": {
@@ -107,6 +113,7 @@ const toolConfigJsonTemplate = '''
 }
 ''';
 
+/// Returns a built-in schema template by [name].
 String templateContent(String name) {
   final template = fluohSchemaTemplates[name];
   if (template == null) {

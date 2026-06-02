@@ -37,16 +37,65 @@ void main() {
       stdout,
       contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
     );
+    expect(
+      stdout,
+      contains(
+        'No certification report provided; release will use baseline checks only.',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('check validates without creating tags and can emit json', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json'],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final tags = await runGit(packageRepository, ['tag', '--list']);
+    expect(
+      tags.stdout.toString(),
+      isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')),
+    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'package check'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('passed', true));
+    expect(report, containsPair('dryRun', true));
+    expect(report, containsPair('tags', ['camera-0.11.0-ohos-3.35-0.1.0']));
+    final packages = report['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final verification = package['verification'] as Map<String, Object?>;
+    final target = verification['target'] as Map<String, Object?>;
+    expect(target, containsPair('kind', 'package'));
+    expect(target, containsPair('name', 'camera'));
     expect(stderr, isEmpty);
   });
 
   test(
-    'release dry run validates without creating tags and can emit json',
+    'check validates without creating tags and accepts report alias',
     () async {
       final environment = await createTestEnvironment();
       final packageRepository = await createPackageRepositoryFixture(
         environment,
       );
+      final report = await _writeCertificationReport(packageRepository);
       final releaseEnvironment = FluohEnvironment(
         homeDirectory: environment.homeDirectory,
         workingDirectory: packageRepository,
@@ -56,7 +105,7 @@ void main() {
 
       expect(
         await runFluoh(
-          ['package', 'release', '--dry-run', '--json'],
+          ['package', 'check', '--json', '--report', report.path],
           environment: releaseEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -69,25 +118,162 @@ void main() {
         tags.stdout.toString(),
         isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')),
       );
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('schemaVersion', 1));
-      expect(report, containsPair('command', 'package release'));
-      expect(report, containsPair('ok', true));
-      expect(report, containsPair('exitCode', 0));
-      expect(report, containsPair('passed', true));
-      expect(report, containsPair('dryRun', true));
-      expect(report, containsPair('tags', ['camera-0.11.0-ohos-3.35-0.1.0']));
-      final packages = report['packages'] as List<Object?>;
+      final result = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(result, containsPair('command', 'package check'));
+      expect(result, containsPair('ok', true));
+      expect(result, containsPair('dryRun', true));
+      expect(result, containsPair('tags', ['camera-0.11.0-ohos-3.35-0.1.0']));
+      final packages = result['packages'] as List<Object?>;
       final package = packages.single as Map<String, Object?>;
-      final verification = package['verification'] as Map<String, Object?>;
-      final target = verification['target'] as Map<String, Object?>;
-      expect(target, containsPair('kind', 'package'));
-      expect(target, containsPair('name', 'camera'));
+      final certification = package['certification'] as Map<String, Object?>;
+      expect(certification, containsPair('required', true));
+      expect(certification, containsPair('ok', true));
       expect(stderr, isEmpty);
     },
   );
 
-  test('release json reports validation failures as json', () async {
+  test('check accepts a certification report', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(packageRepository);
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--certification-report', report.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    final packages = result['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final certification = package['certification'] as Map<String, Object?>;
+
+    expect(certification, containsPair('required', true));
+    expect(certification, containsPair('certified', true));
+    expect(certification, containsPair('ok', true));
+    expect(certification, containsPair('recommendation', 'ready'));
+    expect(certification, containsPair('commandRows', 2));
+    expect(certification, containsPair('passedCommandRows', 2));
+    expect(certification, containsPair('interactionRows', 0));
+    expect(certification, containsPair('passedInteractionRows', 0));
+    expect(stderr, isEmpty);
+  });
+
+  test('check certification ignores failed command rows as evidence', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(
+      packageRepository,
+      ohosBuildExit: 1,
+      ohosBuildResult: 'failed',
+    );
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--certification-report', report.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(
+      result['error'],
+      allOf(
+        isA<Map<String, Object?>>(),
+        containsPair('message', contains('passed OHOS build or run evidence')),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('check certification can require OHOS run evidence', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(packageRepository);
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--json',
+          '--certification-report',
+          report.path,
+          '--require-ohos-run',
+        ],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+    var result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(
+      result['error'],
+      allOf(
+        isA<Map<String, Object?>>(),
+        containsPair('message', contains('fluoh run --platform ohos evidence')),
+      ),
+    );
+
+    stdout.clear();
+    await _writeCertificationReport(packageRepository, includeOhosRun: true);
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'check',
+          '--json',
+          '--certification-report',
+          report.path,
+          '--require-ohos-run',
+        ],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    result = jsonDecode(stdout.single) as Map<String, Object?>;
+    final packages = result['packages'] as List<Object?>;
+    final package = packages.single as Map<String, Object?>;
+    final certification = package['certification'] as Map<String, Object?>;
+    expect(certification, containsPair('required', true));
+    expect(certification, containsPair('certified', true));
+    expect(certification, containsPair('ok', true));
+    expect(certification, containsPair('commandRows', 3));
+    expect(certification, containsPair('passedCommandRows', 3));
+    expect(certification, containsPair('interactionRows', 0));
+    expect(certification, containsPair('passedInteractionRows', 0));
+    expect(stderr, isEmpty);
+  });
+
+  test('check json reports validation failures as json', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
     final releaseEnvironment = FluohEnvironment(
@@ -101,7 +287,7 @@ void main() {
 
     expect(
       await runFluoh(
-        ['package', 'release', '--dry-run', '--json'],
+        ['package', 'check', '--json'],
         environment: releaseEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -742,6 +928,103 @@ exit 0
       contains('Created release tag share_plus-9.0.0-ohos-3.35-0.1.0'),
     );
   });
+}
+
+Future<File> _writeCertificationReport(
+  Directory packageRepository, {
+  bool includeOhosRun = false,
+  int ohosBuildExit = 0,
+  String ohosBuildResult = 'passed',
+}) async {
+  final reportDirectory = Directory('${packageRepository.path}/.fluoh');
+  await reportDirectory.create(recursive: true);
+  final report = File('${reportDirectory.path}/ai-report-camera.md');
+  final ohosRunRow = includeOhosRun
+      ? '| `fluoh run --platform ohos --package camera --json` | 0 | passed | installed, launched, and collected hilog |\n'
+      : '';
+  await report.writeAsString('''
+# fluoh AI Report
+
+- Scope: camera
+- Repository: package_release
+- Package: camera
+- Upstream version: 0.11.0
+- FlutterOH SDK: 3.35.8-ohos-0.0.3
+- Date: 2026-06-02
+- Recommendation: ready
+
+## Summary
+
+- camera is certified for release.
+
+## Changes
+
+- Added OHOS package adaptation evidence.
+
+## Public API / Compatibility
+
+- Public Dart API changes: none
+- Dependency constraint changes: none
+- Non-OHOS regression risk: no existing non-OHOS example platform in fixture
+
+## Commands
+
+| Command | Exit | Result | Notes |
+| --- | --- | --- | --- |
+| `fluoh verify --package camera --json` | 0 | passed | package and example baseline passed |
+| `fluoh build --platform ohos --package camera --auto-sign --json` | $ohosBuildExit | $ohosBuildResult | signed HAP was produced |
+$ohosRunRow
+## Delivery Checklist
+
+- [x] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.
+- [x] Commands table includes exit codes and enough evidence to reproduce the decision.
+- [x] OHOS build evidence recorded.
+- [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Android, iOS, and macOS regression checks recorded when relevant.
+- [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
+- [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
+- [x] Remaining risks and release decision are explicit.
+
+## Platform Matrix
+
+| Platform | Build | Run | Integration test | Target | Evidence / blocker |
+| --- | --- | --- | --- | --- | --- |
+| OHOS | passed | ${includeOhosRun ? 'passed' : 'skipped with blocker'} | not required | ${includeOhosRun ? 'emulator' : 'none'} | build evidence recorded |
+| Android | not present | not present | not required | none | no Android example platform |
+| iOS | not present | not present | not required | none | no iOS example platform |
+| macOS | not present | not present | not required | none | no macOS example platform |
+
+## Interaction Evidence
+
+No interaction required: fixture package has no device-side interaction flow.
+
+## Diagnostics
+
+- No diagnostics remain.
+
+## Signing
+
+- Mode: automatic debug signing
+- Generated HAPs: camera-ohos-debug.hap
+- Hilog: no crash marker detected
+
+## Remaining Risks
+
+- None.
+
+## Local State
+
+- Git status summary: clean
+- Files intentionally left uncommitted: .fluoh/ai-report-camera.md
+- Files that must not be committed: local AI reports and device logs
+
+## Release Decision
+
+Release recommendation: ready
+
+Reason: baseline and OHOS evidence are complete.
+''');
+  return report;
 }
 
 Future<void> _addWorkspacePackage(

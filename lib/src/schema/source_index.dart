@@ -50,6 +50,7 @@ class SourceRootManifest {
 
 /// Data used to generate a Source root `fluoh.yaml` template.
 class SourceRootManifestTemplate {
+  /// Creates data for a Source root manifest template.
   const SourceRootManifestTemplate({
     required this.name,
     this.description,
@@ -60,24 +61,40 @@ class SourceRootManifestTemplate {
     this.sdkReleases = const <SdkRelease>[],
   });
 
+  /// Source name written to the generated root manifest.
   final String name;
+
+  /// Optional human-readable Source description.
   final String? description;
+
+  /// Optional Git URL for the Source repository itself.
   final String? repositoryGitUrl;
+
+  /// Optional compatible fluoh version constraint.
   final String? fluohConstraint;
+
+  /// Package Manifest routes written under `manifests`.
   final List<SourceManifestRoute> manifests;
+
+  /// Optional SDK repository URL written under `sdk.git.url`.
   final String? sdkRepository;
+
+  /// SDK releases listed in the generated root manifest.
   final List<SdkRelease> sdkReleases;
 }
 
 /// Route from a Source root to one package Manifest file.
 class SourceManifestRoute {
+  /// Creates a route to `manifests/<name>/fluoh.yaml`.
   const SourceManifestRoute({required this.name});
 
+  /// Manifest route name.
   final String name;
 }
 
 /// Parsed SDK release index.
 class SdkIndex {
+  /// Creates an SDK release index.
   const SdkIndex({required this.schemaVersion, required this.releases});
 
   /// Schema version used by the source data.
@@ -92,6 +109,7 @@ typedef SourceSdkIndex = SdkIndex;
 
 /// FlutterOH SDK release advertised by Source data.
 class SdkRelease {
+  /// Creates an SDK release record.
   const SdkRelease({
     required this.version,
     required this.versionSeries,
@@ -309,6 +327,7 @@ class SourcePackageAlternative {
 
 /// Data used to generate a package Manifest template.
 class SourceManifestTemplate {
+  /// Creates data for a Source package Manifest template.
   const SourceManifestTemplate({
     required this.name,
     required this.repositoryGitUrl,
@@ -319,17 +338,31 @@ class SourceManifestTemplate {
     this.upstreamPath = '.',
   });
 
+  /// Manifest name.
   final String name;
+
+  /// FlutterOH implementation repository URL.
   final String repositoryGitUrl;
+
+  /// Default package path inside the implementation repository.
   final String repositoryPath;
+
+  /// Upstream repository URL.
   final String upstreamGitUrl;
+
+  /// Upstream branch used by package sync.
   final String upstreamBranch;
+
+  /// Default package path inside the upstream repository.
   final String upstreamPath;
+
+  /// Package entries to generate.
   final List<SourceManifestPackageTemplate> packages;
 }
 
 /// Data used to generate one package entry in a Manifest template.
 class SourceManifestPackageTemplate {
+  /// Creates a package entry for a Source Manifest template.
   const SourceManifestPackageTemplate({
     required this.name,
     required this.repositoryPath,

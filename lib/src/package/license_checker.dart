@@ -1,5 +1,6 @@
 import 'dart:io';
 
+/// Returns release warnings for missing or restrictive package licenses.
 Future<List<String>> packageLicenseWarnings({
   required Directory repository,
   required String? packagePath,

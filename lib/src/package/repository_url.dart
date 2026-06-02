@@ -1,3 +1,4 @@
+/// Builds the default FlutterOH package repository URL for [packageName].
 String defaultPackageRepositoryUrl(
   String packageName, {
   String base = 'https://github.com/FlutterOH',
@@ -17,6 +18,7 @@ String defaultPackageRepositoryUrl(
   return '${base.replaceFirst(RegExp(r'/$'), '')}/$suffix';
 }
 
+/// Derives a repository name from an upstream Git URL or path.
 String repositoryNameFromUpstream(String upstream) {
   final trimmed = upstream.trim();
   final withoutSlash = trimmed.endsWith('/')

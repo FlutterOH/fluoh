@@ -15,8 +15,10 @@ export '../../schema/schema.dart'
         packageManifestSchema,
         packageReleaseTagForPackage,
         sdkLineFromSdkVersion,
-        sdkVersionSeriesFromSdkVersion;
+        sdkVersionSeriesFromSdkVersion,
+        updatePackageManifestRelease;
 
+/// Writes a new package repository `fluoh.yaml` manifest.
 Future<void> writePackageManifest({
   required Directory destination,
   required PubspecPackage package,
@@ -49,6 +51,7 @@ Future<void> writePackageManifest({
   await writePackageManifestFile(destination, manifest);
 }
 
+/// Writes canonical manifest content to `fluoh.yaml` in [destination].
 Future<void> writePackageManifestFile(
   Directory destination,
   PackageManifest manifest,
@@ -58,6 +61,10 @@ Future<void> writePackageManifestFile(
   ).writeAsString(packageManifestContent(manifest));
 }
 
+/// Adds a package entry to an existing package repository manifest file.
+///
+/// Schema validation errors are converted to [UsageException] so command code
+/// can report them consistently with argument validation failures.
 Future<void> addPackageManifestPackage({
   required Directory destination,
   required PubspecPackage package,
@@ -82,6 +89,9 @@ Future<void> addPackageManifestPackage({
   }
 }
 
+/// Updates upstream package versions in an existing manifest file.
+///
+/// Schema validation errors are converted to [UsageException] for CLI callers.
 Future<void> updatePackageManifestUpstream({
   required Directory destination,
   required Map<String, String> packageVersions,
@@ -100,6 +110,7 @@ Future<void> updatePackageManifestUpstream({
   }
 }
 
+/// Reads and validates `fluoh.yaml` from a package repository.
 Future<PackageManifest> readPackageManifest(Directory repository) async {
   final manifest = File('${repository.path}/fluoh.yaml');
   if (!await manifest.exists()) {

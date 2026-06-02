@@ -15,6 +15,7 @@ import 'manifest/package_manifest.dart';
 import 'manifest/pubspec_package.dart';
 import 'package_examples.dart';
 
+/// Runs the package verification workflow for one package entry.
 Future<WorkflowTargetResult> runPackageWorkflow({
   required FluohEnvironment environment,
   required PackageManifest manifest,

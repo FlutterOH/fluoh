@@ -1,9 +1,12 @@
 import 'source_index.dart';
 import 'yaml_utils.dart';
 
+/// Package name and version read from a `pubspec.yaml`.
 class PubspecPackage {
+  /// Creates a pubspec package identity.
   const PubspecPackage({required this.name, required this.version});
 
+  /// Parses package identity from `pubspec.yaml` content.
   factory PubspecPackage.fromYaml(String content) {
     final yaml = parseYamlMap(content, label: 'pubspec.yaml');
     final name = yaml['name'];
@@ -16,24 +19,36 @@ class PubspecPackage {
     return PubspecPackage(name: name, version: version);
   }
 
+  /// Package name.
   final String name;
+
+  /// Package version.
   final String version;
 }
 
+/// Package entry read from a `pubspec.lock` file.
 class PubLockPackage {
+  /// Creates a lockfile package entry.
   const PubLockPackage({
     required this.name,
     required this.version,
     this.dependencies = const <String>[],
   });
 
+  /// Locked package name.
   final String name;
+
+  /// Locked package version.
   final String version;
+
+  /// Names of packages this lockfile entry depends on.
   final List<String> dependencies;
 }
 
+/// Compatibility alias for lockfile package entries.
 typedef LockedPackage = PubLockPackage;
 
+/// Returns direct non-Flutter SDK dependency names from `pubspec.yaml`.
 Set<String> directDependencyNamesFromPubspec(String content) {
   final pubspec = parseYamlMap(content, label: 'pubspec.yaml');
   final dependencies = pubspec['dependencies'];
@@ -50,6 +65,7 @@ Set<String> directDependencyNamesFromPubspec(String content) {
       .toSet();
 }
 
+/// Parses all package entries from `pubspec.lock`.
 Map<String, PubLockPackage> pubLockPackagesFromLock(String content) {
   final lock = parseYamlMap(content, label: 'pubspec.lock');
   final packages = lock['packages'];
@@ -70,6 +86,7 @@ Map<String, PubLockPackage> pubLockPackagesFromLock(String content) {
   });
 }
 
+/// Computes dependency chains from direct packages to transitive packages.
 Map<String, List<String>> dependencyChains(
   Map<String, PubLockPackage> packages,
   Set<String> directDependencies,
@@ -111,28 +128,39 @@ List<String> _packageDependencies(Map<String, Object?> package) {
   return dependencies.keys.toList(growable: false);
 }
 
+/// Pubspec sections that can hold package dependency references.
 enum PubspecDependencySection {
   dependencies('dependencies'),
   dependencyOverrides('dependency_overrides');
 
   const PubspecDependencySection(this.yamlKey);
 
+  /// YAML key for this dependency section.
   final String yamlKey;
 }
 
+/// Kind of pubspec dependency rewrite to apply.
 enum PubspecDependencyChangeKind { writeOverride, rewriteDependency, updateRef }
 
+/// Parsed dependency and override references from pubspec text.
 class PubspecDependencyState {
+  /// Creates parsed pubspec dependency state.
   const PubspecDependencyState({
     required this.dependencyRefs,
     required this.overrideRefs,
     required this.overrideNames,
   });
 
+  /// Direct dependency references keyed by package name.
   final Map<String, PubspecDependencyRef> dependencyRefs;
+
+  /// Dependency override references keyed by package name.
   final Map<String, PubspecDependencyRef> overrideRefs;
+
+  /// Package names that already have dependency overrides.
   final Set<String> overrideNames;
 
+  /// Returns existing FlutterOH refs for [packageName].
   List<PubspecDependencyRef> ohosRefsFor(String packageName) {
     final refs = <PubspecDependencyRef>[];
     final dependencyRef = dependencyRefs[packageName];
@@ -147,19 +175,28 @@ class PubspecDependencyState {
   }
 }
 
+/// One dependency reference found in pubspec text.
 class PubspecDependencyRef {
+  /// Creates a dependency reference descriptor.
   const PubspecDependencyRef({
     required this.section,
     required this.packageName,
     required this.value,
   });
 
+  /// Section containing the reference.
   final PubspecDependencySection section;
+
+  /// Package name for the reference.
   final String packageName;
+
+  /// Raw reference value, usually a Git tag or version string.
   final String value;
 }
 
+/// Planned mutation for one pubspec dependency reference.
 class PubspecDependencyChange {
+  /// Adds or replaces a dependency override with a FlutterOH implementation.
   const PubspecDependencyChange.writeOverride({
     required this.packageName,
     required this.implementation,
@@ -167,6 +204,7 @@ class PubspecDependencyChange {
        section = null,
        currentRef = null;
 
+  /// Rewrites a direct dependency to a FlutterOH implementation.
   const PubspecDependencyChange.rewriteDependency({
     required this.packageName,
     required this.implementation,
@@ -174,6 +212,7 @@ class PubspecDependencyChange {
        section = null,
        currentRef = null;
 
+  /// Updates an existing dependency or override reference.
   const PubspecDependencyChange.updateRef({
     required this.packageName,
     required this.implementation,
@@ -181,25 +220,41 @@ class PubspecDependencyChange {
     required this.currentRef,
   }) : kind = PubspecDependencyChangeKind.updateRef;
 
+  /// Rewrite operation kind.
   final PubspecDependencyChangeKind kind;
+
+  /// Package whose dependency reference should change.
   final String packageName;
+
+  /// FlutterOH implementation selected for the package.
   final PackageImplementation implementation;
+
+  /// Existing section to update for [PubspecDependencyChangeKind.updateRef].
   final PubspecDependencySection? section;
+
+  /// Current reference value for update operations.
   final String? currentRef;
 
+  /// Next dependency ref written to pubspec content.
   String get nextRef => implementation.tag;
 }
 
+/// Result of applying dependency changes to pubspec text.
 class PubspecDependencyApplyResult {
+  /// Creates a pubspec apply result.
   const PubspecDependencyApplyResult({
     required this.content,
     required this.applied,
   });
 
+  /// Updated pubspec content.
   final String content;
+
+  /// Number of changes applied.
   final int applied;
 }
 
+/// Parses dependency references from pubspec text.
 PubspecDependencyState parsePubspecDependencyState(String content) {
   return PubspecDependencyState(
     dependencyRefs: _parseSectionRefs(
@@ -217,6 +272,7 @@ PubspecDependencyState parsePubspecDependencyState(String content) {
   );
 }
 
+/// Applies structured dependency changes while preserving unrelated content.
 PubspecDependencyApplyResult applyPubspecDependencyChangesToContent({
   required String content,
   required List<PubspecDependencyChange> changes,

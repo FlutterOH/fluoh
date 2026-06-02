@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 
 import '../../cli/argument_validation.dart';
@@ -7,13 +9,27 @@ import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
 import '../../workflow/workflow_result.dart';
+import '../certification_report.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../package_workflow_runner.dart';
 import '../release_validator.dart';
 
+/// Selects whether the shared release command implementation checks or releases.
+///
+/// `check` runs the release gate without creating tags. `release` runs the same
+/// validation path and then creates the release tag, optionally pushing it.
+enum PackageReleaseCommandKind { check, release }
+
+/// Runs package release validation or completes a package release.
+///
+/// The command is intentionally shared between `fluoh package check` and
+/// `fluoh package release` so both paths use the same validation, workflow, and
+/// JSON output contract. Only the `release` kind creates or pushes Git tags.
 class PackageReleaseCommand extends FluohCommand<int> {
+  /// Creates a package check or release command.
   PackageReleaseCommand({
+    required this.kind,
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
@@ -25,44 +41,73 @@ class PackageReleaseCommand extends FluohCommand<int> {
       ..addOption(
         'package',
         valueHelp: 'name',
-        help: 'Package to release when fluoh.yaml registers multiple packages.',
+        help: kind == PackageReleaseCommandKind.check
+            ? 'Package to check when fluoh.yaml registers multiple packages.'
+            : 'Package to release when fluoh.yaml registers multiple packages.',
       )
       ..addFlag(
         'all',
         negatable: false,
-        help: 'Release every package registered in fluoh.yaml.',
+        help: kind == PackageReleaseCommandKind.check
+            ? 'Check every package registered in fluoh.yaml.'
+            : 'Release every package registered in fluoh.yaml.',
+      )
+      ..addFlag('json', negatable: false, help: 'Print the result as JSON.')
+      ..addOption(
+        'certification-report',
+        aliases: const ['report'],
+        valueHelp: 'path',
+        help: kind == PackageReleaseCommandKind.check
+            ? 'Require a completed fluoh AI certification report before passing the check. Alias: --report.'
+            : 'Require a completed fluoh AI certification report before release. Alias: --report.',
       )
       ..addFlag(
+        'require-ohos-run',
+        negatable: false,
+        help:
+            'Require OHOS run evidence in the certification report. '
+            'Use with --report.',
+      );
+    if (kind != PackageReleaseCommandKind.check) {
+      argParser.addFlag(
         'push',
         negatable: false,
-        help: 'Push the release tag to origin after creating or validating it.',
-      )
-      ..addFlag(
-        'dry-run',
-        negatable: false,
-        help: 'Validate and test the release without creating or pushing tags.',
-      )
-      ..addFlag(
-        'json',
-        negatable: false,
-        help: 'Print the release result as JSON.',
+        help: 'Push the release tag to origin after creating it.',
       );
+    }
   }
 
+  /// Command behavior mode.
+  final PackageReleaseCommandKind kind;
+
+  /// Runtime environment used for repository, SDK, and process access.
   final FluohEnvironment environment;
+
   final OutputWriter _stdout;
   final OutputWriter _stderr;
   late final TerminalOutput _output;
 
   @override
-  String get name => 'release';
+  String get name {
+    return switch (kind) {
+      PackageReleaseCommandKind.check => 'check',
+      PackageReleaseCommandKind.release => 'release',
+    };
+  }
 
   @override
-  String get description => 'Validate and tag FlutterOH package releases.';
+  String get description {
+    return switch (kind) {
+      PackageReleaseCommandKind.check =>
+        'Run package release checks without creating tags.',
+      PackageReleaseCommandKind.release =>
+        'Complete a FlutterOH package release.',
+    };
+  }
 
   @override
   Future<int> run() async {
-    final dryRun = argResults!.flag('dry-run');
+    final dryRun = kind == PackageReleaseCommandKind.check;
     final json = argResults!.flag('json');
     final validations = <_PackageReleaseValidationResult>[];
     final tags = <String>[];
@@ -73,6 +118,11 @@ class PackageReleaseCommand extends FluohCommand<int> {
       if (argResults!.flag('all') &&
           (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
         usageException('Use only one of --all or --package.');
+      }
+      final certificationReport = _trimmedOption('certification-report');
+      final requireOhosRun = argResults!.flag('require-ohos-run');
+      if (requireOhosRun && certificationReport == null) {
+        usageException('Use --require-ohos-run with --report <path>.');
       }
       final output = json
           ? TerminalOutput(stdout: (_) {}, stderr: (_) {})
@@ -88,15 +138,23 @@ class PackageReleaseCommand extends FluohCommand<int> {
           '${manifest.branch}.',
         );
       }
-      await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
+      await ensureCleanWorkingTree(
+        environment.workingDirectory,
+        _cleanTreeLabel,
+      );
       await _ensureSdkVersionExists(manifest.sdkVersion);
       final packages = argResults!.flag('all')
           ? manifest.packages
           : [manifest.packageForName(argResults!.option('package'))];
+      if (certificationReport != null && packages.length != 1) {
+        usageException('Use --report with one package at a time.');
+      }
       for (final package in packages) {
         final result = await _validateAndTestPackage(
           manifest: manifest,
           package: package,
+          certificationReport: certificationReport,
+          requireOhosRun: requireOhosRun,
           stdout: stdout,
           stderr: stderr,
           output: output,
@@ -129,7 +187,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
           );
         }
       }
-      if (argResults!.flag('push')) {
+      if (_pushRequested) {
         if (dryRun) {
           output.skipped(
             'Would push ${tags.length} release tag${_s(tags.length)}',
@@ -139,9 +197,9 @@ class PackageReleaseCommand extends FluohCommand<int> {
           pushed = true;
         }
       }
-      if (dryRun) {
+      if (kind == PackageReleaseCommandKind.check) {
         output.success(
-          'Release dry run passed for ${packages.length} package${_s(packages.length)}',
+          'Package release check passed for ${packages.length} package${_s(packages.length)}',
         );
       } else if (argResults!.flag('all')) {
         output.success(
@@ -192,6 +250,8 @@ class PackageReleaseCommand extends FluohCommand<int> {
   Future<_PackageReleaseValidationResult> _validateAndTestPackage({
     required PackageManifest manifest,
     required PackageManifestPackage package,
+    required String? certificationReport,
+    required bool requireOhosRun,
     required OutputWriter stdout,
     required OutputWriter stderr,
     required TerminalOutput output,
@@ -212,12 +272,34 @@ class PackageReleaseCommand extends FluohCommand<int> {
     for (final warning in warnings) {
       output.warningError(warning);
     }
+    final certification = await _certificationResult(
+      package: package,
+      certificationReport: certificationReport,
+      requireOhosRun: requireOhosRun,
+    );
+    if (certificationReport == null) {
+      output.warning(
+        'No certification report provided; release will use baseline checks only.',
+      );
+    } else if (!certification.ok) {
+      usageException(
+        [
+          'Certification report did not pass for ${package.name}.',
+          ...certification.errors,
+        ].join('\n'),
+      );
+    } else {
+      output.success('Certification report passed for ${package.name}');
+      for (final warning in certification.warnings) {
+        output.warning(warning);
+      }
+    }
     await _ensureReleaseTagIsUsable(tag: tag, package: package);
 
     final verifyCommand = manifest.packages.length == 1
         ? 'fluoh verify'
         : 'fluoh verify --package ${package.name}';
-    output.step('Running $verifyCommand before release');
+    output.step('Running $verifyCommand as package release verification');
     final verificationResult = await runPackageWorkflow(
       environment: environment,
       manifest: manifest,
@@ -231,15 +313,54 @@ class PackageReleaseCommand extends FluohCommand<int> {
       return _PackageReleaseValidationResult(
         tag: tag,
         warnings: warnings,
+        certification: certification,
         verification: verificationResult,
       );
     }
-    await ensureCleanWorkingTree(environment.workingDirectory, 'Release');
+    await ensureCleanWorkingTree(environment.workingDirectory, _cleanTreeLabel);
     return _PackageReleaseValidationResult(
       tag: tag,
       warnings: warnings,
+      certification: certification,
       verification: verificationResult,
     );
+  }
+
+  Future<PackageCertificationReportResult> _certificationResult({
+    required PackageManifestPackage package,
+    required String? certificationReport,
+    required bool requireOhosRun,
+  }) async {
+    if (certificationReport == null) {
+      return PackageCertificationReportResult(
+        reportPath: '',
+        requiredReport: false,
+        certified: false,
+        ok: true,
+        recommendation: null,
+        commandRows: 0,
+        passedCommandRows: 0,
+        interactionRows: 0,
+        passedInteractionRows: 0,
+        errors: const [],
+        warnings: const [
+          'No certification report provided; baseline release checks only.',
+        ],
+      );
+    }
+    return validatePackageCertificationReport(
+      report: _resolveReportFile(certificationReport),
+      packageName: package.name,
+      requireOhosRun: requireOhosRun,
+    );
+  }
+
+  File _resolveReportFile(String path) {
+    final file = File(path);
+    if (file.isAbsolute) {
+      return file;
+    }
+    return File('${environment.workingDirectory.path}/$path');
   }
 
   Future<String> _createReleaseTag({
@@ -306,7 +427,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
     if (tagCommit != headCommit) {
       usageException(
         'Release tag $tag already exists on a different commit. '
-        'Update fluoh.yaml release.version for ${package.name} before '
+        'Run fluoh package version --package ${package.name} before '
         'releasing new changes.',
       );
     }
@@ -353,11 +474,28 @@ class PackageReleaseCommand extends FluohCommand<int> {
     }
     writeMachineOutput(
       _stdout,
-      command: 'package release',
+      command: 'package $name',
       ok: passed,
       exitCode: resolvedExitCode,
       fields: result,
     );
+  }
+
+  String? _trimmedOption(String name) {
+    final value = argResults!.option(name)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  bool get _pushRequested {
+    return kind != PackageReleaseCommandKind.check &&
+        argResults!.wasParsed('push') &&
+        argResults!.flag('push');
+  }
+
+  String get _cleanTreeLabel {
+    return kind == PackageReleaseCommandKind.check
+        ? 'Package check'
+        : 'Release';
   }
 }
 
@@ -367,11 +505,13 @@ class _PackageReleaseValidationResult {
   const _PackageReleaseValidationResult({
     required this.tag,
     required this.warnings,
+    required this.certification,
     required this.verification,
   });
 
   final String tag;
   final List<String> warnings;
+  final PackageCertificationReportResult certification;
   final WorkflowTargetResult verification;
 
   Map<String, Object?> toJson() {
@@ -379,6 +519,7 @@ class _PackageReleaseValidationResult {
       'package': verification.targetName,
       'tag': tag,
       'warnings': warnings,
+      'certification': certification.toJson(),
       'verification': verification.toJson(),
     };
   }

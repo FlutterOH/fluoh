@@ -14,7 +14,9 @@ import '../schema/schema.dart';
 import 'source_runtime.dart';
 import 'source_sync.dart';
 
+/// Top-level `fluoh source` command group.
 class SourceCommand extends FluohCommand<int> {
+  /// Creates the Source command group and subcommands.
   SourceCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
@@ -124,14 +126,19 @@ const _sourceCommandSections = [
   ]),
 ];
 
+/// Lists configured Source entries.
 class SourceListCommand extends FluohCommand<int> {
+  /// Creates the Source list command.
   SourceListCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout);
 
+  /// Runtime environment containing persisted config paths.
   final FluohEnvironment environment;
+
+  /// Writer used for plain output.
   final OutputWriter stdout;
   final TerminalOutput _output;
 
@@ -179,14 +186,19 @@ class SourceListCommand extends FluohCommand<int> {
   }
 }
 
+/// Validates a local Source repository without adding it.
 class SourceValidateCommand extends FluohCommand<int> {
+  /// Creates the Source validate command.
   SourceValidateCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout);
 
+  /// Runtime environment used to resolve relative paths.
   final FluohEnvironment environment;
+
+  /// Writer kept for command construction consistency.
   final OutputWriter stdout;
   final TerminalOutput _output;
 
@@ -224,13 +236,16 @@ class SourceValidateCommand extends FluohCommand<int> {
   }
 }
 
+/// Creates a local Source repository template.
 class SourceInitCommand extends FluohCommand<int> {
+  /// Creates the Source init command.
   SourceInitCommand({
     required this.environment,
     required OutputWriter stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout);
 
+  /// Runtime environment used to resolve template paths.
   final FluohEnvironment environment;
   final TerminalOutput _output;
 
@@ -295,7 +310,9 @@ class SourceInitCommand extends FluohCommand<int> {
   }
 }
 
+/// Synchronizes package release metadata into a Source repository.
 class SourceSyncCommand extends FluohCommand<int> {
+  /// Creates the Source sync command.
   SourceSyncCommand({
     required this.environment,
     required this.stdout,
@@ -308,7 +325,10 @@ class SourceSyncCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment used to resolve repository paths.
   final FluohEnvironment environment;
+
+  /// Writer used for JSON output.
   final OutputWriter stdout;
   final TerminalOutput _output;
 
@@ -1020,7 +1040,9 @@ List<SourceManifestRelease> _upsertManifestRelease(
   return next;
 }
 
+/// Adds a Source to the persisted tool configuration.
 class SourceAddCommand extends FluohCommand<int> {
+  /// Creates the Source add command.
   SourceAddCommand({
     required this.environment,
     required this.stdout,
@@ -1034,7 +1056,10 @@ class SourceAddCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment containing config and cache paths.
   final FluohEnvironment environment;
+
+  /// Writer kept for command construction consistency.
   final OutputWriter stdout;
   final TerminalOutput _output;
 
@@ -1112,14 +1137,19 @@ class SourceAddCommand extends FluohCommand<int> {
   }
 }
 
+/// Removes a non-official Source from the persisted configuration.
 class SourceRemoveCommand extends FluohCommand<int> {
+  /// Creates the Source remove command.
   SourceRemoveCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout);
 
+  /// Runtime environment containing config and cache paths.
   final FluohEnvironment environment;
+
+  /// Writer kept for command construction consistency.
   final OutputWriter stdout;
   final TerminalOutput _output;
 
@@ -1158,14 +1188,19 @@ class SourceRemoveCommand extends FluohCommand<int> {
   }
 }
 
+/// Refreshes configured Source snapshots.
 class SourceUpdateCommand extends FluohCommand<int> {
+  /// Creates the Source update command.
   SourceUpdateCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout);
 
+  /// Runtime environment containing config and cache paths.
   final FluohEnvironment environment;
+
+  /// Writer kept for command construction consistency.
   final OutputWriter stdout;
   final TerminalOutput _output;
 

@@ -4,6 +4,7 @@ import 'dependency_policy.dart';
 import 'pubspec.dart';
 import 'source_index.dart';
 
+/// Compatibility status for one dependency on the selected FlutterOH SDK.
 enum DependencyStatus {
   native('native'),
   implemented('implemented'),
@@ -15,18 +16,25 @@ enum DependencyStatus {
 
   const DependencyStatus(this.label);
 
+  /// Stable label used in JSON output and human summaries.
   final String label;
 }
 
+/// Dependency compatibility report for a project and SDK version.
 class DependencyReport {
+  /// Creates a dependency compatibility report.
   const DependencyReport({
     required this.sdkVersion,
     required this.dependencies,
   });
 
+  /// Selected FlutterOH SDK version used for analysis.
   final String sdkVersion;
+
+  /// Compatibility rows for project dependencies.
   final List<DependencyCompatibility> dependencies;
 
+  /// Converts the report to CLI machine output fields.
   Map<String, Object?> toJson() {
     return {
       'sdkVersion': sdkVersion,
@@ -37,7 +45,9 @@ class DependencyReport {
   }
 }
 
+/// Compatibility decision for one locked package.
 class DependencyCompatibility {
+  /// Creates a dependency compatibility row.
   const DependencyCompatibility({
     required this.name,
     required this.version,
@@ -48,14 +58,28 @@ class DependencyCompatibility {
     this.dependencyChain = const <String>[],
   });
 
+  /// Package name.
   final String name;
+
+  /// Locked package version.
   final String version;
+
+  /// Whether this package is a direct project dependency.
   final bool direct;
+
+  /// Compatibility status for this dependency.
   final DependencyStatus status;
+
+  /// Selected FlutterOH implementation, when one is available.
   final PackageImplementation? implementation;
+
+  /// Source advisory attached to this package, when present.
   final SourcePackageAdvisory? advisory;
+
+  /// Direct-to-transitive dependency chain for this package.
   final List<String> dependencyChain;
 
+  /// Converts the compatibility row to JSON.
   Map<String, Object?> toJson() {
     return {
       'name': name,
@@ -71,6 +95,7 @@ class DependencyCompatibility {
   }
 }
 
+/// Classifies dependency status from source index and lockfile evidence.
 DependencyStatus dependencyStatusFor(
   PubLockPackage locked, {
   required String? supportStatus,
@@ -103,6 +128,7 @@ DependencyStatus dependencyStatusFor(
   return DependencyStatus.unknown;
 }
 
+/// Selects the best implementation for a locked dependency version.
 PackageImplementation? bestImplementationForVersion(
   List<PackageImplementation> implementations,
   String lockedVersion,
@@ -137,6 +163,7 @@ PackageImplementation? bestImplementationForVersion(
   return sorted.first;
 }
 
+/// Returns whether [implementationVersion] is a semver-compatible upgrade.
 bool isCompatibleUpgrade(String lockedVersion, String implementationVersion) {
   final Version locked;
   final Version implementation;
@@ -152,6 +179,7 @@ bool isCompatibleUpgrade(String lockedVersion, String implementationVersion) {
   return VersionConstraint.compatibleWith(locked).allows(implementation);
 }
 
+/// Sorts implementations from newest upstream/sdk/release version to oldest.
 int compareImplementationsDescending(
   PackageImplementation a,
   PackageImplementation b,
@@ -172,11 +200,13 @@ int compareImplementationsDescending(
   );
 }
 
+/// Extracts the package release version suffix from an implementation tag.
 String implementationVersionFromTag(String tag) {
   final match = RegExp(r'-([0-9]+(?:\.[0-9]+)*)$').firstMatch(tag);
   return match?.group(1) ?? '0';
 }
 
+/// Compares dot-separated numeric version-like strings.
 int compareNumericVersion(String a, String b) {
   final aParts = numericParts(a);
   final bParts = numericParts(b);
@@ -192,6 +222,7 @@ int compareNumericVersion(String a, String b) {
   return 0;
 }
 
+/// Extracts numeric components from a version-like string.
 List<int> numericParts(String version) {
   return RegExp(r'\d+')
       .allMatches(version)
@@ -199,8 +230,10 @@ List<int> numericParts(String version) {
       .toList(growable: false);
 }
 
+/// Purpose for building a dependency rewrite plan.
 enum DependencyPlanPurpose { fix, upgrade }
 
+/// Status for one dependency rewrite plan entry.
 enum DependencyPlanStatus {
   ready,
   alreadyCurrent,
@@ -213,7 +246,9 @@ enum DependencyPlanStatus {
   transitive,
 }
 
+/// Planned dependency changes for a project.
 class DependencyPlan {
+  /// Creates a dependency rewrite plan.
   const DependencyPlan({
     required this.sdkVersion,
     required this.policy,
@@ -221,11 +256,19 @@ class DependencyPlan {
     required this.entries,
   });
 
+  /// Selected FlutterOH SDK version used for the plan.
   final String sdkVersion;
+
+  /// Dependency rewrite policy read from project config.
   final DependencyPolicy policy;
+
+  /// Whether the plan is for fixing or upgrading replacements.
   final DependencyPlanPurpose purpose;
+
+  /// Plan entries for each dependency row.
   final List<DependencyPlanEntry> entries;
 
+  /// Flattened pubspec changes from actionable entries.
   List<PubspecDependencyChange> get changes {
     return [
       for (final entry in entries)
@@ -233,10 +276,12 @@ class DependencyPlan {
     ];
   }
 
+  /// Entries that would modify pubspec content.
   List<DependencyPlanEntry> get actionableEntries {
     return entries.where((entry) => entry.changes.isNotEmpty).toList();
   }
 
+  /// Converts the plan to CLI JSON fields.
   Map<String, Object?> toJson() {
     return {
       'sdkVersion': sdkVersion,
@@ -247,7 +292,9 @@ class DependencyPlan {
   }
 }
 
+/// Planned action for one dependency.
 class DependencyPlanEntry {
+  /// Creates a dependency plan entry.
   const DependencyPlanEntry({
     required this.dependency,
     required this.status,
@@ -256,14 +303,25 @@ class DependencyPlanEntry {
     this.changes = const <PubspecDependencyChange>[],
   });
 
+  /// Compatibility row this entry is based on.
   final DependencyCompatibility dependency;
+
+  /// Plan status for the dependency.
   final DependencyPlanStatus status;
+
+  /// Human-readable reason for the status.
   final String reason;
+
+  /// Stable action token for automated consumers.
   final String? recommendedAction;
+
+  /// Pubspec changes required by this entry.
   final List<PubspecDependencyChange> changes;
 
+  /// Whether this entry can modify pubspec content.
   bool get actionable => changes.isNotEmpty;
 
+  /// Converts the entry to JSON.
   Map<String, Object?> toJson() {
     final implementation = dependency.implementation;
     return {
@@ -280,6 +338,7 @@ class DependencyPlanEntry {
   }
 }
 
+/// Builds a dependency rewrite plan from a compatibility report.
 DependencyPlan buildDependencyPlanFromReport({
   required DependencyReport report,
   required PubspecDependencyState state,
@@ -500,6 +559,7 @@ DependencyPlanStatus _statusForDependency(DependencyStatus status) {
   };
 }
 
+/// Formats an upstream version change note for a dependency rewrite.
 String implementationUpstreamVersionChange(
   PubspecDependencyChange change,
   DependencyCompatibility dependency,

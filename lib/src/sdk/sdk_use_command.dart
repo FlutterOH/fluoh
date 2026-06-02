@@ -12,7 +12,9 @@ import 'flutter_runner.dart';
 import 'sdk_manager.dart';
 import 'sdk_project_environment.dart';
 
+/// Selects a FlutterOH SDK for the current project.
 class SdkUseCommand extends FluohCommand<int> {
+  /// Creates the SDK use command.
   SdkUseCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -32,6 +34,7 @@ class SdkUseCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment for the target project.
   final FluohEnvironment environment;
   final TerminalOutput _output;
 

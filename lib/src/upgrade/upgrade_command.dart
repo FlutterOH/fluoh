@@ -5,12 +5,16 @@ import '../cli/fluoh_command_runner.dart';
 import '../cli/fluoh_installation.dart';
 import '../cli/terminal_output.dart';
 
+/// Process runner used by `fluoh upgrade`.
 typedef UpgradeProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
 
+/// Provides the current script URI for install-method detection.
 typedef UpgradeScriptUriProvider = Uri Function();
 
+/// Upgrades the fluoh CLI using the detected install method.
 class UpgradeCommand extends FluohCommand<int> {
+  /// Creates the upgrade command.
   UpgradeCommand({
     required OutputWriter stdout,
     OutputWriter? stderr,

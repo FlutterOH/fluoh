@@ -2,13 +2,19 @@ import 'package:args/command_runner.dart';
 
 import 'terminal_output.dart';
 
+/// A labeled group of commands shown in command help.
 class CommandUsageSection {
+  /// Creates a usage section with a title and ordered command names.
   const CommandUsageSection(this.title, this.commandNames);
 
+  /// Section title displayed above the matching commands.
   final String title;
+
+  /// Command names to include in this section when they are visible.
   final List<String> commandNames;
 }
 
+/// Formats visible commands into grouped help text.
 String formatCommandUsage(
   Map<String, Command> commands, {
   required List<CommandUsageSection> sections,

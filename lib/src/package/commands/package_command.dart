@@ -9,8 +9,14 @@ import 'package_create_command.dart';
 import 'package_release_command.dart';
 import 'package_status_command.dart';
 import 'package_sync_command.dart';
+import 'package_version_command.dart';
 
+/// Top-level `fluoh package` command group.
+///
+/// The group wires repository creation, synchronization, readiness inspection,
+/// version metadata updates, release checks, and final release tagging.
 class PackageCommand extends FluohCommand<int> {
+  /// Creates the package command group and its subcommands.
   PackageCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,
@@ -42,6 +48,7 @@ class PackageCommand extends FluohCommand<int> {
     );
     addSubcommand(
       PackageReleaseCommand(
+        kind: PackageReleaseCommandKind.check,
         environment: environment,
         stdout: stdout,
         stderr: stderr,
@@ -49,9 +56,25 @@ class PackageCommand extends FluohCommand<int> {
       ),
     );
     addSubcommand(
+      PackageVersionCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
       PackageStatusCommand(
         environment: environment,
         stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      PackageReleaseCommand(
+        kind: PackageReleaseCommandKind.release,
+        environment: environment,
+        stdout: stdout,
+        stderr: stderr,
         output: _output,
       ),
     );
@@ -101,7 +124,9 @@ const _packageCommandSections = [
     'create',
     'add',
     'sync',
-    'release',
     'status',
+    'version',
+    'check',
+    'release',
   ]),
 ];

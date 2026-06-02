@@ -11,7 +11,9 @@ import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
 
+/// Synchronizes upstream changes into a package adaptation branch.
 class PackageSyncCommand extends FluohCommand<int> {
+  /// Creates the package sync command.
   PackageSyncCommand({
     required this.environment,
     required this.stdout,
@@ -35,7 +37,10 @@ class PackageSyncCommand extends FluohCommand<int> {
       );
   }
 
+  /// Runtime environment for repository and process operations.
   final FluohEnvironment environment;
+
+  /// Writer used for JSON output.
   final OutputWriter stdout;
   final TerminalOutput _output;
 

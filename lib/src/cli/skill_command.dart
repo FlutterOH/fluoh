@@ -7,16 +7,31 @@ import 'machine_output.dart';
 import 'terminal_output.dart';
 import '../version.dart';
 
+/// GitHub repository that contains the bundled fluoh skill.
 const fluohSkillRepository = 'FlutterOH/fluoh';
+
+/// Repository URL for the bundled fluoh skill.
 const fluohSkillRepositoryUrl = 'https://github.com/FlutterOH/fluoh';
+
+/// Repository-relative path to the bundled fluoh skill.
 const fluohSkillRepositoryPath = 'skills/fluoh';
+
+/// Public URL for the bundled fluoh skill.
 const fluohSkillUrl =
     '$fluohSkillRepositoryUrl/tree/main/$fluohSkillRepositoryPath';
+
+/// Command users should run before reinstalling an outdated skill.
 const fluohSkillUpgradeCommand = 'fluoh upgrade';
+
+/// Default agent prompt for using the fluoh skill.
 const fluohSkillDefaultPrompt =
     'Use \$fluoh to install fluoh if needed and adapt this Flutter project or '
     'package for OHOS.';
+
+/// Prompt for installing the bundled fluoh skill.
 const fluohSkillInstallPrompt = 'Install the fluoh skill from $fluohSkillUrl.';
+
+/// Prompt for updating the bundled fluoh skill.
 const fluohSkillUpgradePrompt =
     'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --json` and '
     'reinstall or reload the returned localPath.';
@@ -82,6 +97,8 @@ const _fluohSkillReferences = {
         'are not fully covered by integration tests.',
   ),
 };
+
+/// Example prompts shown to AI agents for using fluoh.
 const fluohSkillExamplePrompts = [
   'Use \$fluoh to install fluoh if needed and adapt this Flutter project for '
       'OHOS.',
@@ -89,7 +106,9 @@ const fluohSkillExamplePrompts = [
   'Use \$fluoh to continue adapting <package-name> for OHOS.',
 ];
 
+/// Shows bundled AI skill metadata.
 class SkillCommand extends FluohCommand<int> {
+  /// Creates the skill metadata command.
   SkillCommand({
     required void Function(String message) stdout,
     required TerminalOutput output,
@@ -183,12 +202,16 @@ class SkillCommand extends FluohCommand<int> {
 
 /// Location and metadata for the bundled AI skill shipped with the package.
 class FluohSkillLocation {
+  /// Creates a bundled skill location value.
   const FluohSkillLocation({required this.localPath});
 
+  /// Local filesystem path to the skill directory, when bundled files exist.
   final String? localPath;
 
+  /// Whether the bundled skill is available on disk.
   bool get available => localPath != null;
 
+  /// Converts this location to the `fluoh skill --json` contract.
   Map<String, Object?> toJson() => {
     'available': available,
     'skillName': 'fluoh',

@@ -10,7 +10,9 @@ import '../dependency_plan.dart';
 import '../dependency_policy.dart';
 import '../pubspec_dependency_editor.dart';
 
+/// Implements `fluoh deps check`.
 class DepsCheckCommand extends FluohCommand<int> {
+  /// Creates the dependency check command.
   DepsCheckCommand({
     required this.environment,
     required this.stdout,
@@ -23,7 +25,10 @@ class DepsCheckCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment containing the project and Source config.
   final FluohEnvironment environment;
+
+  /// Writer used for JSON output.
   final OutputWriter stdout;
   final TerminalOutput _output;
 
@@ -70,7 +75,9 @@ bool _dependencyPlanOk(DependencyPlan plan) {
   });
 }
 
+/// Implements `fluoh deps fix`.
 class DepsFixCommand extends FluohCommand<int> {
+  /// Creates the dependency fix command.
   DepsFixCommand({
     required this.environment,
     required this.stdout,
@@ -89,7 +96,10 @@ class DepsFixCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment containing the project and Source config.
   final FluohEnvironment environment;
+
+  /// Writer used for JSON output.
   final OutputWriter stdout;
   final TerminalOutput _output;
 

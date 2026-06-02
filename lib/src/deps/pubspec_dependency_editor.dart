@@ -13,10 +13,12 @@ export '../schema/schema.dart'
         PubspecDependencySection,
         PubspecDependencyState;
 
+/// Reads dependency reference state from a pubspec file.
 Future<PubspecDependencyState> readPubspecDependencyState(File pubspec) async {
   return parsePubspecDependencyState(await pubspec.readAsString());
 }
 
+/// Applies dependency changes to [pubspec], rolling back on parse failure.
 Future<int> applyPubspecDependencyChanges({
   required File pubspec,
   required List<PubspecDependencyChange> changes,

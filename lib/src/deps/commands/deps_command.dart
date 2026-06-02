@@ -8,7 +8,9 @@ import 'dependency_plan_commands.dart';
 import 'deps_get_command.dart';
 import 'deps_upgrade_command.dart';
 
+/// Top-level `fluoh deps` command group.
 class DepsCommand extends FluohCommand<int> {
+  /// Creates the dependency command group and its subcommands.
   DepsCommand({
     required FluohEnvironment environment,
     required OutputWriter stdout,

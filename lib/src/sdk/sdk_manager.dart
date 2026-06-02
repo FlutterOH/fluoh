@@ -7,15 +7,20 @@ import '../source/source_runtime.dart';
 import 'sdk_project_config.dart';
 import 'sdk_release.dart';
 
+/// Manages FlutterOH SDK releases and the local SDK cache.
 class SdkManager {
+  /// Creates an SDK manager for [environment].
   const SdkManager(this.environment);
 
+  /// Runtime environment containing Source config and SDK cache paths.
   final FluohEnvironment environment;
 
+  /// Lists SDK releases from configured Sources.
   Future<List<SdkRelease>> listReleases() async {
     return (await SourceRuntime(environment).loadSdkIndex()).releases;
   }
 
+  /// Lists remote releases merged with SDKs already installed locally.
   Future<List<SdkListEntry>> listEntries() async {
     final installedTags = await installedSdkTags();
     try {
@@ -44,6 +49,7 @@ class SdkManager {
     }
   }
 
+  /// Resolves an exact SDK version, tag, or version series.
   Future<SdkRelease> resolveRelease(String version) async {
     final query = version.trim();
     final releases = await listReleases();
@@ -67,6 +73,7 @@ class SdkManager {
     );
   }
 
+  /// Installs [release] into the local SDK cache if needed.
   Future<Directory> install(SdkRelease release) async {
     final destination = sdkDirectory(release.tag);
     if (await destination.exists()) {
@@ -91,6 +98,7 @@ class SdkManager {
     return destination;
   }
 
+  /// Removes an installed SDK by version, tag, or local tag.
   Future<String> remove(String version) async {
     final query = version.trim();
     SdkRelease? release;
@@ -124,14 +132,17 @@ class SdkManager {
     return tag;
   }
 
+  /// Returns the SDK selected by the nearest project `fluoh.yaml`.
   Future<String?> currentSdkVersion() async {
     return _projectSdkVersion();
   }
 
+  /// Returns the local cache directory for an SDK tag.
   Directory sdkDirectory(String tag) {
     return Directory('${environment.sdksDirectory.path}/$tag');
   }
 
+  /// Lists locally installed SDK tags.
   Future<List<String>> installedSdkTags() async {
     final directory = environment.sdksDirectory;
     if (!await directory.exists()) {
@@ -156,6 +167,7 @@ class SdkManager {
     return tags;
   }
 
+  /// Selects the latest release, optionally preferring stable channel releases.
   static SdkRelease latestRelease(
     Iterable<SdkRelease> releases, {
     bool preferStable = false,
@@ -201,18 +213,26 @@ class SdkManager {
   }
 }
 
+/// SDK row shown by `fluoh sdk list`.
 class SdkListEntry {
+  /// Creates an SDK list entry.
   const SdkListEntry({
     required this.tag,
     required this.channel,
     required this.installed,
   });
 
+  /// Creates an entry for an installed SDK missing from current Sources.
   SdkListEntry.local(String tag)
     : this(tag: tag, channel: 'unknown', installed: true);
 
+  /// SDK tag.
   final String tag;
+
+  /// Release channel.
   final String channel;
+
+  /// Whether the SDK is installed locally.
   final bool installed;
 }
 

@@ -2,13 +2,19 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+/// Git author identity used for generated package repositories.
 class PackageGitAuthor {
+  /// Creates a package Git author identity.
   const PackageGitAuthor({required this.name, required this.email});
 
+  /// Git user.name value.
   final String name;
+
+  /// Git user.email value.
   final String email;
 }
 
+/// Runs Git and throws [UsageException] on failure unless allowed.
 Future<ProcessResult> runGit(
   List<String> arguments, {
   Directory? workingDirectory,
@@ -28,6 +34,7 @@ Future<ProcessResult> runGit(
   return result;
 }
 
+/// Returns the current branch name for [repository].
 Future<String> currentBranch(Directory repository) async {
   return (await runGit([
     'branch',
@@ -35,6 +42,7 @@ Future<String> currentBranch(Directory repository) async {
   ], workingDirectory: repository)).stdout.toString().trim();
 }
 
+/// Returns the current HEAD commit for [repository].
 Future<String> currentHead(Directory repository) async {
   return (await runGit([
     'rev-parse',
@@ -42,6 +50,7 @@ Future<String> currentHead(Directory repository) async {
   ], workingDirectory: repository)).stdout.toString().trim();
 }
 
+/// Ensures [repository] has no uncommitted changes.
 Future<void> ensureCleanWorkingTree(Directory repository, String action) async {
   final status = (await runGit([
     'status',
@@ -52,6 +61,7 @@ Future<void> ensureCleanWorkingTree(Directory repository, String action) async {
   }
 }
 
+/// Converts the existing origin remote to upstream and adds a new origin.
 Future<void> configurePackageRemotes(
   Directory repository,
   String repositoryUrl,
@@ -78,6 +88,7 @@ Future<void> configurePackageRemotes(
   ], workingDirectory: repository);
 }
 
+/// Writes local Git author config for package adaptation commits.
 Future<void> configurePackageGitAuthor(
   Directory repository,
   PackageGitAuthor author,
@@ -96,6 +107,7 @@ Future<void> configurePackageGitAuthor(
   ], workingDirectory: repository);
 }
 
+/// Resolves the upstream remote's default branch.
 Future<String> upstreamDefaultBranch(Directory repository) async {
   await runGit(
     ['remote', 'set-head', 'upstream', '--auto'],

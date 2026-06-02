@@ -873,6 +873,7 @@ Prefer the upstream release workflow.
         '${packageRepository.path}/FLUOH.md',
       ).readAsStringSync();
       expect(guide, contains('fluoh verify'));
+      expect(guide, contains('`fluoh package check`'));
       expect(guide, contains('`fluoh package release`'));
       expect(
         _normalizeOutput(stdout.join('\n')),
@@ -1644,6 +1645,10 @@ class _GuidancePackage {
   String get releaseCommand => path == '.'
       ? 'fluoh package release'
       : 'fluoh package release --package $name';
+
+  String get versionCommand => path == '.'
+      ? 'fluoh package version'
+      : 'fluoh package version --package $name';
 }
 
 void _expectImplementationGuide(
@@ -1720,6 +1725,7 @@ void _expectImplementationGuide(
       package.name,
       package.examplePath,
       package.verifyCommand,
+      package.versionCommand,
       package.releaseCommand,
     ]);
     if (packages.length > 1) {
@@ -1841,6 +1847,7 @@ void _expectAgentsInstructions(
       package.name,
       package.examplePath,
       package.verifyCommand,
+      package.versionCommand,
       package.releaseCommand,
     ]);
     if (packages.length > 1) {

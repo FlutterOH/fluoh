@@ -13,7 +13,9 @@ import '../manifest/pubspec_package.dart';
 import '../package_examples.dart';
 import '../release_validator.dart';
 
+/// Reports release readiness for package repository entries.
 class PackageStatusCommand extends FluohCommand<int> {
+  /// Creates the package status command.
   PackageStatusCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -38,6 +40,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       );
   }
 
+  /// Runtime environment for repository checks.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final TerminalOutput _output;
@@ -279,7 +282,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       _output.success('Package repository appears ready for release');
     } else {
       _output.next(
-        'Resolve warnings, run fluoh verify, commit, then run fluoh package release.',
+        'Resolve warnings, run fluoh verify, commit, then run fluoh package check and fluoh package release.',
       );
     }
   }

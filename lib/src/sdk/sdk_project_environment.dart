@@ -6,11 +6,15 @@ import '../context/fluoh_environment.dart';
 import '../schema/schema.dart';
 import 'sdk_manager.dart';
 
+/// Applies SDK selection state to a Flutter project.
 class SdkProjectEnvironment {
+  /// Creates a project SDK environment helper.
   const SdkProjectEnvironment(this.environment);
 
+  /// Runtime environment for the target project.
   final FluohEnvironment environment;
 
+  /// Installs [release] when needed and writes project SDK files.
   Future<Directory> configure(
     SdkRelease release, {
     bool writeFluohConfig = true,
@@ -21,6 +25,7 @@ class SdkProjectEnvironment {
     return sdkDirectory;
   }
 
+  /// Writes project files for [release].
   Future<void> writeFiles(
     SdkRelease release, {
     bool writeFluohConfig = true,
@@ -28,6 +33,7 @@ class SdkProjectEnvironment {
     await writeSdkVersion(release.tag, writeFluohConfig: writeFluohConfig);
   }
 
+  /// Writes the selected SDK version to project configuration.
   Future<void> writeSdkVersion(
     String sdkVersion, {
     bool writeFluohConfig = true,
@@ -37,6 +43,7 @@ class SdkProjectEnvironment {
     }
   }
 
+  /// Creates or refreshes the IDE SDK symlink under `.fluoh/flutter_sdk`.
   Future<Directory> linkIdeSdk(Directory sdkDirectory) async {
     final linkRoot = Directory('${environment.workingDirectory.path}/.fluoh');
     await ensureIdeSdkLinkCanBeUpdated();
@@ -48,6 +55,7 @@ class SdkProjectEnvironment {
     return Directory(link.path);
   }
 
+  /// Verifies the IDE SDK link path can be safely replaced.
   Future<void> ensureIdeSdkLinkCanBeUpdated() async {
     final linkRoot = Directory('${environment.workingDirectory.path}/.fluoh');
     final rootType = await FileSystemEntity.type(

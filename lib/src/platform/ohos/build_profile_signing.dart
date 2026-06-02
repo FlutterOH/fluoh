@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io' as io;
 
+/// Signing config fields written temporarily to OHOS `build-profile.json5`.
 class OhosDebugSigningConfig {
+  /// Creates an OHOS debug signing config.
   const OhosDebugSigningConfig({
     this.name = 'default',
     this.type = 'HarmonyOS',
@@ -14,27 +16,49 @@ class OhosDebugSigningConfig {
     required this.certpath,
   });
 
+  /// Signing config name referenced by product entries.
   final String name;
+
+  /// Signing config type expected by OHOS build profile.
   final String type;
+
+  /// Absolute path to the generated keystore.
   final String storeFile;
+
+  /// Encrypted store password value.
   final String storePassword;
+
+  /// Key alias in the generated keystore.
   final String keyAlias;
+
+  /// Encrypted key password value.
   final String keyPassword;
+
+  /// Signing algorithm.
   final String signAlg;
+
+  /// Absolute path to the signed debug profile.
   final String profile;
+
+  /// Absolute path to the generated certificate chain.
   final String certpath;
 }
 
+/// Restorable session for temporary OHOS build-profile signing edits.
 class OhosBuildProfileSigningSession {
   OhosBuildProfileSigningSession._({
     required this.buildProfile,
     required this.originalContent,
   });
 
+  /// Build profile file that was patched.
   final io.File buildProfile;
+
+  /// Original file content restored by [restore].
   final String originalContent;
   var _restored = false;
 
+  /// Restores the original build profile content once.
   Future<void> restore() async {
     if (_restored) {
       return;
@@ -44,6 +68,7 @@ class OhosBuildProfileSigningSession {
   }
 }
 
+/// Applies temporary signing config to an OHOS build profile.
 Future<OhosBuildProfileSigningSession> applyTemporaryOhosSigning({
   required io.Directory ohosDirectory,
   required OhosDebugSigningConfig config,
@@ -65,6 +90,7 @@ Future<OhosBuildProfileSigningSession> applyTemporaryOhosSigning({
   );
 }
 
+/// Returns build-profile content patched with temporary OHOS signing config.
 String buildProfileWithTemporaryOhosSigning(
   String content,
   OhosDebugSigningConfig config,

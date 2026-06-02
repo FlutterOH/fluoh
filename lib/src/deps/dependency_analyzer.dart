@@ -14,11 +14,15 @@ export '../schema/schema.dart'
         LockedPackage,
         DependencyReport;
 
+/// Analyzes project dependencies against configured FlutterOH Sources.
 class DependencyAnalyzer {
+  /// Creates a dependency analyzer for [environment].
   const DependencyAnalyzer(this.environment);
 
+  /// Runtime environment for the project and Source config.
   final FluohEnvironment environment;
 
+  /// Builds a dependency compatibility report for the current project.
   Future<DependencyReport> analyze() async {
     final sdkVersion = await _readSdkVersion();
     final pubspec = await _readRequiredFile('pubspec.yaml');

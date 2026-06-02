@@ -1,6 +1,8 @@
 import 'dart:io' as io;
 
+/// Permission summary used to generate an OHOS debug signing profile.
 class OhosPermissionProfile {
+  /// Creates an OHOS permission profile.
   const OhosPermissionProfile({
     required this.bundleName,
     required this.requestedPermissions,
@@ -8,24 +10,39 @@ class OhosPermissionProfile {
     required this.apl,
   });
 
+  /// Application bundle name.
   final String bundleName;
+
+  /// Permissions requested by non-test OHOS modules.
   final List<String> requestedPermissions;
+
+  /// Requested permissions that require a non-normal APL.
   final List<String> restrictedPermissions;
+
+  /// Highest available privilege level required by requested permissions.
   final String apl;
 }
 
+/// Permission definition read from the OpenHarmony SDK metadata.
 class OhosPermissionDefinition {
+  /// Creates an OHOS permission definition.
   const OhosPermissionDefinition({
     required this.name,
     required this.availableLevel,
     required this.provisionEnable,
   });
 
+  /// Permission name.
   final String name;
+
+  /// Available privilege level declared by the SDK.
   final String availableLevel;
+
+  /// Whether the permission can be included in a provision profile.
   final bool provisionEnable;
 }
 
+/// Reads bundle and permission data needed for debug signing.
 Future<OhosPermissionProfile> readOhosPermissionProfile({
   required io.Directory ohosDirectory,
   required io.Directory openHarmonySdk,
@@ -59,6 +76,7 @@ Future<OhosPermissionProfile> readOhosPermissionProfile({
   );
 }
 
+/// Reads the OHOS application bundle name.
 Future<String> readOhosBundleName(io.Directory ohosDirectory) async {
   final appJson = io.File('${ohosDirectory.path}/AppScope/app.json5');
   if (!await appJson.exists()) {
@@ -74,6 +92,7 @@ Future<String> readOhosBundleName(io.Directory ohosDirectory) async {
   return match.group(1)!;
 }
 
+/// Reads requested OHOS permissions from module manifests.
 Future<List<String>> readRequestedOhosPermissions(
   io.Directory ohosDirectory,
 ) async {
@@ -99,6 +118,7 @@ Future<List<String>> readRequestedOhosPermissions(
   return sorted;
 }
 
+/// Reads known OHOS permission definitions from the OpenHarmony SDK.
 Future<Map<String, OhosPermissionDefinition>> readOhosPermissionDefinitions(
   io.Directory openHarmonySdk,
 ) async {

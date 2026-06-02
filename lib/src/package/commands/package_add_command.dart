@@ -12,7 +12,9 @@ import '../manifest/pubspec_package.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
 
+/// Registers an additional package in an existing package repository.
 class PackageAddCommand extends FluohCommand<int> {
+  /// Creates the package add command.
   PackageAddCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -28,6 +30,7 @@ class PackageAddCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment for repository and Flutter SDK operations.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
@@ -150,7 +153,8 @@ class PackageAddCommand extends FluohCommand<int> {
     }
     _output.success('Registered package ${package.name} at $packagePath');
     _output.next(
-      'Implement OHOS support for ${package.name}, then release it with '
+      'Implement OHOS support for ${package.name}, then check it with '
+      '"fluoh package check --package ${package.name}" and release it with '
       '"fluoh package release --package ${package.name}"',
     );
     return 0;

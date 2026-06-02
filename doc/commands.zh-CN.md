@@ -104,8 +104,10 @@ fluoh run --platform ohos --device <id>
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH Package 仓库。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中注册另一个 Package。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS Package 分支。 |
-| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 检查、打 tag，并可选择推送 FlutterOH Package release。 |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 Package 发布就绪状态。 |
+| `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | 更新 Package 发布版本元数据。 |
+| `fluoh package check` | `lib/src/package/commands/package_release_command.dart` | 运行发布前检查，不创建 tag。 |
+| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 完成 FlutterOH Package release。 |
 | `fluoh verify` | `lib/src/workflow/workflow_commands.dart` | 为项目或 Package 仓库运行 pub get、分析和测试。 |
 | `fluoh build --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | 构建项目或 Package example。 |
 | `fluoh run --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | 构建、安装、启动并诊断 App。 |
@@ -335,9 +337,11 @@ transitive 和 advisory。fresh Source lock 会提供 Package 路由提示；命
    因 SDK 切换暴露的问题。
 6. 适配中使用 `status: experimental`；完成并可推荐时省略 `status`，默认就是
    `compatible`。
-7. `fluoh package release` 打 release tag，tag 固化当前代码、测试和 Package
+7. `fluoh package version` 更新适配 Package 的发布版本和状态。
+8. `fluoh package check` 运行最终本地 gate，不创建 tag。
+9. `fluoh package release` 打 release tag，tag 固化当前代码、测试和 Package
    `fluoh.yaml`。
-8. `fluoh source sync` 从 release tags 汇总 Source Manifest。
+10. `fluoh source sync` 从 release tags 汇总 Source Manifest。
 
 `fluoh package create <upstream>` clone upstream 仓库，选择一个或多个 Package，配置
 `upstream` 和 `origin`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，配置
@@ -422,11 +426,26 @@ AI 辅助场景文件使用内置 `skills/fluoh/references/interaction-scenario-
 当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed` 等平台 diagnostic；
 Package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
 
-`fluoh package release` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
-`fluoh verify`，确认工作树仍然干净，在 HEAD 创建 release tag，并可选择推送。使用
-`--package <name>` 发布单个 Package，或用 `--all` 发布所有已注册 Package。已有 tag 只有在
-已经指向 HEAD 时才会被接受。`--dry-run` 会执行校验和验证，但不会创建或推送
-tag。`--json` 会输出 tag、warning 和验证结果。
+`fluoh package version` 更新 `fluoh.yaml` 中已注册 Package 的发布元数据。
+用 `--bump patch|minor|major` 递增 FlutterOH 适配 Package 版本，用
+`--set <version>` 设置精确版本，用 `--status experimental|compatible|broken`
+设置发布状态。`compatible` 会移除 status 字段，因为 compatible 是默认状态。
+`--bump` 和 `--set` 互斥。`--dry-run` 只打印计划不写入，`--json` 输出机器可读结果。
+
+`fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
+`fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送
+tag。使用 `--package <name>` 检查单个 Package，或用 `--all` 检查所有已注册 Package。
+`--json` 会输出 tag、warning、认证状态和验证结果。Check 默认不要求设备或 AI report
+证据；没有提供认证报告时只输出非阻断 warning。需要 AI/CI 认证交付时，传
+`--report <path>` 或 `--certification-report <path>` 强制检查已完成的
+`.fluoh/ai-report-...md`。认证报告必须是 `ready`，完成所有交付 checklist，包含通过的
+`fluoh verify` 证据，包含通过的 OHOS build 或 run 证据，并包含通过的交互证据或明确的
+`No interaction required: <reason>`。当 CI 或 AI 交接必须证明真机或模拟器上的 OHOS run 已通过，
+而不是只有 build-only 证据时，再加 `--require-ohos-run`。
+
+`fluoh package release` 会运行同一套校验和验证，然后通过在 HEAD 创建 release tag
+完成 fluoh package release，并可用 `--push` 推送。已有 tag 只有在已经指向 HEAD
+时才会被接受。它不会发布到 pub.dev。
 
 `fluoh package status` 读取 Package `fluoh.yaml` 并汇总发布就绪状态，不修改仓库。它会检查
 当前分支、工作树是否干净、package status、release notes、license warning、Package 测试、
@@ -444,7 +463,7 @@ Flutter example、example OHOS 平台、example 测试，以及 tracked 文件�
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`、`sdk remove`、按需执行的 Flutter wrapper |
 | 项目 `fluoh.yaml` | `sdk use`、`deps check`、`deps fix`、`deps upgrade` |
 | 项目 `pubspec.yaml` | `deps fix`、`deps upgrade` |
-| FlutterOH Package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package status`、`package release` 校验 |
+| FlutterOH Package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package status`、`package version`、`package check`、`package release` 校验 |
 | Source root 和 Manifest 文件 | `source init`、`source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`、`package create` 的 SDK 设置 |
-| Package examples | `package create`、`package add`、`deps get`、`verify`、`package release` |
+| Package examples | `package create`、`package add`、`deps get`、`verify`、`package check`、`package release` |

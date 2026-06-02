@@ -361,7 +361,7 @@ packages:
         containsAll([
           'fluoh verify --package camera --json',
           'fluoh run --platform ohos --package camera --json',
-          'fluoh package release --package camera --dry-run --json',
+          'fluoh package check --package camera --json',
         ]),
       );
       expect(
@@ -370,14 +370,14 @@ packages:
           'git diff --check',
           'fluoh verify --package camera --json',
           'fluoh package status --package camera',
-          'fluoh package release --package camera --dry-run --json',
+          'fluoh package check --package camera --json',
         ]),
       );
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
           contains('.fluoh/ai-report-camera-...md'),
-          contains('Record verify, status, and release dry-run results'),
+          contains('Record verify, status, and package check results'),
           contains('Review public API compatibility'),
         ]),
       );
@@ -528,7 +528,7 @@ packages:
         containsAll([
           'fluoh verify --package share_plus --json',
           'fluoh run --platform ohos --package share_plus --json',
-          'fluoh package release --package share_plus --dry-run --json',
+          'fluoh package check --package share_plus --json',
         ]),
       );
       expect(
@@ -537,7 +537,7 @@ packages:
           'git diff --check',
           'fluoh verify --package share_plus --json',
           'fluoh package status --package share_plus',
-          'fluoh package release --package share_plus --dry-run --json',
+          'fluoh package check --package share_plus --json',
         ]),
       );
       expect(
@@ -1083,7 +1083,7 @@ packages:
 | `fluoh run --platform ohos --package camera --json` | 0 | passed | HAP built, signed, installed, launched, and hilog checked |
 | `fluoh run --platform android --package camera --session-file .fluoh/run-session-android.json --json` | 0 | passed | launch detected and session file written |
 | `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-session-android.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
-| `fluoh package release --package camera --dry-run --json` | 0 | passed | release metadata validated |
+| `fluoh package check --package camera --json` | 0 | passed | release metadata validated |
 
 ## Delivery Checklist
 
@@ -1136,7 +1136,7 @@ packages:
 Release recommendation: ready
 
 Reason:
-The simulated AI flow completed preflight, build/run evidence, non-visual interaction evidence, session inspection, and release dry-run evidence.
+The simulated AI flow completed preflight, build/run evidence, non-visual interaction evidence, session inspection, and package check evidence.
 ''');
 
       final check = await Process.run('python3', [
@@ -1149,7 +1149,9 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
       expect(checkJson, containsPair('ok', true));
       expect(checkJson, containsPair('recommendation', 'ready'));
       expect(checkJson, containsPair('commandRows', 6));
+      expect(checkJson, containsPair('passedCommandRows', 6));
       expect(checkJson, containsPair('interactionRows', 1));
+      expect(checkJson, containsPair('passedInteractionRows', 1));
       expect(checkJson['errors'], isEmpty);
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -1200,7 +1202,8 @@ sdk:
       content = content
           .replaceAll(
             '| `...` | 0 | passed | ... |',
-            '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |',
+            '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
+                '| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |',
           )
           .replaceAll(
             RegExp(r'^- \.\.\.$', multiLine: true),
@@ -1241,9 +1244,81 @@ sdk:
       final completeJson =
           jsonDecode(complete.stdout.toString()) as Map<String, Object?>;
       expect(completeJson['ok'], isTrue);
-      expect(completeJson['commandRows'], 1);
+      expect(completeJson['commandRows'], 2);
+      expect(completeJson['passedCommandRows'], 2);
+      expect(completeJson['passedVerify'], isTrue);
+      expect(completeJson['passedOhosBuild'], isTrue);
+      expect(completeJson['passedOhosRun'], isFalse);
       expect(completeJson['interactionRows'], 1);
+      expect(completeJson['passedInteractionRows'], 1);
       expect(completeJson['checklistDone'], completeJson['checklistTotal']);
+
+      final failedEvidenceReport = File('${root.path}/failed-ready.md');
+      await failedEvidenceReport.writeAsString(
+        content.replaceFirst(
+          '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |',
+          '| `fluoh verify --package camera --json` | 1 | failed | analysis failed |',
+        ),
+      );
+      final failedEvidence = await Process.run('python3', [
+        checkReportScript,
+        failedEvidenceReport.path,
+      ]);
+      expect(failedEvidence.exitCode, isNot(0));
+      final failedEvidenceJson =
+          jsonDecode(failedEvidence.stdout.toString()) as Map<String, Object?>;
+      expect(failedEvidenceJson['ok'], isFalse);
+      expect(
+        stringList(failedEvidenceJson['errors']),
+        contains('Ready reports must include passed fluoh verify evidence.'),
+      );
+
+      final verifyOnlyReport = File('${root.path}/verify-only-ready.md');
+      await verifyOnlyReport.writeAsString(
+        content.replaceFirst(
+          '\n| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |',
+          '',
+        ),
+      );
+      final verifyOnly = await Process.run('python3', [
+        checkReportScript,
+        verifyOnlyReport.path,
+      ]);
+      expect(verifyOnly.exitCode, isNot(0));
+      final verifyOnlyJson =
+          jsonDecode(verifyOnly.stdout.toString()) as Map<String, Object?>;
+      expect(verifyOnlyJson['ok'], isFalse);
+      expect(
+        stringList(verifyOnlyJson['errors']),
+        contains(
+          'Ready reports must include passed OHOS build or run evidence.',
+        ),
+      );
+
+      final ordinaryEvidenceReport = File('${root.path}/ordinary-ready.md');
+      await ordinaryEvidenceReport.writeAsString(
+        content.replaceFirst(
+          '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
+              '| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |',
+          '| `dart test` | 0 | passed | unit tests passed |',
+        ),
+      );
+      final ordinaryEvidence = await Process.run('python3', [
+        checkReportScript,
+        ordinaryEvidenceReport.path,
+      ]);
+      expect(ordinaryEvidence.exitCode, isNot(0));
+      final ordinaryEvidenceJson =
+          jsonDecode(ordinaryEvidence.stdout.toString())
+              as Map<String, Object?>;
+      expect(ordinaryEvidenceJson['ok'], isFalse);
+      expect(
+        stringList(ordinaryEvidenceJson['errors']),
+        containsAll([
+          'Ready reports must include passed fluoh verify evidence.',
+          'Ready reports must include passed OHOS build or run evidence.',
+        ]),
+      );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -1296,11 +1371,18 @@ sdk:
 
 - Complete.
 
+## Public API / Compatibility
+
+- Public Dart API changes: none
+- Dependency constraint changes: none
+- Non-OHOS regression risk: none
+
 ## Commands
 
 | Command | Exit | Result | Notes |
 | --- | --- | --- | --- |
 | `fluoh verify --package pure_dart --json` | 0 | passed | no device APIs |
+| `fluoh build --platform ohos --package pure_dart --auto-sign --json` | 0 | passed | signed example HAP produced |
 
 ## Delivery Checklist
 
@@ -1320,9 +1402,21 @@ Use `No interaction required: <reason>` only when no device-side flow applies.
 
 - None.
 
+## Signing
+
+- Mode: not required
+- Generated HAPs: none
+- Hilog: none
+
 ## Remaining Risks
 
 - None.
+
+## Local State
+
+- Git status summary: clean
+- Files intentionally left uncommitted: report.md
+- Files that must not be committed: none
 
 ## Release Decision
 

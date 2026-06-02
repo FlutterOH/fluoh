@@ -366,8 +366,9 @@ path_provider-2.1.5-ohos-3.35-0.2.0
    因 SDK 切换暴露的问题。
 6. 适配中可以把 `packages.<name>.status` 或 `releases[].status` 写成 `experimental`；
    完成并可推荐给项目使用时省略 `status`，默认就是 `compatible`。
-7. `fluoh package release` 使用 Package `fluoh.yaml` 派生 release tag。tag 固化当时的代码、
-   测试和配置快照。
+7. `fluoh package version` 更新发布版本和状态元数据，`fluoh package check`
+   校验 release 快照，`fluoh package release` 使用 Package `fluoh.yaml` 派生
+   release tag。tag 固化当时的代码、测试和配置快照。
 8. `fluoh source sync` 使用 Manifest `repository.git.url` 作为 Package 仓库，
    扫描已发布 release tags，读取每个 tag 下的 Package `fluoh.yaml`，把历史发布记录汇总进
    Manifest。

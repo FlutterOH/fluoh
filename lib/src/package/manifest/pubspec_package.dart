@@ -6,6 +6,7 @@ import '../../schema/schema.dart';
 
 export '../../schema/schema.dart' show PubspecPackage;
 
+/// Resolves a package path inside [repository].
 Directory packageDirectory(Directory repository, String packagePath) {
   if (packagePath == '.' || packagePath.isEmpty) {
     return repository;
@@ -13,6 +14,7 @@ Directory packageDirectory(Directory repository, String packagePath) {
   return Directory('${repository.path}/$packagePath');
 }
 
+/// Reads package name and version from a repository pubspec.
 Future<PubspecPackage> readPubspecPackage(Directory repository) async {
   final pubspec = File('${repository.path}/pubspec.yaml');
   if (!await pubspec.exists()) {

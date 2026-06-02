@@ -6,8 +6,10 @@ import '../context/fluoh_environment.dart';
 import 'ohos/device_runner.dart';
 import 'ohos/ohos_toolchain.dart';
 
+/// Platforms understood by fluoh project and package workflows.
 enum FluohPlatform { android, ios, macos, ohos }
 
+/// Convenience methods for [FluohPlatform].
 extension FluohPlatformName on FluohPlatform {
   /// Lowercase command-line name for this platform.
   String get cliName {

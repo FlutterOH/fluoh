@@ -6,6 +6,7 @@ import 'git/package_git.dart';
 import 'manifest/package_manifest.dart';
 import 'license_checker.dart';
 
+/// Validates blocking package release metadata rules.
 Future<void> validatePackageReleaseMetadata({
   required Directory repository,
   required PackageManifest manifest,
@@ -20,6 +21,7 @@ Future<void> validatePackageReleaseMetadata({
   );
 }
 
+/// Returns non-blocking package release metadata warnings.
 Future<List<String>> packageReleaseMetadataWarnings({
   required Directory repository,
   required PackageManifest manifest,

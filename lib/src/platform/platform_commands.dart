@@ -5,7 +5,9 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'platform_environment.dart';
 
+/// Lists connected devices for supported platforms.
 class DevicesCommand extends FluohCommand<int> {
+  /// Creates the devices command.
   DevicesCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -26,6 +28,7 @@ class DevicesCommand extends FluohCommand<int> {
       );
   }
 
+  /// Runtime environment used for target discovery.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final TerminalOutput _output;
@@ -68,7 +71,9 @@ class DevicesCommand extends FluohCommand<int> {
   }
 }
 
+/// Lists or launches local emulators and simulators.
 class EmulatorsCommand extends FluohCommand<int> {
+  /// Creates the emulators command.
   EmulatorsCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -94,6 +99,7 @@ class EmulatorsCommand extends FluohCommand<int> {
       );
   }
 
+  /// Runtime environment used for emulator discovery and launch.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final TerminalOutput _output;
@@ -170,6 +176,7 @@ class EmulatorsCommand extends FluohCommand<int> {
   }
 }
 
+/// Parses a `--platform` option into the platform list to inspect.
 List<FluohPlatform> platformsFromCliOption(String? value) {
   return switch (value) {
     'all' || null => const [

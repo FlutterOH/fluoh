@@ -18,8 +18,11 @@ import '../sdk/sdk_project_config.dart';
 import '../source/source_sync.dart';
 import '../version.dart';
 
+/// Provides latest fluoh version metadata for doctor checks.
 typedef DoctorVersionMetadataProvider =
     Future<DoctorVersionMetadata?> Function();
+
+/// Provides the current script URI for installation diagnostics.
 typedef DoctorScriptUriProvider = Uri Function();
 
 const _ohosToolchainBaseTitle =
@@ -30,17 +33,24 @@ const _iosToolchainBaseTitle = 'Xcode - develop for iOS devices';
 const _macosToolchainBaseTitle = 'Xcode - develop for macOS desktop';
 const _appleToolchainBaseTitle = 'Xcode - develop for iOS and macOS';
 
+/// Version metadata used by `fluoh doctor`.
 class DoctorVersionMetadata {
+  /// Creates doctor version metadata.
   const DoctorVersionMetadata({
     required this.latestVersion,
     this.currentVersionPublished,
   });
 
+  /// Latest available fluoh version, when known.
   final String? latestVersion;
+
+  /// Publish timestamp for the current CLI version, when known.
   final String? currentVersionPublished;
 }
 
+/// Reports fluoh, project, Source, SDK, and native toolchain health.
 class DoctorCommand extends FluohCommand<int> {
+  /// Creates the doctor command.
   DoctorCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -1611,6 +1621,7 @@ Future<DoctorVersionMetadata?> _fetchFluohVersionMetadata() async {
   }
 }
 
+/// Parses pub.dev package metadata into doctor version metadata.
 DoctorVersionMetadata? parseFluohVersionMetadata(
   Map<String, Object?> packageMetadata,
 ) {

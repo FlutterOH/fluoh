@@ -13,12 +13,15 @@ from typing import Any
 REQUIRED_SECTIONS = (
     "## Summary",
     "## Changes",
+    "## Public API / Compatibility",
     "## Commands",
     "## Delivery Checklist",
     "## Platform Matrix",
     "## Interaction Evidence",
     "## Diagnostics",
+    "## Signing",
     "## Remaining Risks",
+    "## Local State",
     "## Release Decision",
 )
 
@@ -54,8 +57,8 @@ def checklist_items(content: str) -> list[dict[str, Any]]:
     return items
 
 
-def command_rows(content: str) -> list[str]:
-    rows: list[str] = []
+def command_rows(content: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
     in_commands = False
     for line in content.splitlines():
         if line.strip() == "## Commands":
@@ -65,9 +68,62 @@ def command_rows(content: str) -> list[str]:
             break
         if not in_commands:
             continue
-        if re.match(r"^\|\s*`[^`]+`\s*\|", line):
-            rows.append(line)
+        row = parse_command_row(line)
+        if row:
+            rows.append(row)
     return rows
+
+
+def parse_command_row(line: str) -> dict[str, str] | None:
+    if not re.match(r"^\|\s*`[^`]+`\s*\|", line):
+        return None
+    columns = [column.strip() for column in line.strip().strip("|").split("|")]
+    if len(columns) < 3:
+        return None
+    command_match = re.match(r"^`([^`]+)`$", columns[0])
+    if not command_match:
+        return None
+    return {
+        "command": command_match.group(1).strip(),
+        "exit": columns[1],
+        "result": columns[2],
+        "row": line,
+    }
+
+
+def command_row_passed(row: dict[str, str]) -> bool:
+    return row["exit"] == "0" and row["result"].lower() in (
+        "passed",
+        "ok",
+        "success",
+    )
+
+
+def command_contains(command: str, expected: str) -> bool:
+    return command == expected or command.startswith(f"{expected} ")
+
+
+def is_verify_evidence(row: dict[str, str]) -> bool:
+    return command_contains(row["command"], "fluoh verify")
+
+
+def is_ohos_build_evidence(row: dict[str, str]) -> bool:
+    command = row["command"]
+    return (
+        command_contains(command, "fluoh build")
+        and "--platform ohos" in command
+        and "--auto-sign" in command
+        and "--json" in command
+    )
+
+
+def is_ohos_run_evidence(row: dict[str, str]) -> bool:
+    command = row["command"]
+    return (
+        command_contains(command, "fluoh run")
+        and "--platform ohos" in command
+        and "--json" in command
+    )
 
 
 def section_content(content: str, heading: str) -> str:
@@ -83,9 +139,9 @@ def section_content(content: str, heading: str) -> str:
     return content[body_start + 1 :]
 
 
-def interaction_rows(content: str) -> list[str]:
+def interaction_rows(content: str) -> list[dict[str, str]]:
     section = section_content(content, "## Interaction Evidence")
-    rows: list[str] = []
+    rows: list[dict[str, str]] = []
     for line in section.splitlines():
         columns = [column.strip() for column in line.strip().strip("|").split("|")]
         if len(columns) >= 6 and columns[1].lower() in (
@@ -93,8 +149,21 @@ def interaction_rows(content: str) -> list[str]:
             "ai-assisted",
             "manual",
         ):
-            rows.append(line)
+            rows.append(
+                {
+                    "scenario": columns[0],
+                    "method": columns[1],
+                    "platform": columns[2],
+                    "target": columns[3],
+                    "result": columns[4],
+                    "row": line,
+                }
+            )
     return rows
+
+
+def interaction_row_passed(row: dict[str, str]) -> bool:
+    return row["result"].lower() == "passed"
 
 
 def placeholder_hits(content: str) -> list[str]:
@@ -111,7 +180,7 @@ def placeholder_hits(content: str) -> list[str]:
     return hits
 
 
-def validate(path: Path) -> dict[str, Any]:
+def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
     if not path.is_file():
@@ -149,16 +218,33 @@ def validate(path: Path) -> dict[str, Any]:
     evidence_rows = [
         row
         for row in rows
-        if "`...`" not in row and not re.search(r"\|\s*\.\.\.\s*$", row)
+        if "`...`" not in row["row"] and not re.search(r"\|\s*\.\.\.\s*$", row["row"])
     ]
     if not evidence_rows:
         errors.append("Commands table must include at least one concrete command row.")
+    passed_command_rows = [row for row in evidence_rows if command_row_passed(row)]
+    if recommendation == "ready" and not passed_command_rows:
+        errors.append("Ready reports must include at least one passed command row.")
+    passed_verify = any(is_verify_evidence(row) for row in passed_command_rows)
+    passed_ohos_build = any(is_ohos_build_evidence(row) for row in passed_command_rows)
+    passed_ohos_run = any(is_ohos_run_evidence(row) for row in passed_command_rows)
+    if recommendation == "ready" and not passed_verify:
+        errors.append("Ready reports must include passed fluoh verify evidence.")
+    if recommendation == "ready" and not (passed_ohos_build or passed_ohos_run):
+        errors.append("Ready reports must include passed OHOS build or run evidence.")
+    if recommendation == "ready" and require_ohos_run and not passed_ohos_run:
+        errors.append(
+            "Ready reports must include passed fluoh run --platform ohos evidence."
+        )
 
     interactions = interaction_rows(content)
     concrete_interactions = [
         row
         for row in interactions
-        if "`...`" not in row and not re.search(r"\|\s*\.\.\.\s*$", row)
+        if "`...`" not in row["row"] and not re.search(r"\|\s*\.\.\.\s*$", row["row"])
+    ]
+    passed_interactions = [
+        row for row in concrete_interactions if interaction_row_passed(row)
     ]
     interaction_section = section_content(content, "## Interaction Evidence")
     no_interaction_required = re.search(
@@ -170,6 +256,8 @@ def validate(path: Path) -> dict[str, Any]:
         errors.append(
             "Interaction Evidence must include a concrete row or 'No interaction required: <reason>'."
         )
+    elif recommendation == "ready" and concrete_interactions and not passed_interactions:
+        errors.append("Ready reports with interaction rows must include a passed row.")
 
     placeholders = placeholder_hits(content)
     if placeholders:
@@ -181,7 +269,12 @@ def validate(path: Path) -> dict[str, Any]:
         "report": str(path),
         "recommendation": recommendation,
         "commandRows": len(evidence_rows),
+        "passedCommandRows": len(passed_command_rows),
+        "passedVerify": passed_verify,
+        "passedOhosBuild": passed_ohos_build,
+        "passedOhosRun": passed_ohos_run,
         "interactionRows": len(concrete_interactions),
+        "passedInteractionRows": len(passed_interactions),
         "checklistTotal": len(checklist),
         "checklistDone": len(checklist) - len(unchecked),
         "unchecked": unchecked,
@@ -196,8 +289,16 @@ def main() -> int:
         description="Validate a fluoh AI adaptation report.",
     )
     parser.add_argument("report", help="Path to .fluoh/ai-report-...md")
+    parser.add_argument(
+        "--require-ohos-run",
+        action="store_true",
+        help="Require passed fluoh run --platform ohos evidence for ready reports.",
+    )
     args = parser.parse_args()
-    result = validate(Path(args.report).expanduser().resolve())
+    result = validate(
+        Path(args.report).expanduser().resolve(),
+        require_ohos_run=args.require_ohos_run,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["ok"] else 1
 

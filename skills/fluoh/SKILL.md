@@ -259,7 +259,8 @@ fluoh verify --package <name> --json
 fluoh run --platform ohos --package <name> --json
 fluoh build --platform ohos --package <name> --auto-sign --json
 fluoh package status --package <name>
-fluoh package release --package <name> --dry-run --json
+fluoh package version --package <name> --bump patch --status compatible
+fluoh package check --package <name> --json
 ```
 
 ## Automatic Adaptation Command Flow
@@ -324,11 +325,18 @@ to edit, when to fix local environment, and when work can be handed back.
    `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` with commands,
    results, platform matrix, interaction evidence, signing mode, logs,
    remaining risks, and release recommendation.
-9. Release gate: run `fluoh package status --package <name>`, the final
-   `fluoh verify --package <name>`, and
-   `fluoh package release --package <name> --dry-run`. Commit only after the
-   relevant gate succeeds; run the real release command only when the maintainer
-   approves tagging.
+9. Release gate: run `fluoh package status --package <name>`, update release
+   metadata with `fluoh package version --package <name>` when needed, then run
+   the final `fluoh verify --package <name>` and
+   `fluoh package check --package <name> --report <report-path>`.
+   Add `--require-ohos-run` when a connected target or emulator was available
+   and the handoff must prove a passed real OHOS launch. The certification
+   report must contain passed command rows, not only failed diagnostic rows.
+   Commit only after the relevant gate succeeds; run `fluoh package release`
+   only when the maintainer approves the fluoh release. Maintainers can still run
+   `fluoh package check` without a certification report after their own manual
+   verification; that path is a baseline release check, not an AI-certified
+   delivery.
 
 Rules:
 

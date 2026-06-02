@@ -1,7 +1,9 @@
 import 'package:args/args.dart';
 
+/// Callback used by command validators to report usage errors.
 typedef UsageError = Never Function(String message);
 
+/// Fails when a command receives positional arguments.
 void expectNoArguments(ArgResults results, UsageError usageException) {
   final rest = results.rest;
   if (rest.isEmpty) {
@@ -14,6 +16,7 @@ void expectNoArguments(ArgResults results, UsageError usageException) {
   usageException('Unexpected arguments: ${rest.join(' ')}.');
 }
 
+/// Returns exactly [count] positional arguments or fails with [message].
 List<String> expectArgumentCount(
   ArgResults results,
   int count,
@@ -27,6 +30,7 @@ List<String> expectArgumentCount(
   return rest;
 }
 
+/// Returns positional arguments when there are at most [count].
 List<String> expectArgumentCountAtMost(
   ArgResults results,
   int count,

@@ -1,12 +1,19 @@
+/// Install methods that `fluoh upgrade` can reason about.
 enum FluohInstallMethod { dartPubGlobal, homebrew, localSourceCheckout }
 
+/// Detected installation information for the current executable.
 class FluohInstallation {
+  /// Creates an installation descriptor.
   const FluohInstallation({required this.method, required this.scriptPath});
 
+  /// Detected install method.
   final FluohInstallMethod method;
+
+  /// Script path used for detection.
   final String scriptPath;
 }
 
+/// Resolves the current fluoh install method from [scriptUri].
 FluohInstallation resolveFluohInstallation(Uri scriptUri) {
   final scriptPath = _scriptPath(scriptUri);
   final normalized = _normalizePath(scriptPath);

@@ -10,23 +10,32 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'sdk_manager.dart';
 
+/// Result captured from a selected FlutterOH SDK tool invocation.
 class SelectedToolResult {
+  /// Creates a selected tool result.
   const SelectedToolResult({
     required this.exitCode,
     this.stdout = '',
     this.stderr = '',
   });
 
+  /// Process exit code.
   final int exitCode;
+
+  /// Captured stdout text.
   final String stdout;
+
+  /// Captured stderr text.
   final String stderr;
 
+  /// Combined non-empty stdout and stderr text.
   String get combinedOutput => [
     if (stdout.trim().isNotEmpty) stdout.trim(),
     if (stderr.trim().isNotEmpty) stderr.trim(),
   ].join('\n');
 }
 
+/// Resolves and installs the selected Flutter executable when necessary.
 Future<io.File> resolveFlutterExecutable({
   required FluohEnvironment environment,
   required TerminalOutput output,
@@ -60,6 +69,7 @@ Future<io.File> resolveFlutterExecutable({
   return flutter;
 }
 
+/// Resolves the Dart executable that belongs to the selected FlutterOH SDK.
 Future<io.File> resolveDartExecutable({
   required FluohEnvironment environment,
   required TerminalOutput output,
@@ -77,6 +87,7 @@ Future<io.File> resolveDartExecutable({
   return dart;
 }
 
+/// Runs Flutter from the selected FlutterOH SDK and returns the exit code.
 Future<int> runSelectedFlutter({
   required FluohEnvironment environment,
   required List<String> arguments,
@@ -100,6 +111,7 @@ Future<int> runSelectedFlutter({
   return result.exitCode;
 }
 
+/// Runs Flutter from the selected FlutterOH SDK and captures output.
 Future<SelectedToolResult> runSelectedFlutterResult({
   required FluohEnvironment environment,
   required List<String> arguments,
@@ -164,6 +176,7 @@ Future<SelectedToolResult> runSelectedFlutterResult({
   );
 }
 
+/// Runs Dart from the selected FlutterOH SDK and returns the exit code.
 Future<int> runSelectedDart({
   required FluohEnvironment environment,
   required List<String> arguments,
@@ -185,6 +198,7 @@ Future<int> runSelectedDart({
   return result.exitCode;
 }
 
+/// Runs Dart from the selected FlutterOH SDK and captures output.
 Future<SelectedToolResult> runSelectedDartResult({
   required FluohEnvironment environment,
   required List<String> arguments,
@@ -229,6 +243,7 @@ Future<SelectedToolResult> runSelectedDartResult({
   );
 }
 
+/// Builds the process environment for selected SDK tool invocations.
 Map<String, String> selectedToolProcessEnvironment({
   required FluohEnvironment environment,
   required io.File tool,

@@ -286,7 +286,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             f"fluoh run --platform ohos --package {package} --json",
             f"fluoh build --platform ohos --package {package} --auto-sign --json",
             f"fluoh package status --package {package}",
-            f"fluoh package release --package {package} --dry-run --json",
+            f"fluoh package check --package {package} --json",
         ]
     if kind == "flutter-package":
         package = project["name"] or "<package-name>"
@@ -299,7 +299,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             f"fluoh run --platform ohos --package {package} --json",
             f"fluoh build --platform ohos --package {package} --auto-sign --json",
             f"fluoh package status --package {package}",
-            f"fluoh package release --package {package} --dry-run --json",
+            f"fluoh package check --package {package} --json",
         ]
     if kind == "dart-package":
         return [
@@ -327,7 +327,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
             "git diff --check",
             f"fluoh verify --package {package} --json",
             f"fluoh package status --package {package}",
-            f"fluoh package release --package {package} --dry-run --json",
+            f"fluoh package check --package {package} --json",
         ]
     if kind == "flutter-package":
         return []
@@ -349,7 +349,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
         package = project["selectedPackage"] or "<name>"
         return [
             f"Create or update .fluoh/ai-report-{package}-...md before the final response.",
-            f"Record verify, status, and release dry-run results for {package} with exit codes.",
+            f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
             "Record relevant Android, iOS, and macOS regression checks when examples exist.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
@@ -363,7 +363,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             "Create a FlutterOH package repository before editing OHOS implementation files.",
             f"Rerun preflight in {output} before using final check commands.",
             f"Create or update .fluoh/ai-report-{package}-...md in the generated repository before the final response.",
-            f"Record verify, status, and release dry-run results for {package} with exit codes.",
+            f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
             "State ready, blocked, or needs maintainer decision in the final response.",

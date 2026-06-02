@@ -6,7 +6,9 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'flutter_runner.dart';
 
+/// Passes arguments through to the selected FlutterOH SDK's `flutter`.
 class FlutterCommand extends Command<int> {
+  /// Creates the Flutter passthrough command.
   FlutterCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -31,6 +33,7 @@ class FlutterCommand extends Command<int> {
   final String? _globalHelpInvocation;
 
   @override
+  /// Parser that accepts all arguments after `fluoh flutter`.
   final ArgParser argParser = ArgParser.allowAnything();
 
   @override

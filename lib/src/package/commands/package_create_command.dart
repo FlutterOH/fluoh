@@ -17,7 +17,9 @@ import '../package_examples.dart';
 import '../package_repository_docs.dart';
 import '../repository_url.dart';
 
+/// Initializes a FlutterOH package repository from an upstream package repo.
 class PackageCreateCommand extends FluohCommand<int> {
+  /// Creates the package repository initialization command.
   PackageCreateCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -60,6 +62,7 @@ class PackageCreateCommand extends FluohCommand<int> {
       );
   }
 
+  /// Runtime environment for SDK, Git, and filesystem operations.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;

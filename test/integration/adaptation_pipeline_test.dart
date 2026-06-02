@@ -9,7 +9,7 @@ import '../helpers/package_test_context.dart';
 
 void main() {
   test(
-    'chains source add, package create, deps check, deps fix, verify, and release',
+    'chains source add, package create, deps check, deps fix, verify, check, and release',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -137,11 +137,11 @@ void main() {
       expect(target, containsPair('kind', 'package'));
       expect(target, containsPair('name', 'camera'));
 
-      // Phase 5: Release dry-run validates without creating tags.
+      // Phase 5: Release check validates without creating tags.
       stdout.clear();
       expect(
         await runFluoh(
-          ['package', 'release', '--dry-run', '--json'],
+          ['package', 'check', '--json'],
           environment: releaseEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -150,7 +150,7 @@ void main() {
       );
       final releaseReport = jsonDecode(stdout.last) as Map<String, Object?>;
       expect(releaseReport, containsPair('schemaVersion', 1));
-      expect(releaseReport, containsPair('command', 'package release'));
+      expect(releaseReport, containsPair('command', 'package check'));
       expect(releaseReport, containsPair('ok', true));
       expect(releaseReport, containsPair('dryRun', true));
       expect(

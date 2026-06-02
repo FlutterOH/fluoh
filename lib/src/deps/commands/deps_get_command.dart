@@ -11,7 +11,9 @@ import '../../sdk/flutter_runner.dart';
 import '../../package/manifest/package_manifest.dart';
 import '../../package/manifest/pubspec_package.dart';
 
+/// Runs `flutter pub get` for a project and package repository examples.
 class DepsGetCommand extends Command<int> {
+  /// Creates the dependency fetch command.
   DepsGetCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -21,6 +23,7 @@ class DepsGetCommand extends Command<int> {
        _stderr = stderr,
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
 
+  /// Runtime environment used to resolve the selected Flutter SDK.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;

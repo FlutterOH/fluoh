@@ -201,8 +201,9 @@ Use `fluoh package sync` to fast-forward the upstream branch recorded in Package
 
 Use upstream package tests and existing example tests as the automated baseline. `fluoh verify` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
 
-`fluoh package release` must continue to guarantee:
+`fluoh package version`, `fluoh package check`, and `fluoh package release` must continue to guarantee:
 
+- `fluoh package version` updates only Package release version/status metadata in `fluoh.yaml`.
 - The current branch matches the `repository.git.branch` branch recorded in `fluoh.yaml`.
 - The worktree is clean.
 - The SDK version comes from configured sources.
@@ -210,5 +211,7 @@ Use upstream package tests and existing example tests as the automated baseline.
 - Missing or incomplete `FLUOH_CHANGELOG.md` release notes are reported as warnings, not release blockers.
 - Package analysis and existing package/example tests pass through `fluoh verify`.
 - The release tag matches the package, upstream version, SDK line, and `version` recorded in Package `fluoh.yaml`.
+- `fluoh package check` never creates or pushes tags.
+- `fluoh package release` creates tags only after the same validation and verification pass.
 
 FlutterOH package repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released package repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. FlutterOH/source pull requests and scheduled package ingestion workflows should call the same source command path.

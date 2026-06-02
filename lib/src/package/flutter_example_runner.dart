@@ -9,7 +9,9 @@ import '../context/fluoh_environment.dart';
 import '../platform/platform_environment.dart';
 import '../sdk/flutter_runner.dart';
 
+/// Flutter device entry parsed from `flutter devices --machine`.
 class FlutterDeviceTarget {
+  /// Creates a Flutter device target.
   const FlutterDeviceTarget({
     required this.id,
     required this.name,
@@ -17,11 +19,19 @@ class FlutterDeviceTarget {
     required this.isSupported,
   });
 
+  /// Flutter device id.
   final String id;
+
+  /// User-facing device name.
   final String name;
+
+  /// Flutter target platform string.
   final String targetPlatform;
+
+  /// Whether Flutter reports the device as supported.
   final bool isSupported;
 
+  /// Converts the device target to JSON.
   Map<String, Object?> toJson() {
     return {
       'id': id,
@@ -32,23 +42,33 @@ class FlutterDeviceTarget {
   }
 }
 
+/// Flutter emulator entry parsed from `flutter emulators --machine`.
 class FlutterEmulatorTarget {
+  /// Creates a Flutter emulator target.
   const FlutterEmulatorTarget({
     required this.id,
     required this.name,
     required this.platformType,
   });
 
+  /// Flutter emulator id.
   final String id;
+
+  /// User-facing emulator name.
   final String name;
+
+  /// Flutter platform type.
   final String platformType;
 
+  /// Converts the emulator target to JSON.
   Map<String, Object?> toJson() {
     return {'id': id, 'name': name, 'platformType': platformType};
   }
 }
 
+/// Result of a Flutter example run or integration-test flow.
 class FlutterExampleRunResult {
+  /// Creates a Flutter example run result.
   const FlutterExampleRunResult({
     required this.exitCode,
     required this.platform,
@@ -61,20 +81,40 @@ class FlutterExampleRunResult {
     this.details = const {},
   });
 
+  /// Exit code for the run flow.
   final int exitCode;
+
+  /// Platform requested by the run flow.
   final String platform;
+
+  /// Command line used for the run flow.
   final String command;
+
+  /// Selected Flutter device target.
   final FlutterDeviceTarget? target;
+
+  /// Emulator that was launched before the run, if any.
   final FlutterEmulatorTarget? emulator;
+
+  /// Captured output log file.
   final File? outputLog;
+
+  /// Optional high-level failure reason.
   final String? reason;
+
+  /// Additional machine-readable result details.
   final Map<String, Object?> details;
+
+  /// Structured diagnostics from device selection or runtime output.
   final List<FlutterExampleDiagnostic> diagnostics;
 
+  /// Whether the run flow passed.
   bool get passed => exitCode == 0;
 }
 
+/// Structured diagnostic for Flutter example runs.
 class FlutterExampleDiagnostic {
+  /// Creates a Flutter example diagnostic.
   const FlutterExampleDiagnostic({
     required this.code,
     required this.message,
@@ -82,12 +122,20 @@ class FlutterExampleDiagnostic {
     this.details = const {},
   });
 
+  /// Stable diagnostic code.
   final String code;
+
+  /// Human-readable diagnostic message.
   final String message;
+
+  /// Diagnostic severity.
   final String severity;
+
+  /// Additional machine-readable diagnostic details.
   final Map<String, Object?> details;
 }
 
+/// Runs a Flutter example on a selected device or emulator.
 Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
   required FluohEnvironment environment,
   required Directory exampleDirectory,
@@ -264,6 +312,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
   return runResult;
 }
 
+/// Parses `flutter devices --machine` JSON output.
 List<FlutterDeviceTarget> parseFlutterDevices(String content) {
   if (content.trim().isEmpty) {
     return const [];

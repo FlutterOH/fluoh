@@ -19,7 +19,9 @@ import '../schema/yaml_utils.dart';
 import '../sdk/flutter_runner.dart';
 import 'workflow_result.dart';
 
+/// Runs baseline verification for a project or package target.
 class VerifyCommand extends FluohCommand<int> {
+  /// Creates the verify command.
   VerifyCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -36,6 +38,7 @@ class VerifyCommand extends FluohCommand<int> {
     );
   }
 
+  /// Runtime environment for the selected project or package repository.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
@@ -80,7 +83,9 @@ class VerifyCommand extends FluohCommand<int> {
   }
 }
 
+/// Builds a project or package example for a selected platform.
 class BuildCommand extends FluohCommand<int> {
+  /// Creates the build command.
   BuildCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -111,6 +116,7 @@ class BuildCommand extends FluohCommand<int> {
     _addPackageSelectionOptions(argParser);
   }
 
+  /// Runtime environment for the selected project or package repository.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;
@@ -169,7 +175,9 @@ class BuildCommand extends FluohCommand<int> {
   }
 }
 
+/// Builds, installs, launches, and diagnoses a target app.
 class RunCommand extends FluohCommand<int> {
+  /// Creates the run command.
   RunCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -217,6 +225,7 @@ class RunCommand extends FluohCommand<int> {
     _addPackageSelectionOptions(argParser);
   }
 
+  /// Runtime environment for the selected project or package repository.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;

@@ -7,48 +7,74 @@ import '../../context/fluoh_environment.dart';
 import 'ohos_toolchain.dart';
 import 'permission_profile.dart';
 
+/// Launch metadata read from OHOS app manifests.
 class OhosLaunchInfo {
+  /// Creates OHOS launch metadata.
   const OhosLaunchInfo({
     required this.bundleName,
     required this.moduleName,
     required this.abilityName,
   });
 
+  /// Application bundle name.
   final String bundleName;
+
+  /// Module name containing the launch ability.
   final String moduleName;
+
+  /// Ability name used by `hdc shell aa start`.
   final String abilityName;
 }
 
+/// Connected OHOS target reported by `hdc list targets`.
 class OhosDeviceTarget {
+  /// Creates a device target descriptor.
   const OhosDeviceTarget({required this.id, this.details});
 
+  /// hdc target id.
   final String id;
+
+  /// Optional hdc details after the target id.
   final String? details;
 }
 
+/// Local OpenHarmony emulator discovered from the SDK installation.
 class OhosLocalEmulator {
+  /// Creates a local emulator descriptor.
   const OhosLocalEmulator({
     required this.name,
     required this.deployedRoot,
     required this.imageRoot,
   });
 
+  /// Emulator display name.
   final String name;
+
+  /// Deployed emulator root directory.
   final io.Directory deployedRoot;
+
+  /// Emulator image root directory.
   final io.Directory imageRoot;
 }
 
+/// Result of starting a local OpenHarmony emulator.
 class OhosEmulatorStartResult {
+  /// Creates an emulator start result.
   const OhosEmulatorStartResult({
     required this.emulator,
     required this.command,
   });
 
+  /// Emulator that was started.
   final OhosLocalEmulator emulator;
+
+  /// Command used to start the emulator.
   final List<String> command;
 }
 
+/// Result of installing and launching OHOS HAPs on a target.
 class OhosDeviceRunResult {
+  /// Creates an OHOS device run result.
   const OhosDeviceRunResult({
     required this.exitCode,
     required this.targetId,
@@ -59,18 +85,34 @@ class OhosDeviceRunResult {
     this.reason,
   });
 
+  /// Exit code for the run operation.
   final int exitCode;
+
+  /// Selected hdc target id.
   final String? targetId;
+
+  /// Launch metadata used for the app start command.
   final OhosLaunchInfo? launchInfo;
+
+  /// Captured hilog file.
   final io.File? logFile;
+
+  /// Human-readable findings from the run.
   final List<String> findings;
+
+  /// Structured diagnostics from install, launch, or runtime checks.
   final List<OhosDeviceDiagnostic> diagnostics;
+
+  /// Optional high-level failure reason.
   final String? reason;
 
+  /// Whether the run completed successfully.
   bool get passed => exitCode == 0;
 }
 
+/// Structured OHOS device run diagnostic.
 class OhosDeviceDiagnostic {
+  /// Creates a device diagnostic.
   const OhosDeviceDiagnostic({
     required this.code,
     required this.message,
@@ -78,11 +120,19 @@ class OhosDeviceDiagnostic {
     this.details = const {},
   });
 
+  /// Stable diagnostic code.
   final String code;
+
+  /// Human-readable diagnostic message.
   final String message;
+
+  /// Diagnostic severity.
   final String severity;
+
+  /// Additional machine-readable diagnostic details.
   final Map<String, Object?> details;
 
+  /// Converts the diagnostic to JSON.
   Map<String, Object?> toJson() {
     return {
       'code': code,
@@ -93,18 +143,26 @@ class OhosDeviceDiagnostic {
   }
 }
 
+/// Captured `hdc` command result.
 class OhosHdcResult {
+  /// Creates an hdc result.
   const OhosHdcResult({
     required this.exitCode,
     required this.stdout,
     required this.stderr,
   });
 
+  /// hdc exit code.
   final int exitCode;
+
+  /// Captured stdout.
   final String stdout;
+
+  /// Captured stderr.
   final String stderr;
 }
 
+/// Reads launch metadata from an OHOS project directory.
 Future<OhosLaunchInfo> readOhosLaunchInfo(io.Directory ohosDirectory) async {
   final bundleName = await readOhosBundleName(ohosDirectory);
   final moduleFiles = await _moduleJsonFiles(ohosDirectory);
@@ -125,6 +183,7 @@ Future<OhosLaunchInfo> readOhosLaunchInfo(io.Directory ohosDirectory) async {
   throw const FormatException('Missing launchable OHOS ability.');
 }
 
+/// Lists connected OHOS hdc targets.
 Future<List<OhosDeviceTarget>> listOhosDeviceTargets({
   required FluohEnvironment environment,
   String usage = '',
@@ -143,6 +202,7 @@ Future<List<OhosDeviceTarget>> listOhosDeviceTargets({
   return parseOhosDeviceTargets(result.stdout);
 }
 
+/// Parses `hdc list targets` output.
 List<OhosDeviceTarget> parseOhosDeviceTargets(String output) {
   final targets = <OhosDeviceTarget>[];
   for (final rawLine in const LineSplitter().convert(output)) {
@@ -165,6 +225,7 @@ List<OhosDeviceTarget> parseOhosDeviceTargets(String output) {
   return targets;
 }
 
+/// Installs and launches signed HAPs on an OHOS device or emulator.
 Future<OhosDeviceRunResult> runOhosHapsOnDevice({
   required FluohEnvironment environment,
   required io.Directory ohosDirectory,
@@ -481,6 +542,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
   );
 }
 
+/// Waits until an OHOS device target is available.
 Future<OhosDeviceTarget?> waitForOhosDeviceTarget({
   required FluohEnvironment environment,
   String? deviceId,
@@ -504,6 +566,7 @@ Future<OhosDeviceTarget?> waitForOhosDeviceTarget({
   }
 }
 
+/// Starts a local OpenHarmony emulator.
 Future<OhosEmulatorStartResult> startOhosEmulator({
   required FluohEnvironment environment,
   required OhosToolchain toolchain,
@@ -552,6 +615,7 @@ Future<OhosEmulatorStartResult> startOhosEmulator({
   return OhosEmulatorStartResult(emulator: emulator, command: command);
 }
 
+/// Discovers locally deployed OpenHarmony emulators.
 Future<List<OhosLocalEmulator>> discoverOhosLocalEmulators({
   required FluohEnvironment environment,
 }) async {
@@ -614,6 +678,7 @@ Future<List<OhosLocalEmulator>> discoverOhosLocalEmulators({
   return emulators;
 }
 
+/// Returns fatal runtime findings from an OHOS hilog capture.
 List<String> classifyOhosRuntimeLog(String log) {
   final findings = <String>[];
   final seen = <String>{};
@@ -638,9 +703,12 @@ List<String> classifyOhosRuntimeLog(String log) {
   return findings;
 }
 
+/// Exception thrown for OHOS device and emulator failures.
 class OhosDeviceException implements Exception {
+  /// Creates an OHOS device exception.
   const OhosDeviceException(this.message);
 
+  /// User-facing failure message.
   final String message;
 
   @override

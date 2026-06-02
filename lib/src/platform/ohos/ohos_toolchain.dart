@@ -2,7 +2,9 @@ import 'dart:io' as io;
 
 import 'package:args/command_runner.dart';
 
+/// Resolved OpenHarmony toolchain paths from DevEco Studio.
 class OhosToolchain {
+  /// Creates an OHOS toolchain descriptor.
   const OhosToolchain({
     required this.devEcoStudio,
     required this.openHarmonySdk,
@@ -16,18 +18,38 @@ class OhosToolchain {
     required this.emulator,
   });
 
+  /// DevEco Studio application directory.
   final io.Directory devEcoStudio;
+
+  /// OpenHarmony SDK directory.
   final io.Directory openHarmonySdk;
+
+  /// HAP signing tool JAR.
   final io.File hapSignTool;
+
+  /// OpenHarmony root keystore.
   final io.File openHarmonyKeyStore;
+
+  /// Debug profile signing certificate.
   final io.File openHarmonyProfileDebug;
+
+  /// Java executable bundled with DevEco Studio.
   final io.File java;
+
+  /// Keytool executable bundled with DevEco Studio.
   final io.File keytool;
+
+  /// Node executable bundled with DevEco Studio.
   final io.File node;
+
+  /// hdc executable.
   final io.File hdc;
+
+  /// OpenHarmony emulator executable.
   final io.File emulator;
 }
 
+/// Locates the OpenHarmony SDK toolchain from environment or standard paths.
 Future<OhosToolchain> locateOhosToolchain({
   required Map<String, String> environment,
   String usage = '',

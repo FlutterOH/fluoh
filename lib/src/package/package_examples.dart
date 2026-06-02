@@ -12,7 +12,9 @@ import '../sdk/sdk_project_environment.dart';
 import 'manifest/package_manifest.dart';
 import 'manifest/pubspec_package.dart';
 
+/// Result of preparing a package example for FlutterOH verification.
 class PackageExampleSetupResult {
+  /// Creates an example setup result.
   const PackageExampleSetupResult({
     required this.packageName,
     required this.example,
@@ -21,13 +23,23 @@ class PackageExampleSetupResult {
     this.rollbackSnapshot,
   });
 
+  /// Package name associated with the example.
   final String packageName;
+
+  /// Example directory.
   final Directory example;
+
+  /// Whether the example was prepared.
   final bool prepared;
+
+  /// Skip reason when [prepared] is false.
   final String? reason;
+
+  /// Snapshot that can roll back preparation changes.
   final PackageExampleSnapshot? rollbackSnapshot;
 }
 
+/// Prepares a package example with selected SDK metadata and OHOS platform.
 Future<PackageExampleSetupResult> preparePackageExample({
   required FluohEnvironment environment,
   required Directory repository,
@@ -107,6 +119,7 @@ Future<PackageExampleSetupResult> preparePackageExample({
   }
 }
 
+/// Returns existing package example directories.
 Future<List<Directory>> packageExampleDirectories({
   required Directory repository,
   required Iterable<PackageManifestPackage> packages,
@@ -129,6 +142,7 @@ Future<List<Directory>> packageExampleDirectories({
   return examples;
 }
 
+/// Returns whether [directory] contains a Flutter package pubspec.
 Future<bool> isFlutterPackageDirectory(Directory directory) async {
   final pubspec = File('${directory.path}/pubspec.yaml');
   if (!await pubspec.exists()) {
@@ -137,6 +151,7 @@ Future<bool> isFlutterPackageDirectory(Directory directory) async {
   return _isFlutterPubspec(await pubspec.readAsString());
 }
 
+/// Returns whether [directory] contains Dart package tests.
 Future<bool> hasPackageTests(Directory directory) async {
   final testRoot = Directory('${directory.path}/test');
   if (!await testRoot.exists()) {
@@ -153,6 +168,7 @@ Future<bool> hasPackageTests(Directory directory) async {
   return false;
 }
 
+/// Returns [directory] as a repository-relative path.
 String packageRelativePath(Directory repository, Directory directory) {
   return _relativePath(repository, directory);
 }
@@ -223,7 +239,9 @@ String _relativePath(Directory rootDirectory, Directory directory) {
   return path;
 }
 
+/// Snapshot of package example files that fluoh may modify.
 class PackageExampleSnapshot {
+  /// Creates an example snapshot.
   const PackageExampleSnapshot({
     required this.example,
     required this.files,
@@ -232,12 +250,22 @@ class PackageExampleSnapshot {
     required this.flutterSdkLinkTarget,
   });
 
+  /// Example directory captured by the snapshot.
   final Directory example;
+
+  /// Captured file contents keyed by relative path.
   final Map<String, String?> files;
+
+  /// Whether `.fluoh/` existed before capture.
   final bool fluohDirectoryExisted;
+
+  /// Whether `ohos/` existed before capture.
   final bool ohosDirectoryExisted;
+
+  /// Existing `.fluoh/flutter_sdk` symlink target.
   final String? flutterSdkLinkTarget;
 
+  /// Captures restorable example state.
   static Future<PackageExampleSnapshot> capture(Directory example) async {
     final files = <String, String?>{};
     for (final path in const ['.gitignore', 'fluoh.yaml', 'local.properties']) {

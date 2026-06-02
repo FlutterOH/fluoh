@@ -13,6 +13,7 @@ export '../schema/schema.dart'
         DependencyPlanStatus,
         implementationUpstreamVersionChange;
 
+/// Builds a dependency rewrite plan for the current project.
 Future<DependencyPlan> buildDependencyPlan({
   required FluohEnvironment environment,
   required DependencyPolicy policy,

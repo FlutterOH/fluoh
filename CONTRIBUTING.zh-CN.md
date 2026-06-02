@@ -192,8 +192,9 @@ git commit -m "feat(package): initialize FlutterOH package"
 
 沿用上游 package 测试和已有 example 测试作为自动化基线。`fluoh verify` 会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用 `flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行 package 自身测试。存在顶层 Flutter example（`example/pubspec.yaml`）时也会检查 example。
 
-`fluoh package release` 必须继续保证：
+`fluoh package version`、`fluoh package check` 和 `fluoh package release` 必须继续保证：
 
+- `fluoh package version` 只更新 `fluoh.yaml` 中的 Package 发布版本/status 元数据。
 - 当前分支和 `fluoh.yaml` 记录的 `repository.git.branch` 分支一致。
 - 工作区干净。
 - SDK 版本来自已配置的数据源。
@@ -201,5 +202,7 @@ git commit -m "feat(package): initialize FlutterOH package"
 - 缺失或未填写当前版本的 `FLUOH_CHANGELOG.md` 发布说明会提示 warning，但不阻塞 release。
 - Package 分析和现有 package/example 测试通过 `fluoh verify`。
 - release tag 和 Package `fluoh.yaml` 中的 package、上游版本、SDK 版本线、`version` 一致。
+- `fluoh package check` 不会创建或推送 tag。
+- `fluoh package release` 只会在同一套校验和验证通过后创建 tag。
 
 FlutterOH package 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 package 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/source PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。

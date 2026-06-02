@@ -2,28 +2,37 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
 
+/// Default terminal width used when no TTY width is available.
 const defaultTerminalLineLength = 80;
 
+/// Semantic category for a human-readable terminal message.
 enum TerminalMessageKind { success, warning, error, info, step, skipped }
 
+/// Status level used when coloring status text.
 enum TerminalStatus { ok, warning, error }
 
+/// ANSI color names supported by [TerminalStyle].
 enum TerminalColor { red, green, yellow, blue, cyan, gray }
 
+/// Semantic style for a terminal table cell.
 enum TerminalTableCellStyle { normal, muted, command, path, url, value, status }
 
+/// Formatting capabilities detected for the current terminal.
 class TerminalCapabilities {
+  /// Creates a terminal capability set.
   const TerminalCapabilities({
     required this.ansi,
     required this.decorated,
     required this.unicode,
   });
 
+  /// Capability set that disables ANSI and decorative output.
   const TerminalCapabilities.plain()
     : ansi = false,
       decorated = false,
       unicode = true;
 
+  /// Detects formatting support from process environment and stdout.
   factory TerminalCapabilities.detect({
     required bool enableFormatting,
     Map<String, String>? environment,
@@ -47,38 +56,57 @@ class TerminalCapabilities {
     );
   }
 
+  /// Whether ANSI escape sequences should be emitted.
   final bool ansi;
+
+  /// Whether symbols and message markers should be emitted.
   final bool decorated;
+
+  /// Whether unicode symbols are safe for the terminal.
   final bool unicode;
 }
 
+/// Applies terminal styling to human-readable output.
 class TerminalStyle {
+  /// Creates a style backed by [capabilities].
   const TerminalStyle({this.capabilities = const TerminalCapabilities.plain()});
 
+  /// Detected terminal capabilities for this style.
   final TerminalCapabilities capabilities;
 
+  /// Symbols selected for the terminal's unicode capability.
   TerminalSymbols get symbols =>
       capabilities.unicode ? TerminalSymbols.unicode : TerminalSymbols.ascii;
 
+  /// Styles a top-level heading.
   String header(String text) =>
       paint(text, color: TerminalColor.cyan, bold: true);
 
+  /// Styles a command help section title.
   String section(String text) => paint(text, bold: true);
 
+  /// Styles a field label.
   String label(String text) => paint(text, color: TerminalColor.blue);
 
+  /// Styles a field value.
   String value(String text) => text;
 
+  /// Styles a command fragment.
   String command(String text) => paint(text, color: TerminalColor.cyan);
 
+  /// Styles a filesystem path.
   String path(String text) => text;
 
+  /// Styles a URL.
   String url(String text) => paint(text, color: TerminalColor.blue);
 
+  /// Styles low-emphasis text.
   String muted(String text) => paint(text, color: TerminalColor.gray);
 
+  /// Styles inline code, adding backticks when ANSI is unavailable.
   String code(String text) => capabilities.ansi ? command(text) : '`$text`';
 
+  /// Styles status text according to [status].
   String status(TerminalStatus status, String text) {
     final color = switch (status) {
       TerminalStatus.ok => TerminalColor.green,
@@ -88,6 +116,7 @@ class TerminalStyle {
     return paint(text, color: color);
   }
 
+  /// Adds a marker to [text] when decorated output is enabled.
   String message(TerminalMessageKind kind, String text) {
     if (!capabilities.decorated) {
       return text;
@@ -96,6 +125,7 @@ class TerminalStyle {
     return '${messageMarker(kind)} $text';
   }
 
+  /// Returns the colored marker for [kind].
   String messageMarker(TerminalMessageKind kind) {
     final marker = switch (kind) {
       TerminalMessageKind.success => symbols.success,
@@ -116,6 +146,7 @@ class TerminalStyle {
     return paint(marker, color: color);
   }
 
+  /// Applies ANSI color and emphasis when ANSI output is enabled.
   String paint(
     String text, {
     TerminalColor? color,
@@ -138,7 +169,9 @@ class TerminalStyle {
   }
 }
 
+/// Writes human-readable CLI output with consistent styling and wrapping.
 class TerminalOutput {
+  /// Creates a terminal output writer.
   const TerminalOutput({
     required void Function(String message) stdout,
     void Function(String message)? stderr,
@@ -152,61 +185,79 @@ class TerminalOutput {
   final void Function(String message) _stdout;
   final void Function(String message) _stderr;
   final void Function(String text)? _transient;
+
+  /// Styling rules used for human-readable output.
   final TerminalStyle style;
+
+  /// Maximum line length used for wrapped output.
   final int lineLength;
 
+  /// Writes a raw line to stdout.
   void write(String message) {
     _stdout(message);
   }
 
+  /// Writes a raw line to stderr.
   void writeError(String message) {
     _stderr(message);
   }
 
+  /// Writes a blank stdout line.
   void blank() {
     _stdout('');
   }
 
+  /// Writes a styled heading.
   void heading(String text) {
     _stdout(style.header(text));
   }
 
+  /// Writes a styled section title.
   void section(String text) {
     _stdout(style.section(text));
   }
 
+  /// Writes a success message.
   void success(String message) {
     _writeMessage(_stdout, TerminalMessageKind.success, message);
   }
 
+  /// Writes a warning message to stdout.
   void warning(String message) {
     _writeMessage(_stdout, TerminalMessageKind.warning, message);
   }
 
+  /// Writes a warning message to stderr.
   void warningError(String message) {
     _writeMessage(_stderr, TerminalMessageKind.warning, message);
   }
 
+  /// Writes an error message to stderr.
   void error(String message) {
     _writeMessage(_stderr, TerminalMessageKind.error, message);
   }
 
+  /// Writes a failure message to stdout for command result summaries.
   void failure(String message) {
     _writeMessage(_stdout, TerminalMessageKind.error, message);
   }
 
+  /// Writes an informational message.
   void info(String message) {
     _writeMessage(_stdout, TerminalMessageKind.info, message);
   }
 
+  /// Writes a progress step message.
   void step(String message) {
     _writeMessage(_stdout, TerminalMessageKind.step, message);
   }
 
+  /// Writes a skipped-action message.
   void skipped(String message) {
     _writeMessage(_stdout, TerminalMessageKind.skipped, message);
   }
 
+  /// Writes a next-step hint.
   void next(String message) {
     final prefix = style.capabilities.decorated
         ? '${style.paint(style.symbols.arrow, color: TerminalColor.cyan)} '
@@ -220,6 +271,7 @@ class TerminalOutput {
     );
   }
 
+  /// Writes an indented detail bullet.
   void detail(String message) {
     final bullet = style.paint(style.symbols.bullet, color: TerminalColor.gray);
     _writeWrapped(
@@ -230,11 +282,13 @@ class TerminalOutput {
     );
   }
 
+  /// Writes a wrapped message with a fixed indentation.
   void indented(String message, {int spaces = 2}) {
     final indent = ' ' * spaces;
     _writeWrapped(_stdout, message, prefix: indent, visiblePrefix: indent);
   }
 
+  /// Runs [task] while showing transient progress when the terminal supports it.
   Future<T> withProgress<T>(
     String message,
     Future<T> Function() task, {
@@ -288,6 +342,7 @@ class TerminalOutput {
     }
   }
 
+  /// Writes a simple aligned table.
   void table({
     required List<TerminalTableColumn> columns,
     required List<List<String>> rows,
@@ -432,6 +487,7 @@ class TerminalOutput {
   }
 }
 
+/// Wraps terminal text at [width] without breaking lines unnecessarily.
 List<String> wrapTerminalText(String value, {required int width}) {
   final normalizedWidth = width < 1 ? 1 : width;
   final lines = <String>[];
@@ -481,19 +537,28 @@ int _lastTerminalBreakBefore(String value, int width) {
   return bestSpace > 0 ? bestSpace : bestSymbol;
 }
 
+/// Column description for [TerminalOutput.table].
 class TerminalTableColumn {
+  /// Creates a terminal table column.
   const TerminalTableColumn(
     this.header, {
     this.style = TerminalTableCellStyle.normal,
     this.alignRight = false,
   });
 
+  /// Header text displayed for this column.
   final String header;
+
+  /// Cell style applied to values in this column.
   final TerminalTableCellStyle style;
+
+  /// Whether cells in this column should be right-aligned.
   final bool alignRight;
 }
 
+/// Symbol set used for decorated terminal messages.
 class TerminalSymbols {
+  /// Creates a symbol set for terminal decoration.
   const TerminalSymbols({
     required this.success,
     required this.warning,
@@ -505,6 +570,7 @@ class TerminalSymbols {
     required this.arrow,
   });
 
+  /// Unicode symbols used when the terminal supports them.
   static const unicode = TerminalSymbols(
     success: '✓',
     warning: '!',
@@ -516,6 +582,7 @@ class TerminalSymbols {
     arrow: '→',
   );
 
+  /// ASCII fallback symbols.
   static const ascii = TerminalSymbols(
     success: 'OK',
     warning: '!',
@@ -527,13 +594,28 @@ class TerminalSymbols {
     arrow: '->',
   );
 
+  /// Success marker.
   final String success;
+
+  /// Warning marker.
   final String warning;
+
+  /// Error marker.
   final String error;
+
+  /// Informational marker.
   final String info;
+
+  /// Progress step marker.
   final String step;
+
+  /// Skipped-action marker.
   final String skipped;
+
+  /// Detail bullet marker.
   final String bullet;
+
+  /// Next-step arrow marker.
   final String arrow;
 }
 

@@ -112,8 +112,10 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Register another package in a FlutterOH package repository. |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
-| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Check, tag, and optionally push FlutterOH package releases. |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | Summarize package release readiness. |
+| `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | Update package release version metadata. |
+| `fluoh package check` | `lib/src/package/commands/package_release_command.dart` | Run release checks without creating tags. |
+| `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Complete a FlutterOH package release. |
 | `fluoh verify` | `lib/src/workflow/workflow_commands.dart` | Run pub get, analysis, and tests for a project or package repository. |
 | `fluoh build --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | Build a project or package example. |
 | `fluoh run --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | Build, install, launch, and diagnose an app. |
@@ -407,9 +409,12 @@ Recommended flow:
    example builds. Fix non-OHOS platform regressions first.
 6. Use `status: experimental` while adaptation is in progress. Omit `status`
    when the release is complete and recommended; omitted means `compatible`.
-7. `fluoh package release` creates the release tag, freezing the code, tests, and
+7. `fluoh package version` updates the adaptation package release version and
+   status.
+8. `fluoh package check` runs the final local gate without creating tags.
+9. `fluoh package release` creates the release tag, freezing the code, tests, and
    Package `fluoh.yaml`.
-8. `fluoh source sync` aggregates Source Manifests from release tags.
+10. `fluoh source sync` aggregates Source Manifests from release tags.
 
 `fluoh package create <upstream>` clones the upstream repository, selects one or
 more packages, configures `upstream` and `origin`, creates a Flutter OHOS
@@ -529,13 +534,33 @@ JSON failures include platform run diagnostics such as `ohos.run_failed`,
 current-project runs, while package examples keep their more specific install,
 launch, runtime, and integration-test diagnostics where available.
 
-`fluoh package release` validates release metadata, verifies that the configured
-SDK version exists in sources, runs `fluoh verify`, ensures the working
-tree remains clean, creates release tags at HEAD, and optionally pushes them.
-Use `--package <name>` for one package or `--all` for every registered package.
-Existing tags are accepted only when they already point at HEAD. `--dry-run`
-performs validation and verification without creating or pushing tags. `--json`
-prints tags, warnings, and verification results.
+`fluoh package version` updates the release metadata for a registered package
+in `fluoh.yaml`. Use `--bump patch|minor|major` to increment the FlutterOH
+adaptation package version, `--set <version>` to set an exact version, and
+`--status experimental|compatible|broken` to set release status. `compatible`
+removes the status field because compatible is the default. `--bump` and
+`--set` are mutually exclusive. Use `--dry-run` to print the planned change
+without writing, and `--json` for machine-readable output.
+
+`fluoh package check` validates release metadata, verifies that the configured
+SDK version exists in sources, runs `fluoh verify`, ensures the working tree
+remains clean, and reports the release tag that would be created. It never
+creates or pushes tags. Use `--package <name>` for one package or `--all` for
+every registered package. `--json` prints tags, warnings, certification state,
+and verification results. Checks do not require device or AI report evidence by
+default; they print a non-blocking warning when no certification report is
+provided. Use `--report <path>` or `--certification-report <path>` to require a
+completed `.fluoh/ai-report-...md` before passing the check. Certification
+reports must be `ready`, complete every delivery checklist item, include passed
+`fluoh verify` evidence, include passed OHOS build or run evidence, and include
+passed interaction evidence or an explicit `No interaction required: <reason>`.
+Add `--require-ohos-run` when CI or an AI handoff must prove a passed real OHOS
+run rather than build-only evidence.
+
+`fluoh package release` runs the same validation and verification, then
+completes the fluoh package release by creating release tags at HEAD and
+optionally pushing them with `--push`. Existing tags are accepted only when they
+already point at HEAD. It does not publish to pub.dev.
 
 `fluoh package status` reads Package `fluoh.yaml` and reports release readiness
 without mutating the repository. It checks the current branch, clean working
@@ -554,7 +579,7 @@ contain the local fluoh home path. Use `--package <name>` for one package,
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
 | Project `fluoh.yaml` | `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
 | Project `pubspec.yaml` | `deps fix`, `deps upgrade` |
-| FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package status`, `package release` validation |
+| FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package status`, `package version`, `package check`, `package release` validation |
 | Source root and Manifest files | `source init`, `source sync` |
 | `.fluoh/flutter_sdk` | `sdk use`, `package create` SDK setup |
-| Package examples | `package create`, `package add`, `deps get`, `verify`, `package release` |
+| Package examples | `package create`, `package add`, `deps get`, `verify`, `package check`, `package release` |

@@ -741,10 +741,12 @@ dependencies:
       '  create',
       '  add',
       '  sync',
-      '  release',
       '  status',
+      '  version',
+      '  check',
+      '  release',
     ]);
-    expect(help, isNot(contains('  check')));
+    expect(help, isNot(contains('  tag')));
 
     stdout.clear();
     expect(
@@ -879,10 +881,12 @@ dependencies:
       '  create',
       '  add',
       '  sync',
-      '  release',
       '  status',
+      '  version',
+      '  check',
+      '  release',
     ]);
-    expect(help, isNot(contains('  check')));
+    expect(help, isNot(contains('  tag')));
     expect(stderr, isEmpty);
   });
 }

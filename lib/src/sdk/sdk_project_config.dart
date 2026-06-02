@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../schema/schema.dart';
 
+/// Reads the selected SDK version from the nearest project `fluoh.yaml`.
 Future<String?> readProjectSdkVersion(Directory workingDirectory) async {
   final fluohYaml = await findProjectFluohConfig(workingDirectory);
   if (fluohYaml == null) {
@@ -15,6 +16,7 @@ Future<String?> readProjectSdkVersion(Directory workingDirectory) async {
   return ProjectFluohConfig.parse(content).sdkVersion;
 }
 
+/// Finds the nearest project `fluoh.yaml` by walking up from [workingDirectory].
 Future<File?> findProjectFluohConfig(Directory workingDirectory) async {
   var directory = workingDirectory.absolute;
   while (true) {

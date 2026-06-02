@@ -8,6 +8,7 @@ import '../config/fluoh_config.dart';
 import '../version.dart';
 import 'source_index.dart';
 
+/// Ensures configured Source snapshots are readable, refreshing Git sources.
 Future<void> ensureSourceSnapshots(
   FluohConfig config, {
   TerminalOutput? output,
@@ -79,6 +80,7 @@ Future<_SnapshotState> _snapshotState(
 
 enum _SnapshotState { missing, valid, invalid }
 
+/// Validates a Source snapshot and its fluoh version constraint.
 Future<void> validateSource(String name, SourceConfig sourceConfig) async {
   final source = SourceIndex.directory(sourceConfig.directory);
   final validators =
@@ -139,6 +141,7 @@ Future<void> _validateSourceEnvironment(SourceIndex source) async {
   }
 }
 
+/// Formats a filesystem exception with its path when available.
 String fileSystemMessage(FileSystemException error) {
   final path = error.path;
   if (path == null || path.isEmpty) {
@@ -147,6 +150,7 @@ String fileSystemMessage(FileSystemException error) {
   return '${error.message}: $path';
 }
 
+/// Copies and validates a local Source snapshot into [destination].
 Future<void> syncLocalSource(
   String name,
   Directory source,
@@ -160,6 +164,7 @@ Future<void> syncLocalSource(
   }
 }
 
+/// Prepares a validated temporary snapshot from a local Source directory.
 Future<Directory> prepareLocalSourceSnapshot(
   String name,
   Directory source,
@@ -175,6 +180,7 @@ Future<Directory> prepareLocalSourceSnapshot(
   }
 }
 
+/// Refreshes a Git-backed Source snapshot.
 Future<void> syncGitSource(
   String name,
   SourceConfig source, {
@@ -191,6 +197,7 @@ Future<void> syncGitSource(
   }
 }
 
+/// Resolves a `file:` Source URL into a local directory when possible.
 Directory? localSourceDirectoryFromUrl(String? value) {
   if (value == null || !value.startsWith('file:')) {
     return null;
@@ -217,6 +224,7 @@ Directory? localSourceDirectoryFromUrl(String? value) {
   }
 }
 
+/// Clones and validates a Git Source into a temporary directory.
 Future<Directory> prepareGitSourceSnapshot(
   String name,
   SourceConfig source, {
@@ -268,6 +276,7 @@ Future<T> _withOptionalProgress<T>(
   return output == null ? task() : output.withProgress(message, task);
 }
 
+/// Replaces [destination] with [source] using staging and backup directories.
 Future<void> replaceSourceSnapshot({
   required Directory source,
   required Directory destination,
@@ -304,6 +313,7 @@ Future<void> replaceSourceSnapshot({
   }
 }
 
+/// Copies Source root files and manifests into [destination].
 Future<void> copySourceSnapshot(Directory source, Directory destination) async {
   await destination.create(recursive: true);
   await _copyFileIfExists(
@@ -350,12 +360,14 @@ String _relativeEntityPath(Directory root, FileSystemEntity entity) {
   return entityPath.substring(rootPath.length + 1);
 }
 
+/// Deletes a file or directory when it exists.
 Future<void> deleteIfExists(FileSystemEntity entity) async {
   if (await entity.exists()) {
     await entity.delete(recursive: true);
   }
 }
 
+/// Returns the final path segment for [path].
 String basename(String path) {
   final normalized = path.endsWith(Platform.pathSeparator)
       ? path.substring(0, path.length - 1)
@@ -363,6 +375,7 @@ String basename(String path) {
   return normalized.split(Platform.pathSeparator).last;
 }
 
+/// Runs Git and converts non-zero exits to usage errors.
 Future<void> git(List<String> arguments, {Directory? workingDirectory}) async {
   final result = await Process.run(
     'git',

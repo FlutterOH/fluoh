@@ -12,6 +12,7 @@ export '../schema/schema.dart'
         DependencyPubspecSection,
         DependencyVersionChangePolicy;
 
+/// Reads dependency rewrite policy from project `fluoh.yaml`.
 Future<DependencyPolicy> readDependencyPolicy(
   Directory workingDirectory,
 ) async {

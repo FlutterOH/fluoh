@@ -12,27 +12,38 @@ const _openHarmonyPassword = '123456';
 const _debugSigningPlainPassword = '123456';
 const _signAlg = 'SHA256withECDSA';
 
+/// Generated OHOS debug signing material for a package example.
 class OhosDebugSigningMaterial {
+  /// Creates debug signing material metadata.
   const OhosDebugSigningMaterial({
     required this.directory,
     required this.permissionProfile,
     required this.signingConfig,
   });
 
+  /// Directory containing generated signing files.
   final io.Directory directory;
+
+  /// Permission profile used to generate the signed profile.
   final OhosPermissionProfile permissionProfile;
+
+  /// Build-profile signing config that references generated files.
   final OhosDebugSigningConfig signingConfig;
 }
 
+/// Exception thrown when OHOS signing tool execution fails.
 class OhosSigningException implements Exception {
+  /// Creates an OHOS signing exception.
   const OhosSigningException(this.message);
 
+  /// User-facing failure message.
   final String message;
 
   @override
   String toString() => message;
 }
 
+/// Generates temporary OpenHarmony debug signing material.
 Future<OhosDebugSigningMaterial> prepareOhosDebugSigning({
   required FluohEnvironment environment,
   required io.Directory ohosDirectory,
@@ -126,6 +137,7 @@ Future<OhosDebugSigningMaterial> prepareOhosDebugSigning({
   );
 }
 
+/// Signs unsigned HAPs produced by the OHOS build.
 Future<List<io.File>> signGeneratedUnsignedHaps({
   required FluohEnvironment environment,
   required io.Directory exampleDirectory,

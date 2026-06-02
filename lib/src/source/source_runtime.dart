@@ -11,15 +11,20 @@ import '../version.dart';
 import 'source_index.dart';
 import 'source_sync.dart';
 
+/// Loads and maintains resolved Source data for SDK and package lookups.
 class SourceRuntime {
+  /// Creates a Source runtime for [environment].
   const SourceRuntime(this.environment);
 
+  /// Runtime environment containing config, cache, and lockfile paths.
   final FluohEnvironment environment;
 
+  /// Loads the merged SDK index from configured Sources.
   Future<SdkIndex> loadSdkIndex() async {
     return (await _loadResolvedLock()).sdkIndex;
   }
 
+  /// Loads the merged package index, optionally limited to [packageNames].
   Future<PackageIndex> loadPackageIndex({Set<String>? packageNames}) async {
     final config = await FluohConfigStore(environment).load();
     final lock = await _loadResolvedLock(config: config);
@@ -30,6 +35,7 @@ class SourceRuntime {
     );
   }
 
+  /// Loads the legacy compatibility matrix view.
   Future<CompatibilityMatrix> loadCompatibilityMatrix({
     Set<String>? packageNames,
   }) async {
@@ -38,6 +44,7 @@ class SourceRuntime {
     );
   }
 
+  /// Rebuilds the resolved Source lockfile.
   Future<void> rebuildLock({
     FluohConfig? config,
     TerminalOutput? output,
@@ -47,6 +54,7 @@ class SourceRuntime {
     await _writeLock(await _buildLock(resolvedConfig, ensureSnapshots: false));
   }
 
+  /// Saves config and rebuilds the Source lock atomically.
   Future<void> saveConfigAndRebuildLock(
     FluohConfig config, {
     Map<String, Directory> snapshots = const <String, Directory>{},

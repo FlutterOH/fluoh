@@ -14,13 +14,18 @@ export '../schema/schema.dart'
         defaultSourceUrlEnvironmentKey,
         sourceNameValidationError;
 
+/// Persisted fluoh tool configuration.
 typedef FluohConfig = ToolConfig;
 
+/// Loads and saves the fluoh configuration file under the active home.
 class FluohConfigStore {
+  /// Creates a configuration store for [environment].
   const FluohConfigStore(this.environment);
 
+  /// Runtime environment that defines the fluoh home and config path.
   final FluohEnvironment environment;
 
+  /// Loads the configuration, creating the default source config if missing.
   Future<FluohConfig> load() async {
     final file = environment.configFile;
     if (!await file.exists()) {
@@ -32,6 +37,7 @@ class FluohConfigStore {
     return _readConfigFile(file);
   }
 
+  /// Loads the configuration only when a config file already exists.
   Future<FluohConfig?> loadIfExists() async {
     final file = environment.configFile;
     if (!await file.exists()) {
@@ -40,6 +46,7 @@ class FluohConfigStore {
     return _readConfigFile(file);
   }
 
+  /// Saves [config] as formatted JSON.
   Future<void> save(FluohConfig config) async {
     await environment.homeDirectory.create(recursive: true);
     await environment.configFile.writeAsString(

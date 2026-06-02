@@ -410,8 +410,10 @@ change must increment `version`.
 6. During adaptation, write `packages.<name>.status` or `releases[].status` as
    `experimental`. When the adaptation is complete and recommended for
    projects, omit `status`; the default is `compatible`.
-7. `fluoh package release` derives a release tag from Package `fluoh.yaml`. The tag
-   freezes the code, tests, and config snapshot at release time.
+7. `fluoh package version` updates release version/status metadata, `fluoh
+   package check` validates the release snapshot, and `fluoh package release`
+   derives a release tag from Package `fluoh.yaml`. The tag freezes the code,
+   tests, and config snapshot at release time.
 8. `fluoh source sync` uses Manifest `repository.git.url` values as Package
    repositories, scans released tags, reads Package `fluoh.yaml` from each tag,
    and aggregates historical release records into Manifest files.
