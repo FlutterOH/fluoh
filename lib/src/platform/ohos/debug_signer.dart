@@ -213,6 +213,7 @@ Future<List<io.File>> signGeneratedUnsignedHaps({
   return signedHaps;
 }
 
+/// Finds OHOS HAP artifacts that can be installed from an example project.
 Future<List<io.File>> findInstallableOhosHaps({
   required io.Directory exampleDirectory,
   DateTime? modifiedAfter,

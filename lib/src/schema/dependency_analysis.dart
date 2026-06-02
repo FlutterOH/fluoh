@@ -6,12 +6,25 @@ import 'source_index.dart';
 
 /// Compatibility status for one dependency on the selected FlutterOH SDK.
 enum DependencyStatus {
+  /// Package is supported by upstream Flutter without a FlutterOH fork.
   native('native'),
+
+  /// A matching FlutterOH implementation exists for the locked version.
   implemented('implemented'),
+
+  /// A semver-compatible FlutterOH implementation upgrade is available.
   versionUpgrade('version-upgrade'),
+
+  /// Implementations exist, but not for the selected SDK line.
   sdkMismatch('sdk-mismatch'),
+
+  /// Implementations exist, but not for a compatible upstream version.
   incompatibleVersion('incompatible-version'),
+
+  /// No Source data was found for this package.
   unknown('unknown'),
+
+  /// Source data marks this package as blocked.
   blocked('blocked');
 
   const DependencyStatus(this.label);
@@ -231,18 +244,41 @@ List<int> numericParts(String version) {
 }
 
 /// Purpose for building a dependency rewrite plan.
-enum DependencyPlanPurpose { fix, upgrade }
+enum DependencyPlanPurpose {
+  /// Apply missing FlutterOH implementation references.
+  fix,
+
+  /// Update existing FlutterOH implementation references.
+  upgrade,
+}
 
 /// Status for one dependency rewrite plan entry.
 enum DependencyPlanStatus {
+  /// Entry can be rewritten by the selected plan.
   ready,
+
+  /// Existing dependency reference already points at the selected implementation.
   alreadyCurrent,
+
+  /// Available implementations require an incompatible upstream version change.
   incompatibleVersion,
+
+  /// A dependency override already exists and should be preserved.
   overrideExists,
+
+  /// Package does not need a FlutterOH fork.
   native,
+
+  /// Package is marked as blocked by Source data.
   blocked,
+
+  /// Implementations exist, but not for the selected SDK line.
   sdkMismatch,
+
+  /// No implementation data is available.
   unknown,
+
+  /// Package is transitive and is not rewritten directly.
   transitive,
 }
 

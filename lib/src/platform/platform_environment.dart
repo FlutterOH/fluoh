@@ -7,7 +7,19 @@ import 'ohos/device_runner.dart';
 import 'ohos/ohos_toolchain.dart';
 
 /// Platforms understood by fluoh project and package workflows.
-enum FluohPlatform { android, ios, macos, ohos }
+enum FluohPlatform {
+  /// Android tooling and targets.
+  android,
+
+  /// iOS tooling and targets.
+  ios,
+
+  /// macOS host tooling.
+  macos,
+
+  /// OpenHarmony tooling and targets.
+  ohos,
+}
 
 /// Convenience methods for [FluohPlatform].
 extension FluohPlatformName on FluohPlatform {
@@ -24,6 +36,7 @@ extension FluohPlatformName on FluohPlatform {
 
 /// Native toolchain diagnostics for one platform.
 class PlatformDoctorReport {
+  /// Creates a platform doctor report.
   const PlatformDoctorReport({required this.platform, required this.checks});
 
   /// Platform this report describes.
@@ -47,6 +60,7 @@ class PlatformDoctorReport {
 
 /// Result of one native toolchain check.
 class PlatformToolCheck {
+  /// Creates a native toolchain check result.
   const PlatformToolCheck({
     required this.id,
     required this.label,
@@ -99,6 +113,7 @@ class PlatformToolCheck {
 
 /// Target listing report for devices or emulators on one platform.
 class PlatformTargetReport {
+  /// Creates a target listing report.
   const PlatformTargetReport({
     required this.platform,
     required this.kind,
@@ -138,6 +153,7 @@ class PlatformTargetReport {
 
 /// Connected device, simulator, or emulator discovered by platform tooling.
 class PlatformTarget {
+  /// Creates a discovered platform target.
   const PlatformTarget({
     required this.platform,
     required this.id,
@@ -194,6 +210,7 @@ class PlatformTarget {
 
 /// Result of starting an emulator or simulator.
 class PlatformStartResult {
+  /// Creates an emulator or simulator start result.
   const PlatformStartResult({
     required this.platform,
     required this.ok,

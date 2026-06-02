@@ -2,7 +2,10 @@ import 'yaml_utils.dart';
 
 /// Pubspec section where `fluoh deps fix` writes implementation refs.
 enum DependencyPubspecSection {
+  /// Write implementation refs under `dependency_overrides`.
   dependencyOverrides('dependency_overrides'),
+
+  /// Rewrite direct entries under `dependencies`.
   dependencies('dependencies');
 
   const DependencyPubspecSection(this.yamlValue);
@@ -13,7 +16,10 @@ enum DependencyPubspecSection {
 
 /// Policy for upstream version differences when selecting implementations.
 enum DependencyVersionChangePolicy {
+  /// Allow only semver-compatible implementation upgrades.
   compatible('compatible'),
+
+  /// Allow any implementation version selected by Source data.
   any('any');
 
   const DependencyVersionChangePolicy(this.yamlValue);

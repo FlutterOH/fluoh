@@ -93,6 +93,7 @@ class WorkflowTargetResult {
 
 /// Result for one command step inside a workflow target.
 class WorkflowStepResult {
+  /// Creates one workflow command step result.
   const WorkflowStepResult({
     required this.name,
     required this.path,
@@ -157,6 +158,7 @@ class WorkflowStepResult {
 
 /// Structured diagnostic emitted by workflow commands.
 class WorkflowDiagnostic {
+  /// Creates a structured workflow diagnostic.
   const WorkflowDiagnostic({
     required this.code,
     required this.message,

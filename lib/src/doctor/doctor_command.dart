@@ -113,6 +113,7 @@ class DoctorCommand extends FluohCommand<int> {
       );
   }
 
+  /// Runtime environment used for filesystem, process, and home lookup.
   final FluohEnvironment environment;
   final TerminalOutput _output;
   final DoctorVersionMetadataProvider _versionMetadataProvider;

@@ -8,6 +8,7 @@ const sourceManifestSchema = 1;
 ///
 /// A Source repository owns SDK releases and routes to package Manifest files.
 class SourceRootManifest {
+  /// Creates parsed Source root manifest data.
   const SourceRootManifest({
     required this.schemaVersion,
     required this.name,
@@ -167,6 +168,7 @@ class SdkRelease {
 
 /// Parsed package Manifest file from `manifests/<name>/fluoh.yaml`.
 class SourceManifest {
+  /// Creates parsed Source package Manifest data.
   const SourceManifest({
     required this.schemaVersion,
     required this.name,
@@ -205,6 +207,7 @@ class SourceManifest {
 
 /// Package entry inside a Source Manifest.
 class SourceManifestPackage {
+  /// Creates a package entry from a Source Manifest.
   const SourceManifestPackage({
     required this.name,
     required this.repositoryPath,
@@ -235,6 +238,7 @@ class SourceManifestPackage {
 
 /// Manifest releases for one SDK line.
 class SourceManifestSdk {
+  /// Creates SDK-line release data from a Source Manifest.
   const SourceManifestSdk({required this.sdkLine, required this.releases});
 
   /// SDK line, such as `3.35`.
@@ -246,6 +250,7 @@ class SourceManifestSdk {
 
 /// One package implementation release in a Source Manifest.
 class SourceManifestRelease {
+  /// Creates one package implementation release record.
   const SourceManifestRelease({
     required this.version,
     required this.upstreamVersion,
@@ -268,6 +273,7 @@ class SourceManifestRelease {
 
 /// Maintainer-provided package maintenance state.
 class SourcePackageMaintenance {
+  /// Creates package maintenance status metadata.
   const SourcePackageMaintenance({required this.status, this.reason});
 
   /// Maintenance status, for example `maintained` or `deprecated`.
@@ -279,6 +285,7 @@ class SourcePackageMaintenance {
 
 /// Advisory shown when a package needs user or maintainer attention.
 class SourcePackageAdvisory {
+  /// Creates advisory metadata for a package.
   const SourcePackageAdvisory({
     this.message,
     this.alternatives = const <SourcePackageAlternative>[],
@@ -304,6 +311,7 @@ class SourcePackageAdvisory {
 
 /// Alternative package suggested by a Source advisory.
 class SourcePackageAlternative {
+  /// Creates one advisory alternative package.
   const SourcePackageAlternative({required this.name, this.reason, this.url});
 
   /// Alternative package name.
@@ -401,6 +409,7 @@ class SourceManifestPackageTemplate {
 
 /// Merged package index consumed by dependency commands.
 class PackageIndex {
+  /// Creates a merged package index.
   const PackageIndex({required this.schemaVersion, required this.packages});
 
   /// Schema version used by the source data.
@@ -412,6 +421,7 @@ class PackageIndex {
 
 /// Package-level Source record after merging configured Sources.
 class PackageEntry {
+  /// Creates one merged package index entry.
   const PackageEntry({
     required this.repository,
     required this.upstream,
@@ -458,6 +468,7 @@ class PackageEntry {
 
 /// Concrete FlutterOH implementation release for a package.
 class PackageImplementation {
+  /// Creates a concrete FlutterOH package implementation record.
   const PackageImplementation({
     required this.sdkLine,
     required this.upstreamVersion,
@@ -523,6 +534,7 @@ class PackageImplementation {
 
 /// Non-compatible package status retained for diagnostics.
 class SourceCompatibilityStatus {
+  /// Creates one non-compatible package status record.
   const SourceCompatibilityStatus({
     required this.sdkLine,
     required this.upstreamVersion,
@@ -544,6 +556,7 @@ class SourceCompatibilityStatus {
 
 /// Package-specific view derived from one Source Manifest.
 class SourcePackageManifest {
+  /// Creates a package-specific view of Source Manifest data.
   const SourcePackageManifest({
     required this.name,
     required this.repository,
@@ -590,6 +603,7 @@ class SourcePackageManifest {
 
 /// Legacy compatibility matrix shape retained for schema parsing tests.
 class CompatibilityMatrix {
+  /// Creates legacy compatibility matrix data.
   const CompatibilityMatrix({
     required this.schemaVersion,
     required this.sdkVersions,
@@ -604,6 +618,7 @@ class CompatibilityMatrix {
 
 /// Package compatibility buckets for one SDK version.
 class CompatibilityVersion {
+  /// Creates compatibility buckets for one SDK version.
   const CompatibilityVersion({
     required this.native,
     required this.implemented,

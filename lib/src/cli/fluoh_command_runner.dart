@@ -43,6 +43,7 @@ int fluohUsageLineLength() {
 /// [FluohCommandRunner] so tests and embedded callers can capture output
 /// without relying on global stdout.
 abstract class FluohCommand<T> extends Command<T> {
+  /// Creates a command with a parser configured for `fluoh` help wrapping.
   FluohCommand({int? usageLineLength})
     : _argParser = ArgParser(
         usageLineLength: usageLineLength ?? fluohUsageLineLength(),
@@ -70,6 +71,7 @@ abstract class FluohCommand<T> extends Command<T> {
 /// machine-readable error output consistent, and repairs Source snapshots before
 /// commands that consume Source data.
 class FluohCommandRunner extends CommandRunner<int> {
+  /// Creates the root command runner and registers built-in commands.
   FluohCommandRunner({
     String executableName = 'fluoh',
     OutputWriter? stdout,

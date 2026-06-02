@@ -24,6 +24,7 @@ class FlutterCommand extends Command<int> {
        _invocation = invocation,
        _globalHelpInvocation = globalHelpInvocation;
 
+  /// Runtime environment used to resolve the selected FlutterOH SDK.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final OutputWriter _stderr;

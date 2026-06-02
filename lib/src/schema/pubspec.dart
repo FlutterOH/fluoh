@@ -130,7 +130,10 @@ List<String> _packageDependencies(Map<String, Object?> package) {
 
 /// Pubspec sections that can hold package dependency references.
 enum PubspecDependencySection {
+  /// The top-level `dependencies` section.
   dependencies('dependencies'),
+
+  /// The top-level `dependency_overrides` section.
   dependencyOverrides('dependency_overrides');
 
   const PubspecDependencySection(this.yamlKey);
@@ -140,7 +143,16 @@ enum PubspecDependencySection {
 }
 
 /// Kind of pubspec dependency rewrite to apply.
-enum PubspecDependencyChangeKind { writeOverride, rewriteDependency, updateRef }
+enum PubspecDependencyChangeKind {
+  /// Add or replace an entry in `dependency_overrides`.
+  writeOverride,
+
+  /// Rewrite a direct dependency entry.
+  rewriteDependency,
+
+  /// Update an existing dependency reference in place.
+  updateRef,
+}
 
 /// Parsed dependency and override references from pubspec text.
 class PubspecDependencyState {

@@ -6,16 +6,82 @@ import 'dart:io' as io;
 const defaultTerminalLineLength = 80;
 
 /// Semantic category for a human-readable terminal message.
-enum TerminalMessageKind { success, warning, error, info, step, skipped }
+enum TerminalMessageKind {
+  /// Successful operation.
+  success,
+
+  /// Warning that does not stop the current command.
+  warning,
+
+  /// Error reported to the user.
+  error,
+
+  /// Informational message.
+  info,
+
+  /// Progress step in a multi-step workflow.
+  step,
+
+  /// Step or item skipped intentionally.
+  skipped,
+}
 
 /// Status level used when coloring status text.
-enum TerminalStatus { ok, warning, error }
+enum TerminalStatus {
+  /// Successful status.
+  ok,
+
+  /// Warning status.
+  warning,
+
+  /// Error status.
+  error,
+}
 
 /// ANSI color names supported by [TerminalStyle].
-enum TerminalColor { red, green, yellow, blue, cyan, gray }
+enum TerminalColor {
+  /// Red foreground color.
+  red,
+
+  /// Green foreground color.
+  green,
+
+  /// Yellow foreground color.
+  yellow,
+
+  /// Blue foreground color.
+  blue,
+
+  /// Cyan foreground color.
+  cyan,
+
+  /// Gray foreground color.
+  gray,
+}
 
 /// Semantic style for a terminal table cell.
-enum TerminalTableCellStyle { normal, muted, command, path, url, value, status }
+enum TerminalTableCellStyle {
+  /// Default table cell text.
+  normal,
+
+  /// Low-emphasis table cell text.
+  muted,
+
+  /// Command fragment.
+  command,
+
+  /// Filesystem path.
+  path,
+
+  /// URL value.
+  url,
+
+  /// Field-like value.
+  value,
+
+  /// Status value.
+  status,
+}
 
 /// Formatting capabilities detected for the current terminal.
 class TerminalCapabilities {

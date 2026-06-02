@@ -174,6 +174,7 @@ class SourceIndex {
 
 /// Index of package route data for all Manifests in a Source.
 class SourcePackageRouteIndex {
+  /// Creates an index of package route Manifests.
   const SourcePackageRouteIndex({required this.manifests});
 
   /// Manifests keyed by route name.
@@ -182,6 +183,7 @@ class SourcePackageRouteIndex {
 
 /// Package route data for one Manifest.
 class SourcePackageRouteManifest {
+  /// Creates package route data for one Manifest.
   const SourcePackageRouteManifest({
     required this.name,
     required this.packages,

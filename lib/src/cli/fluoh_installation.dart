@@ -1,5 +1,14 @@
 /// Install methods that `fluoh upgrade` can reason about.
-enum FluohInstallMethod { dartPubGlobal, homebrew, localSourceCheckout }
+enum FluohInstallMethod {
+  /// Installed with `dart pub global activate`.
+  dartPubGlobal,
+
+  /// Installed through Homebrew.
+  homebrew,
+
+  /// Running from a local source checkout.
+  localSourceCheckout,
+}
 
 /// Detected installation information for the current executable.
 class FluohInstallation {

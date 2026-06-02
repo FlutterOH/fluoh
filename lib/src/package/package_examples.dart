@@ -289,6 +289,7 @@ class PackageExampleSnapshot {
     );
   }
 
+  /// Restores captured example files, directories, and Flutter SDK symlink.
   Future<void> restore() async {
     for (final entry in files.entries) {
       final file = File('${example.path}/${entry.key}');

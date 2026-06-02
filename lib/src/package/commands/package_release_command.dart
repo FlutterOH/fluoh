@@ -19,7 +19,13 @@ import '../release_validator.dart';
 ///
 /// `check` runs the release gate without creating tags. `release` runs the same
 /// validation path and then creates the release tag, optionally pushing it.
-enum PackageReleaseCommandKind { check, release }
+enum PackageReleaseCommandKind {
+  /// Validate the package without creating release tags.
+  check,
+
+  /// Validate the package, create a release tag, and optionally push it.
+  release,
+}
 
 /// Runs package release validation or completes a package release.
 ///

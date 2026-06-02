@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:args/command_runner.dart';
 
+/// Builds the help-text block shown for likely command name matches.
 String commandSuggestionsText<T>(
   String requested,
   Iterable<Command<T>> commands, {
@@ -29,6 +30,7 @@ String commandSuggestionsText<T>(
   ].join('\n');
 }
 
+/// Returns visible command names ranked as likely matches for [requested].
 List<String> commandSuggestions<T>(
   String requested,
   Iterable<Command<T>> commands, {
