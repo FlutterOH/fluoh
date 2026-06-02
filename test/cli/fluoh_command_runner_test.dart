@@ -680,19 +680,19 @@ dependencies:
     final help = stdout.join('\n');
     _expectInOrder(help, [
       'Fluoh',
-      '  doctor',
-      '  upgrade',
       '  skill',
+      '  doctor',
       '  clean',
+      '  upgrade',
       '\nSDK\n',
-      '  source',
       '  sdk',
+      '  source',
       'Project',
-      '  flutter',
       '  deps',
       '  verify',
       '  build',
       '  run',
+      '  flutter',
       'Package',
       '  package',
       'Tools & Devices',
@@ -722,10 +722,10 @@ dependencies:
     var help = stdout.join('\n');
     _expectInOrder(help, [
       '  list',
-      '  install',
-      '  current',
-      '  remove',
       '  use',
+      '  current',
+      '  install',
+      '  remove',
     ]);
 
     stdout.clear();

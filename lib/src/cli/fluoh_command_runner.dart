@@ -404,9 +404,9 @@ _MachineOutputRequest? _machineOutputRequest(ArgResults results) {
 }
 
 const _topLevelCommandSections = [
-  CommandUsageSection('Fluoh', ['doctor', 'upgrade', 'skill', 'clean']),
-  CommandUsageSection('SDK', ['source', 'sdk']),
-  CommandUsageSection('Project', ['flutter', 'deps', 'verify', 'build', 'run']),
+  CommandUsageSection('Fluoh', ['skill', 'doctor', 'clean', 'upgrade']),
+  CommandUsageSection('SDK', ['sdk', 'source']),
+  CommandUsageSection('Project', ['deps', 'verify', 'build', 'run', 'flutter']),
   CommandUsageSection('Package', ['package']),
   CommandUsageSection('Tools & Devices', ['devices', 'emulators']),
 ];

@@ -75,7 +75,7 @@ class SdkCommand extends FluohCommand<int> {
 }
 
 const _sdkCommandSections = [
-  CommandUsageSection('', ['list', 'install', 'current', 'remove', 'use']),
+  CommandUsageSection('', ['list', 'use', 'current', 'install', 'remove']),
 ];
 
 /// Lists remote and installed SDK versions.
