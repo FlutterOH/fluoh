@@ -199,10 +199,10 @@ environment:
 
 sdk:
   git:
-    url: https://gitcode.com/openharmony-tpc/flutter_flutter.git
+    url: https://gitcode.com/CPF-Flutter/flutter_flutter.git
   versions:
+    - 3.35.8-ohos-1.0.1
     - 3.35.8-ohos-0.0.3
-    - 3.35.8-ohos-0.0.2
 
 manifests:
   - name: flutter_packages
@@ -476,10 +476,16 @@ Package metadata。
   },
   "sdk": {
     "versions": {
+      "3.35.8-ohos-1.0.1": {
+        "source": "flutteroh",
+        "git": {
+          "url": "https://gitcode.com/CPF-Flutter/flutter_flutter.git"
+        }
+      },
       "3.35.8-ohos-0.0.3": {
         "source": "flutteroh",
         "git": {
-          "url": "https://gitcode.com/openharmony-tpc/flutter_flutter.git"
+          "url": "https://gitcode.com/CPF-Flutter/flutter_flutter.git"
         }
       }
     }
