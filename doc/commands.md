@@ -117,6 +117,7 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh deps fix` | `lib/src/deps/commands/dependency_plan_commands.dart` | Apply recommended FlutterOH dependency changes. |
 | `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | Upgrade existing FlutterOH dependency replacements only. |
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | Command group for FlutterOH package repositories. |
+| `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | List FlutterOH packages from configured sources. |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Register another package in a FlutterOH package repository. |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
@@ -393,7 +394,12 @@ version-change policy and dry-run behavior.
 
 ## Package Repository Commands
 
-These commands maintain FlutterOH package repositories. They assume Git
+`fluoh package list` is a source-consuming query command. It lists package names
+advertised by configured sources, along with compatible SDK lines and source
+aliases. It reads through the Source runtime, so it initializes or refreshes the
+Source lock when needed. `--json` prints the same list as machine-readable JSON.
+
+The remaining commands maintain FlutterOH package repositories. They assume Git
 repositories and are intentionally strict about branch and working tree state.
 
 The AI implementation loop for these commands is intentionally kept in

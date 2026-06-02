@@ -108,6 +108,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh deps fix` | `lib/src/deps/commands/dependency_plan_commands.dart` | 应用推荐的 FlutterOH 依赖变更。 |
 | `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | 只升级已有 FlutterOH 依赖替换。 |
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | FlutterOH Package 仓库命令组。 |
+| `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | 从已配置 source 列出 FlutterOH Package。 |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH Package 仓库。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中注册另一个 Package。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS Package 分支。 |
@@ -321,7 +322,11 @@ transitive 和 advisory。fresh Source lock 会提供 Package 路由提示；命
 
 ## Package 仓库命令
 
-这些命令维护 FlutterOH Package 仓库。它们假设当前是 Git 仓库，并且对分支和工作树状态
+`fluoh package list` 是消费 source 的查询命令。它列出已配置 source 中声明的 Package
+名称、兼容 SDK 版本线和 source 别名。命令通过 Source 运行时读取数据，所以必要时会初始化
+或刷新 Source lock。`--json` 输出同一列表的机器可读 JSON。
+
+其余命令维护 FlutterOH Package 仓库。它们假设当前是 Git 仓库，并且对分支和工作树状态
 保持严格要求。
 
 这些命令的 AI 实现循环统一放在 `skills/fluoh/SKILL.md` 中维护，用户文档只保留简短入口，

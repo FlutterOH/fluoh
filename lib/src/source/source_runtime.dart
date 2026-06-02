@@ -350,6 +350,10 @@ class SourceRuntime {
               current?.upstreamBranch ?? packageEntry.value.upstreamBranch,
           implementations: implementations,
           compatibility: compatibility,
+          sourceNames: <String>{
+            ...?current?.sourceNames,
+            source.name,
+          }.toList(growable: false)..sort(),
           advisory: current == null
               ? packageEntry.value.advisory
               : current.advisory,

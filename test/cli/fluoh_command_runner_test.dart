@@ -738,6 +738,7 @@ dependencies:
     );
     help = stdout.join('\n');
     _expectInOrder(help, [
+      '  list',
       '  create',
       '  add',
       '  sync',
@@ -877,6 +878,8 @@ dependencies:
     final help = stdout.join('\n');
     expect(help, contains('Maintain FlutterOH package repositories.'));
     _expectInOrder(help, [
+      'Source packages:',
+      '  list',
       'Package repositories:',
       '  create',
       '  add',

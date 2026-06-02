@@ -420,6 +420,7 @@ class PackageEntry {
     this.upstreamPath,
     this.upstreamBranch = 'main',
     this.compatibility = const <SourceCompatibilityStatus>[],
+    this.sourceNames = const <String>[],
     this.advisory,
     this.maintenance,
   });
@@ -444,6 +445,9 @@ class PackageEntry {
 
   /// Non-compatible compatibility records retained for reporting.
   final List<SourceCompatibilityStatus> compatibility;
+
+  /// Configured Source aliases that contributed this package entry.
+  final List<String> sourceNames;
 
   /// Optional advisory shown by dependency commands.
   final SourcePackageAdvisory? advisory;
@@ -964,6 +968,7 @@ PackageIndex packageIndexFromManifests(Iterable<SourcePackageManifest> items) {
         upstreamBranch: manifest.upstreamBranch,
         implementations: manifest.implementations,
         compatibility: manifest.compatibility,
+        sourceNames: _sourceNamesFromImplementations(manifest.implementations),
         advisory: manifest.advisory,
         maintenance: manifest.maintenance,
       );
@@ -980,11 +985,30 @@ PackageIndex packageIndexFromManifests(Iterable<SourcePackageManifest> items) {
         ...manifest.implementations,
       ],
       compatibility: [...existing.compatibility, ...manifest.compatibility],
+      sourceNames: _sortedPackageSourceNames(
+        existing.sourceNames,
+        _sourceNamesFromImplementations(manifest.implementations),
+      ),
       advisory: existing.advisory ?? manifest.advisory,
       maintenance: existing.maintenance ?? manifest.maintenance,
     );
   }
   return PackageIndex(schemaVersion: 1, packages: packages);
+}
+
+List<String> _sourceNamesFromImplementations(
+  Iterable<PackageImplementation> implementations,
+) {
+  return _sortedPackageSourceNames(
+    implementations.map((implementation) => implementation.sourceName).nonNulls,
+  );
+}
+
+List<String> _sortedPackageSourceNames(
+  Iterable<String> first, [
+  Iterable<String> second = const <String>[],
+]) {
+  return <String>{...first, ...second}.toList(growable: false)..sort();
 }
 
 /// Builds a compatibility matrix from package Manifest records.
