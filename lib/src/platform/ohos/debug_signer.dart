@@ -59,7 +59,7 @@ Future<OhosDebugSigningMaterial> prepareOhosDebugSigning({
     openHarmonySdk: toolchain.openHarmonySdk,
   );
   final directory = io.Directory(
-    '${environment.homeDirectory.path}/ohos-signing/'
+    '${environment.ohosSigningDirectory.path}/'
     '${_safePathSegment(permissionProfile.bundleName)}',
   );
   await directory.create(recursive: true);

@@ -849,7 +849,7 @@ Future<io.File> _writeHilog({
   required String content,
 }) async {
   final directory = io.Directory(
-    '${environment.homeDirectory.path}/package-runs/'
+    '${environment.packageRunsDirectory.path}/'
     '${_safePathSegment(launchInfo.bundleName)}',
   );
   await directory.create(recursive: true);

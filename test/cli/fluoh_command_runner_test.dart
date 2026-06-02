@@ -683,6 +683,7 @@ dependencies:
       '  doctor',
       '  upgrade',
       '  skill',
+      '  clean',
       '\nSDK\n',
       '  source',
       '  sdk',

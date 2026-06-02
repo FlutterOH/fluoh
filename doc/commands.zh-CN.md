@@ -86,6 +86,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh --version` | `lib/src/cli/fluoh_command_runner.dart` | 输出 `fluoh` 版本、Dart 版本、平台和仓库地址。 |
 | `fluoh help [command]` | `package:args` command runner | 输出全局或指定命令的用法。 |
 | `fluoh skill` | `lib/src/cli/skill_command.dart` | 输出内置 AI skill 的路径、版本、更新和提示词信息。 |
+| `fluoh clean` | `lib/src/clean/clean_command.dart` | 删除 `$FLUOH_HOME/cache` 下的可清理运行产物。 |
 | `fluoh flutter <args>` | `lib/src/sdk/flutter_command.dart` | 使用最近的项目 `fluoh.yaml` 里选择的 SDK 运行 `flutter`。 |
 | `fluohf <args>` | `bin/fluohf.dart` | `fluoh flutter <args>` 的快捷入口。 |
 | `fluoh source` | `lib/src/source/source_commands.dart` | 数据源使用和维护的命令组。 |
@@ -151,6 +152,13 @@ fluoh run --platform ohos --device <id>
 - 会修改文件的命令必须尽早校验、保留无关文件，并报告实际变更或下一步动作。
 
 ## 顶层命令
+
+### `fluoh clean`
+
+`clean` 只删除 `$FLUOH_HOME/cache`，里面是可清理运行产物，例如 OHOS debug signing
+材料和 Package run log。它不会删除 SDK 安装、Source 快照、配置、lock 文件或项目
+`.fluoh/` 报告。使用 `--dry-run` 可以只查看 cache 而不删除；使用 `--json` 可以输出机器可读
+清理报告。
 
 ### `fluoh flutter <args>` 和 `fluohf <args>`
 
@@ -410,7 +418,7 @@ Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_fail
 `fluoh run --platform ohos|android|ios|macos` 会构建、安装、启动并诊断当前项目或所选 Package
 example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
 hilog，并通过 JSON diagnostics 报告运行时 crash。Android、iOS 和 macOS Package example 会通过已选择
-SDK 的 `flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/package-runs`，并在 example
+SDK 的 `flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/cache/package-runs`，并在 example
 存在 `integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。如果
 `flutter run` 输出 VM Service 或 debug service URI，`--json` 会在 run step 的
 `details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS 或 macOS run
@@ -486,6 +494,7 @@ Flutter example、example OHOS 平台、example 测试，以及 tracked 文件�
 | `$FLUOH_HOME/sources/<name>` | `source add`、`source update` |
 | `$FLUOH_HOME/sources.lock.json` | `lib/src/source/` 中的 Source 运行时；Source 状态变更、首次默认 Source 初始化，以及 load-index 检查发现过期或需要 SDK 元数据来安装已选择的 SDK 时重建 |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`、`sdk remove`、按需执行的 Flutter wrapper |
+| `$FLUOH_HOME/cache/` | 可清理运行产物，例如 OHOS debug signing 材料和 Package run log |
 | 项目 `fluoh.yaml` | `sdk use`、`deps check`、`deps fix`、`deps upgrade` |
 | 项目 `pubspec.yaml` | `deps fix`、`deps upgrade` |
 | FlutterOH Package 仓库 `fluoh.yaml` | `package create`、`package add`、`package sync`、`package status`、`package version`、`package check`、`package release` 校验 |

@@ -1129,6 +1129,10 @@ void main() {
         '${environment.workingDirectory.path}/.fluoh/run-session.json',
       ),
     );
+    expect(
+      runDetails['outputLog'],
+      startsWith('${environment.homeDirectory.path}/cache/package-runs/'),
+    );
     final session =
         jsonDecode(
               File(

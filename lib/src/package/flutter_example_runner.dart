@@ -711,7 +711,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     final exitCode = await _terminateProcess(process, exitFuture);
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment.homeDirectory,
+      environment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -742,7 +742,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     final exitCode = await _terminateProcess(process, exitFuture);
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment.homeDirectory,
+      environment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -771,7 +771,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   if (firstState is _RunExited) {
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment.homeDirectory,
+      environment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -836,7 +836,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     final exitCode = await _terminateProcess(process, exitFuture);
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment.homeDirectory,
+      environment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -865,7 +865,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   if (secondState is _RunExited) {
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment.homeDirectory,
+      environment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -913,7 +913,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   exitCode ??= await _terminateProcess(process, exitFuture);
   await _waitForCapturedOutput([stdoutDone, stderrDone]);
   final outputLog = await _writeRunLog(
-    environment.homeDirectory,
+    environment,
     platform,
     stdoutBuffer.text,
     stderrBuffer.text,
@@ -1073,13 +1073,13 @@ Future<void> _captureLines(
 }
 
 Future<File?> _writeRunLog(
-  Directory homeDirectory,
+  FluohEnvironment environment,
   String platform,
   String stdout,
   String stderr,
 ) async {
   try {
-    final runs = Directory('${homeDirectory.path}/package-runs');
+    final runs = environment.packageRunsDirectory;
     await runs.create(recursive: true);
     final timestamp = DateTime.now()
         .toIso8601String()

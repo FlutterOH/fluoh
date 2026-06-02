@@ -48,6 +48,17 @@ class FluohEnvironment {
   /// Directory containing cached FlutterOH SDK installations.
   Directory get sdksDirectory => Directory('${homeDirectory.path}/sdks');
 
+  /// Directory containing cleanable runtime artifacts and diagnostic logs.
+  Directory get cacheDirectory => Directory('${homeDirectory.path}/cache');
+
+  /// Directory containing generated OHOS debug signing material.
+  Directory get ohosSigningDirectory =>
+      Directory('${cacheDirectory.path}/ohos-signing');
+
+  /// Directory containing run-smoke output logs.
+  Directory get packageRunsDirectory =>
+      Directory('${cacheDirectory.path}/package-runs');
+
   /// User-level fluoh configuration file.
   File get configFile => File('${homeDirectory.path}/config.json');
 

@@ -3,6 +3,7 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
+import '../clean/clean_command.dart';
 import '../context/fluoh_environment.dart';
 import '../deps/commands/deps_command.dart';
 import '../doctor/doctor_command.dart';
@@ -171,6 +172,9 @@ class FluohCommandRunner extends CommandRunner<int> {
       UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
     );
     addCommand(SkillCommand(stdout: _stdout, output: _output));
+    addCommand(
+      CleanCommand(environment: env, stdout: _stdout, output: _output),
+    );
 
     argParser.addFlag(
       'version',
@@ -400,7 +404,7 @@ _MachineOutputRequest? _machineOutputRequest(ArgResults results) {
 }
 
 const _topLevelCommandSections = [
-  CommandUsageSection('Fluoh', ['doctor', 'upgrade', 'skill']),
+  CommandUsageSection('Fluoh', ['doctor', 'upgrade', 'skill', 'clean']),
   CommandUsageSection('SDK', ['source', 'sdk']),
   CommandUsageSection('Project', ['flutter', 'deps', 'verify', 'build', 'run']),
   CommandUsageSection('Package', ['package']),

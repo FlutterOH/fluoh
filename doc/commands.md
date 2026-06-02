@@ -95,6 +95,7 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh --version` | `lib/src/cli/fluoh_command_runner.dart` | Print the `fluoh` version, Dart version, platform, and repository URL. |
 | `fluoh help [command]` | `package:args` command runner | Print global or command-specific usage. |
 | `fluoh skill` | `lib/src/cli/skill_command.dart` | Print local path, version, update, and prompt details for the bundled AI skill. |
+| `fluoh clean` | `lib/src/clean/clean_command.dart` | Remove cleanable runtime artifacts under `$FLUOH_HOME/cache`. |
 | `fluoh flutter <args>` | `lib/src/sdk/flutter_command.dart` | Run `flutter` from the SDK selected by the nearest project `fluoh.yaml`. |
 | `fluohf <args>` | `bin/fluohf.dart` | Shortcut for `fluoh flutter <args>`. |
 | `fluoh source` | `lib/src/source/source_commands.dart` | Command group for data source use and maintenance. |
@@ -170,6 +171,14 @@ the JSON diagnostic `nextCommand` for the next local setup step.
   what changed or what the user should do next.
 
 ## Top-Level Commands
+
+### `fluoh clean`
+
+`clean` removes only `$FLUOH_HOME/cache`, which contains cleanable runtime
+artifacts such as OHOS debug signing material and package run logs. It does not
+remove SDK installations, Source snapshots, config, lock files, or project
+`.fluoh/` reports. Use `--dry-run` to inspect the cache without deleting it and
+`--json` for machine-readable cleanup reports.
 
 ### `fluoh flutter <args>` and `fluohf <args>`
 
@@ -517,7 +526,7 @@ diagnoses the current project or selected package example. For OHOS projects
 and package examples it signs the HAP, installs it with `hdc`, starts the
 ability, captures a short hilog, and reports runtime crash patterns. For
 Android, iOS, and macOS package examples it launches through the selected SDK's
-`flutter run`, captures smoke output under `$FLUOH_HOME/package-runs`, and runs
+`flutter run`, captures smoke output under `$FLUOH_HOME/cache/package-runs`, and runs
 `flutter test integration_test -d <device>` when the example has an
 `integration_test/` directory. When `flutter run` prints a VM Service or debug
 service URI, `--json` includes it as `details.vmServiceUri` on the run step so
@@ -608,6 +617,7 @@ contain the local fluoh home path. Use `--package <name>` for one package,
 | `$FLUOH_HOME/sources/<name>` | `source add`, `source update` |
 | `$FLUOH_HOME/sources.lock.json` | Source runtime in `lib/src/source/`; rebuilt after Source mutations, first default Source initialization, and load-index checks when stale or when selected-SDK installation needs SDK metadata |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
+| `$FLUOH_HOME/cache/` | Cleanable runtime artifacts such as OHOS debug signing material and package run logs |
 | Project `fluoh.yaml` | `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
 | Project `pubspec.yaml` | `deps fix`, `deps upgrade` |
 | FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package status`, `package version`, `package check`, `package release` validation |
