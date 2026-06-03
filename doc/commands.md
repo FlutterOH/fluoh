@@ -103,10 +103,9 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh source add <name> <url-or-path>` | `lib/src/source/source_commands.dart` | Add a local or Git data source to tool config. |
 | `fluoh source remove <name>` | `lib/src/source/source_commands.dart` | Remove a non-official data source from tool config. |
 | `fluoh source update [name]` | `lib/src/source/source_commands.dart` | Refresh and validate configured source snapshots. |
-| `fluoh source validate [path]` | `lib/src/source/source_commands.dart` | Validate a local source repository without registering it. |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | Create a local source repository template. |
 | `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import released FlutterOH package repository metadata into a source repository. |
-| `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | Validate Source files and verify declared Package releases. |
+| `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | Validate Source files and verify declared Package releases. Use `--schema-only` for local YAML/index validation. |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | Command group for local Flutter OHOS SDK caches. |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | List remote SDK versions and installed SDK caches. |
 | `fluoh sdk install <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | Install an SDK version into `$FLUOH_HOME/sdks`. |
@@ -313,14 +312,16 @@ the previous usable config, snapshots, and lock.
 
 ### Maintainer Commands
 
-`fluoh source validate [path]` validates a local Source repository without
-reading or writing `$FLUOH_HOME/config.json`, source snapshots, or
+`fluoh source check [path] --schema-only` validates a local Source repository
+without reading or writing `$FLUOH_HOME/config.json`, source snapshots, or
 `sources.lock.json`. When `path` is omitted, the current directory is used. The
 command checks the Source root schema, `environment.fluoh`, SDK metadata,
 Manifest routes, Manifest names, duplicate packages, package release records,
-and whether the package index can be built. It does not fetch SDK tags or
-package repositories; release metadata updates remain the job of
-`fluoh source sync`.
+and whether the package index can be built. It does not read Git diffs, fetch
+SDK tags, clone package repositories, or verify declared releases; release
+metadata updates remain the job of `fluoh source sync`. `--schema-only` is a
+local Source check mode, so it cannot be combined with diff, release, work-root,
+or Package verification options.
 
 `fluoh source init <path>` creates a source root `fluoh.yaml`, a
 `manifests/example/fluoh.yaml` commented Manifest template, and a README. It is

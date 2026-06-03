@@ -23,6 +23,13 @@ class SourceCheckCommand extends FluohCommand<int> {
   }) : _output = output ?? TerminalOutput(stdout: stdout) {
     argParser
       ..addFlag('json', negatable: false, help: 'Print the result as JSON.')
+      ..addFlag(
+        'schema-only',
+        negatable: false,
+        help:
+            'Only validate local Source YAML and indexes. Does not read Git '
+            'diffs, check SDK tags, or verify declared Package releases.',
+      )
       ..addOption(
         'base-ref',
         valueHelp: 'ref',
@@ -184,6 +191,11 @@ class SourceCheckCommand extends FluohCommand<int> {
     final target = rest.isEmpty
         ? environment.workingDirectory.path
         : rest.single;
+    final schemaOnly = argResults!.flag('schema-only');
+    if (schemaOnly) {
+      _validateSchemaOnlyOptions();
+      return _runSchemaOnlyCheck(target);
+    }
     final checkAll = argResults!.flag('all');
     final baseRefOption = argResults!.option('base-ref')?.trim();
     if (checkAll && baseRefOption != null && baseRefOption.isNotEmpty) {
@@ -221,6 +233,7 @@ class SourceCheckCommand extends FluohCommand<int> {
           target: target,
           workRoot: workRoot.path,
           sourcePath: source.path,
+          schemaOnly: false,
           sourceCheckout: sourceCheckout,
           sourceValidation: const _SourceValidationCheck(
             ok: false,
@@ -281,6 +294,7 @@ class SourceCheckCommand extends FluohCommand<int> {
           target: target,
           workRoot: workRoot.path,
           sourcePath: source.path,
+          schemaOnly: false,
           sourceCheckout: sourceCheckout,
           sourceValidation: sourceValidation,
           baseRef: baseRef,
@@ -377,6 +391,7 @@ class SourceCheckCommand extends FluohCommand<int> {
         target: target,
         workRoot: workRoot.path,
         sourcePath: source.path,
+        schemaOnly: false,
         sourceCheckout: sourceCheckout,
         sourceValidation: sourceValidation,
         baseRef: baseRef,
@@ -397,6 +412,105 @@ class SourceCheckCommand extends FluohCommand<int> {
         await deleteIfExists(workRoot);
       }
     }
+  }
+
+  void _validateSchemaOnlyOptions() {
+    for (final name in const [
+      'base-ref',
+      'all',
+      'package',
+      'shard',
+      'concurrency',
+      'fluoh-command',
+      'work-root',
+      'keep-work-root',
+      'skip-release-checks',
+      'release-check-timeout',
+      'max-release-checks',
+    ]) {
+      if (argResults!.wasParsed(name)) {
+        usageException('--schema-only cannot be used with --$name.');
+      }
+    }
+  }
+
+  Future<_SourceCheckReport> _runSchemaOnlyCheck(String target) async {
+    final source = _resolveDirectory(environment.workingDirectory, target);
+    if (!await source.exists()) {
+      final pr = _GitHubPullRequest.tryParse(target);
+      if (pr != null) {
+        usageException('--schema-only requires a local Source path.');
+      }
+      usageException('Source path does not exist: ${source.path}');
+    }
+
+    final manifestFilters = _multiOptionSet('manifest');
+    final sourceValidation = await _validateSource(
+      source,
+      label: source.path,
+      manifestNames: manifestFilters.isEmpty ? null : manifestFilters,
+      validatePackageManifests: true,
+    );
+    final manifestSelection = sourceValidation.ok
+        ? await _schemaOnlyManifestSelection(source, manifestFilters)
+        : (
+            checkedManifests: manifestFilters.toList(growable: false)..sort(),
+            errors: const <String>[],
+          );
+    final errors = [
+      if (!sourceValidation.ok)
+        'Source validation failed: ${sourceValidation.message}',
+      ...manifestSelection.errors,
+    ];
+    return _SourceCheckReport(
+      target: target,
+      workRoot: null,
+      sourcePath: source.path,
+      schemaOnly: true,
+      sourceCheckout: _SourceSetupResult.local(source),
+      sourceValidation: sourceValidation,
+      baseRef: null,
+      all: false,
+      changedFiles: const [],
+      checkedManifests: manifestSelection.checkedManifests,
+      manifests: const [],
+      changeSummary: const _SourceChangeSummary(['schema-only']),
+      releaseCheckPlan: _ReleaseCheckPlan.empty,
+      releaseChecks: const [],
+      sdkChecks: const [],
+      warnings: const [],
+      errors: errors,
+      recommendation: errors.isEmpty ? 'ready' : 'blocked',
+    );
+  }
+
+  Future<({List<String> checkedManifests, List<String> errors})>
+  _schemaOnlyManifestSelection(
+    Directory source,
+    Set<String> manifestFilters,
+  ) async {
+    final manifestNames = await _allRootManifestNames(source);
+    if (manifestFilters.isNotEmpty) {
+      final manifestNameSet = manifestNames.toSet();
+      final checkedManifests =
+          manifestFilters
+              .where(manifestNameSet.contains)
+              .toList(growable: false)
+            ..sort();
+      final missingManifests =
+          manifestFilters.difference(manifestNameSet).toList(growable: false)
+            ..sort();
+      return (
+        checkedManifests: checkedManifests,
+        errors: missingManifests.isEmpty
+            ? const <String>[]
+            : [
+                'Unknown Source manifest route filter: '
+                    '${missingManifests.join(', ')}',
+              ],
+      );
+    }
+    return (checkedManifests: manifestNames, errors: const <String>[]);
   }
 
   Future<Directory> _createWorkRoot(String? providedWorkRoot) async {
@@ -468,12 +582,13 @@ class SourceCheckCommand extends FluohCommand<int> {
 
   Future<_SourceValidationCheck> _validateSource(
     Directory source, {
+    String label = 'check',
     required Set<String>? manifestNames,
     required bool validatePackageManifests,
   }) async {
     try {
       await validateSource(
-        'check',
+        label,
         SourceConfig(path: source.path),
         manifestNames: manifestNames,
         validatePackageManifests: validatePackageManifests,
@@ -1953,6 +2068,7 @@ class _SourceCheckReport {
     required this.target,
     required this.workRoot,
     required this.sourcePath,
+    required this.schemaOnly,
     required this.sourceCheckout,
     required this.sourceValidation,
     required this.baseRef,
@@ -1970,8 +2086,9 @@ class _SourceCheckReport {
   });
 
   final String target;
-  final String workRoot;
+  final String? workRoot;
   final String sourcePath;
+  final bool schemaOnly;
   final _SourceSetupResult sourceCheckout;
   final _SourceValidationCheck sourceValidation;
   final String? baseRef;
@@ -1993,8 +2110,9 @@ class _SourceCheckReport {
   Map<String, Object?> toJson() => {
     'recommendation': recommendation,
     'target': target,
-    'workRoot': workRoot,
+    if (workRoot != null) 'workRoot': workRoot,
     'sourcePath': sourcePath,
+    'schemaOnly': schemaOnly,
     'sourceCheckout': sourceCheckout.toJson(),
     'sourceValidation': sourceValidation.toJson(),
     if (baseRef != null) 'baseRef': baseRef,

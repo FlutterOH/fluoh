@@ -94,9 +94,11 @@ Then:
 - "Check/precheck/review a FlutterOH Source PR": use the Source Maintenance
   Flow. Treat the result as deterministic technical evidence, not as an AI
   approval decision.
-- "Maintain/update Source data": use `fluoh source validate`, `source sync`,
-  and `source check`; do not edit generated release records when `source sync`
-  is the right source of truth.
+- "Maintain/update Source data": use
+  `fluoh source check [path] --schema-only --json` for local YAML/index gates,
+  `fluoh source sync [path]` for generated release records, and normal
+  `fluoh source check ... --json` for PR or CI release verification; do not edit
+  generated release records when `source sync` is the right source of truth.
 - "Only check/review": stop after read-only commands and dry-runs; do not apply
   `deps fix`, writes, releases, pushes, or destructive Git operations.
 
@@ -418,15 +420,27 @@ FlutterOH/source pull request, or validate Source data after syncing released
 Package repositories.
 
 ```sh
-fluoh source validate [path]
+# Local YAML/index validation only.
+fluoh source check [path] --schema-only --json
+
+# Pull request or changed-route verification.
 fluoh source check <source-pr-url> --json
 fluoh source check . --json
+
+# Full Source audit.
 fluoh source check . --all --json
 ```
 
 Rules:
 
-- `fluoh source check` is read-only. It validates Source YAML, computes changed
+- Use `--schema-only` only for local Source paths when the workflow needs pure
+  YAML/index validation, such as before or after `fluoh source sync` or manual
+  route edits. It does not read Git diffs, fetch SDK tags, clone Package
+  repositories, verify declared releases, or touch config, snapshots, or locks.
+  It reports `schemaOnly: true` in JSON and rejects PR URLs, diff options,
+  release options, work-root options, and Package verification filters.
+- Use normal `fluoh source check ... --json` for PR readiness, merge gates, and
+  release verification. It is read-only, validates Source YAML, computes changed
   Manifest routes from Git when possible, and verifies declared Package release
   tags with `fluoh package check --package <name> --json`.
 - For pull requests, pass the GitHub PR URL directly when available. The command
@@ -436,13 +450,13 @@ Rules:
   Source root `fluoh.yaml` changed, fluoh compares Manifest route names between
   the base ref and HEAD, checks only added or removed routes, and does not turn
   SDK-only root metadata changes into full Manifest verification.
-- Use `--all` for scheduled release-gate jobs and `--skip-release-checks` when
-  the workflow should validate YAML and changed-route selection without cloning
-  Package repositories.
-- Read the JSON `recommendation`, `errors`, `warnings`, `changedFiles`,
-  `checkedManifests`, and `releaseChecks`. `ready` means technical checks pass,
-  `blocked` means fix errors before merge, and `needs-maintainer-decision`
-  means a human maintainer must decide.
+- Use `--all` for scheduled release-gate jobs. Use `--skip-release-checks` when
+  a normal diff-aware check should validate YAML and changed-route selection
+  without cloning Package repositories.
+- Read the JSON `schemaOnly`, `recommendation`, `errors`, `warnings`,
+  `changedFiles`, `checkedManifests`, and `releaseChecks`. `ready` means
+  technical checks pass, `blocked` means fix errors before merge, and
+  `needs-maintainer-decision` means a human maintainer must decide.
 - Source PR automation should publish the JSON summary as a check or comment.
   Do not approve, merge, push, or rewrite Source data automatically.
 - Use `fluoh source sync [path]` only to import release records from already

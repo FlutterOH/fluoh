@@ -94,10 +94,9 @@ fluoh run --platform ohos --device <id>
 | `fluoh source add <name> <url-or-path>` | `lib/src/source/source_commands.dart` | 把本地或 Git 数据源加入工具配置。 |
 | `fluoh source remove <name>` | `lib/src/source/source_commands.dart` | 从工具配置中移除非官方数据源。 |
 | `fluoh source update [name]` | `lib/src/source/source_commands.dart` | 刷新并校验已配置的数据源快照。 |
-| `fluoh source validate [path]` | `lib/src/source/source_commands.dart` | 校验本地 source 仓库但不注册它。 |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | 创建本地 source 仓库模板。 |
 | `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | 把已发布 FlutterOH Package 仓库元数据同步进 source 仓库。 |
-| `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | 校验 Source 文件并验证已声明的 Package release。 |
+| `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | 校验 Source 文件并验证已声明的 Package release；本地 YAML/index 校验使用 `--schema-only`。 |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | 本地 Flutter OHOS SDK 缓存的命令组。 |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | 列出远端 SDK 版本和本地 SDK 缓存。 |
 | `fluoh sdk install <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | 把 SDK 版本安装到 `$FLUOH_HOME/sdks`。 |
@@ -263,11 +262,13 @@ sync 失败输出并给出重试提示；clone 成功后 source 内容未通过 
 
 ### 维护侧命令
 
-`fluoh source validate [path]` 校验本地 Source 仓库，但不会读取或写入
+`fluoh source check [path] --schema-only` 校验本地 Source 仓库，但不会读取或写入
 `$FLUOH_HOME/config.json`、source 快照或 `sources.lock.json`。不传 `path` 时默认使用当前目录。
-该命令会检查 Source root schema、`environment.fluoh`、SDK 元数据、Manifest routes、
-Manifest name、重复 Package、Package release 记录，以及 Package index 能否构建。它不会 fetch
-SDK tags 或 Package 仓库；发布数据更新仍由 `fluoh source sync` 负责。
+该模式会检查 Source root schema、`environment.fluoh`、SDK 元数据、Manifest routes、
+Manifest name、重复 Package、Package release 记录，以及 Package index 能否构建。它不会读取
+Git diff、fetch SDK tags、clone Package 仓库，也不会验证已声明的 release；发布数据更新仍由
+`fluoh source sync` 负责。`--schema-only` 是本地 Source 校验模式，不能和 diff、release、
+work-root 或 Package 验证选项组合使用。
 
 `fluoh source init <path>` 创建 source root `fluoh.yaml`、
 `manifests/example/fluoh.yaml` 注释 Manifest 模板和 README。目标文件已存在时会保守

@@ -32,13 +32,6 @@ class SourceCommand extends FluohCommand<int> {
       ),
     );
     addSubcommand(
-      SourceValidateCommand(
-        environment: environment,
-        stdout: stdout,
-        output: _output,
-      ),
-    );
-    addSubcommand(
       SourceInitCommand(
         environment: environment,
         stdout: stdout,
@@ -131,7 +124,6 @@ const _sourceCommandSections = [
   CommandUsageSection('Maintain source repositories:', [
     'init',
     'sync',
-    'validate',
     'check',
   ]),
 ];
@@ -220,56 +212,6 @@ class SourceListCommand extends FluohCommand<int> {
       stdout('[$index] ${entry.key} ${entry.value.displayValue}');
       index += 1;
     }
-    return 0;
-  }
-}
-
-/// Validates a local Source repository without adding it.
-class SourceValidateCommand extends FluohCommand<int> {
-  /// Creates the Source validate command.
-  SourceValidateCommand({
-    required this.environment,
-    required this.stdout,
-    TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
-
-  /// Runtime environment used to resolve relative paths.
-  final FluohEnvironment environment;
-
-  /// Writer kept for command construction consistency.
-  final OutputWriter stdout;
-  final TerminalOutput _output;
-
-  @override
-  String get name => 'validate';
-
-  @override
-  String get description =>
-      'Validate a local source repository without changing tool config.';
-
-  @override
-  String get invocation => 'fluoh source validate [path]';
-
-  @override
-  Future<int> run() async {
-    final rest = expectArgumentCountAtMost(
-      argResults!,
-      1,
-      'Expected zero or one source path.',
-      usageException,
-    );
-    final source = rest.isEmpty
-        ? environment.workingDirectory
-        : _resolveUserSourceDirectory(
-            environment.workingDirectory,
-            Directory(rest.single),
-          );
-    if (!await source.exists()) {
-      usageException('Source path does not exist: ${source.path}');
-    }
-
-    await validateSource(source.path, SourceConfig(path: source.path));
-    _output.success('Validated source ${_output.style.path(source.path)}');
     return 0;
   }
 }

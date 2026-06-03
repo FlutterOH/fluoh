@@ -168,8 +168,11 @@ void main() {
     expect(skill, contains('skillVersion'));
     expect(skill, contains('upgradePrompt'));
     expect(skill, contains('fluoh deps check --json'));
+    expect(skill, contains('```sh\n# Local YAML/index validation only.'));
+    expect(skill, contains('fluoh source check [path] --schema-only'));
     expect(skill, contains('fluoh source check <source-pr-url> --json'));
     expect(skill, contains('fluoh source check . --all --json'));
+    expect(skill, contains('schemaOnly'));
     expect(skill, contains('--skip-release-checks'));
     expect(skill, contains('changedFiles'));
     expect(skill, contains('checkedManifests'));
@@ -593,6 +596,7 @@ void main() {
       'fluoh source list',
       'fluoh source sync [path]',
       'fluoh source check [source]',
+      '--schema-only',
       'changedFiles',
       '--skip-release-checks',
       'SDK-only root',
@@ -681,6 +685,7 @@ void main() {
       'fluoh source list',
       'fluoh source sync [path]',
       'fluoh source check [source]',
+      '--schema-only',
       'changedFiles',
       '--skip-release-checks',
       'SDK-only 根',

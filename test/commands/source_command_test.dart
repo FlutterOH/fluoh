@@ -45,44 +45,61 @@ void main() {
     expect(stdout.join('\n'), contains('Use configured sources:'));
     expect(stdout.join('\n'), contains('Maintain source repositories:'));
     expect(stdout.join('\n'), contains('  list'));
-    expect(stdout.join('\n'), contains('  validate'));
     expect(stdout.join('\n'), contains('  sync'));
     expect(stdout.join('\n'), contains('  check'));
     expect(stderr, isEmpty);
   });
 
-  test('validates a local source path without registering it', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(
-      environment.workingDirectory,
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'schema-only check validates a local source without config effects',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.workingDirectory,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    expect(
-      await runFluoh(
-        ['source', 'validate', 'package_source'],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
+      expect(
+        await runFluoh(
+          ['source', 'check', 'package_source', '--schema-only', '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
 
-    expect(stdout, contains('Validated source ${source.path}'));
-    expect(
-      File('${environment.homeDirectory.path}/config.json').existsSync(),
-      isFalse,
-    );
-    expect(
-      File('${environment.homeDirectory.path}/sources.lock.json').existsSync(),
-      isFalse,
-    );
-    expect(stderr, isEmpty);
-  });
+      expect(stderr, isEmpty);
+      expect(stdout, hasLength(1));
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'source check'));
+      expect(report, containsPair('ok', true));
+      expect(report, containsPair('exitCode', 0));
+      expect(report, containsPair('schemaOnly', true));
+      expect(report, isNot(contains('workRoot')));
+      expect(report, containsPair('sourcePath', source.path));
+      expect(
+        report,
+        containsPair('checkedManifests', ['camera', 'share_plus']),
+      );
+      expect(report, containsPair('releaseChecks', isEmpty));
+      expect(report, containsPair('sdkChecks', isEmpty));
+      expect(
+        File('${environment.homeDirectory.path}/config.json').existsSync(),
+        isFalse,
+      );
+      expect(
+        File(
+          '${environment.homeDirectory.path}/sources.lock.json',
+        ).existsSync(),
+        isFalse,
+      );
+    },
+  );
 
   test(
-    'reports invalid source validation without config side effects',
+    'schema-only check reports invalid source without config effects',
     () async {
       final environment = await createTestEnvironment();
       final source = Directory('${environment.workingDirectory.path}/broken');
@@ -99,17 +116,30 @@ repository:
 
       expect(
         await runFluoh(
-          ['source', 'validate', 'broken'],
+          ['source', 'check', 'broken', '--schema-only', '--json'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
         ),
-        64,
+        1,
       );
 
-      expect(stdout, isEmpty);
-      expect(stderr.join('\n'), contains('Source ${source.path} is not valid'));
-      expect(stderr.join('\n'), contains('Expected "url"'));
+      expect(stderr, isEmpty);
+      expect(stdout, hasLength(1));
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'source check'));
+      expect(report, containsPair('ok', false));
+      expect(report, containsPair('exitCode', 1));
+      expect(report, containsPair('schemaOnly', true));
+      expect(report, isNot(contains('workRoot')));
+      final sourceValidation =
+          report['sourceValidation'] as Map<String, Object?>;
+      expect(sourceValidation, containsPair('ok', false));
+      expect(
+        sourceValidation['message'],
+        contains('Source ${source.path} is not valid'),
+      );
+      expect(sourceValidation['message'], contains('Expected "url"'));
       expect(
         File('${environment.homeDirectory.path}/config.json').existsSync(),
         isFalse,
@@ -122,6 +152,44 @@ repository:
       );
     },
   );
+
+  test('schema-only check rejects unknown manifest filters as json', () async {
+    final environment = await createTestEnvironment();
+    await createPackageSourceFixture(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'source',
+          'check',
+          'package_source',
+          '--schema-only',
+          '--manifest',
+          'missing',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'source check'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 1));
+    expect(report, containsPair('schemaOnly', true));
+    expect(report, containsPair('checkedManifests', isEmpty));
+    expect(
+      report['errors'],
+      contains('Unknown Source manifest route filter: missing'),
+    );
+  });
 
   test('does not repair sources when list has unexpected arguments', () async {
     final baseEnvironment = await createTestEnvironment();
@@ -1866,6 +1934,40 @@ manifests:
       expect(
         report['errors'],
         contains('--all cannot be used with --base-ref.'),
+      );
+    },
+  );
+
+  test(
+    'source check schema-only rejects release and diff options as json',
+    () async {
+      final environment = await createTestEnvironment();
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          [
+            'source',
+            'check',
+            '--schema-only',
+            '--skip-release-checks',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(stderr, isEmpty);
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'source check'));
+      expect(report, containsPair('ok', false));
+      expect(
+        report['errors'],
+        contains('--schema-only cannot be used with --skip-release-checks.'),
       );
     },
   );
