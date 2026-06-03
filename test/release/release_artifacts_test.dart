@@ -201,7 +201,7 @@ void main() {
     expect(skill, contains('--require-vm-service'));
     expect(skill, isNot(contains('Codex')));
 
-    expect(openai, contains('display_name: "fluoh"'));
+    expect(openai, contains('display_name: "FlutterOH fluoh"'));
     expect(
       openai,
       contains('short_description: "FlutterOH adaptation and Source checks"'),
