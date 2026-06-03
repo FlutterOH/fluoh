@@ -2,12 +2,6 @@
   <title id="title">fluoh AI adaptation prompt</title>
   <desc id="desc">A short prompt asks an AI agent to use fluoh, then fluoh installs tools, detects the workspace, pins the SDK, fixes dependencies, verifies the build, and saves a report.</desc>
   <defs>
-    <filter id="searchShadow" x="101" y="119" width="698" height="102" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.08"/>
-    </filter>
-    <filter id="chipShadow" x="113" y="237" width="674" height="47" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#334155" flood-opacity="0.05"/>
-    </filter>
     <linearGradient id="searchFill" x1="121" y1="132" x2="779" y2="210" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#F0FDFA"/>
@@ -15,19 +9,6 @@
     <style>
       .ui { font-family: Inter, Arial, sans-serif; letter-spacing: 0; }
       .mono { font-family: Menlo, Consolas, monospace; letter-spacing: 0; }
-      .caret { animation: blink 1.2s steps(1) infinite; }
-      .send { animation: sendPulse 2.8s ease-in-out infinite; transform-origin: 740px 171px; }
-      @keyframes blink {
-        0%, 45% { opacity: 1; }
-        46%, 100% { opacity: 0; }
-      }
-      @keyframes sendPulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.04); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .caret, .send { animation: none; }
-      }
     </style>
   </defs>
 
@@ -35,18 +16,17 @@
   <text x="450" y="79" text-anchor="middle" class="ui" fill="#0F172A" font-size="30" font-weight="900">Tell AI the goal. fluoh runs the workflow.</text>
   <text x="450" y="106" text-anchor="middle" class="ui" fill="#64748B" font-size="14">Apps and packages follow one verified command path.</text>
 
-  <g filter="url(#searchShadow)">
+  <g>
     <rect x="121" y="132" width="658" height="78" rx="39" fill="url(#searchFill)" stroke="#CBD5E1" stroke-width="2"/>
     <text x="162" y="177" class="mono" fill="#1E293B" font-size="16">Use $fluoh to add OHOS to this Flutter project.</text>
-    <rect class="caret" x="629" y="159" width="3" height="24" rx="1.5" fill="#2563EB"/>
-    <g class="send">
+    <g>
       <circle cx="740" cy="171" r="24" fill="#2563EB"/>
       <path d="M740 180V162" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
       <path d="M732 171L740 162L748 171" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
   </g>
 
-  <g filter="url(#chipShadow)">
+  <g>
     <rect x="121" y="244" width="93" height="30" rx="15" fill="#ECFEFF"/>
     <text x="167.5" y="263" text-anchor="middle" class="ui" fill="#0F766E" font-size="11" font-weight="800">install</text>
 
