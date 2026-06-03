@@ -46,8 +46,8 @@ Run `fluoh skill --json`, install the returned localPath as a skill, then reload
 ```
 
 The JSON result also exposes helper script argv for preflight, report creation,
-report checking, and functional scenario creation, plus reference template paths
-for reports and interaction scenarios.
+report checking, and functional scenario creation, plus reference template
+paths for reports and interaction scenarios.
 
 Before implementation edits, agents must inspect preflight `upgradeChecks`.
 Schema blockers stop the flow until `fluoh` is upgraded or metadata is migrated.
@@ -106,6 +106,7 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh source validate [path]` | `lib/src/source/source_commands.dart` | Validate a local source repository without registering it. |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | Create a local source repository template. |
 | `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import released FlutterOH package repository metadata into a source repository. |
+| `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | Validate Source files and verify declared Package releases. |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | Command group for local Flutter OHOS SDK caches. |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | List remote SDK versions and installed SDK caches. |
 | `fluoh sdk install <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | Install an SDK version into `$FLUOH_HOME/sdks`. |
@@ -342,6 +343,24 @@ rebuilds the merged lock. When `<path>` is a maintainer checkout outside
 the configured snapshots, the local lock is not changed; run
 `fluoh source update <name>` after publishing or copying the Source into a
 configured snapshot. `--json` prints synced and skipped package records as JSON.
+
+`fluoh source check [source]` is a read-only verification command for Source
+maintainers and CI. When `source` is omitted, the current directory is checked.
+`source` may be a local Source checkout path or a GitHub pull request URL. The
+command validates Source files, detects changed Manifest routes, then verifies
+declared Package release references. Release verification clones referenced
+FlutterOH package repositories, checks declared release tags, reads the Package
+manifest branch at each tag, and runs
+`fluoh package check --package <name> --json` at the tagged commits. It does not
+import Package metadata or write Source files; use `fluoh source sync` for that.
+The JSON output includes `recommendation`, `errors`, `warnings`,
+`checkedManifests`, and `releaseChecks`. By default the command checks
+Manifests changed from `--base-ref`; pass `--all` for scheduled or release-gate
+jobs that should check every Manifest route. `--all` and `--base-ref` are
+mutually exclusive. Treat `ready` as a technical check pass, `blocked` as
+non-mergeable until errors are fixed, and `needs-maintainer-decision` as a
+manual decision signal. Pull request automation should use the command as a
+check plus comment; final approval and merge remain maintainer-owned.
 
 ## SDK Commands
 

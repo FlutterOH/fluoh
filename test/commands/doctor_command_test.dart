@@ -997,15 +997,21 @@ Future<_DoctorRunResult> _runDoctorCommand({
 }) async {
   final stdout = <String>[];
   final stderr = <String>[];
+  final processEnvironment = {...environment.processEnvironment};
+  if (!processEnvironment.containsKey('PATH')) {
+    final pathFixture = await _writeDoctorPathFixture(
+      environment.homeDirectory,
+    );
+    processEnvironment['PATH'] = pathFixture.path;
+  }
+  processEnvironment.putIfAbsent(
+    'FLUOH_DEVECO_STUDIO',
+    () => '${environment.homeDirectory.path}/missing/DevEco-Studio.app',
+  );
   final commandEnvironment = FluohEnvironment(
     homeDirectory: environment.homeDirectory,
     workingDirectory: environment.workingDirectory,
-    processEnvironment: {
-      ...environment.processEnvironment,
-      if (!environment.processEnvironment.containsKey('FLUOH_DEVECO_STUDIO'))
-        'FLUOH_DEVECO_STUDIO':
-            '${environment.homeDirectory.path}/missing/DevEco-Studio.app',
-    },
+    processEnvironment: processEnvironment,
   );
   final runner = CommandRunner<int>('fluoh', 'test')
     ..addCommand(
@@ -1024,6 +1030,21 @@ Future<_DoctorRunResult> _runDoctorCommand({
 
   final exitCode = await runner.run(arguments);
   return _DoctorRunResult(exitCode ?? 0, stdout, stderr);
+}
+
+Future<Directory> _writeDoctorPathFixture(Directory root) async {
+  final bin = Directory('${root.path}/doctor-bin');
+  await _writeExecutable(File('${bin.path}/git'), '''
+if [ "\$1" = "--version" ]; then
+  printf "git version 2.50.1\\n"
+  exit 0
+fi
+exit 1
+''');
+  await _writeExecutable(File('${bin.path}/which'), '''
+exit 1
+''');
+  return bin;
 }
 
 Future<Directory> _writeDevEcoFixture(Directory root) async {

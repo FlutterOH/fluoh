@@ -567,7 +567,8 @@ void main() {
       'Run `fluoh skill --json`',
       'returned localPath',
       'helper script argv',
-      'reference template paths',
+      'reference template',
+      'paths for reports',
       'dart pub global activate fluoh',
       'fluoh upgrade',
       'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
@@ -584,6 +585,7 @@ void main() {
       'fluohf <args>',
       'fluoh source list',
       'fluoh source sync [path]',
+      'fluoh source check [source]',
       'fluoh sdk list',
       'fluoh sdk current',
       'fluoh sdk use <version-or-series>',
@@ -633,7 +635,11 @@ void main() {
       'load-index API',
       '`changed`, `applied`, `files`, and `dryRun`',
     ]);
-    expectContainsNone(commands, ['fluoh source package', 'fluoh source use']);
+    expectContainsNone(commands, [
+      'fluoh source package',
+      'fluoh source use',
+      'source_pr_review.py',
+    ]);
 
     expectContainsAll(chineseCommands, [
       '# 命令设计',
@@ -646,7 +652,8 @@ void main() {
       '运行 `fluoh skill --json`',
       '返回的 localPath',
       'helper script argv',
-      'reference 路径',
+      'reference',
+      '路径',
       'dart pub global activate fluoh',
       'fluoh upgrade',
       '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill。',
@@ -663,6 +670,7 @@ void main() {
       'fluohf <args>',
       'fluoh source list',
       'fluoh source sync [path]',
+      'fluoh source check [source]',
       'fluoh sdk list',
       'fluoh sdk current',
       'fluoh sdk use <version-or-series>',
@@ -715,6 +723,7 @@ void main() {
     expectContainsNone(chineseCommands, [
       'fluoh source package',
       'fluoh source use',
+      'source_pr_review.py',
     ]);
   });
 

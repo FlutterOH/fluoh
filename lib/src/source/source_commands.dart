@@ -12,6 +12,7 @@ import '../context/fluoh_environment.dart';
 import '../package/git/package_git.dart';
 import '../schema/schema.dart';
 import 'source_runtime.dart';
+import 'source_check_command.dart';
 import 'source_sync.dart';
 
 /// Top-level `fluoh source` command group.
@@ -45,6 +46,13 @@ class SourceCommand extends FluohCommand<int> {
     );
     addSubcommand(
       SourceSyncCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      SourceCheckCommand(
         environment: environment,
         stdout: stdout,
         output: _output,
@@ -123,6 +131,7 @@ const _sourceCommandSections = [
     'init',
     'sync',
     'validate',
+    'check',
   ]),
 ];
 

@@ -97,6 +97,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh source validate [path]` | `lib/src/source/source_commands.dart` | 校验本地 source 仓库但不注册它。 |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | 创建本地 source 仓库模板。 |
 | `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | 把已发布 FlutterOH Package 仓库元数据同步进 source 仓库。 |
+| `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | 校验 Source 文件并验证已声明的 Package release。 |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | 本地 Flutter OHOS SDK 缓存的命令组。 |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | 列出远端 SDK 版本和本地 SDK 缓存。 |
 | `fluoh sdk install <version-or-series>` | `lib/src/sdk/sdk_commands.dart` | 把 SDK 版本安装到 `$FLUOH_HOME/sdks`。 |
@@ -282,6 +283,19 @@ tag 下固化的 Package `fluoh.yaml`，然后把历史发布记录汇总到 Man
 sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合并后的 lock。当
 `<path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到已配置快照后，
 再运行 `fluoh source update <name>`。`--json` 会以 JSON 输出已同步和跳过的 Package 记录。
+
+`fluoh source check [source]` 是给 Source 维护者和 CI 使用的只读验证命令。
+不传 `source` 时默认检查当前目录。`source` 可以是本地 Source checkout 路径，也可以是
+GitHub pull request URL。命令会校验 Source 文件，识别变更的 Manifest route，然后验证已
+声明的 Package release 引用。Release 验证会克隆引用的 FlutterOH Package 仓库，检查声明的
+release tag，读取每个 tag 下 Package manifest 记录的分支，并在 tag 固化的提交上运行
+`fluoh package check --package <name> --json`。它不会导入 Package metadata，也不会写
+Source 文件；生成或更新 Source release 数据应使用 `fluoh source sync`。JSON 输出包含
+`recommendation`、`errors`、`warnings`、`checkedManifests` 和 `releaseChecks`。
+默认按 `--base-ref` 识别变更 Manifest；定时任务或 release gate 需要检查所有 Manifest
+route 时传 `--all`。`--all` 和 `--base-ref` 不能同时使用。`ready` 只表示技术检查通过，
+`blocked` 表示修复 errors 前不应合并，`needs-maintainer-decision` 表示需要人工判断。
+Pull request 自动化应把它作为 check + comment 使用；最终 approval 和 merge 仍由维护者负责。
 
 ## SDK 命令
 

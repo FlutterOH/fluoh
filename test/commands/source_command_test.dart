@@ -47,6 +47,7 @@ void main() {
     expect(stdout.join('\n'), contains('  list'));
     expect(stdout.join('\n'), contains('  validate'));
     expect(stdout.join('\n'), contains('  sync'));
+    expect(stdout.join('\n'), contains('  check'));
     expect(stderr, isEmpty);
   });
 
@@ -1013,6 +1014,287 @@ environment:
     expect(report, containsPair('exitCode', 64));
     expect(report['error'], isA<Map<String, Object?>>());
     expect(stderr, isEmpty);
+  });
+
+  test(
+    'source check validates changed manifests and declared package releases',
+    () async {
+      final environment = await createTestEnvironment();
+      final root = environment.homeDirectory;
+      final fluoh = await _writeFakeSourceCheckFluoh(root);
+      final source = Directory('${root.path}/source');
+      final packageRepository = Directory('${root.path}/camera_ohos');
+      final checkWorkRoot = Directory('${root.path}/check');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await packageRepository.create(recursive: true);
+      await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
+schema: 1
+name: camera
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: ${packageRepository.path}
+    branch: ohos/3.35
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages
+    branch: main
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+    version: "1"
+    upstreamVersion: "0.11.0"
+    status: compatible
+''');
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35']);
+      await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-1']);
+
+      await source.create(recursive: true);
+      await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test source
+manifests: []
+''');
+      await initializeGitRepository(source);
+      await _runGit(source, ['checkout', '-b', 'pr/add-camera']);
+      await Directory(
+        '${source.path}/manifests/camera',
+      ).create(recursive: true);
+      await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test source
+
+manifests:
+  - name: camera
+''');
+      await File('${source.path}/manifests/camera/fluoh.yaml').writeAsString('''
+schema: 1
+kind: manifest
+name: camera
+
+repository:
+  git:
+    url: ${packageRepository.path}
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages
+    branch: main
+
+packages:
+  camera:
+    repository:
+      path: packages/camera/camera
+    upstream:
+      path: packages/camera/camera
+    sdks:
+      "3.35":
+        releases:
+          - version: "1"
+            upstreamVersion: "0.11.0"
+''');
+      await commitAll(source, message: 'Add camera manifest');
+
+      expect(
+        await runFluoh(
+          [
+            'source',
+            'check',
+            '--base-ref',
+            'main',
+            '--fluoh-command',
+            fluoh.path,
+            '--work-root',
+            checkWorkRoot.path,
+            '--keep-work-root',
+            '--json',
+          ],
+          environment: FluohEnvironment(
+            homeDirectory: environment.homeDirectory,
+            workingDirectory: source,
+          ),
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stderr, isEmpty);
+      expect(stdout, hasLength(1));
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('command', 'source check'));
+      expect(report, containsPair('ok', true));
+      expect(report, containsPair('exitCode', 0));
+      expect(report, containsPair('recommendation', 'ready'));
+      expect(report, containsPair('all', false));
+      expect(report, containsPair('checkedManifests', ['camera']));
+      expect(report['errors'], isEmpty);
+      final sourceValidation =
+          report['sourceValidation'] as Map<String, Object?>;
+      expect(sourceValidation, containsPair('ok', true));
+      expect(report['sourceCheckout'], containsPair('kind', 'local'));
+      final releaseChecks = report['releaseChecks'] as List<Object?>;
+      final manifestCheck = releaseChecks.single as Map<String, Object?>;
+      expect(manifestCheck, containsPair('manifest', 'camera'));
+      expect(manifestCheck, containsPair('ok', true));
+      final checks = manifestCheck['checks'] as List<Object?>;
+      final releaseCheck = checks.single as Map<String, Object?>;
+      expect(releaseCheck, containsPair('package', 'camera'));
+      expect(releaseCheck, containsPair('tag', 'camera-0.11.0-ohos-3.35-1'));
+      expect(releaseCheck, containsPair('branch', 'ohos/3.35'));
+      expect(releaseCheck, containsPair('ok', true));
+      final packageCheck = releaseCheck['packageCheck'] as Map<String, Object?>;
+      expect(
+        packageCheck['command'],
+        containsAll([
+          fluoh.path,
+          'package',
+          'check',
+          '--package',
+          'camera',
+          '--json',
+        ]),
+      );
+
+      stdout.clear();
+      stderr.clear();
+      expect(
+        await runFluoh(
+          [
+            'source',
+            'check',
+            '--base-ref',
+            'main',
+            '--fluoh-command',
+            fluoh.path,
+            '--work-root',
+            checkWorkRoot.path,
+            '--json',
+          ],
+          environment: FluohEnvironment(
+            homeDirectory: environment.homeDirectory,
+            workingDirectory: source,
+          ),
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      expect(stderr, isEmpty);
+      final repeatedReport = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(repeatedReport, containsPair('recommendation', 'ready'));
+
+      stdout.clear();
+      stderr.clear();
+      expect(
+        await runFluoh(
+          ['source', 'check', '--all', '--skip-release-checks', '--json'],
+          environment: FluohEnvironment(
+            homeDirectory: environment.homeDirectory,
+            workingDirectory: source,
+          ),
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      expect(stderr, isEmpty);
+      final allReport = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(allReport, containsPair('command', 'source check'));
+      expect(allReport, containsPair('all', true));
+      expect(allReport, containsPair('changedFiles', isEmpty));
+      expect(allReport, containsPair('checkedManifests', ['camera']));
+      expect(
+        allReport['warnings'],
+        contains(
+          'Declared Package release verification was skipped by request.',
+        ),
+      );
+
+      stdout.clear();
+      stderr.clear();
+      expect(
+        await runFluoh(
+          ['source', 'check', '--all', '--base-ref', 'main', '--json'],
+          environment: FluohEnvironment(
+            homeDirectory: environment.homeDirectory,
+            workingDirectory: source,
+          ),
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(stderr, isEmpty);
+      final invalidModeReport =
+          jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(invalidModeReport, containsPair('command', 'source check'));
+      expect(invalidModeReport, containsPair('ok', false));
+      expect(
+        invalidModeReport['errors'],
+        contains('--all cannot be used with --base-ref.'),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test('source check reports source validation failures as json', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/source');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await source.create(recursive: true);
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Broken source
+manifests:
+  - name: camera
+''');
+    await Directory('${source.path}/manifests/camera').create(recursive: true);
+    await File('${source.path}/manifests/camera/fluoh.yaml').writeAsString('''
+schema: 1
+kind: manifest
+name:
+''');
+
+    expect(
+      await runFluoh(
+        ['source', 'check', source.path, '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'source check'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 1));
+    expect(report, containsPair('recommendation', 'blocked'));
+    expect(report, containsPair('checkedManifests', isEmpty));
+    expect(report, containsPair('releaseChecks', isEmpty));
+    final sourceValidation = report['sourceValidation'] as Map<String, Object?>;
+    expect(sourceValidation, containsPair('ok', false));
+    expect(report['errors'], contains(startsWith('Source validation failed:')));
   });
 
   test(
@@ -2321,6 +2603,22 @@ packages:
           - version: 0.1.0
             upstreamVersion: 0.10.0
 ''');
+}
+
+Future<File> _writeFakeSourceCheckFluoh(Directory root) async {
+  final tool = File('${root.path}/fluoh-source-check');
+  await tool.writeAsString(r'''
+#!/bin/sh
+if [ "$1" = "package" ] && [ "$2" = "check" ] && [ "$3" = "--package" ] && [ "$5" = "--json" ]; then
+  printf '{"schemaVersion":1,"command":"package check","ok":true,"exitCode":0,"tags":["%s-0.11.0-ohos-3.35-1"]}\n' "$4"
+  exit 0
+fi
+echo "unexpected args: $@" >&2
+exit 64
+''');
+  final chmod = await Process.run('chmod', ['+x', tool.path]);
+  expect(chmod.exitCode, 0, reason: chmod.stderr.toString());
+  return tool;
 }
 
 Map<String, Object?> _readJsonObject(File file) {
