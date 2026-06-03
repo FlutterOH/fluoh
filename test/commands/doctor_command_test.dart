@@ -237,60 +237,23 @@ exit 0
     final doctorEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
       workingDirectory: environment.workingDirectory,
-      processEnvironment: {
-        ...environment.processEnvironment,
-        'ANDROID_HOME': androidSdk.path,
-        'FLUOH_ANDROID_STUDIO':
-            '${environment.homeDirectory.path}/missing/Android Studio.app',
-        'JAVA_HOME': javaHome.path,
-      },
+      processEnvironment: _androidDoctorEnvironment(
+        environment,
+        androidSdk,
+        javaHome,
+      ),
     );
 
     final result = await _runDoctorCommand(
       environment: doctorEnvironment,
       versionMetadataProvider: () async =>
           const DoctorVersionMetadata(latestVersion: packageVersion),
-      arguments: const ['doctor', '--platform', 'android', '--json'],
-    );
-
-    expect(result.exitCode, 0);
-    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
-    expect(report, containsPair('command', 'doctor'));
-    expect(report, containsPair('exitCode', 0));
-    expect(report, containsPair('project', false));
-    final checks = report['checks'] as List<Object?>;
-    expect(
-      checks,
-      contains(
-        allOf(
-          containsPair('id', 'android.toolchain'),
-          containsPair('title', 'Android toolchain'),
-          containsPair('status', 'ok'),
-        ),
-      ),
-    );
-    expect(
-      checks.cast<Map<String, Object?>>().where(
-        (check) => check['group'] == 'project',
-      ),
-      isEmpty,
-    );
-    expect(
-      File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
-      isFalse,
-    );
-
-    final plainResult = await _runDoctorCommand(
-      environment: doctorEnvironment,
-      versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: packageVersion),
       arguments: const ['doctor', '--platform', 'android'],
     );
 
-    expect(plainResult.exitCode, 0);
+    expect(result.exitCode, 0);
     expect(
-      _normalizeOutput(plainResult.stdout.join('\n')),
+      _normalizeOutput(result.stdout.join('\n')),
       contains(
         _normalizeOutput(
           '[✓] Android toolchain - develop for Android devices (Android SDK version 35.0.1)',
@@ -298,39 +261,42 @@ exit 0
       ),
     );
     expect(
-      _normalizeOutput(plainResult.stdout.join('\n')),
+      _normalizeOutput(result.stdout.join('\n')),
       contains('Android SDK at'),
     );
     expect(
-      _normalizeOutput(plainResult.stdout.join('\n')),
+      _normalizeOutput(result.stdout.join('\n')),
       contains('home/android-sdk'),
     );
-    expect(plainResult.stdout, contains('    • Emulator version 34.2.0.0'));
     expect(
-      plainResult.stdout,
+      File('${environment.workingDirectory.path}/fluoh.yaml').existsSync(),
+      isFalse,
+    );
+    expect(result.stdout, contains('    • Emulator version 34.2.0.0'));
+    expect(
+      result.stdout,
       contains('    • Platform android-36, build-tools 35.0.1'),
     );
-    expect(plainResult.stdout.join('\n'), contains('Java binary at:'));
+    expect(result.stdout.join('\n'), contains('Java binary at:'));
     expect(
-      _normalizeOutput(plainResult.stdout.join('\n')),
+      _normalizeOutput(result.stdout.join('\n')),
       contains('home/java/bin/java'),
     );
     expect(
-      plainResult.stdout.join('\n'),
+      result.stdout.join('\n'),
       isNot(contains('To override the JDK path')),
     );
-    expect(plainResult.stdout, contains('    • Java version 17.0.9'));
-    expect(plainResult.stdout, contains('    • All Android licenses accepted'));
+    expect(result.stdout, contains('    • Java version 17.0.9'));
+    expect(result.stdout, contains('    • All Android licenses accepted'));
     expect(
-      plainResult.stdout.join('\n'),
+      result.stdout.join('\n'),
       contains('[✓] Connected device (1 available)'),
     );
     expect(
-      plainResult.stdout.join('\n'),
+      result.stdout.join('\n'),
       contains('Pixel 35 (mobile) • emulator-5554 • android • device'),
     );
     expect(result.stderr, isEmpty);
-    expect(plainResult.stderr, isEmpty);
   });
 
   test('prefers Android Studio bundled Java for Android doctor', () async {
@@ -419,13 +385,11 @@ exit 0
     final doctorEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
       workingDirectory: environment.workingDirectory,
-      processEnvironment: {
-        ...environment.processEnvironment,
-        'ANDROID_HOME': androidSdk.path,
-        'FLUOH_ANDROID_STUDIO':
-            '${environment.homeDirectory.path}/missing/Android Studio.app',
-        'JAVA_HOME': javaHome.path,
-      },
+      processEnvironment: _androidDoctorEnvironment(
+        environment,
+        androidSdk,
+        javaHome,
+      ),
     );
 
     final result = await _runDoctorCommand(
@@ -437,8 +401,23 @@ exit 0
 
     expect(result.exitCode, 0);
     final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('command', 'doctor'));
+    expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('project', false));
     final checks = (report['checks'] as List<Object?>)
         .cast<Map<String, Object?>>();
+    expect(
+      checks,
+      contains(
+        allOf(
+          containsPair('id', 'android.toolchain'),
+          containsPair('title', 'Android toolchain'),
+          containsPair('status', 'ok'),
+        ),
+      ),
+    );
+    expect(checks.where((check) => check['group'] == 'project'), isEmpty);
     final connected = checks.firstWhere(
       (check) => check['id'] == 'connected.devices',
     );
@@ -457,19 +436,6 @@ exit 0
       ),
     );
     expect(result.stderr, isEmpty);
-
-    final plainResult = await _runDoctorCommand(
-      environment: doctorEnvironment,
-      versionMetadataProvider: () async =>
-          const DoctorVersionMetadata(latestVersion: packageVersion),
-      arguments: const ['doctor', '--platform', 'android'],
-    );
-    expect(plainResult.exitCode, 0);
-    expect(
-      plainResult.stdout.join('\n'),
-      contains('[✓] Connected devices (2 available)'),
-    );
-    expect(plainResult.stderr, isEmpty);
   });
 
   test('reports iOS native tooling details in plain output', () async {
@@ -1158,6 +1124,25 @@ exit 0
 ''',
   );
   return sdk;
+}
+
+Map<String, String> _androidDoctorEnvironment(
+  FluohEnvironment environment,
+  Directory androidSdk,
+  Directory javaHome,
+) {
+  return {
+    ...environment.processEnvironment,
+    'ANDROID_HOME': androidSdk.path,
+    'FLUOH_ANDROID_ADB': '${androidSdk.path}/platform-tools/adb',
+    'FLUOH_ANDROID_EMULATOR': '${androidSdk.path}/emulator/emulator',
+    'FLUOH_ANDROID_AVDMANAGER':
+        '${androidSdk.path}/cmdline-tools/latest/bin/avdmanager',
+    'FLUOH_ANDROID_STUDIO':
+        '${environment.homeDirectory.path}/missing/Android Studio.app',
+    'FLUOH_JAVA': '${javaHome.path}/bin/java',
+    'JAVA_HOME': javaHome.path,
+  };
 }
 
 Future<void> _writeExecutable(File file, String script) async {

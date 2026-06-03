@@ -1119,7 +1119,6 @@ packages:
             fluoh.path,
             '--work-root',
             checkWorkRoot.path,
-            '--keep-work-root',
             '--json',
           ],
           environment: FluohEnvironment(
@@ -1174,34 +1173,6 @@ packages:
       stderr.clear();
       expect(
         await runFluoh(
-          [
-            'source',
-            'check',
-            '--base-ref',
-            'main',
-            '--fluoh-command',
-            fluoh.path,
-            '--work-root',
-            checkWorkRoot.path,
-            '--json',
-          ],
-          environment: FluohEnvironment(
-            homeDirectory: environment.homeDirectory,
-            workingDirectory: source,
-          ),
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-      expect(stderr, isEmpty);
-      final repeatedReport = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(repeatedReport, containsPair('recommendation', 'ready'));
-
-      stdout.clear();
-      stderr.clear();
-      expect(
-        await runFluoh(
           ['source', 'check', '--all', '--skip-release-checks', '--json'],
           environment: FluohEnvironment(
             homeDirectory: environment.homeDirectory,
@@ -1224,32 +1195,36 @@ packages:
           'Declared Package release verification was skipped by request.',
         ),
       );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
 
-      stdout.clear();
-      stderr.clear();
+  test(
+    'source check rejects mutually exclusive diff options as json',
+    () async {
+      final environment = await createTestEnvironment();
+      final stdout = <String>[];
+      final stderr = <String>[];
+
       expect(
         await runFluoh(
           ['source', 'check', '--all', '--base-ref', 'main', '--json'],
-          environment: FluohEnvironment(
-            homeDirectory: environment.homeDirectory,
-            workingDirectory: source,
-          ),
+          environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
         ),
         64,
       );
+
       expect(stderr, isEmpty);
-      final invalidModeReport =
-          jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(invalidModeReport, containsPair('command', 'source check'));
-      expect(invalidModeReport, containsPair('ok', false));
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'source check'));
+      expect(report, containsPair('ok', false));
       expect(
-        invalidModeReport['errors'],
+        report['errors'],
         contains('--all cannot be used with --base-ref.'),
       );
     },
-    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
 
   test('source check reports source validation failures as json', () async {

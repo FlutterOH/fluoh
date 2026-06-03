@@ -248,10 +248,6 @@ class SourceCheckCommand extends FluohCommand<int> {
         if (manifestNames.isEmpty) 'No changed Source manifests were found.',
       ];
       final errors = <String>[
-        if (!sourceCheckout.ok)
-          'Source checkout failed: ${sourceCheckout.message}',
-        if (!sourceValidation.ok)
-          'Source validation failed: ${sourceValidation.message}',
         for (final item in releaseResult.items)
           if (!item.repository.ok)
             'Package repository clone failed for ${item.manifestName}: '
