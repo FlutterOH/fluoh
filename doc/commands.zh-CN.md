@@ -276,13 +276,18 @@ repository、SDK 和 Manifest 路由示例，维护者可按需取消注释。�
 文件中的 advisory 和 maintenance 信息；发布记录由 `fluoh source sync` 生成。
 
 `fluoh source sync [path]` 读取 Source root 里的 Manifest routes，把每个
-Manifest 的 `repository.git.url` 作为 FlutterOH Package 仓库，读取 release tags，读取每个
-tag 下固化的 Package `fluoh.yaml`，然后把历史发布记录汇总到 Manifest。不传
-`path` 时默认使用当前目录。source 元数据应来自已发布适配记录，而不是维护中的仓库
-状态。当 `<path>` 是 `$FLUOH_HOME/sources/<name>` 下的某个已配置 source 快照时，
-sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合并后的 lock。当
-`<path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到已配置快照后，
-再运行 `fluoh source update <name>`。`--json` 会以 JSON 输出已同步和跳过的 Package 记录。
+Manifest 的 `repository.git.url` 作为 FlutterOH Package 仓库，先用
+`git ls-remote --tags` 发现 release tags，并和当前 Source release records 对比；只有发现
+所选 tag 尚未记录时，才打开 Package 仓库读取该 tag 下固化的 Package `fluoh.yaml`，再把
+历史发布记录汇总到 Manifest。不传 `path` 时默认使用当前目录。source 元数据应来自已发布
+适配记录，而不是维护中的仓库状态。当 `<path>` 是 `$FLUOH_HOME/sources/<name>` 下的某个
+已配置 source 快照时，sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合并后的
+lock。当 `<path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到已配置快照
+后，再运行 `fluoh source update <name>`。使用 `--manifest <name>` 或 `--package <name>`
+可以定向 sync discovery；大型 Source 可用 `--concurrency <n>` 限制并行 tag discovery。
+`--json` 会输出已同步和跳过的 Package 记录，并附带包含 `knownTags`、`discoveredTags`、
+`tagsToSync` 和 route 状态的 `plan`。release tag 视为由 release metadata 推导出的不可变
+记录；移动已有 tag 不会自动 sync，应发布新的 release tag 或人工维护。
 
 `fluoh source check [source]` 是给 Source 维护者和 CI 使用的只读验证命令。
 不传 `source` 时默认检查当前目录。`source` 可以是本地 Source checkout 路径，也可以是
@@ -291,16 +296,24 @@ GitHub pull request URL。命令会校验 Source 文件，识别变更的 Manife
 release tag，读取每个 tag 下 Package manifest 记录的分支，并在 tag 固化的提交上运行
 `fluoh package check --package <name> --json`。它不会导入 Package metadata，也不会写
 Source 文件；生成或更新 Source release 数据应使用 `fluoh source sync`。JSON 输出包含
-`recommendation`、`errors`、`warnings`、`checkedManifests`、`changedFiles`
-和 `releaseChecks`。默认按 `--base-ref` 识别变更 Manifest 文件。只有 Source 根
-`fluoh.yaml` 变更时，命令会比较 base ref 和 HEAD 的 Manifest route 名，只检查新增或
-删除的 route，不会因为 SDK-only 根元数据变更而展开检查所有 Manifest。目标不是 Git
-worktree 或 diff 无法读取时，会退回检查所有 Manifest route，并报告 warning。定时任务或
-release gate 需要检查所有 Manifest route 时传 `--all`；只想校验 Source YAML 和变更 route
-选择、不克隆 Package 仓库时传 `--skip-release-checks`。`--all` 和 `--base-ref` 不能同时使用。
-`ready` 只表示技术检查通过，`blocked` 表示修复 errors 前不应合并，
-`needs-maintainer-decision` 表示需要人工判断。Pull request 自动化应把它作为
-check + comment 使用；最终 approval 和 merge 仍由维护者负责。
+`recommendation`、`changeType`、`affectedManifests`、`changedReleaseRecords`、
+`releaseCheckPlan`、`skippedReleaseChecks`、`sdkChecks`、`changedFiles`、`errors`、
+`warnings`，以及 checkout/check 细节。默认按 `--base-ref` 识别变更 Manifest 文件。只有 Source 根
+`fluoh.yaml` 变更时，命令会比较 base ref 和 HEAD 的 Manifest route 名，只检查新增或删除
+的 route，并用 `git ls-remote --tags` 检查新增 SDK tag，不会因为 SDK-only 根元数据变更而
+展开检查所有 Manifest。Manifest 文件变更时，命令会对比 base ref 的 release records，只
+验证新增或修改的 release record、package 新增、SDK line 新增、repository 变化或
+repository/upstream package path 变化。PR diff 检查只校验 Source root 和受影响的 Manifest
+route；显式全量审计、diff fallback，以及 push/manual 的 `--skip-release-checks` 检查会校验
+全部 Manifest route。只改 advisory、maintenance 或删除 release record 不会克隆 Package
+仓库。目标不是 Git worktree 或 diff 无法读取时，会退回检查所有 Manifest route，并报告
+warning。明确需要全量审计所有 Manifest route 时传 `--all`；只想校验 Source YAML 和变更
+route 选择、不克隆 Package 仓库时传 `--skip-release-checks`。全量审计可以用
+`--manifest <name>`、`--package <name>`、`--shard <index>/<total>`、
+`--concurrency <n>` 和 `--max-release-checks <n>` 收窄或分片。
+`--all` 和 `--base-ref` 不能同时使用。`ready` 只表示技术检查通过，`blocked` 表示修复
+errors 前不应合并，`needs-maintainer-decision` 表示需要人工判断。Pull request 自动化应把
+它作为 check + comment 使用；最终 approval 和 merge 仍由维护者负责。
 
 ## SDK 命令
 

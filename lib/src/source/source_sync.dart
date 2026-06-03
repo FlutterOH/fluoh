@@ -81,7 +81,12 @@ Future<_SnapshotState> _snapshotState(
 enum _SnapshotState { missing, valid, invalid }
 
 /// Validates a Source snapshot and its fluoh version constraint.
-Future<void> validateSource(String name, SourceConfig sourceConfig) async {
+Future<void> validateSource(
+  String name,
+  SourceConfig sourceConfig, {
+  Set<String>? manifestNames,
+  bool validatePackageManifests = true,
+}) async {
   final source = SourceIndex.directory(sourceConfig.directory);
   final validators =
       <({String label, bool present, Future<void> Function() validate})>[
@@ -92,10 +97,10 @@ Future<void> validateSource(String name, SourceConfig sourceConfig) async {
         ),
         (
           label: 'fluoh.yaml manifests',
-          present: source.hasPackageIndex,
+          present: validatePackageManifests && source.hasPackageIndex,
           validate: () async {
-            await source.loadPackageIndex();
-            await source.loadCompatibilityMatrix();
+            await source.loadPackageIndex(manifestNames: manifestNames);
+            await source.loadCompatibilityMatrix(manifestNames: manifestNames);
           },
         ),
       ];

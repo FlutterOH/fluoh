@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import '../cli/argument_validation.dart';
@@ -355,11 +356,30 @@ class SourceSyncCommand extends FluohCommand<int> {
     required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout) {
-    argParser.addFlag(
-      'json',
-      negatable: false,
-      help: 'Print the source sync result as JSON.',
-    );
+    argParser
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the source sync result as JSON.',
+      )
+      ..addMultiOption(
+        'manifest',
+        valueHelp: 'name',
+        help:
+            'Limit sync to a Source manifest route. May be passed more than '
+            'once.',
+      )
+      ..addMultiOption(
+        'package',
+        valueHelp: 'name',
+        help: 'Limit sync to a package name. May be passed more than once.',
+      )
+      ..addOption(
+        'concurrency',
+        valueHelp: 'count',
+        defaultsTo: '4',
+        help: 'Maximum repository tag discovery operations to run in parallel.',
+      );
   }
 
   /// Runtime environment used to resolve repository paths.
@@ -388,6 +408,13 @@ class SourceSyncCommand extends FluohCommand<int> {
       usageException,
     );
     final json = argResults!.flag('json');
+    final manifestFilters = _multiOptionSet(argResults!, 'manifest');
+    final packageFilters = _multiOptionSet(argResults!, 'package');
+    final concurrency = _positiveIntOption(
+      argResults!,
+      'concurrency',
+      defaultValue: 4,
+    );
 
     final source = rest.isEmpty
         ? environment.workingDirectory
@@ -410,17 +437,39 @@ class SourceSyncCommand extends FluohCommand<int> {
             'fluoh_source_sync_',
           );
     var repositories = const <_SourceManifestRepository>[];
+    var plan = const <_SourceSyncRoutePlan>[];
     try {
       if (configuredSource != null) {
         await copySourceSnapshot(source, workingSource);
       }
 
-      repositories = await _manifestRepositories(source);
+      plan = await _sourceSyncPlan(
+        source,
+        manifestFilters: manifestFilters,
+        packageFilters: packageFilters,
+        concurrency: concurrency,
+      );
+      final openedRepositories = <_SourceManifestRepository>[];
+      repositories = openedRepositories;
       final syncPackages = <_SourceSyncPackage>[];
-      for (final repository in repositories) {
-        syncPackages.addAll(await _releasedSourcePackages(repository));
+      for (final item in plan) {
+        if (item.tagsToSync.isEmpty) {
+          continue;
+        }
+        final repository = await _sourceManifestRepository(
+          name: item.manifestName,
+          source: source,
+          url: item.repository,
+        );
+        openedRepositories.add(repository);
+        syncPackages.addAll(
+          await _releasedSourcePackages(
+            repository,
+            tags: item.tagsToSync,
+            packageFilters: packageFilters,
+          ),
+        );
       }
-
       var synced = 0;
       var skipped = 0;
       final results = <_SourceSyncResult>[];
@@ -475,6 +524,7 @@ class SourceSyncCommand extends FluohCommand<int> {
             'configuredSource': configuredSource?.key,
             'synced': synced,
             'skipped': skipped,
+            'plan': plan.map((item) => item.toJson()).toList(),
             'packages': results.map((result) => result.toJson()).toList(),
           },
         );
@@ -517,31 +567,79 @@ class SourceSyncCommand extends FluohCommand<int> {
     return 0;
   }
 
-  Future<List<_SourceManifestRepository>> _manifestRepositories(
-    Directory source,
-  ) async {
+  Future<List<_SourceSyncRoutePlan>> _sourceSyncPlan(
+    Directory source, {
+    required Set<String> manifestFilters,
+    required Set<String> packageFilters,
+    required int concurrency,
+  }) async {
     final root = await _readSourceRootManifest(
       source,
       usageException: usageException,
     );
     if (root.manifests.isEmpty) {
-      usageException(
-        'Source ${source.path} does not declare any manifest routes.',
-      );
+      return const [];
     }
-    final repositories = <_SourceManifestRepository>[];
-    for (final route in root.manifests) {
-      final manifest = await _readSourceManifest(source, route.name);
-      repositories.add(
-        await _sourceManifestRepository(
-          name: route.name,
-          source: source,
-          url: manifest.repositoryGitUrl,
-        ),
-      );
+    final routes = root.manifests
+        .where(
+          (route) =>
+              manifestFilters.isEmpty || manifestFilters.contains(route.name),
+        )
+        .toList(growable: false);
+    if (routes.isEmpty) {
+      return const [];
     }
-    repositories.sort((a, b) => a.name.compareTo(b.name));
-    return repositories;
+    final plan = List<_SourceSyncRoutePlan?>.filled(routes.length, null);
+    final tagDiscovery = <String, Future<Set<String>>>{};
+    var nextIndex = 0;
+
+    Future<void> worker() async {
+      while (nextIndex < routes.length) {
+        final index = nextIndex;
+        nextIndex += 1;
+        final route = routes[index];
+        final manifest = await _readSourceManifest(source, route.name);
+        final resolvedRepository = _resolveSyncRepositoryUrl(
+          source,
+          manifest.repositoryGitUrl,
+        );
+        final discoveredTags = await tagDiscovery.putIfAbsent(
+          resolvedRepository,
+          () => _lsRemoteReleaseTags(resolvedRepository, source: source),
+        );
+        final knownTags = _declaredReleaseTags(
+          manifest,
+          packageFilters: packageFilters,
+        );
+        final selectedTags = _filterTagsForPackages(
+          discoveredTags,
+          packageFilters: packageFilters,
+        );
+        final tagsToSync =
+            selectedTags.where((tag) => !knownTags.contains(tag)).toList()
+              ..sort();
+        final knownTagList = knownTags.toList(growable: false)..sort();
+        final discoveredTagList = selectedTags.toList(growable: false)..sort();
+        plan[index] = _SourceSyncRoutePlan(
+          manifestName: route.name,
+          repository: manifest.repositoryGitUrl,
+          resolvedRepository: resolvedRepository,
+          knownTags: knownTagList,
+          discoveredTags: discoveredTagList,
+          tagsToSync: tagsToSync,
+        );
+      }
+    }
+
+    final workerCount = concurrency < routes.length
+        ? concurrency
+        : routes.length;
+    await Future.wait([for (var i = 0; i < workerCount; i += 1) worker()]);
+    final resolvedPlan = plan.whereType<_SourceSyncRoutePlan>().toList(
+      growable: false,
+    );
+    resolvedPlan.sort((a, b) => a.manifestName.compareTo(b.manifestName));
+    return resolvedPlan;
   }
 
   Future<_SourceManifestRepository> _sourceManifestRepository({
@@ -581,9 +679,10 @@ class SourceSyncCommand extends FluohCommand<int> {
   }
 
   Future<List<_SourceSyncPackage>> _releasedSourcePackages(
-    _SourceManifestRepository repository,
-  ) async {
-    final tags = await _releaseTags(repository.path);
+    _SourceManifestRepository repository, {
+    required List<String> tags,
+    required Set<String> packageFilters,
+  }) async {
     final packages = <_SourceSyncPackage>[];
     for (final tag in tags) {
       final manifest = await _readTaggedPackageManifest(repository.path, tag);
@@ -603,6 +702,10 @@ class SourceSyncCommand extends FluohCommand<int> {
         if (!matchesTag) {
           continue;
         }
+        if (packageFilters.isNotEmpty &&
+            !packageFilters.contains(package.name)) {
+          continue;
+        }
         packages.add(
           _SourceSyncPackage(
             sourceManifestName: repository.name,
@@ -614,35 +717,7 @@ class SourceSyncCommand extends FluohCommand<int> {
         );
       }
     }
-    if (packages.isEmpty) {
-      usageException(
-        'No released Package fluoh.yaml records found in ${repository.path.path}. '
-        'Run "fluoh package release" first or fetch tags before syncing.',
-      );
-    }
     return packages;
-  }
-
-  Future<List<String>> _releaseTags(Directory repository) async {
-    final result = await runGit(
-      ['tag', '--list'],
-      workingDirectory: repository,
-      allowFailure: true,
-    );
-    if (result.exitCode != 0) {
-      usageException(
-        'Could not list release tags in ${repository.path}: ${result.stderr}',
-      );
-    }
-    final tags =
-        result.stdout
-            .toString()
-            .split('\n')
-            .map((line) => line.trim())
-            .where((line) => line.contains('-ohos-'))
-            .toList(growable: false)
-          ..sort();
-    return tags;
   }
 
   Future<PackageManifest?> _readTaggedPackageManifest(
@@ -720,6 +795,38 @@ class _SourceManifestRepository {
   }
 }
 
+class _SourceSyncRoutePlan {
+  const _SourceSyncRoutePlan({
+    required this.manifestName,
+    required this.repository,
+    required this.resolvedRepository,
+    required this.knownTags,
+    required this.discoveredTags,
+    required this.tagsToSync,
+  });
+
+  final String manifestName;
+  final String repository;
+  final String resolvedRepository;
+  final List<String> knownTags;
+  final List<String> discoveredTags;
+  final List<String> tagsToSync;
+
+  String get status => tagsToSync.isEmpty ? 'up-to-date' : 'sync';
+
+  Map<String, Object?> toJson() {
+    return {
+      'manifest': manifestName,
+      'repository': repository,
+      'resolvedRepository': resolvedRepository,
+      'knownTags': knownTags,
+      'discoveredTags': discoveredTags,
+      'tagsToSync': tagsToSync,
+      'status': status,
+    };
+  }
+}
+
 class _SourceSyncResult {
   const _SourceSyncResult({required this.repository, required this.result});
 
@@ -751,6 +858,136 @@ class _SourceSyncPackage {
   final PackageManifest manifest;
   final PackageManifestPackage package;
   final String releaseTag;
+}
+
+Future<Set<String>> _lsRemoteReleaseTags(
+  String repository, {
+  required Directory source,
+}) async {
+  final result = await runGit(
+    ['ls-remote', '--tags', repository],
+    workingDirectory: source,
+    allowFailure: true,
+  );
+  if (result.exitCode != 0) {
+    throw UsageException(
+      'Could not list release tags in $repository: ${result.stderr}',
+      '',
+    );
+  }
+  final tags = <String>{};
+  for (final rawLine in result.stdout.toString().split('\n')) {
+    final line = rawLine.trim();
+    if (line.isEmpty) {
+      continue;
+    }
+    final parts = line.split(RegExp(r'\s+'));
+    if (parts.length < 2) {
+      continue;
+    }
+    var ref = parts[1];
+    if (!ref.startsWith('refs/tags/')) {
+      continue;
+    }
+    ref = ref.substring('refs/tags/'.length);
+    if (ref.endsWith('^{}')) {
+      ref = ref.substring(0, ref.length - 3);
+    }
+    if (!ref.contains('-ohos-')) {
+      continue;
+    }
+    tags.add(ref);
+  }
+  return tags;
+}
+
+Set<String> _declaredReleaseTags(
+  SourceManifest manifest, {
+  required Set<String> packageFilters,
+}) {
+  final tags = <String>{};
+  for (final package in manifest.packages.values) {
+    if (packageFilters.isNotEmpty && !packageFilters.contains(package.name)) {
+      continue;
+    }
+    for (final sdk in package.sdks.values) {
+      for (final release in sdk.releases) {
+        tags.add(_sourceReleaseTag(package.name, sdk.sdkLine, release));
+      }
+    }
+  }
+  return tags;
+}
+
+List<String> _filterTagsForPackages(
+  Iterable<String> tags, {
+  required Set<String> packageFilters,
+}) {
+  final filtered = tags
+      .where((tag) {
+        if (packageFilters.isEmpty) {
+          return true;
+        }
+        return packageFilters.any((package) => tag.startsWith('$package-'));
+      })
+      .toList(growable: false);
+  return filtered..sort();
+}
+
+String _sourceReleaseTag(
+  String packageName,
+  String sdkLine,
+  SourceManifestRelease release,
+) {
+  return release.tag ??
+      packageReleaseTagForPackage(
+        packageName: packageName,
+        upstreamVersion: release.upstreamVersion,
+        sdkVersion: '$sdkLine.0-ohos-0.0.0',
+        releaseVersion: release.version,
+      );
+}
+
+String _resolveSyncRepositoryUrl(Directory source, String url) {
+  final local = localSourceDirectoryFromUrl(url);
+  if (local != null) {
+    return local.isAbsolute
+        ? local.path
+        : Directory('${source.path}/${local.path}').path;
+  }
+  final directory = Directory(url);
+  if (directory.isAbsolute || _looksLikeRemoteGitUrl(url)) {
+    return url;
+  }
+  return Directory('${source.path}/$url').path;
+}
+
+Set<String> _multiOptionSet(ArgResults argResults, String name) {
+  final values = <String>{};
+  for (final value in argResults.multiOption(name)) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      throw UsageException('--$name values must not be empty.', '');
+    }
+    values.add(trimmed);
+  }
+  return values;
+}
+
+int _positiveIntOption(
+  ArgResults argResults,
+  String name, {
+  required int defaultValue,
+}) {
+  final value = argResults.option(name)?.trim();
+  if (value == null || value.isEmpty) {
+    return defaultValue;
+  }
+  final parsed = int.tryParse(value);
+  if (parsed == null || parsed <= 0) {
+    throw UsageException('--$name must be a positive integer.', '');
+  }
+  return parsed;
 }
 
 class _SourcePackageMetadataResult {
