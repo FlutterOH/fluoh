@@ -758,7 +758,7 @@ void main() {
     ]);
   });
 
-  test('provides a Homebrew formula backed by pub.dev activation', () {
+  test('provides a Homebrew formula backed by native executables', () {
     final formula = File('Formula/fluoh.rb').readAsStringSync();
 
     expect(formula, contains('class Fluoh < Formula'));
@@ -767,11 +767,12 @@ void main() {
       contains('https://pub.dev/api/archives/fluoh-0.1.0.tar.gz'),
     );
     expect(formula, contains('sha256 :no_check'));
-    expect(formula, contains('depends_on "dart-sdk"'));
-    expect(formula, contains('"dart", "pub", "global", "activate"'));
-    expect(formula, contains('"--source", "path", "."'));
-    expect(formula, contains('pub_cache/"bin/fluoh"'));
-    expect(formula, contains('pub_cache/"bin/fluohf"'));
+    expect(formula, contains('depends_on "dart-sdk" => :build'));
+    expect(formula, contains('"dart", "pub", "get"'));
+    expect(formula, contains('"dart", "compile", "exe", "bin/fluoh.dart"'));
+    expect(formula, contains('"dart", "compile", "exe", "bin/fluohf.dart"'));
+    expect(formula, isNot(contains('"dart", "pub", "global", "activate"')));
+    expect(formula, isNot(contains('pub_cache/"bin/fluoh"')));
     expect(formula, contains('fluoh --version'));
     expect(formula, contains('fluohf --help'));
   });

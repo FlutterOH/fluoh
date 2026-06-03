@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:pub_semver/pub_semver.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
@@ -121,9 +122,17 @@ class PackageCreateCommand extends FluohCommand<int> {
       );
       await runGit(['clone', '--quiet', upstream, destination.path]);
 
-      final selectedPackages = await _selectPackages(
+      var selectedPackages = await _selectPackages(
         repository: destination,
         packagePaths: packagePaths,
+      );
+      final publishedRefs = await _PublishedPackageRefResolver.load(
+        destination,
+      );
+      selectedPackages = await _restoreLatestPublishedPackageRefs(
+        repository: destination,
+        selectedPackages: selectedPackages,
+        publishedRefs: publishedRefs,
       );
       final packageCollection = await _isPackageCollectionRepository(
         repository: destination,
@@ -185,6 +194,12 @@ class PackageCreateCommand extends FluohCommand<int> {
       _output.info(
         'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}',
       );
+      await _warnForSelectedPackageSdkCompatibility(
+        selectedPackages: selectedPackages,
+        sdkDirectory: configuredSdkDirectory,
+        publishedRefs: publishedRefs,
+        output: _output,
+      );
       final ideLink = await projectEnvironment.linkIdeSdk(
         configuredSdkDirectory,
       );
@@ -212,6 +227,7 @@ class PackageCreateCommand extends FluohCommand<int> {
                 version: initialPackageReleaseVersion,
                 repositoryPath: selected.path,
                 upstreamPath: selected.path,
+                upstreamRef: selected.upstreamRef,
                 status: 'experimental',
               ),
           ],
@@ -244,6 +260,7 @@ class PackageCreateCommand extends FluohCommand<int> {
             version: initialPackageReleaseVersion,
             repositoryPath: selected.path,
             upstreamPath: selected.path,
+            upstreamRef: selected.upstreamRef,
             status: 'experimental',
           ),
           sdkVersion: release.tag,
@@ -270,6 +287,16 @@ class PackageCreateCommand extends FluohCommand<int> {
         '.gitignore',
         'fluoh.yaml',
       ], workingDirectory: destination);
+      for (final selected in selectedPackages.where(
+        (selected) => selected.upstreamRef != null,
+      )) {
+        await runGit([
+          'add',
+          '-f',
+          '-A',
+          selected.path,
+        ], workingDirectory: destination);
+      }
       for (final result in preparedExamples.where(
         (result) => result.prepared,
       )) {
@@ -407,10 +434,15 @@ String _normalizeDirectoryPath(String path) {
 }
 
 class _SelectedPackage {
-  const _SelectedPackage({required this.package, required this.path});
+  const _SelectedPackage({
+    required this.package,
+    required this.path,
+    this.upstreamRef,
+  });
 
   final PubspecPackage package;
   final String path;
+  final String? upstreamRef;
 }
 
 Future<List<_SelectedPackage>> _selectPackages({
@@ -434,6 +466,295 @@ Future<List<_SelectedPackage>> _selectPackages({
     selected.add(_SelectedPackage(package: package, path: path));
   }
   return selected;
+}
+
+Future<List<_SelectedPackage>> _restoreLatestPublishedPackageRefs({
+  required Directory repository,
+  required List<_SelectedPackage> selectedPackages,
+  required _PublishedPackageRefResolver publishedRefs,
+}) async {
+  final resolved = <_SelectedPackage>[];
+  for (final selected in selectedPackages) {
+    final releaseRef = await publishedRefs.latest(
+      packageName: selected.package.name,
+      packagePath: selected.path,
+    );
+    if (releaseRef == null) {
+      resolved.add(selected);
+      continue;
+    }
+
+    await runGit([
+      'restore',
+      '--source',
+      releaseRef.ref,
+      '--',
+      selected.path,
+    ], workingDirectory: repository);
+    final package = await _readSelectedPackage(
+      repository: repository,
+      packagePath: selected.path,
+    );
+    if (package.name != selected.package.name) {
+      throw UsageException(
+        'Upstream ref ${releaseRef.ref} contains package ${package.name} at '
+            '${selected.path}, expected ${selected.package.name}.',
+        '',
+      );
+    }
+    resolved.add(
+      _SelectedPackage(
+        package: package,
+        path: selected.path,
+        upstreamRef: releaseRef.ref,
+      ),
+    );
+  }
+  return resolved;
+}
+
+String? _packageVersionFromReleaseTag({
+  required String tag,
+  required String packageName,
+  required bool rootPackage,
+}) {
+  final escapedPackage = RegExp.escape(packageName);
+  final packageTagPatterns = [
+    RegExp('^$escapedPackage-v(.+)\$'),
+    RegExp('^$escapedPackage-(.+)\$'),
+  ];
+  final rootTagPatterns = rootPackage
+      ? [RegExp(r'^v(.+)$'), RegExp(r'^(.+)$')]
+      : const <RegExp>[];
+  for (final pattern in [...packageTagPatterns, ...rootTagPatterns]) {
+    final match = pattern.firstMatch(tag);
+    if (match == null) {
+      continue;
+    }
+    final version = match.group(1)!;
+    try {
+      Version.parse(version);
+      return version;
+    } on FormatException {
+      continue;
+    }
+  }
+  return null;
+}
+
+class _PublishedPackageRef {
+  const _PublishedPackageRef({
+    required this.ref,
+    required this.version,
+    required this.package,
+  });
+
+  final String ref;
+  final Version version;
+  final PubspecPackage package;
+}
+
+class _PublishedPackageRefResolver {
+  _PublishedPackageRefResolver._({
+    required this.repository,
+    required this.tags,
+  });
+
+  final Directory repository;
+  final List<String> tags;
+  final Map<String, List<_PublishedPackageRef>> _cache = {};
+
+  static Future<_PublishedPackageRefResolver> load(Directory repository) async {
+    final tags = (await runGit([
+      'tag',
+      '--list',
+    ], workingDirectory: repository)).stdout.toString().split('\n');
+    return _PublishedPackageRefResolver._(
+      repository: repository,
+      tags: tags
+          .map((tag) => tag.trim())
+          .where((tag) => tag.isNotEmpty)
+          .toList(),
+    );
+  }
+
+  Future<_PublishedPackageRef?> latest({
+    required String packageName,
+    required String packagePath,
+  }) async {
+    final candidates = await refs(
+      packageName: packageName,
+      packagePath: packagePath,
+    );
+    return candidates.isEmpty ? null : candidates.last;
+  }
+
+  Future<_PublishedPackageRef?> latestCompatible({
+    required String packageName,
+    required String packagePath,
+    required Version dartVersion,
+  }) async {
+    final candidates = await refs(
+      packageName: packageName,
+      packagePath: packagePath,
+    );
+    for (final candidate in candidates.reversed) {
+      final constraint = _dartSdkConstraint(candidate.package);
+      if (constraint == null || constraint.allows(dartVersion)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  Future<List<_PublishedPackageRef>> refs({
+    required String packageName,
+    required String packagePath,
+  }) async {
+    final normalizedPath = _normalizePackagePath(packagePath);
+    final cacheKey = '$packageName\n$normalizedPath';
+    final cached = _cache[cacheKey];
+    if (cached != null) {
+      return cached;
+    }
+
+    final candidates = <_PublishedPackageRef>[];
+    for (final tag in tags) {
+      final tagVersion = _packageVersionFromReleaseTag(
+        tag: tag,
+        packageName: packageName,
+        rootPackage: normalizedPath == '.',
+      );
+      if (tagVersion == null) {
+        continue;
+      }
+      final pubspec = await _packageAtRef(
+        ref: tag,
+        packagePath: normalizedPath,
+      );
+      if (pubspec == null || pubspec.name != packageName) {
+        continue;
+      }
+      if (pubspec.version != tagVersion) {
+        continue;
+      }
+      try {
+        candidates.add(
+          _PublishedPackageRef(
+            ref: tag,
+            version: Version.parse(pubspec.version),
+            package: pubspec,
+          ),
+        );
+      } on FormatException {
+        continue;
+      }
+    }
+    candidates.sort((a, b) {
+      final version = a.version.compareTo(b.version);
+      if (version != 0) {
+        return version;
+      }
+      return a.ref.compareTo(b.ref);
+    });
+    _cache[cacheKey] = candidates;
+    return candidates;
+  }
+
+  Future<PubspecPackage?> _packageAtRef({
+    required String ref,
+    required String packagePath,
+  }) async {
+    final pubspecPath = packagePath == '.'
+        ? 'pubspec.yaml'
+        : '${_normalizePackagePath(packagePath)}/pubspec.yaml';
+    final result = await runGit(
+      ['show', '$ref:$pubspecPath'],
+      workingDirectory: repository,
+      allowFailure: true,
+    );
+    if (result.exitCode != 0) {
+      return null;
+    }
+    try {
+      return PubspecPackage.fromYaml(result.stdout.toString());
+    } on FormatException {
+      return null;
+    }
+  }
+}
+
+Future<void> _warnForSelectedPackageSdkCompatibility({
+  required List<_SelectedPackage> selectedPackages,
+  required Directory sdkDirectory,
+  required _PublishedPackageRefResolver publishedRefs,
+  required TerminalOutput output,
+}) async {
+  final dartVersion = await _dartVersionForSdk(sdkDirectory);
+  if (dartVersion == null) {
+    return;
+  }
+  for (final selected in selectedPackages) {
+    final constraint = _dartSdkConstraint(selected.package);
+    if (constraint == null || constraint.allows(dartVersion)) {
+      continue;
+    }
+    final compatibleRef = await publishedRefs.latestCompatible(
+      packageName: selected.package.name,
+      packagePath: selected.path,
+      dartVersion: dartVersion,
+    );
+    final selectedRef = selected.upstreamRef ?? selected.package.version;
+    output.warning(
+      'Selected upstream $selectedRef for ${selected.package.name} requires '
+      'Dart ${selected.package.sdkConstraint}, but the selected Flutter OHOS '
+      'SDK provides Dart $dartVersion.',
+    );
+    if (compatibleRef != null && compatibleRef.ref != selected.upstreamRef) {
+      output.next(
+        'Latest compatible upstream tag: ${compatibleRef.ref} '
+        '(${compatibleRef.package.version}). fluoh keeps the latest selected '
+        'target; use this only if maintainers choose an older baseline.',
+      );
+    } else {
+      output.next(
+        'Keep adapting the selected upstream target, or choose another '
+        'Flutter OHOS SDK that satisfies Dart ${selected.package.sdkConstraint}.',
+      );
+    }
+  }
+}
+
+VersionConstraint? _dartSdkConstraint(PubspecPackage package) {
+  final constraint = package.sdkConstraint?.trim();
+  if (constraint == null || constraint.isEmpty) {
+    return null;
+  }
+  try {
+    return VersionConstraint.parse(constraint);
+  } on FormatException {
+    return null;
+  }
+}
+
+Future<Version?> _dartVersionForSdk(Directory sdkDirectory) async {
+  final dart = File('${sdkDirectory.path}/bin/dart');
+  if (!await dart.exists()) {
+    return null;
+  }
+  final result = await Process.run(dart.path, const ['--version']);
+  final output = '${result.stdout}\n${result.stderr}';
+  final match = RegExp(
+    r'Dart SDK version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
+  ).firstMatch(output);
+  if (match == null) {
+    return null;
+  }
+  try {
+    return Version.parse(match.group(1)!);
+  } on FormatException {
+    return null;
+  }
 }
 
 String _defaultImplementationRepositoryName(
@@ -576,10 +897,13 @@ Future<PubspecPackage> _readSelectedPackage({
   }
 
   if (packagePath == '.' || packagePath.isEmpty) {
+    final candidates = await _packageSelectionCandidates(repository);
+    final candidateHelp = _packageSelectionCandidateHelp(candidates);
     throw UsageException(
       'Missing pubspec.yaml at the upstream repository root. '
           'For packages below the root, select package paths with '
-          '"--package-path <package-path>".',
+          '"--package-path <package-path>".'
+          '$candidateHelp',
       '',
     );
   }
@@ -587,6 +911,120 @@ Future<PubspecPackage> _readSelectedPackage({
     'Missing pubspec.yaml at package path $packagePath.',
     '',
   );
+}
+
+Future<List<_PackageSelectionCandidate>> _packageSelectionCandidates(
+  Directory repository,
+) async {
+  final candidates = <_PackageSelectionCandidate>[];
+  if (!await repository.exists()) {
+    return candidates;
+  }
+  final publishedRefs = await _PublishedPackageRefResolver.load(repository);
+  final pending = <Directory>[repository];
+  while (pending.isNotEmpty) {
+    final directory = pending.removeLast();
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is Directory) {
+        final path = _relativeCandidatePath(repository, entity);
+        if (!_shouldSkipCandidatePath(path)) {
+          pending.add(entity);
+        }
+        continue;
+      }
+      if (entity is! File || !_isPubspecFile(entity)) {
+        continue;
+      }
+      final path = _relativeCandidatePath(repository, entity.parent);
+      if (_shouldSkipCandidatePath(path)) {
+        continue;
+      }
+      try {
+        final package = await readPubspecPackage(entity.parent);
+        final latestRef = await publishedRefs.latest(
+          packageName: package.name,
+          packagePath: path,
+        );
+        candidates.add(
+          _PackageSelectionCandidate(
+            package: package,
+            path: path,
+            latestRef: latestRef,
+          ),
+        );
+      } on Object {
+        // Ignore malformed nested pubspec files while building selection help.
+      }
+    }
+  }
+  candidates.sort((a, b) => a.path.compareTo(b.path));
+  return candidates;
+}
+
+String _relativeCandidatePath(Directory repository, Directory directory) {
+  final root = repository.absolute.path;
+  final path = directory.absolute.path;
+  if (path == root) {
+    return '.';
+  }
+  if (path.startsWith('$root${Platform.pathSeparator}')) {
+    return _normalizePackagePath(path.substring(root.length + 1));
+  }
+  return _normalizePackagePath(path);
+}
+
+String _packageSelectionCandidateHelp(
+  List<_PackageSelectionCandidate> candidates,
+) {
+  if (candidates.isEmpty) {
+    return '';
+  }
+  final visible = candidates.take(20).map((candidate) {
+    final package = candidate.package;
+    return [
+      '\n- ${package.name} ${package.version} at ${candidate.path}',
+      if (package.sdkConstraint != null) ' (Dart ${package.sdkConstraint})',
+      if (candidate.latestRef != null)
+        ' [latest tag ${candidate.latestRef!.ref}]',
+      ': --package-path ${candidate.path}',
+    ].join();
+  }).join();
+  final hidden = candidates.length > 20
+      ? '\n- ... ${candidates.length - 20} more package candidates'
+      : '';
+  return '\nCandidate packages:$visible$hidden';
+}
+
+bool _isPubspecFile(File file) {
+  final normalized = file.path.replaceAll('\\', '/');
+  return normalized.endsWith('/pubspec.yaml');
+}
+
+bool _shouldSkipCandidatePath(String path) {
+  final segments = _pathSegments(path);
+  return segments.any(
+    (segment) => const {
+      '.dart_tool',
+      '.git',
+      '.idea',
+      'build',
+      'example',
+      'examples',
+      'node_modules',
+    }.contains(segment),
+  );
+}
+
+class _PackageSelectionCandidate {
+  const _PackageSelectionCandidate({
+    required this.package,
+    required this.path,
+    required this.latestRef,
+  });
+
+  final PubspecPackage package;
+  final String path;
+  final _PublishedPackageRef? latestRef;
 }
 
 const _claudeAgentsImport = '@AGENTS.md';

@@ -253,6 +253,324 @@ void main() {
     },
   );
 
+  test('uses latest package release tag instead of monorepo HEAD', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_packages'),
+      version: '0.10.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.10.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.11.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.11.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.12.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_camera_from_tag',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    final exitCode = await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+        '--package-path',
+        'packages/camera/camera',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    if (exitCode != 0) {
+      fail(
+        'package create exited $exitCode\nstdout:\n${stdout.join('\n')}\n'
+        'stderr:\n${stderr.join('\n')}',
+      );
+    }
+
+    final manifestContent = File(
+      '${packageRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    final manifest = await readPackageManifest(packageRepository);
+    final packagePubspec = File(
+      '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
+    ).readAsStringSync();
+    final staged = await runGit(packageRepository, [
+      'diff',
+      '--cached',
+      '--name-only',
+    ]);
+    final status = await runGit(packageRepository, ['status', '--porcelain']);
+
+    expect(manifest.primaryPackage.upstreamVersion, '0.11.0');
+    expect(manifest.primaryPackage.upstreamRef, 'camera-v0.11.0');
+    expect(
+      manifestContent,
+      contains(
+        '    upstream:\n      path: packages/camera/camera\n      ref: camera-v0.11.0',
+      ),
+    );
+    expect(packagePubspec, contains('version: 0.11.0'));
+    expect(packagePubspec, isNot(contains('version: 0.12.0')));
+    expect(
+      staged.stdout.toString().split('\n'),
+      contains('packages/camera/camera/pubspec.yaml'),
+    );
+    expect(
+      status.stdout.toString().split('\n'),
+      isNot(contains(' M packages/camera/camera/pubspec.yaml')),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('stages ignored files restored from upstream release tags', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_ignored_tag_file'),
+      version: '0.11.0',
+    );
+    await File(
+      '${upstream.path}/packages/camera/camera/generated.txt',
+    ).writeAsString('release generated file\n');
+    await runGit(upstream, ['add', 'packages/camera/camera/generated.txt']);
+    await runGit(upstream, ['commit', '-m', 'Add release generated file']);
+    await runGit(upstream, ['tag', 'camera-v0.11.0']);
+    await File('${upstream.path}/.gitignore').writeAsString('''
+packages/camera/camera/generated.txt
+''');
+    await File(
+      '${upstream.path}/packages/camera/camera/generated.txt',
+    ).delete();
+    await runGit(upstream, ['add', '-A']);
+    await runGit(upstream, ['commit', '-m', 'Ignore generated package file']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_ignored_tag_file',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+          '--package-path',
+          'packages/camera/camera',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final restored = File(
+      '${packageRepository.path}/packages/camera/camera/generated.txt',
+    );
+    final staged = await runGit(packageRepository, [
+      'diff',
+      '--cached',
+      '--name-only',
+    ]);
+
+    expect(restored.readAsStringSync(), 'release generated file\n');
+    expect(
+      staged.stdout.toString().split('\n'),
+      contains('packages/camera/camera/generated.txt'),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'uses per-package release tags from different monorepo commits',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamWorkspaceRepository(
+        Directory(
+          '${environment.homeDirectory.path}/upstream_per_package_tags',
+        ),
+        version: '0.11.0',
+      );
+      await runGit(upstream, ['tag', 'camera-v0.11.0']);
+      await _addWorkspacePackage(
+        upstream,
+        path: 'packages/share_plus/share_plus',
+        name: 'share_plus',
+        version: '9.0.0',
+      );
+      await runGit(upstream, ['tag', 'share_plus-v9.0.0']);
+      await bumpUpstreamPackageVersion(
+        upstream,
+        packagePath: 'packages/camera/camera',
+        version: '0.12.0',
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_per_package_tags',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            upstream.path,
+            '--output',
+            packageRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+            '--package-path',
+            'packages/camera/camera',
+            '--package-path',
+            'packages/share_plus/share_plus',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final manifest = await readPackageManifest(packageRepository);
+      final camera = manifest.packages.singleWhere(
+        (package) => package.name == 'camera',
+      );
+      final sharePlus = manifest.packages.singleWhere(
+        (package) => package.name == 'share_plus',
+      );
+      final cameraPubspec = File(
+        '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
+      ).readAsStringSync();
+      final sharePlusPubspec = File(
+        '${packageRepository.path}/packages/share_plus/share_plus/pubspec.yaml',
+      ).readAsStringSync();
+
+      expect(camera.upstreamVersion, '0.11.0');
+      expect(camera.upstreamRef, 'camera-v0.11.0');
+      expect(sharePlus.upstreamVersion, '9.0.0');
+      expect(sharePlus.upstreamRef, 'share_plus-v9.0.0');
+      expect(cameraPubspec, contains('version: 0.11.0'));
+      expect(cameraPubspec, isNot(contains('version: 0.12.0')));
+      expect(sharePlusPubspec, contains('version: 9.0.0'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('warns when latest upstream tag needs a newer Dart SDK', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_packages_sdk'),
+      version: '0.11.4',
+      sdkConstraint: '>=3.0.0 <4.0.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.11.4']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.12.0+1',
+      sdkConstraint: '>=3.10.0 <4.0.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.12.0+1']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_camera_sdk_warning',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    final exitCode = await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+        '--package-path',
+        'packages/camera/camera',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    if (exitCode != 0) {
+      fail(
+        'package create exited $exitCode\nstdout:\n${stdout.join('\n')}\n'
+        'stderr:\n${stderr.join('\n')}',
+      );
+    }
+
+    final manifest = await readPackageManifest(packageRepository);
+    final output = stdout.join('\n');
+
+    expect(manifest.primaryPackage.upstreamVersion, '0.12.0+1');
+    expect(manifest.primaryPackage.upstreamRef, 'camera-v0.12.0+1');
+    expect(
+      output,
+      contains(
+        'requires Dart >=3.10.0 <4.0.0, but the selected Flutter OHOS SDK '
+        'provides Dart 3.9.2',
+      ),
+    );
+    expect(
+      output,
+      contains('Latest compatible upstream tag: camera-v0.11.4 (0.11.4)'),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('prints clone once and separates output sections', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -1239,6 +1557,20 @@ Prefer the upstream release workflow.
         '${environment.homeDirectory.path}/upstream_unselected_workspace',
       ),
     );
+    await runGit(upstream, ['tag', 'camera-v0.11.0']);
+    final example = Directory(
+      '${upstream.path}/packages/camera/camera/example',
+    );
+    await example.create(recursive: true);
+    await File('${example.path}/pubspec.yaml').writeAsString('''
+name: camera_example
+version: 1.0.0
+
+environment:
+  sdk: ^3.0.0
+''');
+    await runGit(upstream, ['add', 'packages/camera/camera/example']);
+    await runGit(upstream, ['commit', '-m', 'Add camera example']);
     final packageRepository = Directory(
       '${environment.homeDirectory.path}/package_unselected_workspace',
     );
@@ -1275,6 +1607,15 @@ Prefer the upstream release workflow.
       contains('For packages below the root, select package paths'),
     );
     expect(stderr.join('\n'), contains('--package-path <package-path>'));
+    expect(stderr.join('\n'), contains('Candidate packages:'));
+    expect(
+      stderr.join('\n'),
+      contains(
+        'camera 0.11.0 at packages/camera/camera (Dart ^3.0.0)'
+        ' [latest tag camera-v0.11.0]: --package-path packages/camera/camera',
+      ),
+    );
+    expect(stderr.join('\n'), isNot(contains('camera_example')));
     expect(packageRepository.existsSync(), isFalse);
   });
 

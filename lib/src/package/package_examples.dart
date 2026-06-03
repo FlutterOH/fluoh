@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
+import '../platform/ohos/resource_layout.dart';
 import '../schema/yaml_utils.dart';
 import '../sdk/flutter_runner.dart';
 import '../sdk/sdk_manager.dart';
@@ -93,6 +94,8 @@ Future<PackageExampleSetupResult> preparePackageExample({
           '',
         );
       }
+      await _removeFlutterCreateTemplateFiles(example, snapshot);
+      await stabilizeOhosResourceLayout(Directory('${example.path}/ohos'));
     }
 
     if (!await Directory('${example.path}/ohos').exists()) {
@@ -207,6 +210,34 @@ Future<void> _ensureExampleGitIgnore(Directory example) async {
   }
 }
 
+Future<void> _removeFlutterCreateTemplateFiles(
+  Directory example,
+  PackageExampleSnapshot snapshot,
+) async {
+  for (final path in const ['analysis_options.yaml', 'test/widget_test.dart']) {
+    final originalContent = snapshot.files[path];
+    if (originalContent != null) {
+      final file = File('${example.path}/$path');
+      if (!await file.exists() ||
+          await file.readAsString() != originalContent) {
+        await file.parent.create(recursive: true);
+        await file.writeAsString(originalContent);
+      }
+      continue;
+    }
+    final file = File('${example.path}/$path');
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+  final testDirectory = Directory('${example.path}/test');
+  if (!snapshot.testDirectoryExisted &&
+      await testDirectory.exists() &&
+      await testDirectory.list().isEmpty) {
+    await testDirectory.delete();
+  }
+}
+
 Future<void> _ensureGitIgnoreEntry(Directory directory, String entry) async {
   final gitignore = File('${directory.path}/.gitignore');
   if (!await gitignore.exists()) {
@@ -247,6 +278,7 @@ class PackageExampleSnapshot {
     required this.files,
     required this.fluohDirectoryExisted,
     required this.ohosDirectoryExisted,
+    required this.testDirectoryExisted,
     required this.flutterSdkLinkTarget,
   });
 
@@ -262,13 +294,22 @@ class PackageExampleSnapshot {
   /// Whether `ohos/` existed before capture.
   final bool ohosDirectoryExisted;
 
+  /// Whether `test/` existed before capture.
+  final bool testDirectoryExisted;
+
   /// Existing `.fluoh/flutter_sdk` symlink target.
   final String? flutterSdkLinkTarget;
 
   /// Captures restorable example state.
   static Future<PackageExampleSnapshot> capture(Directory example) async {
     final files = <String, String?>{};
-    for (final path in const ['.gitignore', 'fluoh.yaml', 'local.properties']) {
+    for (final path in const [
+      '.gitignore',
+      'fluoh.yaml',
+      'local.properties',
+      'analysis_options.yaml',
+      'test/widget_test.dart',
+    ]) {
       final file = File('${example.path}/$path');
       files[path] = await file.exists() ? await file.readAsString() : null;
     }
@@ -285,6 +326,7 @@ class PackageExampleSnapshot {
       files: files,
       fluohDirectoryExisted: await Directory('${example.path}/.fluoh').exists(),
       ohosDirectoryExisted: await Directory('${example.path}/ohos').exists(),
+      testDirectoryExisted: await Directory('${example.path}/test').exists(),
       flutterSdkLinkTarget: flutterSdkLinkTarget,
     );
   }
@@ -307,6 +349,12 @@ class PackageExampleSnapshot {
     final ohosDirectory = Directory('${example.path}/ohos');
     if (!ohosDirectoryExisted && await ohosDirectory.exists()) {
       await ohosDirectory.delete(recursive: true);
+    }
+    final testDirectory = Directory('${example.path}/test');
+    if (!testDirectoryExisted &&
+        await testDirectory.exists() &&
+        await testDirectory.list().isEmpty) {
+      await testDirectory.delete();
     }
     final fluohDirectory = Directory('${example.path}/.fluoh');
     if (!fluohDirectoryExisted && await fluohDirectory.exists()) {

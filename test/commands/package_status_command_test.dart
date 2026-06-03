@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
 import 'package:test/test.dart';
@@ -35,9 +36,36 @@ void main() {
     expect(report, containsPair('branchMatches', true));
     expect(report, containsPair('workingTreeClean', true));
     expect(report, containsPair('ready', false));
+    final blockers = report['readinessBlockers'] as List<Object?>;
+    expect(
+      blockers,
+      contains(
+        allOf(
+          containsPair('scope', 'package'),
+          containsPair('package', 'camera'),
+          containsPair('code', 'evidence.ohos_run_missing'),
+          containsPair(
+            'nextCommand',
+            'fluoh run --platform ohos --package camera --json',
+          ),
+        ),
+      ),
+    );
+    expect(
+      blockers,
+      contains(
+        allOf(
+          containsPair('scope', 'package'),
+          containsPair('package', 'camera'),
+          containsPair('code', 'evidence.interaction_missing'),
+        ),
+      ),
+    );
     final packages = report['packages'] as List<Object?>;
     final package = packages.single as Map<String, Object?>;
     expect(package, containsPair('package', 'camera'));
+    final packageBlockers = package['readinessBlockers'] as List<Object?>;
+    expect(packageBlockers, isNotEmpty);
     final checks = package['checks'] as List<Object?>;
     expect(
       checks,
@@ -50,6 +78,97 @@ void main() {
     );
     expect(stderr, isEmpty);
   });
+
+  test(
+    'reports all packages by default for multi-package repositories',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamWorkspaceRepository(
+        Directory('${environment.homeDirectory.path}/upstream_status_multi'),
+        packagePath: 'packages/camera/camera',
+        packageName: 'camera',
+        version: '0.11.0',
+      );
+      await runGit(upstream, ['tag', 'camera-v0.11.0']);
+      final sharePlus = Directory(
+        '${upstream.path}/packages/share_plus/share_plus',
+      );
+      await sharePlus.create(recursive: true);
+      await File('${sharePlus.path}/pubspec.yaml').writeAsString('''
+name: share_plus
+version: 9.0.0
+
+environment:
+  sdk: ^3.0.0
+''');
+      await runGit(upstream, ['add', 'packages/share_plus/share_plus']);
+      await runGit(upstream, ['commit', '-m', 'Add share_plus']);
+      await runGit(upstream, ['tag', 'share_plus-v9.0.0']);
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_status_multi',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            upstream.path,
+            '--output',
+            packageRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+            '--package-path',
+            'packages/camera/camera',
+            '--package-path',
+            'packages/share_plus/share_plus',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      await commitGeneratedPackageRepository(packageRepository);
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      stdout.clear();
+
+      expect(
+        await runFluoh(
+          ['package', 'status', '--json'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final packages = report['packages'] as List<Object?>;
+      expect(
+        packages.cast<Map<String, Object?>>().map(
+          (package) => package['package'],
+        ),
+        containsAll(['camera', 'share_plus']),
+      );
+      expect(report['readinessBlockers'], isA<List<Object?>>());
+      expect(stderr, isEmpty);
+    },
+  );
 
   test('reports release validation failures as readiness warnings', () async {
     final environment = await createTestEnvironment();

@@ -200,6 +200,7 @@ class PackageManifestPackage {
     required this.version,
     this.repositoryPath = '.',
     this.upstreamPath = '.',
+    this.upstreamRef,
     this.status,
   });
 
@@ -217,6 +218,9 @@ class PackageManifestPackage {
 
   /// Package path inside the upstream repository.
   final String upstreamPath;
+
+  /// Optional upstream Git ref that provided this package's source snapshot.
+  final String? upstreamRef;
 
   /// Release status; `null` means compatible.
   final String? status;
@@ -261,6 +265,8 @@ class PackageManifestPackage {
     String? version,
     String? repositoryPath,
     String? upstreamPath,
+    String? upstreamRef,
+    bool clearUpstreamRef = false,
     String? status,
     bool clearStatus = false,
   }) {
@@ -270,6 +276,7 @@ class PackageManifestPackage {
       version: version ?? this.version,
       repositoryPath: repositoryPath ?? this.repositoryPath,
       upstreamPath: upstreamPath ?? this.upstreamPath,
+      upstreamRef: clearUpstreamRef ? null : upstreamRef ?? this.upstreamRef,
       status: clearStatus ? null : status ?? this.status,
     );
   }
@@ -287,6 +294,7 @@ PackageManifest createPackageManifest({
   String upstreamBranch = defaultUpstreamBranch,
   String? repositoryPath,
   String? upstreamPath,
+  String? upstreamRef,
   String releaseVersion = initialPackageReleaseVersion,
   String status = 'experimental',
 }) {
@@ -305,6 +313,7 @@ PackageManifest createPackageManifest({
         version: releaseVersion,
         repositoryPath: repositoryPackagePath,
         upstreamPath: _manifestPath(upstreamPath ?? packagePath),
+        upstreamRef: _manifestRef(upstreamRef),
         status: status,
       ),
     ],
@@ -316,6 +325,7 @@ PackageManifest addPackageToManifest({
   required PackageManifest manifest,
   required PubspecPackage package,
   required String packagePath,
+  String? upstreamRef,
   String releaseVersion = initialPackageReleaseVersion,
   String status = 'experimental',
 }) {
@@ -341,6 +351,7 @@ PackageManifest addPackageToManifest({
         version: releaseVersion,
         repositoryPath: _manifestPath(packagePath),
         upstreamPath: _manifestPath(packagePath),
+        upstreamRef: _manifestRef(upstreamRef),
         status: status,
       ),
     ],
@@ -370,7 +381,10 @@ PackageManifest updatePackageManifestUpstreamVersions({
     upstreamPath: manifest.upstreamPath,
     packages: [
       for (final package in manifest.packages)
-        package.copyWith(upstreamVersion: packageVersions[package.name]),
+        package.copyWith(
+          upstreamVersion: packageVersions[package.name],
+          clearUpstreamRef: true,
+        ),
     ],
   );
 }
@@ -465,10 +479,14 @@ String packageManifestContent(PackageManifest manifest) {
         '    repository:',
         '      path: ${_yamlScalar(package.repositoryPath)}',
       ],
-      if (package.upstreamPath != manifest.upstreamPath) ...[
-        '    # Package path inside the upstream repository.',
+      if (package.upstreamPath != manifest.upstreamPath ||
+          package.upstreamRef != null) ...[
+        '    # Upstream package source metadata.',
         '    upstream:',
-        '      path: ${_yamlScalar(package.upstreamPath)}',
+        if (package.upstreamPath != manifest.upstreamPath)
+          '      path: ${_yamlScalar(package.upstreamPath)}',
+        if (package.upstreamRef != null)
+          '      ref: ${_yamlScalar(package.upstreamRef!)}',
       ],
       '    # FlutterOH adaptation package release version.',
       '    version: ${_yamlScalar(package.version)}',
@@ -488,6 +506,14 @@ String _manifestPath(String? path) {
     return '.';
   }
   return path;
+}
+
+String? _manifestRef(String? ref) {
+  final trimmed = ref?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
 }
 
 PackageManifestPackage _readPackageManifest(
@@ -517,7 +543,10 @@ PackageManifestPackage _readPackageManifest(
     });
   }
   if (upstream != null) {
-    ensureAllowedKeys(upstream, 'fluoh.yaml packages.$name.upstream', {'path'});
+    ensureAllowedKeys(upstream, 'fluoh.yaml packages.$name.upstream', {
+      'path',
+      'ref',
+    });
   }
   final version = requiredString(package, 'version');
   validateReleaseVersion(version, label: 'fluoh.yaml packages.$name.version');
@@ -529,6 +558,7 @@ PackageManifestPackage _readPackageManifest(
     upstreamPath: _manifestPath(
       optionalString(upstream ?? const {}, 'path') ?? defaultUpstreamPath,
     ),
+    upstreamRef: _manifestRef(optionalString(upstream ?? const {}, 'ref')),
     upstreamVersion: requiredString(package, 'upstreamVersion'),
     version: version,
     status: _releaseStatus(optionalString(package, 'status')),

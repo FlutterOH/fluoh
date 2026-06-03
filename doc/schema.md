@@ -145,6 +145,7 @@ packages:
       path: packages/camera/camera
     upstream:
       path: packages/camera/camera
+      ref: camera-v0.11.0
     version: "0.1.0"
     upstreamVersion: "0.11.0"
     status: experimental
@@ -187,6 +188,9 @@ Rules:
   `repository.git.path`.
 - `packages.<name>.upstream.path` is optional and overrides
   `upstream.git.path`.
+- `packages.<name>.upstream.ref` is optional and records the upstream Git ref,
+  normally a package release tag, used for that package's source snapshot. It
+  does not replace `packages.<name>.upstreamVersion`.
 - `packages.<name>.version` is required and is the FlutterOH adaptation release
   version. It uses numeric dot-separated parts such as `1` or `0.1.0` and has
   no `v` prefix.

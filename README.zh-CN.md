@@ -79,6 +79,9 @@ brew tap FlutterOH/tap
 brew install fluoh
 ```
 
+Homebrew formula 会安装 native 可执行文件；严格 `--json` 自动化优先使用这条路径，
+因为它不会调用 `dart pub global run`。
+
 Package 维护者可以用：
 
 ```sh

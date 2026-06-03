@@ -4,7 +4,11 @@ import 'yaml_utils.dart';
 /// Package name and version read from a `pubspec.yaml`.
 class PubspecPackage {
   /// Creates a pubspec package identity.
-  const PubspecPackage({required this.name, required this.version});
+  const PubspecPackage({
+    required this.name,
+    required this.version,
+    this.sdkConstraint,
+  });
 
   /// Parses package identity from `pubspec.yaml` content.
   factory PubspecPackage.fromYaml(String content) {
@@ -16,7 +20,12 @@ class PubspecPackage {
         'pubspec.yaml must contain name and version.',
       );
     }
-    return PubspecPackage(name: name, version: version);
+    final environment = optionalObjectMap(yaml['environment'], 'environment');
+    return PubspecPackage(
+      name: name,
+      version: version,
+      sdkConstraint: optionalString(environment ?? const {}, 'sdk'),
+    );
   }
 
   /// Package name.
@@ -24,6 +33,9 @@ class PubspecPackage {
 
   /// Package version.
   final String version;
+
+  /// Dart SDK constraint from `environment.sdk`, when present.
+  final String? sdkConstraint;
 }
 
 /// Package entry read from a `pubspec.lock` file.

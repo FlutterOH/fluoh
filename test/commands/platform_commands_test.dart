@@ -344,7 +344,8 @@ exit 1
     if (Platform.isMacOS) {
       expect(output, contains('Found 1 connected device:'));
       expect(output, contains('macOS (desktop)'));
-      expect(output, contains('macOS 26.5 25F71 darwin-'));
+      expect(output, contains('macOS (desktop) • macos • darwin-'));
+      expect(output, matches(RegExp(r'macOS .+ darwin-')));
     } else {
       expect(output, contains('macOS desktop targets require a macOS host'));
     }

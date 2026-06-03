@@ -132,6 +132,7 @@ packages:
       path: packages/camera/camera
     upstream:
       path: packages/camera/camera
+      ref: camera-v0.11.0
     version: "0.1.0"
     upstreamVersion: "0.11.0"
     status: experimental
@@ -162,6 +163,8 @@ packages:
 - `upstream.git.path` 可选，作为所有 Package 在 upstream 仓库内的默认路径，默认 `.`。
 - `packages.<name>.repository.path` 可选，覆盖 `repository.git.path`。
 - `packages.<name>.upstream.path` 可选，覆盖 `upstream.git.path`。
+- `packages.<name>.upstream.ref` 可选，记录该 Package 源码快照使用的 upstream Git ref，
+  通常是 Package 发布 tag；它不替代 `packages.<name>.upstreamVersion`。
 - `packages.<name>.version` 必填，是 FlutterOH 适配发布版本，使用数字点分格式，例如
   `1` 或 `0.1.0`，不带 `v` 前缀。
 - `packages.<name>.upstreamVersion` 必填，是当前适配对应的 upstream Package 版本。

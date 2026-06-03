@@ -6,15 +6,12 @@ class Fluoh < Formula
   version "0.1.0"
   license "MIT"
 
-  depends_on "dart-sdk"
+  depends_on "dart-sdk" => :build
 
   def install
-    pub_cache = libexec/"pub-cache"
-    ENV["PUB_CACHE"] = pub_cache
-
-    system "dart", "pub", "global", "activate", "--source", "path", "."
-    bin.install_symlink pub_cache/"bin/fluoh"
-    bin.install_symlink pub_cache/"bin/fluohf"
+    system "dart", "pub", "get"
+    system "dart", "compile", "exe", "bin/fluoh.dart", "-o", bin/"fluoh"
+    system "dart", "compile", "exe", "bin/fluohf.dart", "-o", bin/"fluohf"
   end
 
   test do

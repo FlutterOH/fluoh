@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:fluoh/src/package/manifest/package_manifest.dart';
 import 'package:fluoh/src/package/manifest/pubspec_package.dart';
+import 'package:fluoh/src/schema/schema.dart' as schema;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -126,8 +127,47 @@ void main() {
     );
     expect(manifest.dependencyPath, '.');
     expect(manifest.primaryPackage.upstreamPath, '.');
+    expect(manifest.primaryPackage.upstreamRef, isNull);
     expect(manifest.releaseTag, 'image_gallery_saver-2.0.3-ohos-3.35-0.1.0');
   });
+
+  test(
+    'writes package-level upstream refs without moving upstreamVersion',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_manifest_ref_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+
+      await writePackageManifest(
+        destination: root,
+        package: const PubspecPackage(name: 'camera', version: '0.12.0+1'),
+        upstream: 'https://github.com/flutter/packages',
+        packagePath: 'packages/camera/camera',
+        upstreamRef: 'camera-v0.12.0+1',
+        sdkVersion: '3.35.8-ohos-0.0.3',
+        branch: 'ohos/3.35',
+        repositoryUrl: 'https://github.com/FlutterOH/packages.git',
+      );
+
+      final content = File('${root.path}/fluoh.yaml').readAsStringSync();
+      final yaml = loadYaml(content) as YamlMap;
+      final packages = yaml['packages'] as YamlMap;
+      final package = packages['camera'] as YamlMap;
+      final upstream = package['upstream'] as YamlMap;
+
+      expect(package['upstreamVersion'], '0.12.0+1');
+      expect(upstream['path'], 'packages/camera/camera');
+      expect(upstream['ref'], 'camera-v0.12.0+1');
+
+      final manifest = await readPackageManifest(root);
+      expect(manifest.primaryPackage.upstreamVersion, '0.12.0+1');
+      expect(manifest.primaryPackage.upstreamPath, 'packages/camera/camera');
+      expect(manifest.primaryPackage.upstreamRef, 'camera-v0.12.0+1');
+    },
+  );
 
   test(
     'uses the upstream package path as the downstream dependency path',
@@ -160,6 +200,26 @@ void main() {
       expect(manifest.dependencyPath, 'packages/share_plus/share_plus');
     },
   );
+
+  test('clears upstream refs when upstream versions are refreshed', () {
+    final manifest = schema.createPackageManifest(
+      package: const PubspecPackage(name: 'camera', version: '0.12.0+1'),
+      upstream: 'https://github.com/flutter/packages',
+      packagePath: 'packages/camera/camera',
+      upstreamRef: 'camera-v0.12.0+1',
+      sdkVersion: '3.35.8-ohos-0.0.3',
+      branch: 'ohos/3.35',
+      repositoryUrl: 'https://github.com/FlutterOH/packages.git',
+    );
+
+    final updated = schema.updatePackageManifestUpstreamVersions(
+      manifest: manifest,
+      packageVersions: const {'camera': '0.12.1'},
+    );
+
+    expect(updated.primaryPackage.upstreamVersion, '0.12.1');
+    expect(updated.primaryPackage.upstreamRef, isNull);
+  });
 
   test('writes separate upstream and dependency package paths', () async {
     final root = await Directory.systemTemp.createTemp(

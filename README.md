@@ -82,6 +82,9 @@ brew tap FlutterOH/tap
 brew install fluoh
 ```
 
+The Homebrew formula installs native executables, which are preferred for
+strict `--json` automation because they do not invoke `dart pub global run`.
+
 For package maintainers:
 
 ```sh

@@ -145,7 +145,11 @@ fluoh run --platform ohos --device <id>
 - 用法错误和 schema 格式错误返回退出码 `64`。
 - 支持 `--json` 的命令只向 stdout 输出一个机器可读 JSON 对象。顶层契约在这些命令之间保持稳定：
   `schemaVersion`、`command`、`ok` 和 `exitCode` 始终存在；`checks`、`targets`、
-  `packages`、`dependencies`、`error` 等命令专属字段仍保留在顶层。
+  `packages`、`dependencies`、`error` 等命令专属字段仍保留在顶层。自动化应调用已安装的
+  `fluoh` 可执行文件，不要用 `dart run bin/fluoh.dart ... --json` 作为机器接口，因为
+  Dart launcher 可能在命令进程启动前输出依赖解析文本。严格机器解析优先使用
+  native/Homebrew 可执行文件；Dart pub global shim 会调用 `dart pub global run`，
+  只有在当前环境确认 stdout 直接以 JSON 对象开始时才把它用于 JSON 自动化。
 - 命令类只负责参数解析和用户可见输出；可复用行为放到
   `lib/src/sdk/`、`lib/src/deps/`、`lib/src/package/` 和 `lib/src/source/`
   等领域 helper 中。

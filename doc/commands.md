@@ -163,7 +163,13 @@ the JSON diagnostic `nextCommand` for the next local setup step.
   to stdout. The top-level contract is stable across those commands:
   `schemaVersion`, `command`, `ok`, and `exitCode` are always present; command
   specific fields such as `checks`, `targets`, `packages`, `dependencies`, or
-  `error` remain at the top level.
+  `error` remain at the top level. Automation should invoke the installed
+  `fluoh` executable, not `dart run bin/fluoh.dart ... --json`, because the Dart
+  launcher can print dependency-resolution text before the command process
+  starts. For strict machine parsing, prefer the native/Homebrew executable.
+  Dart pub global shims invoke `dart pub global run`; use them for JSON
+  automation only after confirming the command stdout starts with the JSON
+  object in that environment.
 - Command classes should own argument parsing and user-visible output. Reusable
   behavior belongs in domain helpers such as `lib/src/sdk/`, `lib/src/deps/`,
   `lib/src/package/`, and `lib/src/source/`.

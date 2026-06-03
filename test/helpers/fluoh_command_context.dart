@@ -234,8 +234,17 @@ Future<Directory> createTaggedGitRepository(
 }
 
 Future<void> _writeSdkTool(File tool) async {
+  final name = tool.uri.pathSegments.last;
   await tool.writeAsString('''
 #!/bin/sh
+if [ "\$1" = "--version" ]; then
+  if [ "$name" = "dart" ]; then
+    echo "Dart SDK version: 3.9.2 (stable) (fixture)" >&2
+  else
+    echo "Flutter 3.35.8-ohos-0.0.3 • fixture"
+  fi
+  exit 0
+fi
 if [ "\$1" = "create" ]; then
   mkdir -p ohos
   exit 0
@@ -252,6 +261,7 @@ Future<Directory> createUpstreamPackageRepository(
   Directory repo, {
   String packageName = 'camera',
   String version = '0.11.0',
+  String sdkConstraint = '^3.0.0',
   String initialBranch = 'main',
   String? licenseContent = _mitLicenseContent,
 }) async {
@@ -264,7 +274,7 @@ name: $packageName
 version: $version
 
 environment:
-  sdk: ^3.0.0
+  sdk: "$sdkConstraint"
 ''');
   await File('${repo.path}/README.md').writeAsString('# $packageName\n');
   if (licenseContent != null) {
@@ -281,6 +291,7 @@ Future<Directory> createUpstreamWorkspaceRepository(
   String packagePath = 'packages/camera/camera',
   String packageName = 'camera',
   String version = '0.11.0',
+  String sdkConstraint = '^3.0.0',
   String? licenseContent = _mitLicenseContent,
 }) async {
   await repo.create(recursive: true);
@@ -294,7 +305,7 @@ name: $packageName
 version: $version
 
 environment:
-  sdk: ^3.0.0
+  sdk: "$sdkConstraint"
 ''');
   await File('${repo.path}/README.md').writeAsString('# workspace\n');
   if (licenseContent != null) {
@@ -310,6 +321,7 @@ Future<void> bumpUpstreamPackageVersion(
   Directory repo, {
   required String version,
   String packagePath = '.',
+  String? sdkConstraint,
 }) async {
   final packageDirectory = packagePath == '.'
       ? repo
@@ -317,13 +329,32 @@ Future<void> bumpUpstreamPackageVersion(
   final pubspec = File('${packageDirectory.path}/pubspec.yaml');
   final content = await pubspec.readAsString();
   await pubspec.writeAsString(
-    content.replaceFirst(
-      RegExp(r'^version:\s+.*$', multiLine: true),
-      'version: $version',
+    _replacePubspecVersionAndSdkConstraint(
+      content,
+      version: version,
+      sdkConstraint: sdkConstraint,
     ),
   );
   await _git(repo, ['add', '.']);
   await _git(repo, ['commit', '-m', 'Release $version']);
+}
+
+String _replacePubspecVersionAndSdkConstraint(
+  String content, {
+  required String version,
+  required String? sdkConstraint,
+}) {
+  var updated = content.replaceFirst(
+    RegExp(r'^version:\s+.*$', multiLine: true),
+    'version: $version',
+  );
+  if (sdkConstraint == null) {
+    return updated;
+  }
+  return updated.replaceFirst(
+    RegExp(r'^  sdk:\s+.*$', multiLine: true),
+    '  sdk: "$sdkConstraint"',
+  );
 }
 
 Future<void> initializeGitRepository(Directory repo) async {

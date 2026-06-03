@@ -132,6 +132,39 @@ void main() {
     },
   );
 
+  test('check explains non-ready reports are handoff evidence', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(
+      packageRepository,
+      recommendation: 'blocked',
+    );
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--report', report.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(result, containsPair('command', 'package check'));
+    expect(result, containsPair('ok', false));
+    final error = result['error'] as Map<String, Object?>;
+    expect(error['message'], contains('can be kept as handoff evidence'));
+    expect(error['message'], contains('be used as release certification'));
+    expect(stderr, isEmpty);
+  });
+
   test('check accepts a certification report', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
@@ -935,6 +968,7 @@ Future<File> _writeCertificationReport(
   bool includeOhosRun = false,
   int ohosBuildExit = 0,
   String ohosBuildResult = 'passed',
+  String recommendation = 'ready',
 }) async {
   final reportDirectory = Directory('${packageRepository.path}/.fluoh');
   await reportDirectory.create(recursive: true);
@@ -951,7 +985,7 @@ Future<File> _writeCertificationReport(
 - Upstream version: 0.11.0
 - FlutterOH SDK: 3.35.8-ohos-0.0.3
 - Date: 2026-06-02
-- Recommendation: ready
+- Recommendation: $recommendation
 
 ## Summary
 
@@ -1020,7 +1054,7 @@ No interaction required: fixture package has no device-side interaction flow.
 
 ## Release Decision
 
-Release recommendation: ready
+Release recommendation: $recommendation
 
 Reason: baseline and OHOS evidence are complete.
 ''');

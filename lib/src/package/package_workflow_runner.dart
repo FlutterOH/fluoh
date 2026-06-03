@@ -8,6 +8,7 @@ import '../context/fluoh_environment.dart';
 import '../platform/ohos/build_profile_signing.dart';
 import '../platform/ohos/device_runner.dart';
 import '../platform/ohos/debug_signer.dart';
+import '../platform/ohos/resource_layout.dart';
 import '../sdk/flutter_runner.dart';
 import '../workflow/workflow_result.dart';
 import 'flutter_example_runner.dart';
@@ -330,6 +331,10 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     OhosDebugSigningMaterial? signingMaterial;
     var signedHaps = <File>[];
     String? signingMode;
+    final ohosDirectory = Directory('${example.path}/ohos');
+    if (buildExampleTarget == 'hap') {
+      await stabilizeOhosResourceLayout(ohosDirectory);
+    }
     if (autoSignExample) {
       if (buildExampleTarget != 'hap') {
         throw UsageException(
@@ -337,7 +342,6 @@ Future<WorkflowTargetResult> runPackageWorkflow({
           usage,
         );
       }
-      final ohosDirectory = Directory('${example.path}/ohos');
       if (!await ohosDirectory.exists()) {
         const reason = 'Missing OHOS example project.';
         steps.add(
@@ -535,6 +539,9 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         }
       }
       if (exampleBuildExitCode == 0) {
+        if (buildExampleTarget == 'hap') {
+          await stabilizeOhosResourceLayout(ohosDirectory);
+        }
         signedHaps = await findInstallableOhosHaps(
           exampleDirectory: example,
           modifiedAfter: buildStartedAt,
@@ -581,7 +588,6 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     );
 
     if (runExample && buildExampleTarget == 'hap') {
-      final ohosDirectory = Directory('${example.path}/ohos');
       if (!await ohosDirectory.exists()) {
         const reason = 'Missing OHOS example project';
         steps.add(

@@ -117,8 +117,10 @@ Then:
 2. Run the CLI Setup flow before the first workflow command, or run the
    preflight script to collect the same version check with project shape. When
    working inside the fluoh CLI repository itself, use `dart run bin/fluoh.dart`
-   only for validating the CLI; use the installed `fluoh` command for user
-   project adaptation.
+   only for validating the CLI. Do not use `dart run bin/fluoh.dart ... --json`
+   as a machine interface because the Dart launcher can print dependency
+   resolution text before fluoh starts; use the installed `fluoh` command for
+   user project adaptation and every JSON diagnostic command.
    If the user asks to install or update this skill, run `fluoh skill --json`
    and follow its `localPath`, `skillVersion`, `installPrompt`, and
    `upgradePrompt`; do not assume a fixed agent skill directory.
@@ -193,11 +195,16 @@ Use this before running workflow commands:
 4. If the Dart global install succeeds but `fluoh` is still not on `PATH`, use
    `$HOME/.pub-cache/bin/fluoh` for this session and tell the user to add
    `$HOME/.pub-cache/bin` to `PATH`.
-5. On macOS, if Dart is unavailable but Homebrew is available, run
+5. For strict JSON automation, prefer the native/Homebrew executable when it is
+   available. Dart pub global shims invoke `dart pub global run`; after using
+   one, confirm a `--json` command starts stdout with `{` before parsing it as
+   the machine contract.
+6. On macOS, if Dart is unavailable or the Dart pub shim emits non-JSON startup
+   text before JSON diagnostics, and Homebrew is available, run
    `brew tap FlutterOH/tap` and `brew install fluoh`.
-6. If neither Dart nor Homebrew can install the CLI, ask the user to install
+7. If neither Dart nor Homebrew can install the CLI, ask the user to install
    Dart or provide a `fluoh` executable path.
-7. After installation, run `fluoh --version`, then continue with preflight.
+8. After installation, run `fluoh --version`, then continue with preflight.
 
 ## Preflight Routing
 
@@ -258,7 +265,10 @@ Use this loop when adapting a package or app to a release-ready state:
 6. Run `python3 <skill-dir>/scripts/check_report.py <report-path>` and do not
    claim `ready` until it passes. If it fails, either collect the missing
    evidence or mark the release decision as blocked or needing a maintainer
-   decision.
+   decision. A report whose recommendation is `blocked` or
+   `needs maintainer decision` can be kept as handoff evidence, but it must not
+   be passed to `fluoh package check --report` or `fluoh package release
+   --report` as release certification.
 
 ## App Project Flow
 
@@ -513,6 +523,12 @@ Rules:
 
 For every `--json` command:
 
+- Invoke the installed `fluoh` executable, not `dart run bin/fluoh.dart`; the
+  JSON stdout contract starts after the fluoh process starts, while Dart's
+  launcher may print startup dependency text before then. Prefer native/Homebrew
+  executables for strict JSON parsing. Dart pub global shims are acceptable only
+  after confirming they do not print pub runner text before the JSON object in
+  the current environment.
 - Parse the JSON object before editing.
 - Keep normal progress text out of stdout/stderr when invoking JSON mode; rely
   on the command's JSON object as the contract.

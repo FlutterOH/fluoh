@@ -31,7 +31,9 @@ class PackageStatusCommand extends FluohCommand<int> {
       ..addFlag(
         'all',
         negatable: false,
-        help: 'Inspect every package registered in fluoh.yaml.',
+        help:
+            'Inspect every package registered in fluoh.yaml. This is the '
+            'default when --package is omitted.',
       )
       ..addFlag(
         'json',
@@ -61,9 +63,10 @@ class PackageStatusCommand extends FluohCommand<int> {
 
     final repository = environment.workingDirectory;
     final manifest = await readPackageManifest(repository);
-    final packages = argResults!.flag('all')
+    final packageName = argResults!.option('package')?.trim();
+    final packages = packageName == null || packageName.isEmpty
         ? manifest.packages
-        : [manifest.packageForName(argResults!.option('package'))];
+        : [manifest.packageForName(packageName)];
     final branch = await currentBranch(repository);
     final dirtyFiles = await _dirtyFiles(repository);
     final localPathFiles = await _trackedFilesContaining(
@@ -80,6 +83,15 @@ class PackageStatusCommand extends FluohCommand<int> {
         ),
       );
     }
+    final readinessBlockers = [
+      ..._repositoryReadinessBlockers(
+        branch: branch,
+        expectedBranch: manifest.branch,
+        dirtyFiles: dirtyFiles,
+        localPathFiles: localPathFiles,
+      ),
+      for (final status in packageStatuses) ...status.blockers,
+    ];
 
     final result = {
       'branch': branch,
@@ -88,11 +100,15 @@ class PackageStatusCommand extends FluohCommand<int> {
       'workingTreeClean': dirtyFiles.isEmpty,
       'dirtyFiles': dirtyFiles,
       'localPathFiles': localPathFiles,
+      'readinessBlockers': readinessBlockers
+          .map((blocker) => blocker.toJson())
+          .toList(),
       'packages': packageStatuses.map((status) => status.toJson()).toList(),
       'ready':
           branch == manifest.branch &&
           dirtyFiles.isEmpty &&
           localPathFiles.isEmpty &&
+          readinessBlockers.isEmpty &&
           packageStatuses.every((status) => status.ready),
     };
 
@@ -117,18 +133,57 @@ class PackageStatusCommand extends FluohCommand<int> {
     required PackageManifestPackage package,
   }) async {
     final checks = <_PackageStatusCheck>[];
+    final blockers = <_PackageReadinessBlocker>[];
     final tag = package.releaseTag(manifest.sdkVersion);
-    checks.add(
-      package.status == null || package.status == 'compatible'
-          ? const _PackageStatusCheck.ok(
-              'release-status',
-              'Package is marked compatible',
-            )
-          : _PackageStatusCheck.warning(
-              'release-status',
-              'Package status is ${package.status}; remove status only when release-ready.',
-            ),
-    );
+    if (package.status == null || package.status == 'compatible') {
+      checks.add(
+        const _PackageStatusCheck.ok(
+          'release-status',
+          'Package is marked compatible',
+        ),
+      );
+    } else {
+      checks.add(
+        _PackageStatusCheck.warning(
+          'release-status',
+          'Package status is ${package.status}; keep it until platform '
+              'implementation, verification, OHOS run evidence, and interaction '
+              'evidence are complete.',
+        ),
+      );
+      blockers.addAll([
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'package.status.${package.status}',
+          message:
+              'Package is marked ${package.status}; it is not release-ready.',
+          nextCommand:
+              'fluoh package version --package ${package.name} '
+              '--status compatible',
+        ),
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'evidence.ohos_run_missing',
+          message: 'Missing passed OHOS run evidence.',
+          nextCommand:
+              'fluoh run --platform ohos --package ${package.name} '
+              '--json',
+        ),
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'evidence.interaction_missing',
+          message:
+              'Missing functional interaction evidence or an explicit '
+              'no-interaction-required reason.',
+          nextCommand:
+              'python3 <skill-dir>/scripts/new_scenario.py . --platform ohos '
+              '--package ${package.name}',
+        ),
+      ]);
+    }
 
     final metadataChecks = <_PackageStatusCheck>[];
     try {
@@ -142,9 +197,27 @@ class PackageStatusCommand extends FluohCommand<int> {
       metadataChecks.add(
         _PackageStatusCheck.warning('release-metadata', error.message),
       );
+      blockers.add(
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'release.metadata_invalid',
+          message: error.message,
+          nextCommand: 'fluoh package check --package ${package.name} --json',
+        ),
+      );
     } on FormatException catch (error) {
       metadataChecks.add(
         _PackageStatusCheck.warning('release-metadata', error.message),
+      );
+      blockers.add(
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'release.metadata_invalid',
+          message: error.message,
+          nextCommand: 'fluoh package check --package ${package.name} --json',
+        ),
       );
     }
 
@@ -154,6 +227,17 @@ class PackageStatusCommand extends FluohCommand<int> {
       package: package,
       tag: tag,
     );
+    for (final warning in metadataWarnings) {
+      blockers.add(
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'release.metadata_warning',
+          message: warning,
+          nextCommand: 'fluoh package check --package ${package.name} --json',
+        ),
+      );
+    }
     metadataChecks.addAll(
       metadataWarnings.map(
         (warning) => _PackageStatusCheck.warning('release-metadata', warning),
@@ -216,6 +300,17 @@ class PackageStatusCommand extends FluohCommand<int> {
                 'Example is missing the OHOS platform directory',
               ),
       );
+      if (!await ohos.exists()) {
+        blockers.add(
+          _PackageReadinessBlocker(
+            scope: 'package',
+            packageName: package.name,
+            code: 'platform.ohos_missing',
+            message: 'Example is missing the OHOS platform directory.',
+            nextCommand: 'fluoh doctor --platform ohos --project --json',
+          ),
+        );
+      }
       checks.add(
         await hasPackageTests(example)
             ? const _PackageStatusCheck.ok(
@@ -229,7 +324,17 @@ class PackageStatusCommand extends FluohCommand<int> {
       );
     }
 
-    return _PackageStatus(packageName: package.name, tag: tag, checks: checks);
+    _addGenericWarningBlockers(
+      blockers: blockers,
+      checks: checks,
+      packageName: package.name,
+    );
+    return _PackageStatus(
+      packageName: package.name,
+      tag: tag,
+      checks: checks,
+      blockers: blockers,
+    );
   }
 
   void _printStatus(
@@ -276,6 +381,16 @@ class PackageStatusCommand extends FluohCommand<int> {
             break;
         }
       }
+      if (package.blockers.isNotEmpty) {
+        _output.blank();
+        _output.warning('Release blockers');
+        for (final blocker in package.blockers) {
+          _output.detail('${blocker.code}: ${blocker.message}');
+          if (blocker.nextCommand != null) {
+            _output.next(blocker.nextCommand!);
+          }
+        }
+      }
     }
 
     if (result['ready'] == true) {
@@ -286,6 +401,66 @@ class PackageStatusCommand extends FluohCommand<int> {
       );
     }
   }
+}
+
+void _addGenericWarningBlockers({
+  required List<_PackageReadinessBlocker> blockers,
+  required List<_PackageStatusCheck> checks,
+  required String packageName,
+}) {
+  final existingMessages = blockers.map((blocker) => blocker.message).toSet();
+  for (final check in checks.where((check) => check.status == 'warning')) {
+    if (_hasStructuredBlocker(check.name)) {
+      continue;
+    }
+    if (existingMessages.contains(check.message)) {
+      continue;
+    }
+    blockers.add(
+      _PackageReadinessBlocker(
+        scope: 'package',
+        packageName: packageName,
+        code: check.name,
+        message: check.message,
+        nextCommand: 'fluoh package check --package $packageName --json',
+      ),
+    );
+  }
+}
+
+bool _hasStructuredBlocker(String checkName) {
+  return const {'release-status', 'platform-structure'}.contains(checkName);
+}
+
+List<_PackageReadinessBlocker> _repositoryReadinessBlockers({
+  required String branch,
+  required String expectedBranch,
+  required List<String> dirtyFiles,
+  required List<String> localPathFiles,
+}) {
+  return [
+    if (branch != expectedBranch)
+      _PackageReadinessBlocker(
+        scope: 'repository',
+        code: 'repository.branch_mismatch',
+        message: 'Current branch $branch does not match $expectedBranch.',
+        nextCommand: 'git switch $expectedBranch',
+      ),
+    if (dirtyFiles.isNotEmpty)
+      const _PackageReadinessBlocker(
+        scope: 'repository',
+        code: 'repository.dirty',
+        message: 'Working tree has uncommitted changes.',
+        nextCommand: 'git status --short',
+      ),
+    if (localPathFiles.isNotEmpty)
+      _PackageReadinessBlocker(
+        scope: 'repository',
+        code: 'repository.local_paths',
+        message: 'Tracked files contain local fluoh home paths.',
+        nextCommand: 'git status --short --ignored=matching',
+      ),
+  ];
 }
 
 Future<List<String>> _dirtyFiles(Directory repository) async {
@@ -344,20 +519,50 @@ class _PackageStatus {
     required this.packageName,
     required this.tag,
     required this.checks,
+    required this.blockers,
   });
 
   final String packageName;
   final String tag;
   final List<_PackageStatusCheck> checks;
+  final List<_PackageReadinessBlocker> blockers;
 
-  bool get ready => checks.every((check) => check.status != 'warning');
+  bool get ready =>
+      blockers.isEmpty && checks.every((check) => check.status != 'warning');
 
   Map<String, Object?> toJson() {
     return {
       'package': packageName,
       'tag': tag,
       'ready': ready,
+      'readinessBlockers': blockers.map((blocker) => blocker.toJson()).toList(),
       'checks': checks.map((check) => check.toJson()).toList(),
+    };
+  }
+}
+
+class _PackageReadinessBlocker {
+  const _PackageReadinessBlocker({
+    required this.scope,
+    required this.code,
+    required this.message,
+    this.packageName,
+    this.nextCommand,
+  });
+
+  final String scope;
+  final String? packageName;
+  final String code;
+  final String message;
+  final String? nextCommand;
+
+  Map<String, Object?> toJson() {
+    return {
+      'scope': scope,
+      if (packageName != null) 'package': packageName,
+      'code': code,
+      'message': message,
+      if (nextCommand != null) 'nextCommand': nextCommand,
     };
   }
 }

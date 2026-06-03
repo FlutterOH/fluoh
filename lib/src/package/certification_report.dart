@@ -111,6 +111,13 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
   final recommendation = _releaseRecommendation(content);
   if (recommendation != 'ready') {
     errors.add('Certification reports must use release recommendation: ready.');
+    if (recommendation != null && recommendation.isNotEmpty) {
+      errors.add(
+        'Report recommendation "$recommendation" can be kept as handoff '
+        'evidence, but it cannot be used as release certification for '
+        'fluoh package check --report or fluoh package release --report.',
+      );
+    }
   }
 
   final checklist = _checklistItems(content);

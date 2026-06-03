@@ -11,6 +11,7 @@ import '../context/fluoh_environment.dart';
 import '../platform/ohos/build_profile_signing.dart';
 import '../platform/ohos/debug_signer.dart';
 import '../platform/ohos/device_runner.dart';
+import '../platform/ohos/resource_layout.dart';
 import '../package/manifest/package_manifest.dart';
 import '../package/flutter_example_runner.dart';
 import '../package/package_workflow_runner.dart';
@@ -693,8 +694,11 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
   OhosBuildProfileSigningSession? signingSession;
   OhosDebugSigningMaterial? signingMaterial;
   var signingMode = '';
+  final ohosDirectory = Directory('${project.path}/ohos');
+  if (platform == 'ohos') {
+    await stabilizeOhosResourceLayout(ohosDirectory);
+  }
   if (invocation.autoSign) {
-    final ohosDirectory = Directory('${project.path}/ohos');
     if (!await ohosDirectory.exists()) {
       const reason = 'Missing OHOS project.';
       steps.add(
@@ -890,6 +894,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
       }
     }
     if (effectiveExitCode == 0 && platform == 'ohos') {
+      await stabilizeOhosResourceLayout(ohosDirectory);
       installableHaps = await findInstallableOhosHaps(
         exampleDirectory: project,
         modifiedAfter: buildStartedAt,
