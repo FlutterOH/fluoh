@@ -61,20 +61,29 @@ Use $fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.
 Then:
 
 1. Install the `fluoh` CLI if it is missing.
-2. Run preflight when possible.
-3. Inspect preflight `upgradeChecks`. Stop for schema migration blockers. If
+2. Run read-only preflight when possible.
+3. For package adaptation, resolve setup values before any mutating package
+   command or implementation edit: the FlutterOH package `repository` URL or
+   path, `git-author-name`, `git-author-email`, SDK line, package selection, and
+   output path. Use user-provided values, `fluoh.yaml`, local Git config, or
+   documented defaults. Ask only when a required value is missing, contradictory,
+   or would change public repository or author identity; otherwise proceed and
+   record the resolved values in progress output and the report.
+4. Inspect preflight `upgradeChecks`. Stop for schema migration blockers. If
    package generated docs are stale, or preflight could not confirm them with
    dry-run, run `fluoh package docs refresh --dry-run`; then run
    `fluoh package docs refresh` before implementation edits when the worktree is
    clean and the task is not review-only.
-4. Create a package repository with `fluoh package create <upstream>` only when
-   the user provided an upstream Git URL and no package repository exists.
-5. Route to the app or package flow from preflight JSON.
-6. Run `fluoh` commands in JSON mode whenever supported, then inspect
+5. Create a package repository with `fluoh package create <upstream>` only when
+   the user provided an upstream Git URL and no package repository exists, and
+   pass resolved `--repository`, `--git-author-name`, and `--git-author-email`
+   values when available.
+6. Route to the app or package flow from preflight JSON.
+7. Run `fluoh` commands in JSON mode whenever supported, then inspect
    `nextCommand`, `diagnostics`, and log tails before editing.
-7. Make the smallest code or project-file changes needed for the next clean
+8. Make the smallest code or project-file changes needed for the next clean
    verification result.
-8. Verify and write the completion report before the final response.
+9. Verify and write the completion report before the final response.
 
 ## User Request Routing
 
@@ -125,10 +134,19 @@ Then:
      package.
    - New package adaptation: user provides an upstream Git URL and no generated
      package repository exists yet.
-4. If preflight reports `needsPackageSelection: true`, select one package for
-   the current iteration and rerun preflight with `--package <name>` before
-   running package commands.
-5. Inspect preflight `upgradeChecks` before implementation edits:
+4. Before package adaptation writes or package repository creation, resolve the
+   adaptation setup. For a new repository, derive or use `repository`,
+   `git-author-name`, `git-author-email`, SDK line, selected package paths, and
+   output path. For an existing package repository, read `repository.git.url`
+   from `fluoh.yaml` and `git config --local --get user.name` / `user.email`.
+   Ask only for missing or contradictory required values, then configure local
+   Git author before creating commits.
+5. If preflight reports `needsPackageSelection: true`, build a package queue
+   when the user asked for the whole repository, otherwise select one package for
+   the current iteration. Rerun preflight with `--package <name>` before running
+   package commands, and finish each package's checkpoints before moving to the
+   next package.
+6. Inspect preflight `upgradeChecks` before implementation edits:
    - If `upgradeChecks.schema.status` is `requires-newer-fluoh`, run
      `fluoh upgrade`, rerun `fluoh skill --json` when the agent copied the
      skill, then rerun preflight.
@@ -145,20 +163,23 @@ Then:
    - If `upgradeChecks.packageDocs.needsRefreshUnknown` is true, fix the
      reported dry-run failure and rerun `fluoh package docs refresh --dry-run`
      before assuming generated docs are current.
-6. Use preflight `suggestedCommands` for the implementation loop and
+7. Use preflight `suggestedCommands` for the implementation loop and
    `finalCheckCommands` plus `deliveryChecks` as the final acceptance gate.
    Do not give a ready recommendation until those checks have evidence or an
    explicit blocker in the report.
-7. Prefer exact commands shown by generated `AGENTS.md` and `FLUOH.md` in a
+8. Prefer exact commands shown by generated `AGENTS.md` and `FLUOH.md` in a
    package repository. Use this skill only to choose the next step and keep the
    loop short.
-8. If the user specified an SDK version or line, use it. Otherwise keep the SDK
+9. If the user specified an SDK version or line, use it. Otherwise keep the SDK
    already recorded in `fluoh.yaml`; when none is recorded, run `fluoh sdk list`
    and choose the latest stable FlutterOH SDK line.
-9. Treat a request to "adapt", "fix", "make it support OHOS", or "hand it to
-   AI" as authorization to make local code and project-file changes. Still ask
-   before public API breaks, release version changes, real releases, pushes, or
-   destructive Git operations.
+10. Treat a request to "adapt", "fix", "make it support OHOS", or "hand it to
+    AI" as authorization to make local code and project-file changes and local
+    checkpoint commits when the workflow needs them. Still ask before public API
+    breaks, non-default release version policy or manual release version
+    overrides, real releases, pushes, or destructive Git operations. Normal
+    `fluoh package version --bump patch --status ...` metadata updates in the
+    package adaptation flow do not need a separate confirmation.
 
 ## CLI Setup
 
@@ -234,9 +255,10 @@ Use this loop when adapting a package or app to a release-ready state:
 5. Fill `.fluoh/ai-report-...md` with the exact commands, exit codes, platform
    matrix, scenario path, interaction evidence, remaining risks, and release
    recommendation.
-6. Run `check_report.py` and do not claim `ready` until it passes. If it fails,
-   either collect the missing evidence or mark the release decision as blocked
-   or needing a maintainer decision.
+6. Run `python3 <skill-dir>/scripts/check_report.py <report-path>` and do not
+   claim `ready` until it passes. If it fails, either collect the missing
+   evidence or mark the release decision as blocked or needing a maintainer
+   decision.
 
 ## App Project Flow
 
@@ -279,9 +301,17 @@ Use this when the user asks to adapt a third-party Flutter package.
 When starting from upstream:
 
 ```sh
-fluoh package create <upstream-git-url> --sdk <sdk-version-or-line> [--repository <flutteroh-repo-url>]
+fluoh package create <upstream-git-url> --sdk <sdk-version-or-line> \
+  --repository <flutteroh-repo-url-or-path> \
+  --git-author-name <name> --git-author-email <email>
 cd <generated-repo>
 ```
+
+Before running this command, resolve the repository URL or path recorded for the
+FlutterOH adaptation, the local Git author name and email, the SDK line, package
+paths, and output path. Ask only when a required value is missing or
+contradictory. If author configuration is unavailable, omit both Git author
+options; never pass only one.
 
 Then run this loop one package at a time:
 
@@ -302,7 +332,8 @@ Use this flow as the primary package-adaptation loop. The commands decide when
 to edit, when to fix local environment, and when work can be handed back.
 
 1. Repository setup: use `fluoh package create <upstream>` for a new package
-   repository, `fluoh package add <package-path>` for additional packages, and
+   repository with resolved repository and Git author options, use
+   `fluoh package add <package-path>` for additional packages, and use
    `fluoh package sync` only after a completed, committed checkpoint when
    upstream needs to be merged.
 2. Baseline gates: run `fluoh deps get`,
@@ -354,22 +385,37 @@ to edit, when to fix local environment, and when work can be handed back.
    `doctor` failures in local tooling, project warnings in repository
    configuration, and verification failures in the code or example that
    produced the diagnostic.
-8. Completion report: write
-   `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` with commands,
-   results, platform matrix, interaction evidence, signing mode, logs,
-   remaining risks, and release recommendation.
-9. Release gate: run `fluoh package status --package <name>`, update release
-   metadata with `fluoh package version --package <name>` when needed, then run
-   the final `fluoh verify --package <name>` and
-   `fluoh package check --package <name> --report <report-path>`.
-   Add `--require-ohos-run` when a connected target or emulator was available
-   and the handoff must prove a passed real OHOS launch. The certification
-   report must contain passed command rows, not only failed diagnostic rows.
-   Commit only after the relevant gate succeeds; run `fluoh package release`
-   only when the maintainer approves the fluoh release. Maintainers can still run
-   `fluoh package check` without a certification report after their own manual
-   verification; that path is a baseline release check, not an AI-certified
-   delivery.
+8. Implementation checkpoint: once implementation, OHOS evidence, and applicable
+   existing-platform regression checks are clean or explicitly blocked, create a
+   local implementation checkpoint commit. This clean worktree is required before
+   `fluoh package version`, `fluoh package sync`, and `fluoh package check`.
+9. Release metadata checkpoint: run `fluoh package status --package <name>`,
+   update release metadata with `fluoh package version --package <name>` when
+   needed, update `FLUOH_CHANGELOG.md`, review `fluoh.yaml`, then create a local
+   release metadata checkpoint commit. `fluoh package version` requires a clean
+   worktree before it writes metadata, so do not leave implementation changes
+   uncommitted before this step.
+10. Final report and release gate: rerun the final
+    `fluoh verify --package <name>`, write
+    `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` with commands,
+    results, platform matrix, interaction evidence, signing mode, logs,
+    remaining risks, and release recommendation, then run
+    `python3 <skill-dir>/scripts/check_report.py <report-path>`. Because
+    `.fluoh/` is local ignored state, the worktree should remain clean for
+    `fluoh package check --package <name> --report <report-path>`. Add
+    `--require-ohos-run` when a connected target or emulator was available and
+    the handoff must prove a passed real OHOS launch. The certification report
+    must contain passed command rows, not only failed diagnostic rows. Run
+    `fluoh package release` only when the maintainer approves the fluoh release.
+    Maintainers can still run `fluoh package check` without a certification
+    report after their own manual verification; that path is a baseline release
+    check, not an AI-certified delivery.
+11. Local commit checkpoints: create small local commits at completed
+    checkpoints when the workflow needs commits, such as before package sync,
+    package check, or handoff. Before each commit, self-review the staged paths,
+    commit message, and local Git author identity; stage explicit paths, review
+    `git diff --cached`, and keep commits local unless the maintainer explicitly
+    asks to push.
 
 Rules:
 

@@ -165,6 +165,19 @@ void main() {
     expect(skill, contains('fluoh --version'));
     expect(skill, contains('fluoh skill --json'));
     expect(skill, contains('--package <package-name>'));
+    expect(skill, contains('repository.git.url'));
+    expect(skill, contains('--repository'));
+    expect(skill, contains('--git-author-name'));
+    expect(skill, contains('--git-author-email'));
+    expect(skill, contains('commit message, and local Git author identity'));
+    expect(skill, contains('package queue'));
+    expect(skill, contains('Implementation checkpoint'));
+    expect(skill, contains('Release metadata checkpoint'));
+    expect(
+      skill,
+      contains('python3 <skill-dir>/scripts/check_report.py <report-path>'),
+    );
+    expect(skill, contains('ignored state'));
     expect(skill, contains('skillVersion'));
     expect(skill, contains('upgradePrompt'));
     expect(skill, contains('fluoh deps check --json'));
