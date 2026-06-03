@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="doc/assets/svg/fluoh-logo.svg" alt="fluoh logo" width="82" align="absmiddle">
+  <img src="doc/assets/svg/fluoh-logo.svg" alt="fluoh logo" align="absmiddle">
   fluoh
 </h1>
 
@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/assets/svg/readme-hero.zh-CN.svg" alt="fluoh AI 适配提示预览" width="900">
+  <img src="doc/assets/svg/readme-hero.zh-CN.svg" alt="fluoh AI 适配提示预览">
 </p>
 
 ## 快速开始
@@ -100,7 +100,7 @@ fluohf build hap
 - [命令参考](doc/commands.zh-CN.md)
 - [Source schema](doc/schema.zh-CN.md)
 - [贡献和发布流程](CONTRIBUTING.zh-CN.md)
-- 官方 source 数据：`https://github.com/FlutterOH/source.git`
+- [官方 source 数据](https://github.com/FlutterOH/source.git)
 
 ## 许可证
 

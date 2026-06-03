@@ -1,14 +1,14 @@
-<svg width="1280" height="460" viewBox="0 0 1280 460" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<svg width="900" height="324" viewBox="0 0 900 324" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision" text-rendering="optimizeLegibility">
   <title id="title">fluoh AI adaptation prompt</title>
   <desc id="desc">A short prompt asks an AI agent to use fluoh, then fluoh installs tools, detects the workspace, pins the SDK, fixes dependencies, verifies the build, and saves a report.</desc>
   <defs>
-    <filter id="searchShadow" x="142" y="164" width="996" height="148" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0F172A" flood-opacity="0.08"/>
+    <filter id="searchShadow" x="101" y="119" width="698" height="102" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.08"/>
     </filter>
-    <filter id="chipShadow" x="160" y="334" width="960" height="66" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#334155" flood-opacity="0.05"/>
+    <filter id="chipShadow" x="113" y="237" width="674" height="47" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#334155" flood-opacity="0.05"/>
     </filter>
-    <linearGradient id="searchFill" x1="172" y1="186" x2="1108" y2="298" gradientUnits="userSpaceOnUse">
+    <linearGradient id="searchFill" x1="121" y1="132" x2="779" y2="210" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#F0FDFA"/>
     </linearGradient>
@@ -16,7 +16,7 @@
       .ui { font-family: Inter, Arial, sans-serif; letter-spacing: 0; }
       .mono { font-family: Menlo, Consolas, monospace; letter-spacing: 0; }
       .caret { animation: blink 1.2s steps(1) infinite; }
-      .send { animation: sendPulse 2.8s ease-in-out infinite; transform-origin: 1052px 242px; }
+      .send { animation: sendPulse 2.8s ease-in-out infinite; transform-origin: 740px 171px; }
       @keyframes blink {
         0%, 45% { opacity: 1; }
         46%, 100% { opacity: 0; }
@@ -31,38 +31,38 @@
     </style>
   </defs>
 
-  <rect width="1280" height="460" rx="32" fill="#F8FAFC"/>
-  <text x="640" y="112" text-anchor="middle" class="ui" fill="#0F172A" font-size="42" font-weight="900">Tell AI the goal. fluoh runs the workflow.</text>
-  <text x="640" y="150" text-anchor="middle" class="ui" fill="#64748B" font-size="19">Apps and packages follow one verified command path.</text>
+  <rect width="900" height="324" rx="22" fill="#F8FAFC"/>
+  <text x="450" y="79" text-anchor="middle" class="ui" fill="#0F172A" font-size="30" font-weight="900">Tell AI the goal. fluoh runs the workflow.</text>
+  <text x="450" y="106" text-anchor="middle" class="ui" fill="#64748B" font-size="14">Apps and packages follow one verified command path.</text>
 
   <g filter="url(#searchShadow)">
-    <rect x="172" y="186" width="936" height="112" rx="56" fill="url(#searchFill)" stroke="#CBD5E1" stroke-width="2"/>
-    <text x="230" y="251" class="mono" fill="#1E293B" font-size="23">Use $fluoh to add OHOS to this Flutter project.</text>
-    <rect class="caret" x="894" y="225" width="4" height="34" rx="2" fill="#2563EB"/>
+    <rect x="121" y="132" width="658" height="78" rx="39" fill="url(#searchFill)" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="162" y="177" class="mono" fill="#1E293B" font-size="16">Use $fluoh to add OHOS to this Flutter project.</text>
+    <rect class="caret" x="629" y="159" width="3" height="24" rx="1.5" fill="#2563EB"/>
     <g class="send">
-      <circle cx="1052" cy="242" r="34" fill="#2563EB"/>
-      <path d="M1052 255V229" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
-      <path d="M1040 241L1052 229L1064 241" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="740" cy="171" r="24" fill="#2563EB"/>
+      <path d="M740 180V162" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+      <path d="M732 171L740 162L748 171" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
   </g>
 
   <g filter="url(#chipShadow)">
-    <rect x="172" y="346" width="132" height="42" rx="21" fill="#ECFEFF"/>
-    <text x="238" y="373" text-anchor="middle" class="ui" fill="#0F766E" font-size="15" font-weight="800">install</text>
+    <rect x="121" y="244" width="93" height="30" rx="15" fill="#ECFEFF"/>
+    <text x="167.5" y="263" text-anchor="middle" class="ui" fill="#0F766E" font-size="11" font-weight="800">install</text>
 
-    <rect x="326" y="346" width="142" height="42" rx="21" fill="#EFF6FF"/>
-    <text x="397" y="373" text-anchor="middle" class="ui" fill="#1D4ED8" font-size="15" font-weight="800">detect project</text>
+    <rect x="229" y="244" width="100" height="30" rx="15" fill="#EFF6FF"/>
+    <text x="279" y="263" text-anchor="middle" class="ui" fill="#1D4ED8" font-size="11" font-weight="800">detect project</text>
 
-    <rect x="490" y="346" width="128" height="42" rx="21" fill="#FFFBEB"/>
-    <text x="554" y="373" text-anchor="middle" class="ui" fill="#B45309" font-size="15" font-weight="800">pin SDK</text>
+    <rect x="345" y="244" width="90" height="30" rx="15" fill="#FFFBEB"/>
+    <text x="390" y="263" text-anchor="middle" class="ui" fill="#B45309" font-size="11" font-weight="800">pin SDK</text>
 
-    <rect x="640" y="346" width="132" height="42" rx="21" fill="#F3E8FF"/>
-    <text x="706" y="373" text-anchor="middle" class="ui" fill="#7C3AED" font-size="15" font-weight="800">fix deps</text>
+    <rect x="450" y="244" width="93" height="30" rx="15" fill="#F3E8FF"/>
+    <text x="496.5" y="263" text-anchor="middle" class="ui" fill="#7C3AED" font-size="11" font-weight="800">fix deps</text>
 
-    <rect x="794" y="346" width="128" height="42" rx="21" fill="#FFF1F2"/>
-    <text x="858" y="373" text-anchor="middle" class="ui" fill="#BE123C" font-size="15" font-weight="800">build/run</text>
+    <rect x="559" y="244" width="90" height="30" rx="15" fill="#FFF1F2"/>
+    <text x="604" y="263" text-anchor="middle" class="ui" fill="#BE123C" font-size="11" font-weight="800">build/run</text>
 
-    <rect x="944" y="346" width="164" height="42" rx="21" fill="#F0FDF4"/>
-    <text x="1026" y="373" text-anchor="middle" class="ui" fill="#15803D" font-size="15" font-weight="800">save report</text>
+    <rect x="664" y="244" width="115" height="30" rx="15" fill="#F0FDF4"/>
+    <text x="721.5" y="263" text-anchor="middle" class="ui" fill="#15803D" font-size="11" font-weight="800">save report</text>
   </g>
 </svg>

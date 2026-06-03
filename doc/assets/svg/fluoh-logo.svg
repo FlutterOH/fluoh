@@ -1,12 +1,12 @@
-<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<svg width="82" height="82" viewBox="0 0 82 82" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
   <title id="title">fluoh logo</title>
   <desc id="desc">A simple fluoh logo combining a blue toolchain mark with a green completed build badge.</desc>
-  <rect x="24" y="24" width="208" height="208" rx="50" fill="#FFFFFF"/>
-  <rect x="25" y="25" width="206" height="206" rx="49" stroke="#D7E5F4" stroke-width="2"/>
+  <rect x="8" y="8" width="66" height="66" rx="16" fill="#FFFFFF"/>
+  <rect x="8.5" y="8.5" width="65" height="65" rx="15.5" stroke="#D7E5F4"/>
 
-  <path d="M74 70C74 62.3 80.3 56 88 56H174C181.7 56 188 62.3 188 70V86C188 93.7 181.7 100 174 100H116V121H154C161.7 121 168 127.3 168 135V149C168 156.7 161.7 163 154 163H116V188C116 195.7 109.7 202 102 202H88C80.3 202 74 195.7 74 188V70Z" fill="#2563EB"/>
+  <path d="M24 22.5C24 20 26 18 28.5 18H55.5C58 18 60 20 60 22.5V27.5C60 30 58 32 55.5 32H37V39H49C51.5 39 53.5 41 53.5 43.5V48C53.5 50.5 51.5 52.5 49 52.5H37V60C37 62.5 35 64.5 32.5 64.5H28.5C26 64.5 24 62.5 24 60V22.5Z" fill="#2563EB"/>
 
-  <circle cx="172" cy="164" r="40" fill="#FFFFFF"/>
-  <circle cx="172" cy="164" r="34" fill="#10B981"/>
-  <path d="M166 181L148 163L158 153L166 161L188 137L199 147L166 181Z" fill="#FFFFFF"/>
+  <circle cx="55" cy="52.5" r="13" fill="#FFFFFF"/>
+  <circle cx="55" cy="52.5" r="11" fill="#10B981"/>
+  <path d="M53 58L47 52L50 49L53 52L60.5 44L64 47L53 58Z" fill="#FFFFFF"/>
 </svg>

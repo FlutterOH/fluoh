@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="doc/assets/svg/fluoh-logo.svg" alt="fluoh logo" width="82" align="absmiddle">
+  <img src="doc/assets/svg/fluoh-logo.svg" alt="fluoh logo" align="absmiddle">
   fluoh
 </h1>
 
@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/assets/svg/readme-hero.svg" alt="fluoh AI adaptation prompt preview" width="900">
+  <img src="doc/assets/svg/readme-hero.svg" alt="fluoh AI adaptation prompt preview">
 </p>
 
 ## Quick Start
@@ -103,7 +103,7 @@ fluohf build hap
 - [Command reference](doc/commands.md)
 - [Source schema](doc/schema.md)
 - [Contributing and release workflow](CONTRIBUTING.md)
-- Official source data: `https://github.com/FlutterOH/source.git`
+- [Official source data](https://github.com/FlutterOH/source.git)
 
 ## License
 
