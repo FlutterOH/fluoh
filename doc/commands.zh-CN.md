@@ -291,11 +291,16 @@ GitHub pull request URL。命令会校验 Source 文件，识别变更的 Manife
 release tag，读取每个 tag 下 Package manifest 记录的分支，并在 tag 固化的提交上运行
 `fluoh package check --package <name> --json`。它不会导入 Package metadata，也不会写
 Source 文件；生成或更新 Source release 数据应使用 `fluoh source sync`。JSON 输出包含
-`recommendation`、`errors`、`warnings`、`checkedManifests` 和 `releaseChecks`。
-默认按 `--base-ref` 识别变更 Manifest；定时任务或 release gate 需要检查所有 Manifest
-route 时传 `--all`。`--all` 和 `--base-ref` 不能同时使用。`ready` 只表示技术检查通过，
-`blocked` 表示修复 errors 前不应合并，`needs-maintainer-decision` 表示需要人工判断。
-Pull request 自动化应把它作为 check + comment 使用；最终 approval 和 merge 仍由维护者负责。
+`recommendation`、`errors`、`warnings`、`checkedManifests`、`changedFiles`
+和 `releaseChecks`。默认按 `--base-ref` 识别变更 Manifest 文件。只有 Source 根
+`fluoh.yaml` 变更时，命令会比较 base ref 和 HEAD 的 Manifest route 名，只检查新增或
+删除的 route，不会因为 SDK-only 根元数据变更而展开检查所有 Manifest。目标不是 Git
+worktree 或 diff 无法读取时，会退回检查所有 Manifest route，并报告 warning。定时任务或
+release gate 需要检查所有 Manifest route 时传 `--all`；只想校验 Source YAML 和变更 route
+选择、不克隆 Package 仓库时传 `--skip-release-checks`。`--all` 和 `--base-ref` 不能同时使用。
+`ready` 只表示技术检查通过，`blocked` 表示修复 errors 前不应合并，
+`needs-maintainer-decision` 表示需要人工判断。Pull request 自动化应把它作为
+check + comment 使用；最终 approval 和 merge 仍由维护者负责。
 
 ## SDK 命令
 

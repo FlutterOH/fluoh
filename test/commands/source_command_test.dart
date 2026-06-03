@@ -1227,6 +1227,139 @@ packages:
     },
   );
 
+  test('source check limits root route changes to added manifests', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/source');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await source.create(recursive: true);
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test source
+
+manifests:
+  - name: path_provider
+  - name: shared_preferences
+''');
+    await _writeSimpleSourceManifest(source, 'path_provider');
+    await _writeSimpleSourceManifest(source, 'shared_preferences');
+    await initializeGitRepository(source);
+
+    await _runGit(source, ['checkout', '-b', 'pr/add-camera']);
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test source
+
+manifests:
+  - name: path_provider
+  - name: shared_preferences
+  - name: camera
+''');
+    await _writeSimpleSourceManifest(source, 'camera');
+    await commitAll(source, message: 'Add camera manifest');
+
+    expect(
+      await runFluoh(
+        [
+          'source',
+          'check',
+          '--base-ref',
+          'main',
+          '--skip-release-checks',
+          '--json',
+          source.path,
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'source check'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('checkedManifests', ['camera']));
+    expect(report['changedFiles'], contains('fluoh.yaml'));
+    expect(report['changedFiles'], contains('manifests/camera/fluoh.yaml'));
+    expect(report['releaseChecks'], isEmpty);
+  });
+
+  test(
+    'source check does not expand sdk-only root changes to manifests',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = Directory('${environment.homeDirectory.path}/source');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await source.create(recursive: true);
+      await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test source
+
+sdk:
+  git:
+    url: https://gitcode.com/CPF-Flutter/flutter_flutter.git
+  versions:
+    - 3.35.8-ohos-0.0.3
+
+manifests:
+  - name: path_provider
+  - name: shared_preferences
+''');
+      await _writeSimpleSourceManifest(source, 'path_provider');
+      await _writeSimpleSourceManifest(source, 'shared_preferences');
+      await initializeGitRepository(source);
+
+      await _runGit(source, ['checkout', '-b', 'pr/add-sdk']);
+      await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: Test source
+
+sdk:
+  git:
+    url: https://gitcode.com/CPF-Flutter/flutter_flutter.git
+  versions:
+    - 3.35.8-ohos-1.0.1
+    - 3.35.8-ohos-0.0.3
+
+manifests:
+  - name: path_provider
+  - name: shared_preferences
+''');
+      await commitAll(source, message: 'Add SDK release');
+
+      expect(
+        await runFluoh(
+          ['source', 'check', '--base-ref', 'main', '--json', source.path],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stderr, isEmpty);
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'source check'));
+      expect(report, containsPair('ok', true));
+      expect(report, containsPair('checkedManifests', isEmpty));
+      expect(report['changedFiles'], contains('fluoh.yaml'));
+      expect(report['releaseChecks'], isEmpty);
+      expect(
+        report['warnings'],
+        contains('No changed Source manifests were found.'),
+      );
+    },
+  );
+
   test('source check reports source validation failures as json', () async {
     final environment = await createTestEnvironment();
     final source = Directory('${environment.homeDirectory.path}/source');
@@ -2495,6 +2628,40 @@ sdk:
     expect(stderr.join('\n'), contains('Source broken is not valid'));
     expect(stderr.join('\n'), contains('sdk versions must be a YAML list'));
   });
+}
+
+Future<void> _writeSimpleSourceManifest(
+  Directory source,
+  String manifestName,
+) async {
+  final manifest = File('${source.path}/manifests/$manifestName/fluoh.yaml');
+  await manifest.parent.create(recursive: true);
+  await manifest.writeAsString('''
+schema: 1
+kind: manifest
+name: $manifestName
+
+repository:
+  git:
+    url: file:${source.path}/../${manifestName}_repo
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages
+    branch: main
+
+packages:
+  $manifestName:
+    repository:
+      path: packages/$manifestName/$manifestName
+    upstream:
+      path: packages/$manifestName/$manifestName
+    sdks:
+      "3.35":
+        releases:
+          - version: "1"
+            upstreamVersion: "1.0.0"
+''');
 }
 
 Future<void> _writePackageManifest(

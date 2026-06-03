@@ -1,6 +1,6 @@
 ---
 name: fluoh
-description: Use this skill when adapting Flutter apps or Flutter package repositories to FlutterOH/OHOS with the fluoh CLI. Trigger for requests like making a project support OHOS, adapting a third-party Flutter package for FlutterOH, running fluoh doctor/verify/build/run diagnostics, interpreting fluoh JSON nextCommand/diagnostics, or producing a FlutterOH adaptation report.
+description: Use this skill when adapting Flutter apps or Flutter package repositories to FlutterOH/OHOS with the fluoh CLI, or when maintaining FlutterOH Source data with fluoh source checks. Trigger for requests like making a project support OHOS, adapting a third-party Flutter package for FlutterOH, running fluoh doctor/verify/build/run/source check diagnostics, interpreting fluoh JSON nextCommand/diagnostics, prechecking a FlutterOH/source pull request, or producing a FlutterOH adaptation report.
 ---
 
 # fluoh
@@ -91,6 +91,12 @@ Then:
   repository, then use the Package Adaptation Flow.
 - "Continue/fix/check <package-name>": run preflight with
   `--package <package-name>` when the repository has multiple packages.
+- "Check/precheck/review a FlutterOH Source PR": use the Source Maintenance
+  Flow. Treat the result as deterministic technical evidence, not as an AI
+  approval decision.
+- "Maintain/update Source data": use `fluoh source validate`, `source sync`,
+  and `source check`; do not edit generated release records when `source sync`
+  is the right source of truth.
 - "Only check/review": stop after read-only commands and dry-runs; do not apply
   `deps fix`, writes, releases, pushes, or destructive Git operations.
 
@@ -404,6 +410,44 @@ Rules:
   `fluoh run --platform android|ios|macos --package <name> --json`.
 - Do not run real `fluoh package release`, push, force-push, or destructive Git
   commands unless the user explicitly asks.
+
+## Source Maintenance Flow
+
+Use this when the user asks to check a FlutterOH Source checkout, precheck a
+FlutterOH/source pull request, or validate Source data after syncing released
+Package repositories.
+
+```sh
+fluoh source validate [path]
+fluoh source check <source-pr-url> --json
+fluoh source check . --json
+fluoh source check . --all --json
+```
+
+Rules:
+
+- `fluoh source check` is read-only. It validates Source YAML, computes changed
+  Manifest routes from Git when possible, and verifies declared Package release
+  tags with `fluoh package check --package <name> --json`.
+- For pull requests, pass the GitHub PR URL directly when available. The command
+  clones the Source repository and fetches the PR ref through Git; it does not
+  need an AI agent or GitHub API to decide the technical result.
+- By default, check only Manifest files changed from `--base-ref`. If only the
+  Source root `fluoh.yaml` changed, fluoh compares Manifest route names between
+  the base ref and HEAD, checks only added or removed routes, and does not turn
+  SDK-only root metadata changes into full Manifest verification.
+- Use `--all` for scheduled release-gate jobs and `--skip-release-checks` when
+  the workflow should validate YAML and changed-route selection without cloning
+  Package repositories.
+- Read the JSON `recommendation`, `errors`, `warnings`, `changedFiles`,
+  `checkedManifests`, and `releaseChecks`. `ready` means technical checks pass,
+  `blocked` means fix errors before merge, and `needs-maintainer-decision`
+  means a human maintainer must decide.
+- Source PR automation should publish the JSON summary as a check or comment.
+  Do not approve, merge, push, or rewrite Source data automatically.
+- Use `fluoh source sync [path]` only to import release records from already
+  released FlutterOH Package repositories. Routing, advisory, and maintenance
+  metadata remain direct Source/Manifest YAML edits.
 
 ## JSON Diagnostics
 

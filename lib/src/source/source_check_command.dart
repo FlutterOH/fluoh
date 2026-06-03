@@ -219,12 +219,18 @@ class SourceCheckCommand extends FluohCommand<int> {
           ? await _defaultBaseRef(source)
           : baseRefOption;
       final diffResult = checkAll
-          ? const _ChangedFilesResult(files: [], warnings: [])
+          ? const _ChangedFilesResult(
+              files: [],
+              warnings: [],
+              checkAllManifests: true,
+            )
           : await _changedFiles(source, baseRef!);
       final manifestNames = await _changedManifestNames(
         source,
         diffResult.files,
         all: checkAll,
+        baseRef: baseRef,
+        checkAllManifests: diffResult.checkAllManifests,
       );
       final manifests = <_CheckedSourceManifest>[];
       for (final name in manifestNames) {
@@ -408,6 +414,7 @@ class SourceCheckCommand extends FluohCommand<int> {
     if (!inside.ok || inside.stdout.trim() != 'true') {
       return const _ChangedFilesResult(
         files: [],
+        checkAllManifests: true,
         warnings: [
           'Source path is not a Git worktree; checking all manifest routes.',
         ],
@@ -430,6 +437,7 @@ class SourceCheckCommand extends FluohCommand<int> {
     if (!result.ok) {
       return _ChangedFilesResult(
         files: const [],
+        checkAllManifests: true,
         warnings: [
           'Could not diff against $baseRef; checking all manifest routes.',
         ],
@@ -441,6 +449,7 @@ class SourceCheckCommand extends FluohCommand<int> {
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
           .toList(growable: false),
+      checkAllManifests: false,
       warnings: const [],
     );
   }
@@ -449,9 +458,11 @@ class SourceCheckCommand extends FluohCommand<int> {
     Directory source,
     List<String> changedFiles, {
     required bool all,
+    required String? baseRef,
+    required bool checkAllManifests,
   }) async {
     final names = <String>{};
-    var rootChanged = all || changedFiles.isEmpty;
+    var rootChanged = false;
     for (final file in changedFiles) {
       if (file == 'fluoh.yaml') {
         rootChanged = true;
@@ -461,18 +472,68 @@ class SourceCheckCommand extends FluohCommand<int> {
         names.add(match.group(1)!);
       }
     }
-    if (names.isEmpty || rootChanged) {
-      try {
-        final sourceManifest = await SourceIndex.directory(
-          source,
-        ).loadRootManifest();
-        names.addAll(sourceManifest.manifests.map((route) => route.name));
-      } on Object {
-        // Source validation reports invalid root manifests. Keep diff-derived
-        // names when available so the JSON still points to useful context.
+
+    if (all || checkAllManifests) {
+      names.addAll(await _allRootManifestNames(source));
+    } else if (rootChanged) {
+      final changedRoutes = baseRef == null
+          ? null
+          : await _changedRootManifestRoutes(source, baseRef);
+      if (changedRoutes == null) {
+        names.addAll(await _allRootManifestNames(source));
+      } else {
+        names.addAll(changedRoutes);
       }
     }
     return names.toList(growable: false)..sort();
+  }
+
+  Future<List<String>> _allRootManifestNames(Directory source) async {
+    try {
+      final sourceManifest = await SourceIndex.directory(
+        source,
+      ).loadRootManifest();
+      return sourceManifest.manifests
+          .map((route) => route.name)
+          .toList(growable: false);
+    } on Object {
+      // Source validation reports invalid root manifests. Keep diff-derived
+      // names when available so the JSON still points to useful context.
+      return const [];
+    }
+  }
+
+  Future<List<String>?> _changedRootManifestRoutes(
+    Directory source,
+    String baseRef,
+  ) async {
+    final baseContent = await _runProcess([
+      'git',
+      'show',
+      '$baseRef:fluoh.yaml',
+    ], workingDirectory: source);
+    if (!baseContent.ok) {
+      return null;
+    }
+
+    try {
+      final baseManifest = parseSourceRootManifest(baseContent.stdout);
+      final headManifest = await SourceIndex.directory(
+        source,
+      ).loadRootManifest();
+      final baseRoutes = {
+        for (final route in baseManifest.manifests) route.name,
+      };
+      final headRoutes = {
+        for (final route in headManifest.manifests) route.name,
+      };
+      return {
+        ...baseRoutes.difference(headRoutes),
+        ...headRoutes.difference(baseRoutes),
+      }.toList(growable: false)..sort();
+    } on Object {
+      return null;
+    }
   }
 
   Future<_CheckedSourceManifest> _readCheckedManifest(
@@ -1012,10 +1073,15 @@ class _SourceValidationCheck {
 }
 
 class _ChangedFilesResult {
-  const _ChangedFilesResult({required this.files, required this.warnings});
+  const _ChangedFilesResult({
+    required this.files,
+    required this.warnings,
+    required this.checkAllManifests,
+  });
 
   final List<String> files;
   final List<String> warnings;
+  final bool checkAllManifests;
 }
 
 class _CheckedSourceManifest {

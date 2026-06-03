@@ -354,13 +354,20 @@ manifest branch at each tag, and runs
 `fluoh package check --package <name> --json` at the tagged commits. It does not
 import Package metadata or write Source files; use `fluoh source sync` for that.
 The JSON output includes `recommendation`, `errors`, `warnings`,
-`checkedManifests`, and `releaseChecks`. By default the command checks
-Manifests changed from `--base-ref`; pass `--all` for scheduled or release-gate
-jobs that should check every Manifest route. `--all` and `--base-ref` are
-mutually exclusive. Treat `ready` as a technical check pass, `blocked` as
-non-mergeable until errors are fixed, and `needs-maintainer-decision` as a
-manual decision signal. Pull request automation should use the command as a
-check plus comment; final approval and merge remain maintainer-owned.
+`checkedManifests`, `changedFiles`, and `releaseChecks`. By default the command
+checks Manifest files changed from `--base-ref`. When only the Source root
+`fluoh.yaml` changed, it compares Manifest route names between the base ref and
+HEAD, checks only added or removed routes, and does not expand SDK-only root
+metadata changes to every Manifest. If the target is not a Git worktree or the
+diff cannot be read, it falls back to every Manifest route and reports a
+warning. Pass `--all` for scheduled or release-gate jobs that should check
+every Manifest route, and pass `--skip-release-checks` when CI should validate
+Source YAML and changed-route selection without cloning Package repositories.
+`--all` and `--base-ref` are mutually exclusive. Treat `ready` as a technical
+check pass, `blocked` as non-mergeable until errors are fixed, and
+`needs-maintainer-decision` as a manual decision signal. Pull request automation
+should use the command as a check plus comment; final approval and merge remain
+maintainer-owned.
 
 ## SDK Commands
 

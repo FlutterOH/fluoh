@@ -205,4 +205,4 @@ git commit -m "feat(package): initialize FlutterOH package"
 - `fluoh package check` 不会创建或推送 tag。
 - `fluoh package release` 只会在同一套校验和验证通过后创建 tag。
 
-FlutterOH package 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 package 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。已发布 FlutterOH package 应通过 FlutterOH/source PR 注册，PR 和定时 package 拉取流程都应调用同一套 source 命令路径。
+FlutterOH package 仓库的 release 命令不得直接写入 source 元数据。发布记录通过 `fluoh source sync` 从已发布 package 仓库生成；路由、advisory 和 maintenance 元数据直接编辑 Source 和 Manifest YAML。FlutterOH/source pull request 应运行 `fluoh source check <source-pr-url> --json`，或在本地 checkout 中运行 `fluoh source check . --json`；定时 release-gate 任务可以使用 `fluoh source check . --all --json`。source check 输出只作为技术 check/comment 信号；approval 和 merge 决策仍由维护者手动完成。

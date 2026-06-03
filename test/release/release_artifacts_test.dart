@@ -153,6 +153,7 @@ void main() {
     expect(skill, contains('## Complete AI Evidence Loop'));
     expect(skill, contains('## Package Adaptation Flow'));
     expect(skill, contains('## Automatic Adaptation Command Flow'));
+    expect(skill, contains('## Source Maintenance Flow'));
     expect(skill, contains('## User Request Routing'));
     expect(skill, contains('## CLI Setup'));
     expect(skill, contains('finalCheckCommands'));
@@ -167,6 +168,12 @@ void main() {
     expect(skill, contains('skillVersion'));
     expect(skill, contains('upgradePrompt'));
     expect(skill, contains('fluoh deps check --json'));
+    expect(skill, contains('fluoh source check <source-pr-url> --json'));
+    expect(skill, contains('fluoh source check . --all --json'));
+    expect(skill, contains('--skip-release-checks'));
+    expect(skill, contains('changedFiles'));
+    expect(skill, contains('checkedManifests'));
+    expect(skill, contains('releaseChecks'));
     expect(skill, contains('fluoh package docs refresh'));
     expect(skill, contains('fluoh build --platform ohos --auto-sign --json'));
     expect(
@@ -194,12 +201,12 @@ void main() {
     expect(openai, contains('display_name: "fluoh"'));
     expect(
       openai,
-      contains('short_description: "FlutterOH/OHOS adaptation workflow"'),
+      contains('short_description: "FlutterOH adaptation and Source checks"'),
     );
     expect(
       openai,
       contains(
-        'default_prompt: "Use \$fluoh to install fluoh if needed and adapt this Flutter project or package for OHOS."',
+        'default_prompt: "Use \$fluoh to install fluoh if needed, adapt this Flutter project or package for OHOS, or precheck this FlutterOH Source change."',
       ),
     );
 
@@ -586,6 +593,9 @@ void main() {
       'fluoh source list',
       'fluoh source sync [path]',
       'fluoh source check [source]',
+      'changedFiles',
+      '--skip-release-checks',
+      'SDK-only root',
       'fluoh sdk list',
       'fluoh sdk current',
       'fluoh sdk use <version-or-series>',
@@ -671,6 +681,9 @@ void main() {
       'fluoh source list',
       'fluoh source sync [path]',
       'fluoh source check [source]',
+      'changedFiles',
+      '--skip-release-checks',
+      'SDK-only 根',
       'fluoh sdk list',
       'fluoh sdk current',
       'fluoh sdk use <version-or-series>',
