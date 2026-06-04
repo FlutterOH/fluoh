@@ -29,6 +29,8 @@ Future<Directory> createPackageRepositoryFixture(
       'package',
       'create',
       upstream.path,
+      '--repository-name',
+      'camera',
       '--output',
       packageRepository.path,
       '--sdk',
@@ -38,9 +40,23 @@ Future<Directory> createPackageRepositoryFixture(
     stdout: stdout.add,
     stderr: stderr.add,
   );
+  await writeReadyPackageChangelog(packageRepository);
   await commitGeneratedPackageRepository(packageRepository);
 
   return packageRepository;
+}
+
+Future<void> writeReadyPackageChangelog(
+  Directory packageRepository, {
+  String tag = 'camera-0.11.0-ohos-3.35-0.1.0',
+}) async {
+  await File('${packageRepository.path}/FLUOH_CHANGELOG.md').writeAsString('''
+# FlutterOH Changelog
+
+## $tag
+
+- Add verified FlutterOH/OHOS release notes for the fixture package.
+''');
 }
 
 Future<void> commitGeneratedPackageRepository(

@@ -50,8 +50,12 @@ class SdkProjectEnvironment {
     await linkRoot.create(recursive: true);
     final link = Link('${linkRoot.path}/flutter_sdk');
     await _replaceWithLink(link, sdkDirectory);
-    await _ensureGitIgnoreEntry('.fluoh/');
-    await _ensureGitIgnoreEntry('flutter_*.log');
+    await _ensureGitIgnoreEntries(
+      const _GitIgnoreSection(
+        comment: 'fluoh local state',
+        entries: ['.fluoh/', 'flutter_*.log'],
+      ),
+    );
     return Directory(link.path);
   }
 
@@ -108,23 +112,50 @@ class SdkProjectEnvironment {
     await link.create(target.path);
   }
 
-  Future<void> _ensureGitIgnoreEntry(String entry) async {
+  Future<void> _ensureGitIgnoreEntries(_GitIgnoreSection section) async {
     final gitignore = File('${environment.workingDirectory.path}/.gitignore');
+    final block = section.toBlock();
     if (!await gitignore.exists()) {
-      await gitignore.writeAsString('$entry\n');
+      await gitignore.writeAsString('$block\n');
       return;
     }
 
     final content = await gitignore.readAsString();
-    final exists = content
+    final existingLines = content
         .split(RegExp(r'\r?\n'))
         .map((line) => line.trim())
-        .contains(entry);
-    if (exists) {
+        .toSet();
+    final missing = [
+      for (final entry in section.entries)
+        if (!existingLines.contains(entry)) entry,
+    ];
+    if (missing.isEmpty) {
       return;
     }
 
-    final separator = content.isEmpty || content.endsWith('\n') ? '' : '\n';
-    await gitignore.writeAsString('$content$separator$entry\n');
+    final separator = content.isEmpty
+        ? ''
+        : content.endsWith('\n')
+        ? '\n'
+        : '\n\n';
+    await gitignore.writeAsString(
+      '$content$separator${section.copyWith(entries: missing).toBlock()}\n',
+    );
   }
+}
+
+class _GitIgnoreSection {
+  const _GitIgnoreSection({required this.comment, required this.entries});
+
+  final String comment;
+  final List<String> entries;
+
+  _GitIgnoreSection copyWith({List<String>? entries}) {
+    return _GitIgnoreSection(
+      comment: comment,
+      entries: entries ?? this.entries,
+    );
+  }
+
+  String toBlock() => ['# $comment', ...entries].join('\n');
 }

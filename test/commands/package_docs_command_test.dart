@@ -9,32 +9,40 @@ import '../helpers/package_test_context.dart';
 
 void main() {
   test(
-    'refresh replaces legacy generated blocks and preserves user content',
+    'refresh replaces generated blocks and preserves user content',
     () async {
       final environment = await createTestEnvironment();
       final packageRepository = await createPackageRepositoryFixture(
         environment,
       );
       final guide = File('${packageRepository.path}/FLUOH.md');
+      final agents = File('${packageRepository.path}/AGENTS.md');
       await guide.writeAsString('''
 # Local Notes
 
 Keep this hand-written note.
 
-<!-- fluoh:generated:start -->
+<!-- fluoh:generated:start id=package-implementation-guide template=1 -->
 # Old Generated Guidance
-<!-- fluoh:generated:end -->
+<!-- fluoh:generated:end id=package-implementation-guide -->
 
 ## Maintainer Notes
 
 Keep this footer.
 ''');
-      await runGit(packageRepository, ['add', 'FLUOH.md']);
-      await runGit(packageRepository, [
-        'commit',
-        '-m',
-        'Add legacy generated guide',
-      ]);
+      await agents.writeAsString('''
+# Upstream Agent Notes
+
+Keep the public Dart API stable.
+
+<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
+## Working Rules
+
+Old generated agent guidance.
+<!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+      await runGit(packageRepository, ['add', 'FLUOH.md', 'AGENTS.md']);
+      await runGit(packageRepository, ['commit', '-m', 'Add generated guide']);
       final stdout = <String>[];
       final stderr = <String>[];
       final packageEnvironment = FluohEnvironment(
@@ -60,7 +68,7 @@ Keep this footer.
         content,
         contains(
           '<!-- fluoh:generated:start id=package-implementation-guide '
-          'version=1 -->',
+          'template=1 -->',
         ),
       );
       expect(
@@ -75,7 +83,16 @@ Keep this footer.
           '<!-- fluoh:generated:end id=package-implementation-guide -->',
         ),
       );
+      final agentsContent = agents.readAsStringSync();
+      expect(agentsContent, contains('# Upstream Agent Notes'));
+      expect(agentsContent, contains('Keep the public Dart API stable.'));
+      expect(agentsContent, contains('## FlutterOH/OHOS Adaptation'));
+      expect(agentsContent, contains('follow `FLUOH.md`'));
+      expect(agentsContent, isNot(contains('## Working Rules')));
+      expect(agentsContent, isNot(contains('Old generated agent guidance')));
+      expect(agentsContent, isNot(contains('# AGENTS.md')));
       final status = await runGit(packageRepository, ['status', '--porcelain']);
+      expect(status.stdout.toString(), contains(' M AGENTS.md'));
       expect(status.stdout.toString(), contains(' M FLUOH.md'));
       expect(status.stdout.toString(), isNot(contains('M  FLUOH.md')));
       expect(stdout, contains('Refreshed package docs'));
@@ -137,7 +154,7 @@ Keep this footer.
     expect(result, 0);
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'package docs refresh'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -159,8 +176,8 @@ Keep this footer.
       final manifest = File('${packageRepository.path}/fluoh.yaml');
       await manifest.writeAsString(
         manifest.readAsStringSync().replaceFirst(
-          'upstreamVersion: 0.11.0',
-          'upstreamVersion: 0.11.1',
+          '    upstream:\n      version: 0.11.0',
+          '    upstream:\n      version: 0.11.1',
         ),
       );
       await runGit(packageRepository, ['add', 'fluoh.yaml']);
@@ -186,14 +203,16 @@ Keep this footer.
       expect(result, 0);
       expect(stdout, contains('Refreshed package docs'));
       expect(stdout.join('\n'), contains('FLUOH.md'));
-      expect(stdout.join('\n'), contains('AGENTS.md'));
+      expect(stdout.join('\n'), isNot(contains('AGENTS.md')));
       expect(
         File('${packageRepository.path}/FLUOH.md').readAsStringSync(),
         contains('- Upstream version: `0.11.1`'),
       );
       expect(
         File('${packageRepository.path}/AGENTS.md').readAsStringSync(),
-        contains('- Upstream version: `0.11.1`.'),
+        contains(
+          'For FlutterOH/OHOS package adaptation tasks, follow `FLUOH.md`.',
+        ),
       );
       expect(stderr, isEmpty);
     },
@@ -228,6 +247,8 @@ Keep this footer.
       final content = changelog.readAsStringSync();
       expect(content, startsWith('# FlutterOH Changelog'));
       expect(content, contains('## camera-0.11.0-ohos-3.35-0.1.0'));
+      expect(content, contains('TODO: Replace this generated placeholder'));
+      expect(content, isNot(contains('Initial OHOS implementation')));
       expect(stdout, contains('Refreshed package docs'));
       expect(stderr, isEmpty);
     },

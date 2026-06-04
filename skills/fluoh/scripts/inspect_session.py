@@ -142,7 +142,7 @@ def build_report(
         )
     ok = not errors
     report: dict[str, Any] = {
-        "schemaVersion": 1,
+        "schema": 1,
         "ok": ok,
         "exitCode": 0 if ok else 1,
         "sessionFile": str(path),

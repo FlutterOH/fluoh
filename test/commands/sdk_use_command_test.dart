@@ -47,6 +47,7 @@ void main() {
     ).readAsStringSync();
     expect(fluohConfig, '''
 schema: 1
+kind: project
 
 sdk:
   version: 3.35.8-ohos-0.0.3
@@ -81,6 +82,12 @@ dependencyPolicy:
     expect(
       link.targetSync(),
       '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+    );
+    expect(
+      File(
+        '${environment.workingDirectory.path}/.gitignore',
+      ).readAsStringSync(),
+      contains('# fluoh local state'),
     );
     expect(
       File(
@@ -153,7 +160,12 @@ dependencyPolicy:
       File(
         '${environment.workingDirectory.path}/.gitignore',
       ).readAsStringSync(),
-      'build/\n.fluoh/\nflutter_*.log\n',
+      '''build/
+
+# fluoh local state
+.fluoh/
+flutter_*.log
+''',
     );
     expect(stderr, isEmpty);
   });
@@ -489,18 +501,28 @@ custom:
     final manifest = File('${environment.workingDirectory.path}/fluoh.yaml');
     await manifest.writeAsString('''
 schema: 1
+kind: package
 sdk:
   version: 3.35.8-ohos-0.0.3
-package:
-  name: camera
-  version: 0.1.0
+
+repository:
   git:
     url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35/camera
+
 upstream:
-  version: 0.11.0
   git:
     url: https://github.com/flutter/packages.git
-    ref: camera-v0.11.0
+    branch: main
+
+package:
+  name: camera
+  release:
+    version: 0.1.0
+    upstream:
+      version: 0.11.0
+      ref: camera-v0.11.0
+      commit: "1111111111111111111111111111111111111111"
 ''');
     final stdout = <String>[];
     final stderr = <String>[];

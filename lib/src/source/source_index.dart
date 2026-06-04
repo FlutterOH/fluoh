@@ -60,11 +60,13 @@ class SourceIndex {
   Future<PackageIndex> loadPackageIndex({
     Set<String>? packageNames,
     Set<String>? manifestNames,
+    Set<String> releaseStatuses = compatibleDependencyReleaseStatuses,
   }) async {
     return packageIndexFromManifests(
       await _readSourcePackageManifests(
         packageNames: packageNames,
         manifestNames: manifestNames,
+        releaseStatuses: releaseStatuses,
       ),
     );
   }
@@ -82,11 +84,10 @@ class SourceIndex {
     );
   }
 
-  /// Loads a compact route index of Manifest names to package SDK lines.
+  /// Loads a compact route index of package names to SDK lines.
   Future<SourcePackageRouteIndex> loadPackageRouteIndex() async {
     final source = await loadRootManifest();
     final manifests = <String, SourcePackageRouteManifest>{};
-    final packageOwners = <String, String>{};
     for (final route in source.manifests) {
       final manifestPath = 'manifests/${route.name}/fluoh.yaml';
       final manifest = parseSourceManifest(
@@ -98,34 +99,28 @@ class SourceIndex {
           '$manifestPath name must match source manifest route ${route.name}.',
         );
       }
-      final packages = <String, List<String>>{};
-      for (final packageName in manifest.packages.keys.toList(
-        growable: false,
-      )..sort()) {
-        final existing = packageOwners[packageName];
-        if (existing != null) {
-          throw FluohSchemaException(
-            'Package $packageName appears in both $existing and $manifestPath.',
-          );
-        }
-        packageOwners[packageName] = manifestPath;
-        final package = manifest.packages[packageName]!;
-        final sdkLines =
-            package.sdks.values
-                .where(
-                  (sdk) => sdk.releases.any(
-                    (release) => release.status == 'compatible',
-                  ),
-                )
-                .map((sdk) => sdk.sdkLine)
-                .toSet()
-                .toList(growable: false)
-              ..sort();
-        packages[packageName] = sdkLines;
+      final package = manifest.package;
+      if (package.name != route.name) {
+        throw FluohSchemaException(
+          '$manifestPath package.name must match source manifest route '
+          '${route.name}.',
+        );
       }
+      final sdkLines =
+          package.sdks.values
+              .where(
+                (sdk) => sdk.releases.any(
+                  (release) => release.status == 'compatible',
+                ),
+              )
+              .map((sdk) => sdk.sdkLine)
+              .toSet()
+              .toList(growable: false)
+            ..sort();
       manifests[route.name] = SourcePackageRouteManifest(
         name: route.name,
-        packages: packages,
+        packageName: package.name,
+        sdkLines: sdkLines,
       );
     }
     return SourcePackageRouteIndex(manifests: manifests);
@@ -134,10 +129,10 @@ class SourceIndex {
   Future<List<SourcePackageManifest>> _readSourcePackageManifests({
     Set<String>? packageNames,
     Set<String>? manifestNames,
+    Set<String> releaseStatuses = compatibleDependencyReleaseStatuses,
   }) async {
     final source = await loadRootManifest();
     final manifests = <SourcePackageManifest>[];
-    final packageOwners = <String, String>{};
     for (final route in source.manifests) {
       if (manifestNames != null && !manifestNames.contains(route.name)) {
         continue;
@@ -152,19 +147,17 @@ class SourceIndex {
           '$manifestPath name must match source manifest route ${route.name}.',
         );
       }
-      for (final package in manifest.packages.keys) {
-        final existing = packageOwners[package];
-        if (existing != null) {
-          throw FluohSchemaException(
-            'Package $package appears in both $existing and $manifestPath.',
-          );
-        }
-        packageOwners[package] = manifestPath;
+      if (manifest.package.name != route.name) {
+        throw FluohSchemaException(
+          '$manifestPath package.name must match source manifest route '
+          '${route.name}.',
+        );
       }
       manifests.addAll(
         sourcePackageManifestsFromManifest(
           manifest,
           packageNames: packageNames,
+          releaseStatuses: releaseStatuses,
         ),
       );
     }
@@ -172,12 +165,12 @@ class SourceIndex {
   }
 }
 
-/// Index of package route data for all Manifests in a Source.
+/// Index of package route data for all package Manifests in a Source.
 class SourcePackageRouteIndex {
   /// Creates an index of package route Manifests.
   const SourcePackageRouteIndex({required this.manifests});
 
-  /// Manifests keyed by route name.
+  /// Package Manifests keyed by route name.
   final Map<String, SourcePackageRouteManifest> manifests;
 }
 
@@ -186,12 +179,16 @@ class SourcePackageRouteManifest {
   /// Creates package route data for one Manifest.
   const SourcePackageRouteManifest({
     required this.name,
-    required this.packages,
+    required this.packageName,
+    required this.sdkLines,
   });
 
   /// Manifest route name.
   final String name;
 
-  /// Package names mapped to SDK lines with compatible releases.
-  final Map<String, List<String>> packages;
+  /// Package name exposed by this route.
+  final String packageName;
+
+  /// SDK lines with compatible releases.
+  final List<String> sdkLines;
 }

@@ -37,6 +37,8 @@ void main() {
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -53,12 +55,12 @@ void main() {
       // Verify repository structure.
       final manifest = File('${packageRepository.path}/fluoh.yaml');
       expect(manifest.existsSync(), isTrue);
-      expect(manifest.readAsStringSync(), contains('packages:\n  camera:'));
+      expect(manifest.readAsStringSync(), contains('package:\n  name: camera'));
       final branch = await runGit(packageRepository, [
         'branch',
         '--show-current',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
 
       // Phase 2: deps check in a Flutter project that uses the package.
       await writeFlutterProjectFixture(environment.workingDirectory);
@@ -79,7 +81,7 @@ void main() {
         0,
       );
       final checkReport = jsonDecode(stdout.last) as Map<String, Object?>;
-      expect(checkReport, containsPair('schemaVersion', 1));
+      expect(checkReport, containsPair('schema', 1));
       expect(checkReport, containsPair('command', 'deps check'));
       final checkDeps = checkReport['dependencies'] as List<Object?>;
       expect(
@@ -126,7 +128,7 @@ void main() {
         0,
       );
       final verifyReport = jsonDecode(stdout.last) as Map<String, Object?>;
-      expect(verifyReport, containsPair('schemaVersion', 1));
+      expect(verifyReport, containsPair('schema', 1));
       expect(verifyReport, containsPair('command', 'verify'));
       expect(verifyReport, containsPair('ok', true));
       final targets = verifyReport['targets'] as List<Object?>;
@@ -136,6 +138,12 @@ void main() {
       final target = packageTarget['target'] as Map<String, Object?>;
       expect(target, containsPair('kind', 'package'));
       expect(target, containsPair('name', 'camera'));
+
+      await writeReadyPackageChangelog(packageRepository);
+      await commitGeneratedPackageRepository(
+        packageRepository,
+        message: 'Write FlutterOH release notes',
+      );
 
       // Phase 5: Release check validates without creating tags.
       stdout.clear();
@@ -149,7 +157,7 @@ void main() {
         0,
       );
       final releaseReport = jsonDecode(stdout.last) as Map<String, Object?>;
-      expect(releaseReport, containsPair('schemaVersion', 1));
+      expect(releaseReport, containsPair('schema', 1));
       expect(releaseReport, containsPair('command', 'package check'));
       expect(releaseReport, containsPair('ok', true));
       expect(releaseReport, containsPair('dryRun', true));

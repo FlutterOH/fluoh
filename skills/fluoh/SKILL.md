@@ -19,7 +19,7 @@ standard library and do not replace the `fluoh --json` diagnostic contract.
 - Preflight:
   `python3 <skill-dir>/scripts/preflight.py <project-path> [--package <name>]`
   prints one JSON object with the installed `fluoh --version` result, workspace
-  kind, Git state, registered packages, package example platforms, selected
+  kind, Git state, package branch metadata, package example platforms, selected
   package, selected SDK, upgrade checks, suggested next commands, and
   `reportCommand`. It is read-only.
 - Report skeleton:
@@ -63,27 +63,50 @@ Then:
 1. Install the `fluoh` CLI if it is missing.
 2. Run read-only preflight when possible.
 3. For package adaptation, resolve setup values before any mutating package
-   command or implementation edit: the FlutterOH package `repository` URL or
-   path, `git-author-name`, `git-author-email`, SDK line, package selection, and
-   output path. Use user-provided values, `fluoh.yaml`, local Git config, or
-   documented defaults. Ask only when a required value is missing, contradictory,
-   or would change public repository or author identity; otherwise proceed and
-   record the resolved values in progress output and the report.
-4. Inspect preflight `upgradeChecks`. Stop for schema migration blockers. If
+   command or implementation edit: the FlutterOH package repository name,
+   `repository` URL or path, `git-author-name`, `git-author-email`, SDK line,
+   package selection, and output path. `fluoh package create` always requires
+   `--repository-name`; for a single selected monorepo package, the CLI can
+   suggest a path-based candidate when `--repository-name` is missing, but the
+   agent must still pass an explicit resolved name. Treat `repository`, Git
+   author identity, SDK line, package selection, and output path as AI
+   automation setup inputs: use
+   user-provided values, `fluoh.yaml`, local Git config only after the user
+   explicitly agrees to reuse it, or documented defaults that do not change
+   public identity. Ask when any setup input is missing or contradictory; do not
+   run `fluoh package create` with guessed repository URLs or author identity.
+   Record the resolved values in progress output and the report. Prefer
+   `fluoh package create <upstream> --repository-name <repository-name> --plan
+   --json` to generate the final setup confirmation payload before any writes.
+4. After CLI setup and read-only preflight, before making project, package, or
+   Source file changes, local Git configuration changes, checkpoint commits, or
+   implementation edits, present a final setup confirmation and wait for
+   explicit user approval. The confirmation must list the adaptation kind,
+   working directory, output directory when applicable, SDK version or line,
+   package name and path when applicable, FlutterOH repository URL or path, Git
+   author identity when commits may be created, the mutating commands or file
+   edits that will run, and operations that will not run without separate
+   approval such as release, push, force-push, or destructive Git commands. You
+   may skip this pause only when the user already explicitly approved the same
+   resolved setup in the current task.
+5. Inspect preflight `upgradeChecks`. Stop for schema migration blockers. If
    package generated docs are stale, or preflight could not confirm them with
    dry-run, run `fluoh package docs refresh --dry-run`; then run
    `fluoh package docs refresh` before implementation edits when the worktree is
    clean and the task is not review-only.
-5. Create a package repository with `fluoh package create <upstream>` only when
-   the user provided an upstream Git URL and no package repository exists, and
-   pass resolved `--repository`, `--git-author-name`, and `--git-author-email`
-   values when available.
-6. Route to the app or package flow from preflight JSON.
-7. Run `fluoh` commands in JSON mode whenever supported, then inspect
+6. Create a package repository with
+   `fluoh package create <upstream> --repository-name <repository-name>` only
+   when the user provided an upstream Git URL, no package repository exists, and
+   the setup gate is complete. For AI-driven creation, always pass resolved
+   `--repository`, `--git-author-name`, and `--git-author-email` values; these
+   are optional CLI conveniences for manual users, not optional automation
+   inputs.
+7. Route to the app or package flow from preflight JSON.
+8. Run `fluoh` commands in JSON mode whenever supported, then inspect
    `nextCommand`, `diagnostics`, and log tails before editing.
-8. Make the smallest code or project-file changes needed for the next clean
+9. Make the smallest code or project-file changes needed for the next clean
    verification result.
-9. Verify and write the completion report before the final response.
+10. Verify and write the completion report before the final response.
 
 ## User Request Routing
 
@@ -99,7 +122,8 @@ Then:
 - "Adapt this Git URL/package for FlutterOH": create or enter a package
   repository, then use the Package Adaptation Flow.
 - "Continue/fix/check <package-name>": run preflight with
-  `--package <package-name>` when the repository has multiple packages.
+  `--package <package-name>` to confirm the requested package matches the
+  current package branch.
 - "Check/precheck/review a FlutterOH Source PR": use the Source Maintenance
   Flow. Treat the result as deterministic technical evidence, not as an AI
   approval decision.
@@ -130,24 +154,40 @@ Then:
    - Upstream Flutter package: `project.kind: flutter-package`; create a
      FlutterOH package repository first and do not add OHOS implementation files
      directly in the upstream checkout.
-   - Package adaptation repo: `fluoh.yaml` registers `packages`.
+   - Package adaptation repo: `fluoh.yaml` has `kind: package` and a
+     single `package` entry for the current branch.
    - Dart package/tooling repo: `project.kind: dart-package`; do not run App or
      Package adaptation commands unless the user points to a Flutter project or
      package.
    - New package adaptation: user provides an upstream Git URL and no generated
      package repository exists yet.
 4. Before package adaptation writes or package repository creation, resolve the
-   adaptation setup. For a new repository, derive or use `repository`,
-   `git-author-name`, `git-author-email`, SDK line, selected package paths, and
-   output path. For an existing package repository, read `repository.git.url`
+   adaptation setup. For a new repository, derive or use `repository-name`,
+   `repository`, `git-author-name`, `git-author-email`, SDK line, selected
+   package path, and output path, then pass the resolved repository name as
+   `fluoh package create <upstream> --repository-name <repository-name>`. For a
+   single selected monorepo package, a missing-name CLI error can provide a
+   suggested name from the package path, but do not rely on implicit naming. For
+   AI-driven new repository creation, use the resolved repository name to form
+   or confirm the output directory, commonly `../packages/<repository-name>`
+   when the user requested a sibling `packages` directory. For an existing
+   package repository, read
+   `repository.git.url`
    from `fluoh.yaml` and `git config --local --get user.name` / `user.email`.
-   Ask only for missing or contradictory required values, then configure local
-   Git author before creating commits.
-5. If preflight reports `needsPackageSelection: true`, build a package queue
-   when the user asked for the whole repository, otherwise select one package for
-   the current iteration. Rerun preflight with `--package <name>` before running
-   package commands, and finish each package's checkpoints before moving to the
-   next package.
+   Ask for any missing or contradictory setup value. When values are complete,
+   run `fluoh package create <upstream> --repository-name <repository-name>
+   --plan --json` with the same resolved options and use that machine-readable
+   plan as the final setup confirmation. Wait for explicit approval before
+   configuring local Git author, running mutating commands, or editing
+   implementation files.
+5. Treat an omitted package path as root-package selection only; it never means
+   "all packages" for monorepos. A Package `fluoh.yaml` describes one package
+   branch. For multiple package requests, build a package queue and finish one
+   package branch checkpoint sequence before moving to the next package. Use
+   `fluoh package create` for the first package branch and `fluoh package add
+   <package-path>` for additional package branches in the same repository.
+   Rerun preflight with `--package <name>` to confirm the current branch package
+   before running package commands.
 6. Inspect preflight `upgradeChecks` before implementation edits:
    - If `upgradeChecks.schema.status` is `requires-newer-fluoh`, run
      `fluoh upgrade`, rerun `fluoh skill --json` when the agent copied the
@@ -176,12 +216,17 @@ Then:
    already recorded in `fluoh.yaml`; when none is recorded, run `fluoh sdk list`
    and choose the latest stable FlutterOH SDK line.
 10. Treat a request to "adapt", "fix", "make it support OHOS", or "hand it to
-    AI" as authorization to make local code and project-file changes and local
-    checkpoint commits when the workflow needs them. Still ask before public API
-    breaks, non-default release version policy or manual release version
-    overrides, real releases, pushes, or destructive Git operations. Normal
+    AI" as authorization to run CLI setup, read-only preflight, and setup value
+    discovery. It is not authorization to change project files, package
+    repositories, Source files, local Git configuration, or implementation code
+    until the final setup confirmation is approved. After that approval, local
+    code and project-file changes plus local checkpoint commits are allowed when
+    the workflow needs them. Still ask before public API breaks, non-default
+    release version policy or manual release version overrides, real releases,
+    pushes, force-pushes, or destructive Git operations. Normal
     `fluoh package version --bump patch --status ...` metadata updates in the
-    package adaptation flow do not need a separate confirmation.
+    package adaptation flow do not need a second confirmation after the final
+    setup confirmation.
 
 ## CLI Setup
 
@@ -189,7 +234,8 @@ Use this before running workflow commands:
 
 1. Run `fluoh --version`.
 2. If `fluoh` is missing and the user asked to use `$fluoh`, set up fluoh, or
-   adapt a project/package, install the CLI without another confirmation.
+   adapt a project/package, install the CLI without another confirmation. This
+   setup step does not authorize project, package, Source, or Git state changes.
 3. Prefer Dart pub when `dart --version` works:
    `dart pub global activate fluoh`.
 4. If the Dart global install succeeds but `fluoh` is still not on `PATH`, use
@@ -219,9 +265,9 @@ When using `scripts/preflight.py`, route by the returned JSON:
 - `project.kind: flutter-package`: create a FlutterOH package repository from
   the upstream Git URL or local Git repo path, then rerun preflight in the
   generated repository before editing.
-- `project.kind: package-repository`: run the Package Adaptation Flow. When
-  `needsPackageSelection` is true, choose one `project.packages[].name` before
-  running package commands.
+- `project.kind: package-repository`: run the Package Adaptation Flow. Confirm
+  `project.selectedPackage` is the package requested by the user before running
+  package commands.
 - `upgradeChecks`: handle schema and generated-doc upgrade checks before
   implementation edits. Generated `FLUOH.md` and `AGENTS.md` sections are
   tool-owned; do not edit inside `fluoh:generated` blocks by hand.
@@ -312,16 +358,28 @@ When starting from upstream:
 
 ```sh
 fluoh package create <upstream-git-url> --sdk <sdk-version-or-line> \
+  --repository-name <flutteroh-repo-name> \
   --repository <flutteroh-repo-url-or-path> \
-  --git-author-name <name> --git-author-email <email>
+  --git-author-name <name> --git-author-email <email> \
+  --package-path <path>
 cd <generated-repo>
 ```
 
-Before running this command, resolve the repository URL or path recorded for the
-FlutterOH adaptation, the local Git author name and email, the SDK line, package
-paths, and output path. Ask only when a required value is missing or
-contradictory. If author configuration is unavailable, omit both Git author
-options; never pass only one.
+Before running this command, complete the AI setup gate: resolve the FlutterOH
+repository name, output path, repository URL or path recorded for the adaptation,
+local Git author name and email, SDK line, and package paths. Omitted package
+paths mean the root package only, not every package in a monorepo. Ask when any
+value is missing or contradictory. When every value is resolved, first run the
+same command with `--plan --json`; use the returned plan as the final setup
+confirmation and wait for explicit user approval before running
+`fluoh package create`, `fluoh package add`, `fluoh package docs refresh`, or
+implementation edits. For multi-package requests, create a package queue and
+adapt one branch at a time; use `fluoh package add <package-path>` to create
+later package branches from each package's release tag instead of switching
+commits manually. Do not omit Git author options in AI-driven creation; if the
+user wants to reuse local Git config, read it, show the resolved name and email,
+and treat that as the explicit author identity. Never pass only one author
+option.
 
 Then run this loop one package at a time:
 
@@ -338,12 +396,14 @@ fluoh package check --package <name> --json
 
 ## Automatic Adaptation Command Flow
 
-Use this flow as the primary package-adaptation loop. The commands decide when
+Use this flow as the primary package adaptation loop. The commands decide when
 to edit, when to fix local environment, and when work can be handed back.
 
-1. Repository setup: use `fluoh package create <upstream>` for a new package
-   repository with resolved repository and Git author options, use
-   `fluoh package add <package-path>` for additional packages, and use
+1. Repository setup: use
+   `fluoh package create <upstream> --repository-name <repository-name>` for a
+   new package repository with resolved repository and Git author options, use
+   `fluoh package add <package-path>` to create additional package branches,
+   and use
    `fluoh package sync` only after a completed, committed checkpoint when
    upstream needs to be merged.
 2. Baseline gates: run `fluoh deps get`,
@@ -431,8 +491,8 @@ Rules:
 
 - Read generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, and
   `fluoh.yaml` before editing.
-- If the repository has multiple packages, pick one package per iteration unless
-  the user explicitly asks for `--all`.
+- If the user asked for multiple packages, adapt one package branch per
+  iteration; do not combine multiple packages into one `fluoh.yaml`.
 - Preserve upstream public Dart APIs and non-OHOS behavior unless the user
   approves a breaking change.
 - Establish a selected-SDK baseline before adding OHOS code. Fix non-OHOS

@@ -11,7 +11,9 @@ export '../../schema/schema.dart'
         defaultUpstreamBranch,
         dependencyUrlForImplementationRepository,
         flutterOhosBranchForSdk,
+        flutterOhosPackageBranchForSdk,
         initialPackageReleaseVersion,
+        packageManifestKind,
         packageManifestSchema,
         packageReleaseTagForPackage,
         sdkLineFromSdkVersion,
@@ -27,9 +29,7 @@ Future<void> writePackageManifest({
   required String sdkVersion,
   required String branch,
   required String repositoryUrl,
-  String? name,
-  String? dependencyPath,
-  String? upstreamPath,
+  required String upstreamCommit,
   String? upstreamRef,
   String upstreamBranch = defaultUpstreamBranch,
   String releaseVersion = initialPackageReleaseVersion,
@@ -42,10 +42,8 @@ Future<void> writePackageManifest({
     sdkVersion: sdkVersion,
     branch: branch,
     repositoryUrl: repositoryUrl,
-    name: name,
-    repositoryPath: dependencyPath,
-    upstreamPath: upstreamPath,
     upstreamRef: upstreamRef,
+    upstreamCommit: upstreamCommit,
     upstreamBranch: upstreamBranch,
     releaseVersion: releaseVersion,
     status: status,
@@ -63,42 +61,14 @@ Future<void> writePackageManifestFile(
   ).writeAsString(packageManifestContent(manifest));
 }
 
-/// Adds a package entry to an existing package repository manifest file.
-///
-/// Schema validation errors are converted to [UsageException] so command code
-/// can report them consistently with argument validation failures.
-Future<void> addPackageManifestPackage({
-  required Directory destination,
-  required PubspecPackage package,
-  required String packagePath,
-  String? upstreamRef,
-  String releaseVersion = initialPackageReleaseVersion,
-  String status = 'experimental',
-}) async {
-  try {
-    final manifest = await readPackageManifest(destination);
-    await writePackageManifestFile(
-      destination,
-      addPackageToManifest(
-        manifest: manifest,
-        package: package,
-        packagePath: packagePath,
-        upstreamRef: upstreamRef,
-        releaseVersion: releaseVersion,
-        status: status,
-      ),
-    );
-  } on FormatException catch (error) {
-    throw UsageException(error.message, '');
-  }
-}
-
 /// Updates upstream package versions in an existing manifest file.
 ///
 /// Schema validation errors are converted to [UsageException] for CLI callers.
 Future<void> updatePackageManifestUpstream({
   required Directory destination,
   required Map<String, String> packageVersions,
+  String? upstreamCommit,
+  bool clearUpstreamRef = false,
 }) async {
   try {
     final manifest = await readPackageManifest(destination);
@@ -107,6 +77,8 @@ Future<void> updatePackageManifestUpstream({
       updatePackageManifestUpstreamVersions(
         manifest: manifest,
         packageVersions: packageVersions,
+        upstreamCommit: upstreamCommit,
+        clearUpstreamRef: clearUpstreamRef,
       ),
     );
   } on FormatException catch (error) {

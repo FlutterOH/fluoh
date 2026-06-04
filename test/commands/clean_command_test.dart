@@ -113,7 +113,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'clean'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -160,7 +160,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'clean'));
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 1));

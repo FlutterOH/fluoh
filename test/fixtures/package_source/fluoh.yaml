@@ -1,14 +1,11 @@
 schema: 1
 kind: source
-name: Test FlutterOH source
+name: test-flutteroh-source
 description: Test source fixture.
 
 repository:
   git:
     url: file:test/fixtures/package_source
-
-environment:
-  fluoh: ">=0.1.0"
 
 sdk:
   git:

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -40,6 +41,8 @@ void main() {
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -70,7 +73,7 @@ void main() {
         'get-url',
         'upstream',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
       expect(
         origin.stdout.toString().trim(),
         'https://github.com/FlutterOH/camera.git',
@@ -95,7 +98,8 @@ void main() {
       ).readAsStringSync();
       final packageManifest = await readPackageManifest(packageRepository);
       expect(manifestContent, contains('schema: 1'));
-      expect(manifestContent, contains('packages:\n  camera:'));
+      expect(manifestContent, contains('kind: package'));
+      expect(manifestContent, contains('package:\n  name: camera'));
       expect(manifestContent, isNot(contains('implementation:')));
       expect(manifestContent, isNot(contains('dependency:')));
       expect(manifestContent, isNot(contains('dependencyPolicy:')));
@@ -104,7 +108,6 @@ void main() {
       expect(manifestContent, isNot(contains('replacement:')));
       expect(manifestContent, isNot(contains('ref:')));
       expect(manifestContent, isNot(contains('sdkVersion:')));
-      expect(manifestContent, isNot(contains('release:')));
       expect(manifestContent, isNot(contains('tag:')));
       expect(packageManifest.name, 'camera');
       expect(packageManifest.sdkVersion, '3.35.8-ohos-0.0.3');
@@ -112,7 +115,7 @@ void main() {
         packageManifest.repositoryUrl,
         'https://github.com/FlutterOH/camera.git',
       );
-      expect(packageManifest.repositoryBranch, 'ohos/3.35');
+      expect(packageManifest.repositoryBranch, 'ohos/3.35/camera');
       expect(packageManifest.upstreamUrl, upstream.path);
       expect(packageManifest.upstreamBranch, 'main');
       expect(packageManifest.primaryPackage.name, 'camera');
@@ -134,6 +137,14 @@ void main() {
       _expectChangelogEntry(
         releaseNotesContent,
         'camera-0.11.0-ohos-3.35-0.1.0',
+      );
+      expect(
+        releaseNotesContent,
+        contains('TODO: Replace this generated placeholder'),
+      );
+      expect(
+        releaseNotesContent,
+        isNot(contains('Initial OHOS implementation')),
       );
       final agents = File('${packageRepository.path}/AGENTS.md');
       expect(agents.existsSync(), isTrue);
@@ -249,7 +260,10 @@ void main() {
         'Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3',
         'Created release tag camera-0.11.0-ohos-3.35-0.1.0',
       ]);
-      expect(stderr, isEmpty);
+      expect(
+        stderr.join('\n'),
+        contains('still contains TODO placeholder release notes'),
+      );
     },
   );
 
@@ -290,6 +304,8 @@ void main() {
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -315,10 +331,10 @@ void main() {
     final packagePubspec = File(
       '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
     ).readAsStringSync();
-    final staged = await runGit(packageRepository, [
-      'diff',
-      '--cached',
-      '--name-only',
+    final head = await runGit(packageRepository, ['rev-parse', 'HEAD']);
+    final releaseHead = await runGit(packageRepository, [
+      'rev-parse',
+      'camera-v0.11.0^{commit}',
     ]);
     final status = await runGit(packageRepository, ['status', '--porcelain']);
 
@@ -327,15 +343,14 @@ void main() {
     expect(
       manifestContent,
       contains(
-        '    upstream:\n      path: packages/camera/camera\n      ref: camera-v0.11.0',
+        '    upstream:\n'
+        '      version: 0.11.0\n'
+        '      ref: camera-v0.11.0',
       ),
     );
     expect(packagePubspec, contains('version: 0.11.0'));
     expect(packagePubspec, isNot(contains('version: 0.12.0')));
-    expect(
-      staged.stdout.toString().split('\n'),
-      contains('packages/camera/camera/pubspec.yaml'),
-    );
+    expect(head.stdout.toString().trim(), releaseHead.stdout.toString().trim());
     expect(
       status.stdout.toString().split('\n'),
       isNot(contains(' M packages/camera/camera/pubspec.yaml')),
@@ -343,7 +358,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('stages ignored files restored from upstream release tags', () async {
+  test('keeps ignored files from upstream release tags', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamWorkspaceRepository(
@@ -383,6 +398,8 @@ packages/camera/camera/generated.txt
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -400,22 +417,21 @@ packages/camera/camera/generated.txt
     final restored = File(
       '${packageRepository.path}/packages/camera/camera/generated.txt',
     );
-    final staged = await runGit(packageRepository, [
-      'diff',
-      '--cached',
-      '--name-only',
+    final tracked = await runGit(packageRepository, [
+      'ls-files',
+      'packages/camera/camera/generated.txt',
     ]);
 
     expect(restored.readAsStringSync(), 'release generated file\n');
     expect(
-      staged.stdout.toString().split('\n'),
+      tracked.stdout.toString().split('\n'),
       contains('packages/camera/camera/generated.txt'),
     );
     expect(stderr, isEmpty);
   });
 
   test(
-    'uses per-package release tags from different monorepo commits',
+    'rejects per-package release tags from different monorepo commits',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -459,6 +475,8 @@ packages/camera/camera/generated.txt
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -472,31 +490,13 @@ packages/camera/camera/generated.txt
           stdout: stdout.add,
           stderr: stderr.add,
         ),
-        0,
+        64,
       );
 
-      final manifest = await readPackageManifest(packageRepository);
-      final camera = manifest.packages.singleWhere(
-        (package) => package.name == 'camera',
-      );
-      final sharePlus = manifest.packages.singleWhere(
-        (package) => package.name == 'share_plus',
-      );
-      final cameraPubspec = File(
-        '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
-      ).readAsStringSync();
-      final sharePlusPubspec = File(
-        '${packageRepository.path}/packages/share_plus/share_plus/pubspec.yaml',
-      ).readAsStringSync();
-
-      expect(camera.upstreamVersion, '0.11.0');
-      expect(camera.upstreamRef, 'camera-v0.11.0');
-      expect(sharePlus.upstreamVersion, '9.0.0');
-      expect(sharePlus.upstreamRef, 'share_plus-v9.0.0');
-      expect(cameraPubspec, contains('version: 0.11.0'));
-      expect(cameraPubspec, isNot(contains('version: 0.12.0')));
-      expect(sharePlusPubspec, contains('version: 9.0.0'));
-      expect(stderr, isEmpty);
+      final error = stderr.join('\n');
+      expect(error, contains('package create creates one package branch'));
+      expect(error, contains('fluoh package add <package-path>'));
+      expect(packageRepository.existsSync(), isFalse);
     },
   );
 
@@ -534,6 +534,8 @@ packages/camera/camera/generated.txt
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -620,6 +622,8 @@ packages/camera/camera/generated.txt
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -709,6 +713,8 @@ fluoh.yaml
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -770,6 +776,8 @@ fluoh.yaml
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -793,8 +801,10 @@ fluoh.yaml
     final exampleGitignore = File(
       '${packageRepository.path}/example/.gitignore',
     ).readAsStringSync();
+    expect(exampleGitignore, contains('# fluoh local state'));
     expect(exampleGitignore, contains('.fluoh/'));
     expect(exampleGitignore, contains('flutter_*.log'));
+    expect(exampleGitignore, contains('# Flutter local files'));
     expect(exampleGitignore, contains('local.properties'));
     final staged = await runGit(packageRepository, [
       'diff',
@@ -851,6 +861,8 @@ fluoh.yaml
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         '../packages/package_relative_camera',
         '--sdk',
@@ -915,6 +927,8 @@ fluoh.yaml
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -972,6 +986,8 @@ No derivative works are permitted.
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -1036,6 +1052,8 @@ Prefer the upstream release workflow.
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -1053,10 +1071,13 @@ Prefer the upstream release workflow.
     ).readAsStringSync();
     expect(agentsContent, contains('# Upstream Agent Notes'));
     expect(agentsContent, contains('Keep the public Dart API stable.'));
-    expect(agentsContent, contains('## FlutterOH Context'));
-    expect(agentsContent, contains('## Working Rules'));
-    expect(agentsContent, contains('## Adaptation Workflow'));
-    expect(agentsContent, contains('## Before Commit'));
+    expect(agentsContent, contains('## FlutterOH/OHOS Adaptation'));
+    expect(agentsContent, contains('follow `FLUOH.md`'));
+    expect(agentsContent, contains('primary repository rules'));
+    expect(agentsContent, contains('- Current package: `camera`.'));
+    expect(agentsContent, isNot(contains('## Working Rules')));
+    expect(agentsContent, isNot(contains('## Adaptation Workflow')));
+    expect(agentsContent, isNot(contains('## Completion Report')));
     expect(agentsContent, isNot(contains('# AGENTS.md')));
     final claudeContent = File(
       '${packageRepository.path}/CLAUDE.md',
@@ -1114,6 +1135,8 @@ Prefer the upstream release workflow.
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--package-path',
             'packages/camera/camera',
             '--output',
@@ -1131,82 +1154,203 @@ Prefer the upstream release workflow.
       final manifest = File(
         '${packageRepository.path}/fluoh.yaml',
       ).readAsStringSync();
-      expect(manifest, contains('packages:\n  camera:'));
+      expect(manifest, contains('package:\n  name: camera'));
       expect(manifest, contains('path: packages/camera/camera'));
       expect(stderr, isEmpty);
     },
   );
 
-  test(
-    'uses the upstream repository name when the root package has siblings',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await createPackageSourceFixture(
-        environment.homeDirectory,
-      );
-      final upstream = await createUpstreamPackageRepository(
-        Directory('${environment.homeDirectory.path}/flutter-widgets-root'),
-      );
-      await _addWorkspacePackage(
-        upstream,
-        path: 'packages/share_plus/share_plus',
-        name: 'share_plus',
-        version: '9.0.0',
-      );
-      final packageRepository = Directory(
-        '${environment.workingDirectory.path}/flutter-widgets-root',
-      );
-      final stdout = <String>[];
-      final stderr = <String>[];
+  test('prints a read-only package create plan as JSON', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_plan'),
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_plan',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
 
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    final exitCode = await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+        '--git-author-name',
+        'FlutterOH Adapter',
+        '--git-author-email',
+        'adapter@example.com',
+        '--plan',
+        '--json',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    if (exitCode != 0) {
+      fail(
+        'package create plan exited $exitCode\nstdout:\n${stdout.join('\n')}\n'
+        'stderr:\n${stderr.join('\n')}',
+      );
+    }
+
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(payload['schema'], 1);
+    expect(payload['command'], 'package create');
+    expect(payload['ok'], isTrue);
+    expect(payload['exitCode'], 0);
+    expect(payload['changed'], isFalse);
+    expect(payload['applied'], isFalse);
+    final plan = payload['plan'] as Map<String, Object?>;
+    expect(plan['adaptationKind'], 'package');
+    expect(plan['repository'], {
+      'name': 'camera',
+      'url': 'https://github.com/FlutterOH/camera.git',
+      'outputPath': packageRepository.path,
+      'branch': 'ohos/3.35/camera',
+    });
+    expect(plan['sdk'], {'version': '3.35.8-ohos-0.0.3', 'line': '3.35'});
+    expect(plan['package'], {
+      'name': 'camera',
+      'path': '.',
+      'upstreamVersion': '0.11.0',
+      'releaseVersion': '0.1.0',
+      'status': 'experimental',
+    });
+    expect(plan['gitAuthor'], {
+      'name': 'FlutterOH Adapter',
+      'email': 'adapter@example.com',
+    });
+    expect(
+      plan['willNotRunWithoutSeparateApproval'],
+      contains('git push --force'),
+    );
+    expect(packageRepository.existsSync(), isFalse);
+  });
+
+  test('rejects package create --json without --plan', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        [
+          'package',
+          'create',
+          'https://github.com/example/camera.git',
+          '--repository-name',
+          'camera',
+          '--json',
+        ],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      );
+      ),
+      64,
+    );
 
-      expect(
-        await runFluoh(
-          ['package', 'create', upstream.path, '--sdk', '3.35.8-ohos-0.0.3'],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(payload['command'], 'package create');
+    expect(payload['ok'], isFalse);
+    expect(payload['exitCode'], 64);
+    expect(payload['error'], {
+      'type': 'usage',
+      'message': '--json is supported only with --plan for package create.',
+    });
+  });
 
-      expect(packageRepository.existsSync(), isTrue);
-      final manifest = File(
-        '${packageRepository.path}/fluoh.yaml',
-      ).readAsStringSync();
-      expect(manifest, contains('name: flutter-widgets-root'));
-      expect(
-        manifest,
-        contains('url: https://github.com/FlutterOH/flutter-widgets-root.git'),
-      );
-      expect(manifest, contains('packages:\n  camera:'));
-      expect(manifest, isNot(contains('  share_plus:')));
-      final guide = File(
-        '${packageRepository.path}/FLUOH.md',
-      ).readAsStringSync();
-      expect(guide, contains('fluoh verify'));
-      expect(guide, contains('`fluoh package check`'));
-      expect(guide, contains('`fluoh package release`'));
-      expect(
-        _normalizeOutput(stdout.join('\n')),
-        contains(
-          _normalizeOutput(
-            'Created package repository at ${packageRepository.path}',
-          ),
+  test('uses explicit name when the root package has siblings', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/flutter-widgets-root'),
+    );
+    await _addWorkspacePackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    final packageRepository = Directory(
+      '${environment.workingDirectory.path}/flutter-widgets-root',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--repository-name',
+          'flutter-widgets-root',
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(packageRepository.existsSync(), isTrue);
+    final manifest = File(
+      '${packageRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    expect(manifest, isNot(contains('\nname: flutter-widgets-root\n')));
+    expect(
+      manifest,
+      contains('url: https://github.com/FlutterOH/flutter-widgets-root.git'),
+    );
+    expect(manifest, contains('package:\n  name: camera'));
+    expect(manifest, isNot(contains('  share_plus:')));
+    final guide = File('${packageRepository.path}/FLUOH.md').readAsStringSync();
+    expect(guide, contains('fluoh verify'));
+    expect(guide, contains('`fluoh package check`'));
+    expect(guide, contains('`fluoh package release`'));
+    expect(
+      _normalizeOutput(stdout.join('\n')),
+      contains(
+        _normalizeOutput(
+          'Created package repository at ${packageRepository.path}',
         ),
-      );
-      expect(stderr, isEmpty);
-    },
-  );
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
 
   test(
-    'keeps upstream repository default output while selecting a package path',
+    'uses explicit name as default output for a single monorepo package',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -1218,7 +1362,7 @@ Prefer the upstream release workflow.
         packageName: 'syncfusion_flutter_pdf',
       );
       final packageRepository = Directory(
-        '${environment.workingDirectory.path}/flutter-widgets',
+        '${environment.workingDirectory.path}/syncfusion_flutter_pdf',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -1236,6 +1380,8 @@ Prefer the upstream release workflow.
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'syncfusion_flutter_pdf',
             '--package-path',
             'packages/syncfusion_flutter_pdf',
             '--sdk',
@@ -1252,8 +1398,24 @@ Prefer the upstream release workflow.
       final manifest = File(
         '${packageRepository.path}/fluoh.yaml',
       ).readAsStringSync();
-      expect(manifest, contains('packages:\n  syncfusion_flutter_pdf:'));
+      final origin = await runGit(packageRepository, [
+        'remote',
+        'get-url',
+        'origin',
+      ]);
+      expect(manifest, contains('name: syncfusion_flutter_pdf'));
+      expect(
+        manifest,
+        contains(
+          'url: https://github.com/FlutterOH/syncfusion_flutter_pdf.git',
+        ),
+      );
+      expect(manifest, contains('package:\n  name: syncfusion_flutter_pdf'));
       expect(manifest, contains('path: packages/syncfusion_flutter_pdf'));
+      expect(
+        origin.stdout.toString().trim(),
+        'https://github.com/FlutterOH/syncfusion_flutter_pdf.git',
+      );
       expect(
         _normalizeOutput(stdout.join('\n')),
         contains(
@@ -1274,14 +1436,104 @@ Prefer the upstream release workflow.
   );
 
   test(
-    'creates a package collection implementation with multiple package paths',
+    'requires name for a single monorepo package and suggests the path name',
+    () async {
+      final environment = await createTestEnvironment();
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            'https://github.com/flutter/packages.git',
+            '--package-path',
+            'packages/syncfusion_flutter_pdf',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(
+        stderr.join('\n'),
+        contains('Pass --repository-name <repository-name>'),
+      );
+      expect(
+        stderr.join('\n'),
+        contains('Suggested name: syncfusion_flutter_pdf'),
+      );
+      expect(stdout, isEmpty);
+    },
+  );
+
+  test('rejects package create with multiple package paths', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_multi_package'),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspacePackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_multi_package',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    final createResult = await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--package-path',
+        'packages/share_plus/share_plus',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    expect(createResult, 64);
+    expect(
+      stderr.join('\n'),
+      contains('package create creates one package branch'),
+    );
+    expect(packageRepository.existsSync(), isFalse);
+  });
+
+  test(
+    'requires an explicit name for generic monorepo package collections',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
         environment.homeDirectory,
       );
       final upstream = await createUpstreamWorkspaceRepository(
-        Directory('${environment.homeDirectory.path}/upstream_multi_package'),
+        Directory('${environment.homeDirectory.path}/packages'),
         packagePath: 'packages/camera/camera',
         packageName: 'camera',
       );
@@ -1292,7 +1544,7 @@ Prefer the upstream release workflow.
         version: '9.0.0',
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_multi_package',
+        '${environment.workingDirectory.path}/packages',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -1304,66 +1556,42 @@ Prefer the upstream release workflow.
         stderr: stderr.add,
       );
 
-      final createResult = await runFluoh(
-        [
-          'package',
-          'create',
-          upstream.path,
-          '--package-path',
-          'packages/camera/camera',
-          '--package-path',
-          'packages/share_plus/share_plus',
-          '--output',
-          packageRepository.path,
-          '--sdk',
-          '3.35.8-ohos-0.0.3',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            upstream.path,
+            '--package-path',
+            'packages/camera/camera',
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
       );
-      expect(createResult, 0);
 
-      final manifest = File(
-        '${packageRepository.path}/fluoh.yaml',
-      ).readAsStringSync();
-      expect(manifest, contains('packages:\n  camera:'));
-      expect(manifest, contains('  share_plus:'));
-      expect(manifest, contains('path: packages/camera/camera'));
-      expect(manifest, contains('path: packages/share_plus/share_plus'));
-      const packages = [
-        _GuidancePackage(
-          name: 'camera',
-          version: '0.11.0',
-          path: 'packages/camera/camera',
-        ),
-        _GuidancePackage(
-          name: 'share_plus',
-          version: '9.0.0',
-          path: 'packages/share_plus/share_plus',
-        ),
-      ];
-      final guide = File(
-        '${packageRepository.path}/FLUOH.md',
-      ).readAsStringSync();
-      _expectImplementationGuide(guide, packages: packages);
-      final agents = File(
-        '${packageRepository.path}/AGENTS.md',
-      ).readAsStringSync();
-      _expectAgentsInstructions(agents, packages: packages);
-      expect(stderr, isEmpty);
+      expect(
+        stderr.join('\n'),
+        contains('Pass --repository-name <repository-name>'),
+      );
+      expect(stderr.join('\n'), isNot(contains('Selected packages:')));
+      expect(packageRepository.existsSync(), isFalse);
     },
   );
 
   test(
-    'adds another package to an existing package collection implementation',
+    'rejects explicit name for generic monorepo package collections',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
         environment.homeDirectory,
       );
       final upstream = await createUpstreamWorkspaceRepository(
-        Directory('${environment.homeDirectory.path}/upstream_add_package'),
+        Directory('${environment.homeDirectory.path}/packages'),
         packagePath: 'packages/camera/camera',
         packageName: 'camera',
       );
@@ -1374,7 +1602,7 @@ Prefer the upstream release workflow.
         version: '9.0.0',
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_add_package',
+        '${environment.workingDirectory.path}/flutter_packages',
       );
       final stdout = <String>[];
       final stderr = <String>[];
@@ -1385,84 +1613,134 @@ Prefer the upstream release workflow.
         stdout: stdout.add,
         stderr: stderr.add,
       );
-      await runFluoh(
-        [
-          'package',
-          'create',
-          upstream.path,
-          '--package-path',
-          'packages/camera/camera',
-          '--output',
-          packageRepository.path,
-          '--sdk',
-          '3.35.8-ohos-0.0.3',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await commitGeneratedPackageRepository(packageRepository);
 
-      final packageEnvironment = FluohEnvironment(
-        homeDirectory: environment.homeDirectory,
-        workingDirectory: packageRepository,
-      );
       expect(
         await runFluoh(
-          ['package', 'add', 'packages/share_plus/share_plus'],
-          environment: packageEnvironment,
+          [
+            'package',
+            'create',
+            upstream.path,
+            '--repository-name',
+            'camera',
+            '--package-path',
+            'packages/camera/camera',
+            '--package-path',
+            'packages/share_plus/share_plus',
+            '--repository-name',
+            'flutter_packages',
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+          ],
+          environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
         ),
-        0,
+        64,
       );
-
-      final manifest = File(
-        '${packageRepository.path}/fluoh.yaml',
-      ).readAsStringSync();
-      expect(manifest, contains('packages:\n  camera:'));
-      expect(manifest, contains('  share_plus:'));
-      const packages = [
-        _GuidancePackage(
-          name: 'camera',
-          version: '0.11.0',
-          path: 'packages/camera/camera',
-        ),
-        _GuidancePackage(
-          name: 'share_plus',
-          version: '9.0.0',
-          path: 'packages/share_plus/share_plus',
-        ),
-      ];
-      final guide = File(
-        '${packageRepository.path}/FLUOH.md',
-      ).readAsStringSync();
-      _expectImplementationGuide(guide, packages: packages);
-      final agents = File(
-        '${packageRepository.path}/AGENTS.md',
-      ).readAsStringSync();
-      _expectAgentsInstructions(agents, packages: packages);
-      expect(agents, isNot(contains('Upstream branch at creation')));
-      final changelog = File(
-        '${packageRepository.path}/FLUOH_CHANGELOG.md',
-      ).readAsStringSync();
-      _expectChangelogEntry(changelog, 'share_plus-9.0.0-ohos-3.35-0.1.0');
-      final status = await runGit(packageRepository, ['status', '--porcelain']);
-      expect(status.stdout.toString(), contains('M  fluoh.yaml'));
-      expect(status.stdout.toString(), contains('M  AGENTS.md'));
-      expect(status.stdout.toString(), contains('M  FLUOH.md'));
-      expect(status.stdout.toString(), contains('M  FLUOH_CHANGELOG.md'));
       expect(
-        stdout,
-        contains(
-          'Registered package share_plus at packages/share_plus/share_plus',
-        ),
+        stderr.join('\n'),
+        contains('package create creates one package branch'),
       );
-      expect(stderr, isEmpty);
+      expect(packageRepository.existsSync(), isFalse);
     },
   );
 
-  test('rolls back example setup when package add fails later', () async {
+  test('adds another package by creating a package branch', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_add_package'),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspacePackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_package',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    expect(
+      await runFluoh(
+        ['package', 'add', 'packages/share_plus/share_plus'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = File(
+      '${packageRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('package:\n  name: share_plus'));
+    expect(manifest, contains('path: packages/share_plus/share_plus'));
+    const packages = [
+      _GuidancePackage(
+        name: 'share_plus',
+        version: '9.0.0',
+        path: 'packages/share_plus/share_plus',
+      ),
+    ];
+    final guide = File('${packageRepository.path}/FLUOH.md').readAsStringSync();
+    _expectImplementationGuide(guide, packages: packages);
+    final agents = File(
+      '${packageRepository.path}/AGENTS.md',
+    ).readAsStringSync();
+    _expectAgentsInstructions(agents, packages: packages);
+    expect(agents, isNot(contains('Upstream branch at creation')));
+    final changelog = File(
+      '${packageRepository.path}/FLUOH_CHANGELOG.md',
+    ).readAsStringSync();
+    _expectChangelogEntry(changelog, 'share_plus-9.0.0-ohos-3.35-0.1.0');
+    final status = await runGit(packageRepository, ['status', '--porcelain']);
+    expect(status.stdout.toString(), contains('A  fluoh.yaml'));
+    expect(status.stdout.toString(), contains('A  AGENTS.md'));
+    expect(status.stdout.toString(), contains('A  FLUOH.md'));
+    expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
+    expect(
+      stdout.join('\n'),
+      contains('Created package branch ohos/3.35/share_plus'),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('package add creates a clean package branch from upstream', () async {
     final environment = await createTestEnvironment();
     final source = await _createPackageCreateSdkSource(
       environment.homeDirectory,
@@ -1496,6 +1774,8 @@ Prefer the upstream release workflow.
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--package-path',
         'packages/camera/camera',
         '--output',
@@ -1508,17 +1788,90 @@ Prefer the upstream release workflow.
       stderr: stderr.add,
     );
     await commitGeneratedPackageRepository(packageRepository);
-    await File('${packageRepository.path}/AGENTS.md').delete();
-    await Directory('${packageRepository.path}/AGENTS.md').create();
-    await File(
-      '${packageRepository.path}/AGENTS.md/README.md',
-    ).writeAsString('blocked\n');
-    await runGit(packageRepository, ['add', '-A', 'AGENTS.md']);
-    await runGit(packageRepository, [
-      'commit',
-      '-m',
-      'Make AGENTS path unwritable',
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    expect(
+      await runFluoh(
+        ['package', 'add', 'packages/share_plus/share_plus'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final branch = await runGit(packageRepository, [
+      'branch',
+      '--show-current',
     ]);
+    final example = Directory(
+      '${packageRepository.path}/packages/share_plus/share_plus/example',
+    );
+    expect(branch.stdout.toString().trim(), 'ohos/3.35/share_plus');
+    expect(Directory('${example.path}/ohos').existsSync(), isTrue);
+    expect(File('${example.path}/fluoh.yaml').existsSync(), isTrue);
+    final status = await runGit(packageRepository, ['status', '--porcelain']);
+    expect(status.stdout.toString(), contains('A  fluoh.yaml'));
+  });
+
+  test('package add restores the starting branch when setup fails', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPackageCreateSdkSource(
+      environment.homeDirectory,
+      logName: 'package_add_failure_flutter_args.log',
+    );
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_add_failure'),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspaceFlutterPackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_failure',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    final flutter = File(
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3/bin/flutter',
+    );
+    await flutter.writeAsString('''
+#!/bin/sh
+exit 1
+''');
+    await _runProcess('chmod', ['+x', flutter.path], flutter.parent);
 
     final packageEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
@@ -1533,20 +1886,26 @@ Prefer the upstream release workflow.
       ),
       64,
     );
-    expect(
-      stderr.join('\n'),
-      contains('Failed to update package repository files'),
-    );
 
-    final example = Directory(
-      '${packageRepository.path}/packages/share_plus/share_plus/example',
-    );
-    expect(Directory('${example.path}/ohos').existsSync(), isFalse);
-    expect(File('${example.path}/fluoh.yaml').existsSync(), isFalse);
-    expect(File('${example.path}/.gitignore').existsSync(), isFalse);
-    expect(Directory('${example.path}/.fluoh').existsSync(), isFalse);
+    final branch = await runGit(packageRepository, [
+      'branch',
+      '--show-current',
+    ]);
+    final addedBranch = await runGit(packageRepository, [
+      'branch',
+      '--list',
+      'ohos/3.35/share_plus',
+    ]);
     final status = await runGit(packageRepository, ['status', '--porcelain']);
+    final manifest = File(
+      '${packageRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
+    expect(addedBranch.stdout.toString().trim(), isEmpty);
     expect(status.stdout.toString().trim(), isEmpty);
+    expect(manifest, contains('package:\n  name: camera'));
+    expect(manifest, isNot(contains('name: share_plus')));
+    expect(stderr.join('\n'), contains('flutter create failed'));
   });
 
   test('requires a selected package for nested package upstreams', () async {
@@ -1590,6 +1949,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -1612,7 +1973,8 @@ environment:
       stderr.join('\n'),
       contains(
         'camera 0.11.0 at packages/camera/camera (Dart ^3.0.0)'
-        ' [latest tag camera-v0.11.0]: --package-path packages/camera/camera',
+        ' [latest tag camera-v0.11.0]: --package-path '
+        'packages/camera/camera --repository-name camera',
       ),
     );
     expect(stderr.join('\n'), isNot(contains('camera_example')));
@@ -1648,6 +2010,8 @@ environment:
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -1704,6 +2068,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -1759,6 +2125,8 @@ environment:
             'package',
             'create',
             upstream.path,
+            '--repository-name',
+            'camera',
             '--output',
             packageRepository.path,
             '--sdk',
@@ -1822,6 +2190,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
         ],
@@ -1839,7 +2209,7 @@ environment:
     final manifest = File(
       '${packageRepository.path}/fluoh.yaml',
     ).readAsStringSync();
-    expect(branch.stdout.toString().trim(), 'ohos/3.35');
+    expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
     expect(manifest, contains('sdk:\n  version: 3.35.8-ohos-0.0.4'));
     expect(stderr, isEmpty);
   });
@@ -1871,6 +2241,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -1904,6 +2276,8 @@ environment:
           'package',
           'create',
           'https://github.com/example/camera.git',
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--git-author-name',
@@ -1922,6 +2296,42 @@ environment:
     );
     expect(packageRepository.existsSync(), isFalse);
   });
+
+  test(
+    'requires package repository name to be a name instead of a path',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_invalid_name',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            'https://github.com/example/packages.git',
+            '--repository-name',
+            '../camera',
+            '--output',
+            packageRepository.path,
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      expect(
+        stderr.join('\n'),
+        contains('--repository-name must be a repository name'),
+      );
+      expect(packageRepository.existsSync(), isFalse);
+    },
+  );
 
   test('does not accept --package for package create', () async {
     final environment = await createTestEnvironment();
@@ -2001,11 +2411,15 @@ void _expectImplementationGuide(
     if (packages.length > 1) '## Packages',
     '## Metadata',
     '## Adaptation Checklist',
+    '## Guardrails',
     '## Automatic Adaptation Command Flow',
     '## Platform Verification Matrix',
+    '## Diagnostics Routing',
     '## Next Steps',
     '## Adaptation Workflow',
     '## Release Readiness',
+    '## Completion Report',
+    '## Local Commit Checkpoints',
     '## Before Commit',
   ]);
   _expectContainsAll(content, [
@@ -2017,6 +2431,9 @@ void _expectImplementationGuide(
     'fluoh help',
     'fluoh help package',
     'fluoh help verify',
+    'Do not invent OHOS APIs',
+    'destructive Git commands',
+    'Preserve the local worktree',
     'fluoh doctor --project --json --strict',
     'fluoh deps get',
     'fluoh flutter analyze',
@@ -2053,79 +2470,6 @@ void _expectImplementationGuide(
     'Device-only behavior',
     'skipped with blocker',
     'maintainer-decision blocker',
-    'git status --short --ignored=matching',
-  ]);
-  if (packages.length > 1) {
-    _expectContainsAll(content, [
-      'packages.<name>',
-      'fluoh verify --package <name>',
-      'fluoh package release --all',
-    ]);
-  }
-
-  for (final package in packages) {
-    _expectContainsAll(content, [
-      package.name,
-      package.examplePath,
-      package.verifyCommand,
-      package.versionCommand,
-      package.releaseCommand,
-    ]);
-    if (packages.length > 1) {
-      expect(content, contains(package.version));
-    }
-    if (package.path != '.') {
-      expect(content, contains(package.path));
-    } else {
-      expect(content, contains('packages.${package.name}'));
-    }
-  }
-}
-
-void _expectAgentsInstructions(
-  String content, {
-  required List<_GuidancePackage> packages,
-}) {
-  _expectMarkdownHeadings(content, [
-    '# AGENTS.md',
-    '## FlutterOH Context',
-    if (packages.length > 1) '## Packages',
-    '## Working Rules',
-    '## Automatic Adaptation Command Flow',
-    '## Stop and Ask',
-    '## Platform Verification Matrix',
-    '## Diagnostics Routing',
-    '## Adaptation Workflow',
-    '## Definition of Done',
-    '## Completion Report',
-    '## Final Response',
-    '## Local Commit Checkpoints',
-    '## Before Commit',
-  ]);
-  _expectContainsAll(content, [
-    'fluoh.yaml',
-    'repository.git.branch',
-    'upstream.git',
-    'FLUOH_CHANGELOG.md',
-    'fluoh help',
-    'fluoh help package',
-    'fluoh help verify',
-    'fluoh doctor --project --json --strict',
-    'fluoh deps get',
-    'fluoh flutter analyze',
-    'fluoh run --platform ohos',
-    'fluoh run --platform android',
-    'fluoh run --platform ios',
-    'fluoh run --platform macos',
-    '--auto-sign',
-    'fluoh build --platform ohos',
-    '--no-codesign',
-    '--device <id>',
-    'integration_test/',
-    '\$FLUOH_HOME/cache/package-runs',
-    '--json',
-    'nextCommand',
-    'diagnostics',
     'stdoutTail',
     'ohos.signing_profile_failed',
     'ohos.direct_sign_failed',
@@ -2144,50 +2488,27 @@ void _expectAgentsInstructions(
     'macos.run_failed',
     'macos.runtime_crash',
     'macos.integration_test_failed',
-    '.fluoh/ai-report-',
-    'YYYYMMDD-HHMMSS',
-    'Final report and release gate',
-    'Release recommendation:',
     'ohos.runtime_crash',
     'ohos.install_failed',
-    'Do not invent OHOS APIs',
+    '.fluoh/ai-report-',
+    'YYYYMMDD-HHMMSS',
+    'Release recommendation:',
     'changed files',
     'build, run, integration-test',
-    'AI-assisted interaction evidence',
-    '.fluoh/scenarios',
-    'Flutter debug',
-    'details.vmServiceUri',
-    '--session-file <path>',
-    'flutterRunSession',
-    'inspect_session.py',
-    'widget/component',
-    'semantic',
-    'screenshot recognition',
-    'UI appearance',
-    'No interaction required',
-    'permission grant and denial',
-    'Run smoke is not enough',
-    'does not currently automate page traversal',
-    'skipped with blocker',
-    'maintainer-decision blocker',
-    'device-only verification',
+    'ignored local state',
     'git status --short --ignored=matching',
     'git config --local --get user.name',
     '--git-author-name',
     'implementation checkpoint',
     'release metadata checkpoint',
-    'python3 <skill-dir>/scripts/check_report.py <report-path>',
-    'ignored local state',
     'staged paths, commit message',
     'self-review',
-    'DEVELOPMENT_TEAM',
-    'PROVISIONING_PROFILE_SPECIFIER',
   ]);
   if (packages.length > 1) {
     _expectContainsAll(content, [
-      'packages.<name>',
+      'package',
       'fluoh verify --package <name>',
-      'fluoh package release --all',
+      'fluoh package release --package <name>',
     ]);
   }
 
@@ -2205,9 +2526,42 @@ void _expectAgentsInstructions(
     if (package.path != '.') {
       expect(content, contains(package.path));
     } else {
-      expect(content, contains('packages.${package.name}'));
+      expect(content, contains('package'));
     }
   }
+}
+
+void _expectAgentsInstructions(
+  String content, {
+  required List<_GuidancePackage> packages,
+}) {
+  _expectMarkdownHeadings(content, [
+    '# AGENTS.md',
+    '## FlutterOH/OHOS Adaptation',
+  ]);
+  _expectContainsAll(content, [
+    'For FlutterOH/OHOS package adaptation tasks, follow `FLUOH.md`.',
+    'primary repository rules',
+    'workflow, verification, release evidence, and handoff',
+  ]);
+  if (packages.length > 1) {
+    _expectContainsAll(content, [
+      '- Current packages:',
+      for (final package in packages) '`${package.name}`',
+    ]);
+  } else {
+    expect(content, contains('- Current package: `${packages.single.name}`.'));
+  }
+
+  expect(content, isNot(contains('## Working Rules')));
+  expect(content, isNot(contains('## Automatic Adaptation Command Flow')));
+  expect(content, isNot(contains('## Platform Verification Matrix')));
+  expect(content, isNot(contains('## Diagnostics Routing')));
+  expect(content, isNot(contains('## Completion Report')));
+  expect(content, isNot(contains('## Local Commit Checkpoints')));
+  expect(content, isNot(contains('fluoh doctor --project --json --strict')));
+  expect(content, isNot(contains('fluoh run --platform ohos')));
+  expect(content, isNot(contains('.fluoh/ai-report-')));
 }
 
 void _expectChangelogEntry(String content, String tag) {

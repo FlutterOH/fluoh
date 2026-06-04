@@ -185,7 +185,7 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     warnings: list[str] = []
     if not path.is_file():
         return {
-            "schemaVersion": 1,
+            "schema": 1,
             "ok": False,
             "report": str(path),
             "errors": [f"Report file does not exist: {path}"],
@@ -264,7 +264,7 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         errors.append("Report still contains placeholder content.")
 
     return {
-        "schemaVersion": 1,
+        "schema": 1,
         "ok": not errors,
         "report": str(path),
         "recommendation": recommendation,

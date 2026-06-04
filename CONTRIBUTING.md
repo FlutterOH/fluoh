@@ -93,7 +93,7 @@ If the `dart` command in your shell is unstable, you may explicitly use the Dart
 
 Keep human-readable command output concise and easy to paste into issues. Do not add a trailing period to short status fragments, paths, URLs, versions, identifiers, command names, or label/value lines such as `SDK path: ...`, `Dart version ...`, `Branch ...`, or `No SDK selected`. Use punctuation only for complete explanatory sentences, multi-sentence guidance, help text, and raw tool output that is intentionally preserved.
 
-Commands that support `--json` must write exactly one JSON object to stdout with top-level `schemaVersion`, `command`, `ok`, and `exitCode` fields. Keep command-specific fields at the top level, and do not emit human progress text while JSON mode is active.
+Commands that support `--json` must write exactly one JSON object to stdout with top-level `schema`, `command`, `ok`, and `exitCode` fields. Keep command-specific fields at the top level, and do not emit human progress text while JSON mode is active.
 
 ## Pre-commit Checks
 
@@ -175,7 +175,7 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Package Repository Workflow Maintenance
 
-`fluoh package create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a Flutter OHOS SDK line branch such as `ohos/3.35`, sets `origin` to the final package repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
+`fluoh package create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a Flutter OHOS package branch such as `ohos/3.35/camera`, sets `origin` to the final package repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
 
 ```sh
 https://github.com/FlutterOH/<package>.git
@@ -197,7 +197,7 @@ The command only configures local remotes. It does not create remote repositorie
 git commit -m "feat(package): initialize FlutterOH package"
 ```
 
-Use `fluoh package sync` to fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge that branch into the current `ohos/<sdkLine>` branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep the upstream package version unchanged until the new FlutterOH adaptation is complete.
+Use `fluoh package sync` to fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge that branch into the current `ohos/<sdkLine>/<package>` branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep the upstream package version unchanged until the new FlutterOH adaptation is complete.
 
 Use upstream package tests and existing example tests as the automated baseline. `fluoh verify` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
 

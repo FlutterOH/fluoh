@@ -97,7 +97,7 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'verify'));
     expect(report, containsPair('ok', true));
     final targets = report['targets'] as List<Object?>;
@@ -1901,7 +1901,7 @@ void main() {
 Future<void> _writePackageManifest(Directory repository) async {
   await File('${repository.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
@@ -1909,17 +1909,21 @@ sdk:
 repository:
   git:
     url: git@github.com:FlutterOH/camera.git
-    branch: ohos/3.35
+    branch: ohos/3.35/camera
 
 upstream:
   git:
     url: https://github.com/flutter/packages.git
     branch: main
 
-packages:
-  camera:
+package:
+  name: camera
+  path: .
+  release:
     version: 0.1.0
-    upstreamVersion: 0.11.0
+    upstream:
+      version: 0.11.0
+      commit: "1111111111111111111111111111111111111111"
     status: experimental
 ''');
 }
@@ -2049,9 +2053,13 @@ Future<void> _writeWorkflowOhosProject(Directory project) async {
 Future<void> _writeProjectSdkConfig(Directory directory) async {
   await File('${directory.path}/fluoh.yaml').writeAsString('''
 schema: 1
+kind: project
 
 sdk:
   version: 3.35.8-ohos-0.0.3
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
 }
 

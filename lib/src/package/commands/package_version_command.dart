@@ -24,7 +24,7 @@ class PackageVersionCommand extends FluohCommand<int> {
       ..addOption(
         'package',
         valueHelp: 'name',
-        help: 'Package to update when fluoh.yaml registers multiple packages.',
+        help: 'Package to update. Defaults to the current package branch.',
       )
       ..addOption(
         'bump',

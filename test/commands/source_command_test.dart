@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/schema/schema.dart' show sdkLineFromSdkVersion;
+import 'package:fluoh/src/source/source_runtime.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
@@ -107,7 +109,7 @@ void main() {
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Broken source
+name: broken-source
 repository:
   git: {}
 ''');
@@ -309,7 +311,7 @@ repository:
 
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'source list'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -360,7 +362,7 @@ repository:
     final output = result.stdout.toString();
     expect(output, isNot(contains('Syncing source')));
     final report = jsonDecode(output) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'source list'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -680,9 +682,8 @@ repository:
     expect(lock.existsSync(), isTrue);
     final lockJson = _readJsonObject(lock);
     final packageRoutes = lockJson['packageRoutes'] as Map<String, Object?>;
-    final fixtureManifests = packageRoutes['fixture'] as Map<String, Object?>;
-    final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
-    expect(cameraManifest, contains('camera'));
+    final fixturePackages = packageRoutes['fixture'] as Map<String, Object?>;
+    expect(fixturePackages, contains('camera'));
     expect(Directory('${cachedSource.path}/packages').existsSync(), isFalse);
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
     expect(stderr, isEmpty);
@@ -716,11 +717,8 @@ repository:
     expect(File('${source.path}/fluoh.yaml').readAsStringSync(), '''
 schema: 1
 kind: source
-name: "Local FlutterOH source"
+name: local-flutteroh-source
 description: "Local FlutterOH source maintained by fluoh users."
-
-environment:
-  fluoh: '>=0.1.0'
 
 # Uncomment to document where this source is published.
 # repository:
@@ -732,8 +730,8 @@ environment:
 #   git:
 #     url: "https://gitcode.com/CPF-Flutter/flutter_flutter.git"
 #   versions:
-#     - 3.35.8-ohos-1.0.1
 #     - 3.35.8-ohos-0.0.3
+#     - 3.35.8-ohos-1.0.1
 
 # Uncomment after editing manifests/example/fluoh.yaml, or run:
 # fluoh source sync .
@@ -823,22 +821,32 @@ environment:
     final lockContent = lockFile.readAsStringSync();
     final lock = jsonDecode(lockContent) as Map<String, Object?>;
     final sdk = lock['sdk'] as Map<String, Object?>;
+    final sdkSources = sdk['sources'] as Map<String, Object?>;
+    final sdkSource = sdkSources['fixture'] as Map<String, Object?>;
+    final sdkSourceGit = sdkSource['git'] as Map<String, Object?>;
+    expect(sdkSourceGit['url'], isA<String>());
     final sdkVersions = sdk['versions'] as Map<String, Object?>;
     final sdkRelease = sdkVersions['3.35.8-ohos-0.0.3'] as Map<String, Object?>;
     expect(sdkRelease, containsPair('source', 'fixture'));
+    expect(sdkRelease, isNot(contains('git')));
     expect(sdkRelease, isNot(contains('priority')));
     expect(sdkRelease, isNot(contains('versionSeries')));
     expect(sdkRelease, isNot(contains('flutterVersion')));
     expect(sdkRelease, isNot(contains('channel')));
     expect(sdkRelease, isNot(contains('tag')));
     final packageRoutes = lock['packageRoutes'] as Map<String, Object?>;
-    final fixtureManifests = packageRoutes['fixture'] as Map<String, Object?>;
-    final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
-    expect(cameraManifest, containsPair('camera', ['3.35']));
+    final fixturePackages = packageRoutes['fixture'] as Map<String, Object?>;
+    expect(fixturePackages, containsPair('camera', ['3.35']));
     expect(lockContent, isNot(contains('"packages"')));
     expect(lockContent, isNot(contains('"manifests"')));
     expect(lockContent, isNot(contains('packages/camera/camera')));
     expect(lockContent, isNot(contains('"upstreamVersion"')));
+    final sdkIndex = await SourceRuntime(environment).loadSdkIndex();
+    final resolvedRelease = sdkIndex.releases.singleWhere(
+      (release) => release.version == '3.35.8-ohos-0.0.3',
+    );
+    expect(resolvedRelease.sourceName, 'fixture');
+    expect(resolvedRelease.repository, sdkSourceGit['url']);
     expect(stderr, isEmpty);
   });
 
@@ -864,10 +872,7 @@ environment:
       '${environment.homeDirectory.path}/sources/fixture/manifests/camera/fluoh.yaml',
     );
     await cachedManifest.writeAsString(
-      cachedManifest.readAsStringSync().replaceFirst(
-        'upstreamVersion: "0.11.0"',
-        'upstreamVersion: "0.12.0"',
-      ),
+      '${cachedManifest.readAsStringSync()}# edited cached snapshot\n',
     );
     stdout.clear();
     stderr.clear();
@@ -930,13 +935,15 @@ environment:
     expect(content, isNot(contains('manifests: []')));
     expect(
       File('${source.path}/manifests/example/fluoh.yaml').readAsStringSync(),
-      contains('# name: example'),
+      contains('#   name: example'),
     );
     final lock = _readJsonObject(
       File('${environment.homeDirectory.path}/sources.lock.json'),
     );
     final sdk = lock['sdk'] as Map<String, Object?>;
+    final sources = sdk['sources'] as Map<String, Object?>;
     final versions = sdk['versions'] as Map<String, Object?>;
+    expect(sources, isEmpty);
     expect(versions, isEmpty);
     expect(lock['packageRoutes'], isEmpty);
 
@@ -960,7 +967,10 @@ environment:
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    await _writePackageManifest(packageRepository);
+    await _writePackageManifest(
+      packageRepository,
+      upstreamRef: 'camera-v0.11.0',
+    );
     await _writeSourceSyncManifest(source, packageRepository);
     await initializeGitRepository(packageRepository);
     await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
@@ -968,8 +978,11 @@ environment:
     await packageManifest.writeAsString(
       packageManifest
           .readAsStringSync()
-          .replaceFirst('version: 0.2.0', 'version: 0.3.0')
-          .replaceFirst('upstreamVersion: 0.11.0', 'upstreamVersion: 0.12.0'),
+          .replaceFirst('version: "0.2.0"', 'version: "0.3.0"')
+          .replaceFirst(
+            '    upstream:\n      version: "0.11.0"\n      ref:',
+            '    upstream:\n      version: "0.12.0"\n      ref:',
+          ),
     );
 
     expect(
@@ -987,16 +1000,21 @@ environment:
 
     expect(
       File('${source.path}/fluoh.yaml').readAsStringSync(),
-      contains('manifests:\n  - name: packages'),
+      contains('manifests:\n  - name: camera'),
     );
     final manifest = File(
-      '${source.path}/manifests/packages/fluoh.yaml',
+      '${source.path}/manifests/camera/fluoh.yaml',
     ).readAsStringSync();
-    expect(manifest, contains('name: packages'));
+    expect(manifest, contains('name: camera'));
     expect(manifest, contains('url: "file:${packageRepository.path}"'));
-    expect(manifest, contains('upstreamVersion: 0.11.0'));
+    expect(manifest, contains('upstream:\n            version: 0.11.0'));
+    expect(manifest, contains('ref: camera-v0.11.0'));
+    expect(
+      manifest,
+      contains('commit: "1111111111111111111111111111111111111111"'),
+    );
     expect(manifest, contains('- version: 0.2.0'));
-    expect(manifest, isNot(contains('upstreamVersion: 0.12.0')));
+    expect(manifest, isNot(contains('version: 0.12.0')));
     expect(manifest, isNot(contains('- version: 0.3.0')));
     expect(manifest, isNot(contains('status: experimental')));
     expect(
@@ -1043,7 +1061,7 @@ environment:
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'source sync'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -1055,6 +1073,198 @@ environment:
         allOf(
           containsPair('package', 'camera'),
           containsPair('status', 'synced'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'source sync skips package tags for SDK lines missing from the source',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = Directory(
+        '${environment.homeDirectory.path}/missing_sdk_source',
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/missing_sdk_package',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'init', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await _writePackageManifest(
+        packageRepository,
+        sdkVersion: '3.36.1-ohos-0.0.1',
+      );
+      await _writeSourceSyncManifest(
+        source,
+        packageRepository,
+        sdkVersions: const ['3.35.8-ohos-0.0.3'],
+      );
+      await initializeGitRepository(packageRepository);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.36-0.2.0',
+      ]);
+      stdout.clear();
+
+      expect(
+        await runFluoh(
+          ['source', 'sync', '--json'],
+          environment: FluohEnvironment(
+            homeDirectory: environment.homeDirectory,
+            workingDirectory: source,
+          ),
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('synced', 0));
+      expect(report, containsPair('skippedTags', 1));
+      expect(report['packages'], isEmpty);
+      final plan = report['plan'] as List<Object?>;
+      final routePlan = plan.single as Map<String, Object?>;
+      expect(routePlan, containsPair('status', 'skipped'));
+      expect(routePlan, containsPair('tagsToSync', isEmpty));
+      final skippedTags = routePlan['skippedTags'] as List<Object?>;
+      expect(
+        skippedTags.single,
+        allOf(
+          containsPair('tag', 'camera-0.11.0-ohos-3.36-0.2.0'),
+          containsPair('sdkLine', '3.36'),
+          containsPair('reason', 'sdk-line-not-in-source'),
+        ),
+      );
+      final manifest = File(
+        '${source.path}/manifests/camera/fluoh.yaml',
+      ).readAsStringSync();
+      expect(manifest, isNot(contains('"3.36"')));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('source sync skips invalid package release tag metadata', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory(
+      '${environment.homeDirectory.path}/invalid_tag_source',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/invalid_tag_package',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'init', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await _writeSourceSyncManifest(source, packageRepository);
+    await packageRepository.create(recursive: true);
+    await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: package
+''');
+    await initializeGitRepository(packageRepository);
+    await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['source', 'sync', '--json', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('synced', 0));
+    expect(report, containsPair('skippedTags', 1));
+    expect(report['packages'], isEmpty);
+    final plan = report['plan'] as List<Object?>;
+    final routePlan = plan.single as Map<String, Object?>;
+    expect(routePlan, containsPair('status', 'skipped'));
+    expect(routePlan, containsPair('tagsToSync', isEmpty));
+    final skippedTags = routePlan['skippedTags'] as List<Object?>;
+    expect(
+      skippedTags.single,
+      allOf(
+        containsPair('tag', 'camera-0.11.0-ohos-3.35-0.2.0'),
+        containsPair('sdkLine', '3.35'),
+        containsPair('reason', 'invalid-package-manifest'),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('source sync skips package tags with a different package path', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory(
+      '${environment.homeDirectory.path}/path_mismatch_source',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/path_mismatch_package',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'init', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await _writePackageManifest(
+      packageRepository,
+      packagePath: 'packages/camera/camera_ohos',
+    );
+    await _writeSourceSyncManifest(source, packageRepository);
+    await initializeGitRepository(packageRepository);
+    await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-0.2.0']);
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['source', 'sync', '--json', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('synced', 0));
+    expect(report, containsPair('skippedTags', 1));
+    expect(report['packages'], isEmpty);
+    final plan = report['plan'] as List<Object?>;
+    final routePlan = plan.single as Map<String, Object?>;
+    expect(routePlan, containsPair('status', 'skipped'));
+    expect(routePlan, containsPair('tagsToSync', isEmpty));
+    final skippedTags = routePlan['skippedTags'] as List<Object?>;
+    expect(
+      skippedTags.single,
+      allOf(
+        containsPair('tag', 'camera-0.11.0-ohos-3.35-0.2.0'),
+        containsPair('sdkLine', '3.35'),
+        containsPair('reason', 'package-path-mismatch'),
+        containsPair(
+          'message',
+          'package.path is packages/camera/camera_ohos, expected packages/camera/camera',
         ),
       ),
     );
@@ -1147,43 +1357,25 @@ environment:
       final stdout = <String>[];
       final stderr = <String>[];
 
-      await packageRepository.create(recursive: true);
-      await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
-schema: 1
-name: camera
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: ${packageRepository.path}
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages
-    branch: main
-
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    version: "1"
-    upstreamVersion: "0.11.0"
-    status: compatible
-''');
+      await _writePackageManifest(
+        packageRepository,
+        repositoryUrl: packageRepository.path,
+        name: 'camera',
+        releaseVersion: '1.0.0',
+        upstreamVersion: '0.11.0',
+      );
       await initializeGitRepository(packageRepository);
-      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35']);
-      await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-1']);
+      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35/camera']);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-1.0.0',
+      ]);
 
       await source.create(recursive: true);
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 manifests: []
 ''');
       await initializeGitRepository(source);
@@ -1194,7 +1386,7 @@ manifests: []
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 manifests:
   - name: camera
@@ -1202,7 +1394,6 @@ manifests:
       await File('${source.path}/manifests/camera/fluoh.yaml').writeAsString('''
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -1211,19 +1402,18 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    sdks:
-      "3.35":
-        releases:
-          - version: "1"
-            upstreamVersion: "0.11.0"
+package:
+  name: camera
+  path: packages/camera/camera
+  sdks:
+    "3.35":
+      releases:
+        - version: "1.0.0"
+          upstream:
+            version: "0.11.0"
+            ref: "1111111111111111111111111111111111111111"
+            commit: "1111111111111111111111111111111111111111"
 ''');
       await commitAll(source, message: 'Add camera manifest');
 
@@ -1253,7 +1443,7 @@ packages:
       expect(stderr, isEmpty);
       expect(stdout, hasLength(1));
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('schema', 1));
       expect(report, containsPair('command', 'source check'));
       expect(report, containsPair('ok', true));
       expect(report, containsPair('exitCode', 0));
@@ -1261,6 +1451,22 @@ packages:
       expect(report, containsPair('all', false));
       expect(report, containsPair('checkedManifests', ['camera']));
       expect(report['errors'], isEmpty);
+      final checkedManifestDetails = report['manifests'] as List<Object?>;
+      final checkedManifest =
+          checkedManifestDetails.single as Map<String, Object?>;
+      expect(checkedManifest, containsPair('name', 'camera'));
+      expect(
+        checkedManifest,
+        containsPair('packagePath', 'packages/camera/camera'),
+      );
+      expect(checkedManifest, isNot(contains('repositoryPath')));
+      expect(checkedManifest, isNot(contains('upstreamPath')));
+      expect(checkedManifest, isNot(contains('packages')));
+      expect(checkedManifest['package'], containsPair('name', 'camera'));
+      expect(
+        checkedManifest['package'],
+        containsPair('path', 'packages/camera/camera'),
+      );
       final sourceValidation =
           report['sourceValidation'] as Map<String, Object?>;
       expect(sourceValidation, containsPair('ok', true));
@@ -1280,8 +1486,11 @@ packages:
       final checks = manifestCheck['checks'] as List<Object?>;
       final releaseCheck = checks.single as Map<String, Object?>;
       expect(releaseCheck, containsPair('package', 'camera'));
-      expect(releaseCheck, containsPair('tag', 'camera-0.11.0-ohos-3.35-1'));
-      expect(releaseCheck, containsPair('branch', 'ohos/3.35'));
+      expect(
+        releaseCheck,
+        containsPair('tag', 'camera-0.11.0-ohos-3.35-1.0.0'),
+      );
+      expect(releaseCheck, containsPair('branch', 'ohos/3.35/camera'));
       expect(releaseCheck, containsPair('ok', true));
       final packageCheck = releaseCheck['packageCheck'] as Map<String, Object?>;
       expect(
@@ -1340,51 +1549,36 @@ packages:
       final stdout = <String>[];
       final stderr = <String>[];
 
-      await packageRepository.create(recursive: true);
-      await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
-schema: 1
-name: camera
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: ${packageRepository.path}
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages
-    branch: main
-
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    version: "2"
-    upstreamVersion: "0.12.0"
-    status: compatible
-''');
+      await _writePackageManifest(
+        packageRepository,
+        repositoryUrl: packageRepository.path,
+        name: 'camera',
+        releaseVersion: '2.0.0',
+        upstreamVersion: '0.12.0',
+      );
       await initializeGitRepository(packageRepository);
-      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35']);
-      await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-1']);
-      await _runGit(packageRepository, ['tag', 'camera-0.12.0-ohos-3.35-2']);
+      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35/camera']);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-1.0.0',
+      ]);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.12.0-ohos-3.35-2.0.0',
+      ]);
 
       await source.create(recursive: true);
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('1', '0.11.0')],
+        releases: const [('1.0.0', '0.11.0')],
       );
       await initializeGitRepository(source);
       await _runGit(source, ['checkout', '-b', 'pr/add-camera-release']);
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('1', '0.11.0'), ('2', '0.12.0')],
+        releases: const [('1.0.0', '0.11.0'), ('2.0.0', '0.12.0')],
       );
       await commitAll(source, message: 'Add camera release');
 
@@ -1417,7 +1611,7 @@ packages:
         planned.single,
         allOf(
           containsPair('package', 'camera'),
-          containsPair('version', '2'),
+          containsPair('version', '2.0.0'),
           containsPair('upstreamVersion', '0.12.0'),
           containsPair('reason', 'release-added'),
         ),
@@ -1426,13 +1620,16 @@ packages:
       final manifestCheck = releaseChecks.single as Map<String, Object?>;
       final checks = manifestCheck['checks'] as List<Object?>;
       expect(checks, hasLength(1));
-      expect(checks.single, containsPair('tag', 'camera-0.12.0-ohos-3.35-2'));
+      expect(
+        checks.single,
+        containsPair('tag', 'camera-0.12.0-ohos-3.35-2.0.0'),
+      );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
 
   test(
-    'source check accepts explicit non-canonical release tags',
+    'source check rejects explicit release tag fields',
     () async {
       final environment = await createTestEnvironment();
       final root = environment.homeDirectory;
@@ -1442,43 +1639,25 @@ packages:
       final stdout = <String>[];
       final stderr = <String>[];
 
-      await packageRepository.create(recursive: true);
-      await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
-schema: 1
-name: camera
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: ${packageRepository.path}
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages
-    branch: main
-
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    version: "1"
-    upstreamVersion: "0.11.0"
-    status: compatible
-''');
+      await _writePackageManifest(
+        packageRepository,
+        repositoryUrl: packageRepository.path,
+        name: 'camera',
+        releaseVersion: '1.0.0',
+        upstreamVersion: '0.11.0',
+      );
       await initializeGitRepository(packageRepository);
-      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35']);
-      await _runGit(packageRepository, ['tag', 'camera-release-2026']);
+      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35/camera']);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-1.0.0',
+      ]);
 
       await source.create(recursive: true);
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 manifests: []
 ''');
       await initializeGitRepository(source);
@@ -1487,12 +1666,15 @@ manifests: []
         source,
         packageRepository,
         releaseYaml: '''
-          - version: "1"
-            upstreamVersion: "0.11.0"
-            tag: camera-release-2026
+          - version: "1.0.0"
+            upstream:
+              version: "0.11.0"
+              ref: "1111111111111111111111111111111111111111"
+              commit: "1111111111111111111111111111111111111111"
+            tag: camera-0.11.0-ohos-3.35-1.0.0
 ''',
       );
-      await commitAll(source, message: 'Add explicit camera release tag');
+      await commitAll(source, message: 'Add forbidden camera release tag');
 
       expect(
         await runFluoh(
@@ -1510,19 +1692,18 @@ manifests: []
           stdout: stdout.add,
           stderr: stderr.add,
         ),
-        0,
+        1,
       );
 
       expect(stderr, isEmpty);
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('recommendation', 'ready'));
-      final releaseChecks = report['releaseChecks'] as List<Object?>;
-      final manifestCheck = releaseChecks.single as Map<String, Object?>;
-      final checks = manifestCheck['checks'] as List<Object?>;
-      final check = checks.single as Map<String, Object?>;
-      expect(check, containsPair('tag', 'camera-release-2026'));
-      final metadataCheck = check['metadataCheck'] as Map<String, Object?>;
-      expect(metadataCheck, containsPair('ok', true));
+      expect(report, containsPair('recommendation', 'blocked'));
+      expect(
+        report['errors'],
+        contains(
+          contains('package sdks.3.35 releases[0] must not contain "tag"'),
+        ),
+      );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -1538,43 +1719,25 @@ manifests: []
       final stdout = <String>[];
       final stderr = <String>[];
 
-      await packageRepository.create(recursive: true);
-      await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
-schema: 1
-name: camera
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: ${packageRepository.path}
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages
-    branch: main
-
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    version: "1"
-    upstreamVersion: "0.11.0"
-    status: compatible
-''');
+      await _writePackageManifest(
+        packageRepository,
+        repositoryUrl: packageRepository.path,
+        name: 'camera',
+        releaseVersion: '1.0.0',
+        upstreamVersion: '0.11.0',
+      );
       await initializeGitRepository(packageRepository);
-      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35']);
-      await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-1']);
+      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35/camera']);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.12.0-ohos-3.35-1.0.0',
+      ]);
 
       await source.create(recursive: true);
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('1', '0.11.0')],
+        releases: const [('1.0.0', '0.11.0')],
       );
       await initializeGitRepository(source);
       await _runGit(source, ['checkout', '-b', 'pr/bad-release-metadata']);
@@ -1582,9 +1745,11 @@ packages:
         source,
         packageRepository,
         releaseYaml: '''
-          - version: "1"
-            upstreamVersion: "0.12.0"
-            tag: camera-0.11.0-ohos-3.35-1
+          - version: "1.0.0"
+            upstream:
+              version: "0.12.0"
+              ref: camera-v0.12.0
+              commit: "2222222222222222222222222222222222222222"
 ''',
       );
       await commitAll(source, message: 'Break camera release metadata');
@@ -1616,13 +1781,25 @@ packages:
         contains(
           contains(
             'Declared release check failed for camera at '
-            'camera-0.11.0-ohos-3.35-1',
+            'camera-0.12.0-ohos-3.35-1.0.0',
           ),
         ),
       );
       expect(
         report['errors'],
-        contains(contains('upstream version is 0.11.0, expected 0.12.0')),
+        contains(
+          contains(
+            'upstream ref is 1111111111111111111111111111111111111111, expected camera-v0.12.0',
+          ),
+        ),
+      );
+      expect(
+        report['errors'],
+        contains(
+          contains(
+            'upstream commit is 1111111111111111111111111111111111111111, expected 2222222222222222222222222222222222222222',
+          ),
+        ),
       );
       final releaseChecks = report['releaseChecks'] as List<Object?>;
       final manifestCheck = releaseChecks.single as Map<String, Object?>;
@@ -1636,12 +1813,24 @@ packages:
         metadataCheck['message'],
         contains('upstream version is 0.11.0, expected 0.12.0'),
       );
+      expect(
+        metadataCheck['message'],
+        contains(
+          'upstream ref is 1111111111111111111111111111111111111111, expected camera-v0.12.0',
+        ),
+      );
+      expect(
+        metadataCheck['message'],
+        contains(
+          'upstream commit is 1111111111111111111111111111111111111111, expected 2222222222222222222222222222222222222222',
+        ),
+      );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
 
   test(
-    'source check verifies upstream package path changes against tag metadata',
+    'source check verifies package path changes against tag metadata',
     () async {
       final environment = await createTestEnvironment();
       final root = environment.homeDirectory;
@@ -1651,53 +1840,35 @@ packages:
       final stdout = <String>[];
       final stderr = <String>[];
 
-      await packageRepository.create(recursive: true);
-      await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
-schema: 1
-name: camera
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-repository:
-  git:
-    url: ${packageRepository.path}
-    branch: ohos/3.35
-
-upstream:
-  git:
-    url: https://github.com/flutter/packages
-    branch: main
-
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    version: "1"
-    upstreamVersion: "0.11.0"
-    status: compatible
-''');
+      await _writePackageManifest(
+        packageRepository,
+        repositoryUrl: packageRepository.path,
+        name: 'camera',
+        releaseVersion: '1.0.0',
+        upstreamVersion: '0.11.0',
+      );
       await initializeGitRepository(packageRepository);
-      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35']);
-      await _runGit(packageRepository, ['tag', 'camera-0.11.0-ohos-3.35-1']);
+      await _runGit(packageRepository, ['checkout', '-b', 'ohos/3.35/camera']);
+      await _runGit(packageRepository, [
+        'tag',
+        'camera-0.11.0-ohos-3.35-1.0.0',
+      ]);
 
       await source.create(recursive: true);
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('1', '0.11.0')],
+        releases: const [('1.0.0', '0.11.0')],
       );
       await initializeGitRepository(source);
       await _runGit(source, ['checkout', '-b', 'pr/change-upstream-path']);
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('1', '0.11.0')],
-        upstreamPath: 'packages/camera/camera_android',
+        releases: const [('1.0.0', '0.11.0')],
+        packagePath: 'packages/camera/camera_android',
       );
-      await commitAll(source, message: 'Change camera upstream path');
+      await commitAll(source, message: 'Change camera package path');
 
       expect(
         await runFluoh(
@@ -1728,7 +1899,7 @@ packages:
         report['errors'],
         contains(
           contains(
-            'upstream path is packages/camera/camera, expected '
+            'package.path is packages/camera/camera, expected '
             'packages/camera/camera_android',
           ),
         ),
@@ -1757,7 +1928,7 @@ packages:
     await _writeCameraSourceManifest(
       source,
       packageRepository,
-      releases: const [('1', '0.11.0')],
+      releases: const [('1.0.0', '0.11.0')],
     );
     await initializeGitRepository(source);
 
@@ -1765,7 +1936,7 @@ packages:
     await _writeCameraSourceManifest(
       source,
       packageRepository,
-      releases: const [('1', '0.11.0')],
+      releases: const [('1.0.0', '0.11.0')],
       advisory: 'Known migration note.',
     );
     await commitAll(source, message: 'Add advisory');
@@ -1804,7 +1975,7 @@ packages:
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('1', '0.11.0'), ('2', '0.12.0')],
+        releases: const [('1.0.0', '0.11.0'), ('2.0.0', '0.12.0')],
       );
       await initializeGitRepository(source);
 
@@ -1812,7 +1983,7 @@ packages:
       await _writeCameraSourceManifest(
         source,
         packageRepository,
-        releases: const [('2', '0.12.0')],
+        releases: const [('2.0.0', '0.12.0')],
       );
       await commitAll(source, message: 'Delete old camera release');
 
@@ -1837,8 +2008,8 @@ packages:
       expect(
         skippedReleaseChecks.single,
         allOf(
-          containsPair('version', '1'),
-          containsPair('tag', 'camera-0.11.0-ohos-3.35-1'),
+          containsPair('version', '1.0.0'),
+          containsPair('tag', 'camera-0.11.0-ohos-3.35-1.0.0'),
           containsPair('skipReason', 'release-deleted'),
         ),
       );
@@ -1857,7 +2028,7 @@ packages:
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 manifests:
   - name: camera
@@ -1982,7 +2153,7 @@ manifests:
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 manifests:
   - name: path_provider
@@ -1996,12 +2167,12 @@ manifests:
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 manifests:
+  - name: camera
   - name: path_provider
   - name: shared_preferences
-  - name: camera
 ''');
     await _writeSimpleSourceManifest(source, 'camera');
     await commitAll(source, message: 'Add camera manifest');
@@ -2055,7 +2226,7 @@ manifests:
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 sdk:
   git:
@@ -2075,14 +2246,14 @@ manifests:
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 sdk:
   git:
     url: ${sdkRepository.path}
   versions:
-    - 3.35.8-ohos-1.0.1
     - 3.35.8-ohos-0.0.3
+    - 3.35.8-ohos-1.0.1
 
 manifests:
   - name: path_provider
@@ -2143,7 +2314,7 @@ manifests:
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 sdk:
   git:
@@ -2162,7 +2333,17 @@ manifests:
       ).writeAsString('''
 schema: 1
 kind: manifest
-name:
+
+repository:
+  git:
+    url: file:${source.path}/../path_provider_repo
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages
+
+package:
+  name:
 ''');
       await initializeGitRepository(source);
 
@@ -2170,14 +2351,14 @@ name:
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 sdk:
   git:
     url: ${sdkRepository.path}
   versions:
-    - 3.35.8-ohos-1.0.1
     - 3.35.8-ohos-0.0.3
+    - 3.35.8-ohos-1.0.1
 
 manifests:
   - name: path_provider
@@ -2223,7 +2404,7 @@ manifests:
       expect(fullValidation, containsPair('ok', false));
       expect(
         fullReport['errors'],
-        contains(contains('manifests/path_provider/fluoh.yaml')),
+        contains(contains('Expected "name" to be a non-empty string')),
       );
     },
   );
@@ -2246,7 +2427,7 @@ manifests:
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 sdk:
   git:
@@ -2260,14 +2441,14 @@ sdk:
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 sdk:
   git:
     url: ${sdkRepository.path}
   versions:
-    - 3.35.8-ohos-1.0.1
     - 3.35.8-ohos-0.0.3
+    - 3.35.8-ohos-1.0.1
 ''');
     await commitAll(source, message: 'Add missing SDK release');
 
@@ -2309,7 +2490,7 @@ sdk:
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Broken source
+name: broken-source
 manifests:
   - name: camera
 ''');
@@ -2345,7 +2526,7 @@ name:
   });
 
   test(
-    'source sync resolves local repository paths from source manifests',
+    'source sync resolves local package repository urls from source manifests',
     () async {
       final environment = await createTestEnvironment();
       final source = Directory(
@@ -2390,10 +2571,10 @@ name:
       );
 
       final manifest = File(
-        '${source.path}/manifests/packages/fluoh.yaml',
+        '${source.path}/manifests/camera/fluoh.yaml',
       ).readAsStringSync();
       expect(manifest, contains('url: ../packages_implementation'));
-      expect(manifest, contains('upstreamVersion: 0.11.0'));
+      expect(manifest, contains('upstream:\n            version: 0.11.0'));
       expect(stderr, isEmpty);
     },
   );
@@ -2436,8 +2617,8 @@ name:
       );
 
       expect(
-        File('${source.path}/manifests/packages/fluoh.yaml').readAsStringSync(),
-        contains('upstreamVersion: 0.11.0'),
+        File('${source.path}/manifests/camera/fluoh.yaml').readAsStringSync(),
+        contains('upstream:\n            version: 0.11.0'),
       );
       expect(
         stdout,
@@ -2491,7 +2672,7 @@ name:
       '${source.path}/manifests/camera/fluoh.yaml',
     ).readAsStringSync();
     expect(manifest, contains('name: camera'));
-    expect(manifest, contains('upstreamVersion: 0.11.0'));
+    expect(manifest, contains('upstream:\n            version: 0.11.0'));
     expect(
       File('${source.path}/manifests/packages/fluoh.yaml').existsSync(),
       isFalse,
@@ -2500,7 +2681,7 @@ name:
   });
 
   test(
-    'source sync follows upstream branch changes from release manifests',
+    'source sync ignores upstream branch changes from release manifests',
     () async {
       final environment = await createTestEnvironment();
       final source = Directory(
@@ -2537,7 +2718,7 @@ name:
         packageManifest
             .readAsStringSync()
             .replaceFirst('branch: main', 'branch: develop')
-            .replaceFirst('version: 0.2.0', 'version: 0.3.0'),
+            .replaceFirst('version: "0.2.0"', 'version: "0.3.0"'),
       );
       await commitAll(
         packageRepository,
@@ -2559,9 +2740,9 @@ name:
       );
 
       final manifest = File(
-        '${source.path}/manifests/packages/fluoh.yaml',
+        '${source.path}/manifests/camera/fluoh.yaml',
       ).readAsStringSync();
-      expect(manifest, contains('branch: develop'));
+      expect(manifest, isNot(contains('branch: develop')));
       expect(manifest, contains('- version: 0.2.0'));
       expect(manifest, contains('- version: 0.3.0'));
       expect(stderr, isEmpty);
@@ -2613,8 +2794,8 @@ name:
       );
 
       expect(
-        File('${source.path}/manifests/packages/fluoh.yaml').readAsStringSync(),
-        contains('upstreamVersion: 0.11.0'),
+        File('${source.path}/manifests/camera/fluoh.yaml').readAsStringSync(),
+        contains('upstream:\n            version: 0.11.0'),
       );
       expect(configFile.existsSync(), isFalse);
       expect(lockFile.existsSync(), isFalse);
@@ -2726,22 +2907,25 @@ name:
       );
 
       final sourceRepository = File(
-        '${source.path}/manifests/packages/fluoh.yaml',
+        '${source.path}/manifests/camera/fluoh.yaml',
       );
       await sourceRepository.writeAsString(
-        sourceRepository.readAsStringSync().replaceFirst('    sdks:', '''
-    maintenance:
-      status: frozen
-      reason: Upstream now supports OHOS.
-    sdks:'''),
+        sourceRepository.readAsStringSync().replaceFirst('  sdks:', '''
+  maintenance:
+    frozen: true
+    note: Upstream now supports OHOS.
+  sdks:'''),
       );
       final before = sourceRepository.readAsStringSync();
       final packageManifest = File('${packageRepository.path}/fluoh.yaml');
       await packageManifest.writeAsString(
         packageManifest
             .readAsStringSync()
-            .replaceFirst('upstreamVersion: 0.11.0', 'upstreamVersion: 0.12.0')
-            .replaceFirst('version: 0.2.0', 'version: 0.3.0'),
+            .replaceFirst(
+              '    upstream:\n      version: "0.11.0"\n      commit:',
+              '    upstream:\n      version: "0.12.0"\n      commit:',
+            )
+            .replaceFirst('version: "0.2.0"', 'version: "0.3.0"'),
       );
       await commitAll(packageRepository, message: 'Release frozen package');
       await _runGit(packageRepository, [
@@ -2763,7 +2947,7 @@ name:
       expect(
         stdout,
         contains(
-          'Skipped source metadata update for camera because maintenance.status is frozen',
+          'Skipped source metadata update for camera because maintenance.frozen is true',
         ),
       );
       expect(stderr, isEmpty);
@@ -2778,7 +2962,6 @@ name:
     await repository.writeAsString('''
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -2787,22 +2970,25 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    sdks:
-      "3.35":
-        releases:
-          - version: 1
-            upstreamVersion: "0.11.0"
+package:
+  name: camera
+  path: packages/camera/camera
+  sdks:
+    "3.35":
+      releases:
+        - version: 1
+          upstream:
+            version: "0.11.0"
+            ref: camera-v0.11.0
+            commit: "1111111111111111111111111111111111111111"
 ''');
     final metadata = File('${source.path}/fluoh.yaml');
     await metadata.writeAsString('''
 schema: 1
 kind: source
-name: Existing source
-description: Existing source.
+name: existing-source
+description: existing-source.
 repository:
   git:
     url: file:${source.path}
@@ -2823,7 +3009,7 @@ manifests:
     );
 
     expect(repository.readAsStringSync(), contains('name: camera'));
-    expect(metadata.readAsStringSync(), contains('name: Existing source'));
+    expect(metadata.readAsStringSync(), contains('name: existing-source'));
     expect(Directory('${source.path}/manifests').existsSync(), isTrue);
     expect(
       stdout,
@@ -2868,10 +3054,7 @@ manifests:
     final lock = File('${environment.homeDirectory.path}/sources.lock.json');
     final previousSnapshotHash = _lockSourceSnapshotHash(lock, 'local');
     await sourceManifest.writeAsString(
-      sourceManifest.readAsStringSync().replaceFirst(
-        'upstreamVersion: "0.11.0"',
-        'upstreamVersion: "0.12.0"',
-      ),
+      '${sourceManifest.readAsStringSync()}# edited source snapshot\n',
     );
     stdout.clear();
     stderr.clear();
@@ -2891,7 +3074,7 @@ manifests:
       File(
         '${cachedSource.path}/manifests/camera/fluoh.yaml',
       ).readAsStringSync(),
-      contains('upstreamVersion: "0.12.0"'),
+      contains('# edited source snapshot'),
     );
     expect(_lockSourceSnapshotHash(lock, 'local'), isNot(previousSnapshotHash));
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
@@ -2910,7 +3093,7 @@ manifests:
       await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Package source
+name: package-source
 description: Package source.
 
 repository:
@@ -3370,7 +3553,7 @@ manifests:
       await File('${supplemental.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Supplemental
+name: supplemental
 description: Supplemental source.
 
 repository:
@@ -3385,7 +3568,6 @@ manifests:
       ).writeAsString('''
 schema: 1
 kind: manifest
-name: team
 
 repository:
   git:
@@ -3395,13 +3577,16 @@ upstream:
   git:
     url: https://github.com/example/team
 
-packages:
-  team_package:
-    sdks:
-      "3.35":
-        releases:
-          - version: 0.1.0
-            upstreamVersion: 1.0.0
+package:
+  name: team
+  sdks:
+    "3.35":
+      releases:
+        - version: 0.1.0
+          upstream:
+            version: 1.0.0
+            ref: team-v1.0.0
+            commit: "1111111111111111111111111111111111111111"
 ''');
       final stdout = <String>[];
       final stderr = <String>[];
@@ -3430,14 +3615,14 @@ packages:
     },
   );
 
-  test('rejects sources that require a newer fluoh version', () async {
+  test('rejects source environment compatibility fields', () async {
     final environment = await createTestEnvironment();
     final source = Directory('${environment.homeDirectory.path}/future_source');
     await source.create(recursive: true);
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Future source
+name: future-source
 description: Future source.
 
 repository:
@@ -3467,8 +3652,12 @@ sdk:
     );
 
     expect(stdout, isEmpty);
-    expect(stderr.join('\n'), contains('Requires fluoh >=999.0.0'));
-    expect(stderr.join('\n'), contains('current version is $packageVersion'));
+    expect(
+      stderr.join('\n'),
+      contains(
+        'Source future is not valid: fluoh.yaml must not contain "environment"',
+      ),
+    );
   });
 
   test('updates a YAML source', () async {
@@ -3478,7 +3667,7 @@ sdk:
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Schema source
+name: schema-source
 description: Schema source.
 
 repository:
@@ -3524,7 +3713,7 @@ sdk:
     await source.create(recursive: true);
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 2
-name: Future source
+name: future-source
 repository: file:${source.path}
 ''');
     final stdout = <String>[];
@@ -3614,13 +3803,12 @@ Future<void> _writeCameraSourceManifest(
   Directory packageRepository, {
   required List<(String, String)> releases,
   String? advisory,
-  String repositoryPath = 'packages/camera/camera',
-  String upstreamPath = 'packages/camera/camera',
+  String packagePath = 'packages/camera/camera',
 }) async {
   await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 manifests:
   - name: camera
@@ -3630,7 +3818,6 @@ manifests:
   await manifest.writeAsString('''
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -3639,18 +3826,14 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    repository:
-      path: $repositoryPath
-    upstream:
-      path: $upstreamPath
-${advisory == null ? '' : '    advisory:\n      message: "$advisory"\n'}    sdks:
-      "3.35":
-        releases:
-${releases.map((release) => '          - version: "${release.$1}"\n            upstreamVersion: "${release.$2}"').join('\n')}
+package:
+  name: camera
+  path: $packagePath
+${advisory == null ? '' : '  advisory:\n    message: "$advisory"\n'}  sdks:
+    "3.35":
+      releases:
+${releases.map((release) => '        - version: "${release.$1}"\n          upstream:\n            version: "${release.$2}"\n            ref: "1111111111111111111111111111111111111111"\n            commit: "1111111111111111111111111111111111111111"').join('\n')}
 ''');
 }
 
@@ -3658,13 +3841,12 @@ Future<void> _writeCameraSourceManifestRaw(
   Directory source,
   Directory packageRepository, {
   required String releaseYaml,
-  String repositoryPath = 'packages/camera/camera',
-  String upstreamPath = 'packages/camera/camera',
+  String packagePath = 'packages/camera/camera',
 }) async {
   await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 
 manifests:
   - name: camera
@@ -3674,7 +3856,6 @@ manifests:
   await manifest.writeAsString('''
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -3683,17 +3864,13 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    repository:
-      path: $repositoryPath
-    upstream:
-      path: $upstreamPath
-    sdks:
-      "3.35":
-        releases:
+package:
+  name: camera
+  path: $packagePath
+  sdks:
+    "3.35":
+      releases:
 $releaseYaml
 ''');
 }
@@ -3707,7 +3884,6 @@ Future<void> _writeSimpleSourceManifest(
   await manifest.writeAsString('''
 schema: 1
 kind: manifest
-name: $manifestName
 
 repository:
   git:
@@ -3716,53 +3892,65 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  $manifestName:
-    repository:
-      path: packages/$manifestName/$manifestName
-    upstream:
-      path: packages/$manifestName/$manifestName
-    sdks:
-      "3.35":
-        releases:
-          - version: "1"
-            upstreamVersion: "1.0.0"
+package:
+  name: $manifestName
+  path: packages/$manifestName/$manifestName
+  sdks:
+    "3.35":
+      releases:
+        - version: "1.0.0"
+          upstream:
+            version: "1.0.0"
+            ref: $manifestName-v1.0.0
+            commit: "1111111111111111111111111111111111111111"
 ''');
 }
 
 Future<void> _writePackageManifest(
   Directory repository, {
   String? repositoryUrl,
+  String name = 'packages',
+  String packageName = 'camera',
+  String packagePath = 'packages/camera/camera',
+  String sdkVersion = '3.35.8-ohos-0.0.3',
+  String releaseVersion = '0.2.0',
+  String upstreamVersion = '0.11.0',
+  String? upstreamRef,
+  String upstreamCommit = '1111111111111111111111111111111111111111',
+  String upstreamBranch = 'main',
 }) async {
   repositoryUrl ??= 'file:${repository.path}';
+  final sdkLine = sdkLineFromSdkVersion(sdkVersion);
   await repository.create(recursive: true);
+  final upstreamRefLine = upstreamRef == null
+      ? ''
+      : '      ref: "$upstreamRef"\n';
   await File('${repository.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: packages
+kind: package
 
 sdk:
-  version: 3.35.8-ohos-0.0.3
+  version: $sdkVersion
 
 repository:
   git:
     url: "$repositoryUrl"
-    branch: ohos/3.35
+    branch: ohos/$sdkLine/$packageName
 
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
+    branch: $upstreamBranch
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: $packageName
+  path: $packagePath
+  release:
+    version: "$releaseVersion"
     upstream:
-      path: packages/camera/camera
-    version: 0.2.0
-    upstreamVersion: 0.11.0
+      version: "$upstreamVersion"
+$upstreamRefLine      commit: "$upstreamCommit"
 ''');
 }
 
@@ -3770,17 +3958,29 @@ Future<void> _writeSourceSyncManifest(
   Directory source,
   Directory repository, {
   String? repositoryUrl,
-  String manifestName = 'packages',
+  String manifestName = 'camera',
+  List<String>? sdkVersions,
 }) async {
   repositoryUrl ??= 'file:${repository.path}';
+  final sdkLines = sdkVersions == null
+      ? ''
+      : '''
+
+sdk:
+  git:
+    url: /tmp/flutter-ohos-sdk
+  versions:
+${sdkVersions.map((version) => '    - $version').join('\n')}
+''';
   await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: "Local FlutterOH source"
+name: local-flutteroh-source
 
 repository:
   git:
     url: "file:${source.path}"
+$sdkLines
 
 manifests:
   - name: $manifestName
@@ -3790,7 +3990,6 @@ manifests:
   await manifest.writeAsString('''
 schema: 1
 kind: manifest
-name: $manifestName
 
 repository:
   git:
@@ -3799,19 +3998,18 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    sdks:
-      "3.35":
-        releases:
-          - version: 0.1.0
-            upstreamVersion: 0.10.0
+package:
+  name: camera
+  path: packages/camera/camera
+  sdks:
+    "3.35":
+      releases:
+        - version: 0.1.0
+          upstream:
+            version: 0.10.0
+            ref: camera-v0.10.0
+            commit: "1111111111111111111111111111111111111111"
 ''');
 }
 
@@ -3820,7 +4018,7 @@ Future<File> _writeFakeSourceCheckFluoh(Directory root) async {
   await tool.writeAsString(r'''
 #!/bin/sh
 if [ "$1" = "package" ] && [ "$2" = "check" ] && [ "$3" = "--package" ] && [ "$5" = "--json" ]; then
-  printf '{"schemaVersion":1,"command":"package check","ok":true,"exitCode":0,"tags":["%s-0.11.0-ohos-3.35-1"]}\n' "$4"
+  printf '{"schema":1,"command":"package check","ok":true,"exitCode":0,"tags":["%s-0.11.0-ohos-3.35-1.0.0"]}\n' "$4"
   exit 0
 fi
 echo "unexpected args: $@" >&2

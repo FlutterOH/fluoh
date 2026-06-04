@@ -2,31 +2,32 @@ import 'pubspec.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
-/// Current `fluoh.yaml` schema version for package repositories.
+/// Current `fluoh.yaml` schema version for package adaptation branches.
 const packageManifestSchema = 1;
 
-/// Initial FlutterOH adaptation release version for newly added packages.
+/// Initial FlutterOH adaptation release version for newly created branches.
 const initialPackageReleaseVersion = '0.1.0';
+
+/// Package manifest kind.
+const packageManifestKind = 'package';
 
 /// Default upstream branch used when `fluoh.yaml` omits `upstream.git.branch`.
 const defaultUpstreamBranch = 'main';
 
-/// Parsed `fluoh.yaml` manifest for a FlutterOH package repository.
+/// Parsed `fluoh.yaml` manifest for one FlutterOH package adaptation branch.
 ///
-/// The manifest tracks the source SDK, the FlutterOH implementation repository,
-/// the upstream package repository, and one or more package release entries.
+/// A package branch is the smallest adaptation unit. Monorepo repositories use
+/// one branch per package instead of registering multiple packages in one
+/// manifest.
 class PackageManifest {
-  /// Creates an immutable package repository manifest.
+  /// Creates an immutable package adaptation manifest.
   const PackageManifest({
-    required this.name,
     required this.sdkVersion,
     required this.repositoryUrl,
     required this.repositoryBranch,
     required this.upstreamUrl,
-    required this.packages,
-    this.repositoryPath = '.',
+    required this.package,
     this.upstreamBranch = defaultUpstreamBranch,
-    this.upstreamPath = '.',
   });
 
   /// Parses and validates `fluoh.yaml` content.
@@ -36,12 +37,19 @@ class PackageManifest {
 
     ensureAllowedKeys(yaml, 'fluoh.yaml', {
       'schema',
-      'name',
+      'kind',
       'sdk',
       'repository',
       'upstream',
-      'packages',
+      'package',
     });
+    final kind = requiredString(yaml, 'kind');
+    if (kind != packageManifestKind) {
+      throw FluohSchemaException(
+        'fluoh.yaml kind must be $packageManifestKind.',
+      );
+    }
+
     final sdk = objectMap(yaml['sdk'], 'fluoh.yaml sdk');
     final repository = objectMap(yaml['repository'], 'fluoh.yaml repository');
     final repositoryGit = objectMap(
@@ -50,65 +58,51 @@ class PackageManifest {
     );
     final upstream = objectMap(yaml['upstream'], 'fluoh.yaml upstream');
     final upstreamGit = objectMap(upstream['git'], 'fluoh.yaml upstream.git');
-    final packagesMap = objectMap(yaml['packages'], 'fluoh.yaml packages');
+    final package = objectMap(yaml['package'], 'fluoh.yaml package');
 
     ensureAllowedKeys(sdk, 'fluoh.yaml sdk', {'version'});
     ensureAllowedKeys(repository, 'fluoh.yaml repository', {'git'});
     ensureAllowedKeys(repositoryGit, 'fluoh.yaml repository.git', {
       'url',
       'branch',
-      'path',
     });
     ensureAllowedKeys(upstream, 'fluoh.yaml upstream', {'git'});
     ensureAllowedKeys(upstreamGit, 'fluoh.yaml upstream.git', {
       'url',
       'branch',
-      'path',
     });
-
-    final packages = <PackageManifestPackage>[];
-    for (final entry in packagesMap.entries) {
-      final name = entry.key;
-      final value = entry.value;
-      if (name.trim().isEmpty || value is! Map<String, Object?>) {
-        throw const FluohSchemaException(
-          'fluoh.yaml packages must map names to maps.',
-        );
-      }
-      packages.add(
-        _readPackageManifest(
-          name,
-          value,
-          defaultRepositoryPath: optionalString(repositoryGit, 'path') ?? '.',
-          defaultUpstreamPath: optionalString(upstreamGit, 'path') ?? '.',
-        ),
-      );
-    }
-    if (packages.isEmpty) {
-      throw const FluohSchemaException(
-        'fluoh.yaml must register at least one package.',
-      );
-    }
 
     final sdkVersion = requiredString(sdk, 'version');
     flutterVersionFromSdkVersion(sdkVersion);
 
+    final manifestPackage = _readPackageManifest(package);
+    final repositoryBranch = requiredString(repositoryGit, 'branch');
+    final normalizedRepositoryBranch = normalizeGitRef(
+      repositoryBranch,
+      label: 'fluoh.yaml repository.git.branch',
+    );
+    _validatePackageBranch(
+      normalizedRepositoryBranch,
+      sdkVersion: sdkVersion,
+      packageName: manifestPackage.name,
+    );
+    final upstreamBranch = requiredString(upstreamGit, 'branch');
+
     return PackageManifest(
-      name: requiredString(yaml, 'name'),
       sdkVersion: sdkVersion,
       repositoryUrl: requiredString(repositoryGit, 'url'),
-      repositoryBranch: requiredString(repositoryGit, 'branch'),
-      repositoryPath: _manifestPath(optionalString(repositoryGit, 'path')),
+      repositoryBranch: normalizedRepositoryBranch,
       upstreamUrl: requiredString(upstreamGit, 'url'),
-      upstreamBranch:
-          optionalString(upstreamGit, 'branch') ?? defaultUpstreamBranch,
-      upstreamPath: _manifestPath(optionalString(upstreamGit, 'path')),
-      packages: packages,
+      upstreamBranch: normalizeGitRef(
+        upstreamBranch,
+        label: 'fluoh.yaml upstream.git.branch',
+      ),
+      package: manifestPackage,
     );
   }
 
-  /// Human-readable repository or package group name.
-  final String name;
+  /// Human-readable FlutterOH adaptation repository name.
+  String get name => package.name;
 
   /// Full FlutterOH SDK tag used by this adaptation branch.
   final String sdkVersion;
@@ -116,11 +110,8 @@ class PackageManifest {
   /// Git URL for the FlutterOH package implementation repository.
   final String repositoryUrl;
 
-  /// Git branch that owns this adaptation manifest.
+  /// Git branch that owns this package adaptation manifest.
   final String repositoryBranch;
-
-  /// Default package path inside the FlutterOH implementation repository.
-  final String repositoryPath;
 
   /// Git URL for the upstream Flutter package repository.
   final String upstreamUrl;
@@ -128,11 +119,8 @@ class PackageManifest {
   /// Upstream branch tracked by `fluoh package sync`.
   final String upstreamBranch;
 
-  /// Default package path inside the upstream repository.
-  final String upstreamPath;
-
-  /// Packages registered in this adaptation repository.
-  final List<PackageManifestPackage> packages;
+  /// Package adapted by this branch.
+  final PackageManifestPackage package;
 
   /// Dependency URL used when rewriting consumer pubspec files.
   String get dependencyUrl =>
@@ -141,95 +129,72 @@ class PackageManifest {
   /// Branch alias used by package repository commands.
   String get branch => repositoryBranch;
 
-  /// Resolves a package by name, or the only package when there is one.
+  /// Resolves the branch package, optionally validating its name.
   PackageManifestPackage packageForName(String? packageName) {
-    if (packageName != null && packageName.trim().isNotEmpty) {
-      final name = packageName.trim();
-      for (final package in packages) {
-        if (package.name == name) {
-          return package;
-        }
-      }
-      throw FluohSchemaException(
-        'Package $name is not registered in fluoh.yaml.',
-      );
+    final requested = packageName?.trim();
+    if (requested == null || requested.isEmpty || requested == package.name) {
+      return package;
     }
-    if (packages.length == 1) {
-      return packages.single;
-    }
-    throw const FluohSchemaException(
-      'Multiple packages are registered in fluoh.yaml. Pass '
-      '"--package <name>".',
+    throw FluohSchemaException(
+      'Package $requested is not registered in this package branch.',
     );
   }
 
-  /// Primary package for single-package compatibility helpers.
-  PackageManifestPackage get primaryPackage => packageForName(null);
+  /// Primary package for command helpers.
+  PackageManifestPackage get primaryPackage => package;
 
   /// Primary package name.
-  String get packageName => primaryPackage.name;
+  String get packageName => package.name;
 
   /// Primary package upstream version.
-  String get upstreamVersion => primaryPackage.upstreamVersion;
+  String get upstreamVersion => package.upstreamVersion;
 
   /// Primary package FlutterOH adaptation release version.
-  String get releaseVersion => primaryPackage.version;
+  String get releaseVersion => package.version;
 
   /// Primary package release tag for [sdkVersion].
-  String get releaseTag => primaryPackage.releaseTag(sdkVersion);
-
-  /// Primary package path in the upstream repository.
-  String get upstreamPackagePath => primaryPackage.upstreamPath;
-
-  /// Primary package path in the FlutterOH implementation repository.
-  String get repositoryPackagePath => primaryPackage.repositoryPath;
-
-  /// Dependency path used by package dependency rewrites.
-  String get dependencyPath => primaryPackage.repositoryPath;
+  String get releaseTag => package.releaseTag(sdkVersion);
 
   /// Primary package release status, or `null` when compatible.
-  String? get status => primaryPackage.status;
+  String? get status => package.status;
 }
 
-/// Release metadata for one package entry in `fluoh.yaml`.
+/// Release metadata for the package adapted by one branch.
 class PackageManifestPackage {
   /// Creates an immutable package manifest entry.
   const PackageManifestPackage({
     required this.name,
     required this.upstreamVersion,
+    required this.upstreamCommit,
     required this.version,
-    this.repositoryPath = '.',
-    this.upstreamPath = '.',
+    String? path,
     this.upstreamRef,
     this.status,
-  });
+  }) : path = path ?? '.';
 
   /// Package name from the upstream pubspec.
   final String name;
 
+  /// Package path inside both the upstream and FlutterOH repositories.
+  final String path;
+
   /// Upstream package version targeted by this adaptation.
   final String upstreamVersion;
 
+  /// Upstream Git ref that provided this package's source snapshot.
+  final String? upstreamRef;
+
+  /// Resolved upstream Git commit for [upstreamRef].
+  final String upstreamCommit;
+
   /// FlutterOH adaptation release version.
   final String version;
-
-  /// Package path inside the FlutterOH implementation repository.
-  final String repositoryPath;
-
-  /// Package path inside the upstream repository.
-  final String upstreamPath;
-
-  /// Optional upstream Git ref that provided this package's source snapshot.
-  final String? upstreamRef;
 
   /// Release status; `null` means compatible.
   final String? status;
 
   /// Alias for the adaptation release version.
   String get releaseVersion => version;
-
-  /// Alias for the implementation repository package path.
-  String get dependencyPath => repositoryPath;
 
   /// Computes the release tag for this package and SDK version.
   String releaseTag(String sdkVersion) {
@@ -259,30 +224,30 @@ class PackageManifestPackage {
     };
   }
 
-  /// Creates a copy with selected release metadata fields changed.
+  /// Creates a copy with selected metadata fields changed.
   PackageManifestPackage copyWith({
+    String? path,
     String? upstreamVersion,
-    String? version,
-    String? repositoryPath,
-    String? upstreamPath,
     String? upstreamRef,
     bool clearUpstreamRef = false,
+    String? upstreamCommit,
+    String? version,
     String? status,
     bool clearStatus = false,
   }) {
     return PackageManifestPackage(
       name: name,
+      path: path ?? this.path,
       upstreamVersion: upstreamVersion ?? this.upstreamVersion,
-      version: version ?? this.version,
-      repositoryPath: repositoryPath ?? this.repositoryPath,
-      upstreamPath: upstreamPath ?? this.upstreamPath,
       upstreamRef: clearUpstreamRef ? null : upstreamRef ?? this.upstreamRef,
+      upstreamCommit: upstreamCommit ?? this.upstreamCommit,
+      version: version ?? this.version,
       status: clearStatus ? null : status ?? this.status,
     );
   }
 }
 
-/// Creates the initial `fluoh.yaml` manifest for a package repository.
+/// Creates the initial `fluoh.yaml` manifest for a package branch.
 PackageManifest createPackageManifest({
   required PubspecPackage package,
   required String upstream,
@@ -290,106 +255,64 @@ PackageManifest createPackageManifest({
   required String sdkVersion,
   required String branch,
   required String repositoryUrl,
-  String? name,
+  required String upstreamCommit,
   String upstreamBranch = defaultUpstreamBranch,
-  String? repositoryPath,
-  String? upstreamPath,
   String? upstreamRef,
   String releaseVersion = initialPackageReleaseVersion,
   String status = 'experimental',
 }) {
-  final repositoryPackagePath = _manifestPath(repositoryPath ?? packagePath);
   return PackageManifest(
-    name: name ?? package.name,
     sdkVersion: sdkVersion,
     repositoryBranch: branch,
     upstreamUrl: upstream,
     upstreamBranch: upstreamBranch,
     repositoryUrl: repositoryUrl,
-    packages: [
-      PackageManifestPackage(
-        name: package.name,
-        upstreamVersion: package.version,
-        version: releaseVersion,
-        repositoryPath: repositoryPackagePath,
-        upstreamPath: _manifestPath(upstreamPath ?? packagePath),
-        upstreamRef: _manifestRef(upstreamRef),
-        status: status,
+    package: PackageManifestPackage(
+      name: package.name,
+      path: _manifestPath(packagePath),
+      upstreamVersion: _manifestVersion(
+        package.version,
+        label: 'fluoh.yaml package.release.upstream.version',
       ),
-    ],
+      upstreamRef: _manifestRef(upstreamRef),
+      upstreamCommit: _manifestCommit(upstreamCommit),
+      version: _manifestVersion(
+        releaseVersion,
+        label: 'fluoh.yaml package.release.version',
+      ),
+      status: status,
+    ),
   );
 }
 
-/// Adds another package entry to an existing package repository manifest.
-PackageManifest addPackageToManifest({
-  required PackageManifest manifest,
-  required PubspecPackage package,
-  required String packagePath,
-  String? upstreamRef,
-  String releaseVersion = initialPackageReleaseVersion,
-  String status = 'experimental',
-}) {
-  if (manifest.packages.any((existing) => existing.name == package.name)) {
-    throw FluohSchemaException(
-      'Package ${package.name} is already registered in fluoh.yaml.',
-    );
-  }
-  return PackageManifest(
-    name: manifest.name,
-    sdkVersion: manifest.sdkVersion,
-    repositoryBranch: manifest.repositoryBranch,
-    repositoryUrl: manifest.repositoryUrl,
-    repositoryPath: manifest.repositoryPath,
-    upstreamUrl: manifest.upstreamUrl,
-    upstreamBranch: manifest.upstreamBranch,
-    upstreamPath: manifest.upstreamPath,
-    packages: [
-      ...manifest.packages,
-      PackageManifestPackage(
-        name: package.name,
-        upstreamVersion: package.version,
-        version: releaseVersion,
-        repositoryPath: _manifestPath(packagePath),
-        upstreamPath: _manifestPath(packagePath),
-        upstreamRef: _manifestRef(upstreamRef),
-        status: status,
-      ),
-    ],
-  );
-}
-
-/// Updates upstream versions for all packages in a manifest.
+/// Updates upstream version metadata for the branch package.
 PackageManifest updatePackageManifestUpstreamVersions({
   required PackageManifest manifest,
   required Map<String, String> packageVersions,
+  String? upstreamCommit,
+  bool clearUpstreamRef = true,
 }) {
-  for (final package in manifest.packages) {
-    if (!packageVersions.containsKey(package.name)) {
-      throw FluohSchemaException(
-        'Missing upstream version for ${package.name}.',
-      );
-    }
+  final version = packageVersions[manifest.package.name];
+  if (version == null) {
+    throw FluohSchemaException(
+      'Missing upstream version for ${manifest.package.name}.',
+    );
   }
   return PackageManifest(
-    name: manifest.name,
     sdkVersion: manifest.sdkVersion,
     repositoryBranch: manifest.repositoryBranch,
     repositoryUrl: manifest.repositoryUrl,
-    repositoryPath: manifest.repositoryPath,
     upstreamUrl: manifest.upstreamUrl,
     upstreamBranch: manifest.upstreamBranch,
-    upstreamPath: manifest.upstreamPath,
-    packages: [
-      for (final package in manifest.packages)
-        package.copyWith(
-          upstreamVersion: packageVersions[package.name],
-          clearUpstreamRef: true,
-        ),
-    ],
+    package: manifest.package.copyWith(
+      upstreamVersion: version,
+      upstreamCommit: upstreamCommit,
+      clearUpstreamRef: clearUpstreamRef,
+    ),
   );
 }
 
-/// Updates release version or status metadata for one package entry.
+/// Updates release version or status metadata for the branch package.
 ///
 /// Passing `status: 'compatible'` clears the status field because compatible is
 /// represented by omission in generated `fluoh.yaml` files.
@@ -399,113 +322,121 @@ PackageManifest updatePackageManifestRelease({
   String? version,
   String? status,
 }) {
-  if (!manifest.packages.any((package) => package.name == packageName)) {
+  if (manifest.package.name != packageName) {
     throw FluohSchemaException(
-      'Package $packageName is not registered in fluoh.yaml.',
+      'Package $packageName is not registered in this package branch.',
     );
   }
   if (version != null) {
     validateReleaseVersion(
       version,
-      label: 'fluoh.yaml packages.$packageName.version',
+      label: 'fluoh.yaml package.release.version',
     );
   }
   if (status != null) {
     _releaseStatus(status);
   }
   return PackageManifest(
-    name: manifest.name,
     sdkVersion: manifest.sdkVersion,
     repositoryBranch: manifest.repositoryBranch,
     repositoryUrl: manifest.repositoryUrl,
-    repositoryPath: manifest.repositoryPath,
     upstreamUrl: manifest.upstreamUrl,
     upstreamBranch: manifest.upstreamBranch,
-    upstreamPath: manifest.upstreamPath,
-    packages: [
-      for (final package in manifest.packages)
-        if (package.name == packageName)
-          package.copyWith(
-            version: version,
-            status: status == 'compatible' ? null : status,
-            clearStatus: status == 'compatible',
-          )
-        else
-          package,
-    ],
+    package: manifest.package.copyWith(
+      version: version,
+      status: status == 'compatible' ? null : status,
+      clearStatus: status == 'compatible',
+    ),
   );
 }
 
-/// Renders a package repository manifest to canonical `fluoh.yaml` content.
+/// Renders a package branch manifest to canonical `fluoh.yaml` content.
 String packageManifestContent(PackageManifest manifest) {
-  for (final package in manifest.packages) {
-    validateReleaseVersion(
-      package.version,
-      label: 'fluoh.yaml packages.${package.name}.version',
-    );
-  }
+  validateDartPackageName(
+    manifest.package.name,
+    label: 'fluoh.yaml package.name',
+  );
+  final packagePath = normalizeManifestPath(
+    manifest.package.path,
+    label: 'fluoh.yaml package.path',
+  );
+  final upstreamVersion = _manifestVersion(
+    manifest.package.upstreamVersion,
+    label: 'fluoh.yaml package.release.upstream.version',
+  );
+  final upstreamRef = manifest.package.upstreamRef == null
+      ? null
+      : normalizeGitRef(
+          manifest.package.upstreamRef!,
+          label: 'fluoh.yaml package.release.upstream.ref',
+        );
+  final upstreamCommit = normalizeGitCommitHash(
+    manifest.package.upstreamCommit,
+    label: 'fluoh.yaml package.release.upstream.commit',
+  );
+  validateReleaseVersion(
+    manifest.package.version,
+    label: 'fluoh.yaml package.release.version',
+  );
+  _releaseStatus(manifest.package.status);
+  final repositoryBranch = normalizeGitRef(
+    manifest.repositoryBranch,
+    label: 'fluoh.yaml repository.git.branch',
+  );
+  _validatePackageBranch(
+    repositoryBranch,
+    sdkVersion: manifest.sdkVersion,
+    packageName: manifest.package.name,
+  );
+  final upstreamBranch = normalizeGitRef(
+    manifest.upstreamBranch,
+    label: 'fluoh.yaml upstream.git.branch',
+  );
   return [
     'schema: $packageManifestSchema',
-    'name: ${_yamlScalar(manifest.name)}',
+    'kind: $packageManifestKind',
     '',
     '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
     'sdk:',
     '  version: ${manifest.sdkVersion}',
     '',
-    '# FlutterOH adaptation repository. Branches normally follow ohos/<sdkLine>.',
+    '# FlutterOH adaptation repository and current package branch.',
     'repository:',
     '  git:',
     '    url: ${_yamlScalar(manifest.repositoryUrl)}',
-    '    branch: ${_yamlScalar(manifest.repositoryBranch)}',
-    if (manifest.repositoryPath != '.')
-      '    path: ${_yamlScalar(manifest.repositoryPath)}',
+    '    branch: ${_yamlScalar(repositoryBranch)}',
     '',
     '# Upstream package repository tracked by fluoh package sync.',
     'upstream:',
     '  git:',
     '    url: ${_yamlScalar(manifest.upstreamUrl)}',
-    if (manifest.upstreamBranch != defaultUpstreamBranch)
-      '    branch: ${_yamlScalar(manifest.upstreamBranch)}',
-    if (manifest.upstreamPath != '.')
-      '    path: ${_yamlScalar(manifest.upstreamPath)}',
+    '    branch: ${_yamlScalar(upstreamBranch)}',
     '',
-    '# Package release metadata. Update version/status before fluoh package check and release.',
-    '# Omit status when the package is complete and compatible.',
-    'packages:',
-    for (final package in manifest.packages) ...[
-      '  ${package.name}:',
-      if (package.repositoryPath != manifest.repositoryPath) ...[
-        '    # Dependency path inside this FlutterOH repository.',
-        '    repository:',
-        '      path: ${_yamlScalar(package.repositoryPath)}',
-      ],
-      if (package.upstreamPath != manifest.upstreamPath ||
-          package.upstreamRef != null) ...[
-        '    # Upstream package source metadata.',
-        '    upstream:',
-        if (package.upstreamPath != manifest.upstreamPath)
-          '      path: ${_yamlScalar(package.upstreamPath)}',
-        if (package.upstreamRef != null)
-          '      ref: ${_yamlScalar(package.upstreamRef!)}',
-      ],
-      '    # FlutterOH adaptation package release version.',
-      '    version: ${_yamlScalar(package.version)}',
-      '    # Upstream package version this adaptation targets.',
-      '    upstreamVersion: ${_yamlScalar(package.upstreamVersion)}',
-      if (package.status != null && package.status != 'compatible') ...[
-        '    # Use experimental while porting; remove when compatible.',
-        '    status: ${package.status}',
-      ],
+    '# Package adapted by this branch.',
+    'package:',
+    '  name: ${_yamlScalar(manifest.package.name)}',
+    if (packagePath != '.') '  path: ${_yamlScalar(packagePath)}',
+    '  release:',
+    '    version: ${_yamlScalar(manifest.package.version)}',
+    '    upstream:',
+    '      version: ${_yamlScalar(upstreamVersion)}',
+    if (upstreamRef != null) '      ref: ${_yamlScalar(upstreamRef)}',
+    '      commit: ${_yamlScalar(upstreamCommit)}',
+    if (manifest.package.status != null &&
+        manifest.package.status != 'compatible') ...[
+      '    status: ${manifest.package.status}',
     ],
     '',
   ].join('\n');
 }
 
 String _manifestPath(String? path) {
-  if (path == null || path.isEmpty || path == '.') {
-    return '.';
-  }
-  return path;
+  return normalizeManifestPath(path, label: 'fluoh.yaml package.path');
+}
+
+String _manifestVersion(String version, {required String label}) {
+  validatePubVersion(version, label: label);
+  return version;
 }
 
 String? _manifestRef(String? ref) {
@@ -513,55 +444,69 @@ String? _manifestRef(String? ref) {
   if (trimmed == null || trimmed.isEmpty) {
     return null;
   }
-  return trimmed;
+  return normalizeGitRef(
+    trimmed,
+    label: 'fluoh.yaml package.release.upstream.ref',
+  );
 }
 
-PackageManifestPackage _readPackageManifest(
-  String name,
-  Map<String, Object?> package, {
-  required String defaultRepositoryPath,
-  required String defaultUpstreamPath,
+String _manifestCommit(String commit) {
+  return normalizeGitCommitHash(
+    commit,
+    label: 'fluoh.yaml package.release.upstream.commit',
+  );
+}
+
+void _validatePackageBranch(
+  String branch, {
+  required String sdkVersion,
+  required String packageName,
 }) {
-  ensureAllowedKeys(package, 'fluoh.yaml packages.$name', {
-    'repository',
-    'upstream',
+  final expected = flutterOhosPackageBranchForSdk(
+    sdkVersion: sdkVersion,
+    packageName: packageName,
+  );
+  if (branch == expected) {
+    return;
+  }
+  throw FluohSchemaException(
+    'fluoh.yaml repository.git.branch must be $expected for package '
+    '$packageName and SDK ${sdkLineFromSdkVersion(sdkVersion)}.',
+  );
+}
+
+PackageManifestPackage _readPackageManifest(Map<String, Object?> package) {
+  ensureAllowedKeys(package, 'fluoh.yaml package', {'name', 'path', 'release'});
+  final release = objectMap(package['release'], 'fluoh.yaml package.release');
+  ensureAllowedKeys(release, 'fluoh.yaml package.release', {
     'version',
-    'upstreamVersion',
+    'upstream',
     'status',
   });
-  final repository = optionalObjectMap(
-    package['repository'],
-    'fluoh.yaml packages.$name.repository',
+  final upstream = objectMap(
+    release['upstream'],
+    'fluoh.yaml package.release.upstream',
   );
-  final upstream = optionalObjectMap(
-    package['upstream'],
-    'fluoh.yaml packages.$name.upstream',
-  );
-  if (repository != null) {
-    ensureAllowedKeys(repository, 'fluoh.yaml packages.$name.repository', {
-      'path',
-    });
-  }
-  if (upstream != null) {
-    ensureAllowedKeys(upstream, 'fluoh.yaml packages.$name.upstream', {
-      'path',
-      'ref',
-    });
-  }
-  final version = requiredString(package, 'version');
-  validateReleaseVersion(version, label: 'fluoh.yaml packages.$name.version');
+  ensureAllowedKeys(upstream, 'fluoh.yaml package.release.upstream', {
+    'version',
+    'ref',
+    'commit',
+  });
+  final version = requiredString(release, 'version');
+  validateReleaseVersion(version, label: 'fluoh.yaml package.release.version');
+  final packageName = requiredString(package, 'name');
+  validateDartPackageName(packageName, label: 'fluoh.yaml package.name');
   return PackageManifestPackage(
-    name: name,
-    repositoryPath: _manifestPath(
-      optionalString(repository ?? const {}, 'path') ?? defaultRepositoryPath,
+    name: packageName,
+    path: _manifestPath(optionalString(package, 'path')),
+    upstreamVersion: _manifestVersion(
+      requiredString(upstream, 'version'),
+      label: 'fluoh.yaml package.release.upstream.version',
     ),
-    upstreamPath: _manifestPath(
-      optionalString(upstream ?? const {}, 'path') ?? defaultUpstreamPath,
-    ),
-    upstreamRef: _manifestRef(optionalString(upstream ?? const {}, 'ref')),
-    upstreamVersion: requiredString(package, 'upstreamVersion'),
+    upstreamRef: _manifestRef(optionalString(upstream, 'ref')),
+    upstreamCommit: _manifestCommit(requiredString(upstream, 'commit')),
     version: version,
-    status: _releaseStatus(optionalString(package, 'status')),
+    status: _releaseStatus(optionalString(release, 'status')),
   );
 }
 
@@ -619,6 +564,11 @@ bool _shouldQuoteYamlScalar(String value) {
     return true;
   }
   if (value.contains(RegExp(r'\s'))) {
+    return true;
+  }
+  if (RegExp(
+    r'^[+-]?(?:\d+|\d+\.\d+|\.\d+)(?:[eE][+-]?\d+)?$',
+  ).hasMatch(value)) {
     return true;
   }
   if (value.endsWith(':') || value.contains(': ')) {

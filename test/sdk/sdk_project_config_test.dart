@@ -11,8 +11,12 @@ void main() {
     await testDirectory.create(recursive: true);
     await File('${project.path}/fluoh.yaml').writeAsString('''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos-0.0.3
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
 
     expect(await readProjectSdkVersion(testDirectory), '3.35.8-ohos-0.0.3');
@@ -25,13 +29,21 @@ sdk:
     await package.create(recursive: true);
     await File('${project.path}/fluoh.yaml').writeAsString('''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos-0.0.3
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
     await File('${package.path}/fluoh.yaml').writeAsString('''
 schema: 1
+kind: project
 sdk:
   version: 4.0.0-ohos-0.0.1
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
 
     expect(await readProjectSdkVersion(package), '4.0.0-ohos-0.0.1');
@@ -41,8 +53,12 @@ sdk:
     final root = await _createTempDirectory();
     await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
 
     expect(readProjectSdkVersion(root), throwsA(isA<FormatException>()));

@@ -401,7 +401,7 @@ exit 0
 
     expect(result.exitCode, 0);
     final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'doctor'));
     expect(report, containsPair('exitCode', 0));
     expect(report, containsPair('project', false));
@@ -554,7 +554,7 @@ exit 0
 
       expect(result.exitCode, 1);
       final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('schema', 1));
       expect(report, containsPair('command', 'doctor'));
       expect(report, containsPair('ok', false));
       expect(report, containsPair('exitCode', 1));

@@ -1,14 +1,14 @@
 import 'dart:convert';
 
-/// Machine-output schema version shared by all `--json` commands.
-const machineOutputSchemaVersion = 1;
+/// Machine-output schema shared by all `--json` commands.
+const machineOutputSchema = 1;
 
 /// Receives one JSON object produced by a machine-output command.
 typedef MachineOutputWriter = void Function(String message);
 
 /// Builds the standard top-level JSON object for `--json` command output.
 ///
-/// The reserved keys `schemaVersion`, `command`, `ok`, and `exitCode` are owned
+/// The reserved keys `schema`, `command`, `ok`, and `exitCode` are owned
 /// by this helper so every machine-readable command has the same envelope.
 Map<String, Object?> machineOutput({
   required String command,
@@ -16,7 +16,7 @@ Map<String, Object?> machineOutput({
   required int exitCode,
   Map<String, Object?> fields = const {},
 }) {
-  for (final reserved in const ['schemaVersion', 'command', 'ok', 'exitCode']) {
+  for (final reserved in const ['schema', 'command', 'ok', 'exitCode']) {
     if (fields.containsKey(reserved)) {
       throw ArgumentError.value(
         fields[reserved],
@@ -26,7 +26,7 @@ Map<String, Object?> machineOutput({
     }
   }
   return {
-    'schemaVersion': machineOutputSchemaVersion,
+    'schema': machineOutputSchema,
     'command': command,
     'ok': ok,
     'exitCode': exitCode,

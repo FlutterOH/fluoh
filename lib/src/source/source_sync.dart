@@ -1,11 +1,9 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:pub_semver/pub_semver.dart';
 
 import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
-import '../version.dart';
 import 'source_index.dart';
 
 /// Ensures configured Source snapshots are readable, refreshing Git sources.
@@ -80,7 +78,7 @@ Future<_SnapshotState> _snapshotState(
 
 enum _SnapshotState { missing, valid, invalid }
 
-/// Validates a Source snapshot and its fluoh version constraint.
+/// Validates a Source snapshot.
 Future<void> validateSource(
   String name,
   SourceConfig sourceConfig, {
@@ -112,7 +110,6 @@ Future<void> validateSource(
   }
 
   try {
-    await _validateSourceEnvironment(source);
     for (final entry in present) {
       await entry.validate();
     }
@@ -123,24 +120,6 @@ Future<void> validateSource(
   } on FileSystemException catch (error) {
     throw UsageException(
       'Source $name could not be read: ${fileSystemMessage(error)}',
-      '',
-    );
-  }
-}
-
-Future<void> _validateSourceEnvironment(SourceIndex source) async {
-  final manifest = await source.loadRootManifest();
-  final constraintText = manifest.fluohConstraint;
-  if (constraintText == null || constraintText.trim().isEmpty) {
-    return;
-  }
-
-  final constraint = VersionConstraint.parse(constraintText);
-  final current = Version.parse(packageVersion);
-  if (!constraint.allows(current)) {
-    throw UsageException(
-      'Requires fluoh $constraintText, current version is $packageVersion. '
-          'Upgrade fluoh and try again.',
       '',
     );
   }

@@ -72,7 +72,7 @@ void main() {
       isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')),
     );
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'package check'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -547,6 +547,56 @@ void main() {
     );
   });
 
+  test(
+    'release warns when FlutterOH release notes are still placeholders',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      final releaseEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await File('${packageRepository.path}/FLUOH_CHANGELOG.md').writeAsString(
+        '''
+# FlutterOH Changelog
+
+## camera-0.11.0-ohos-3.35-0.1.0
+
+- TODO: Replace this generated placeholder with actual release notes before release.
+''',
+      );
+      await runGit(packageRepository, ['add', 'FLUOH_CHANGELOG.md']);
+      await runGit(packageRepository, [
+        'commit',
+        '-m',
+        'Restore generated release note placeholder',
+      ]);
+
+      expect(
+        await runFluoh(
+          ['package', 'release'],
+          environment: releaseEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      expect(
+        stderr.join('\n'),
+        contains('still contains TODO placeholder release notes'),
+      );
+      expect(
+        stdout,
+        contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
+      );
+    },
+  );
+
   test('release warns when FlutterOH package license is missing', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
@@ -646,56 +696,16 @@ void main() {
     );
   });
 
-  test('release --all creates one tag per registered package', () async {
+  test('release rejects --all for package branch manifests', () async {
     final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamWorkspaceRepository(
-      Directory('${environment.homeDirectory.path}/release_all_upstream'),
-      packagePath: 'packages/camera/camera',
-      packageName: 'camera',
-    );
-    await _addWorkspacePackage(
-      upstream,
-      path: 'packages/share_plus/share_plus',
-      name: 'share_plus',
-      version: '9.0.0',
-    );
-    final packageRepository = Directory(
-      '${environment.homeDirectory.path}/release_all_pub',
-    );
+    final packageRepository = await createPackageRepositoryFixture(environment);
     final stdout = <String>[];
     final stderr = <String>[];
-
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      [
-        'package',
-        'create',
-        upstream.path,
-        '--package-path',
-        'packages/camera/camera',
-        '--package-path',
-        'packages/share_plus/share_plus',
-        '--output',
-        packageRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await commitGeneratedPackageRepository(packageRepository);
-
     final releaseEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
       workingDirectory: packageRepository,
     );
+
     expect(
       await runFluoh(
         ['package', 'release', '--all'],
@@ -703,263 +713,12 @@ void main() {
         stdout: stdout.add,
         stderr: stderr.add,
       ),
-      0,
-    );
-
-    final tags = (await runGit(packageRepository, [
-      'tag',
-      '--list',
-    ])).stdout.toString();
-    expect(tags, contains('camera-0.11.0-ohos-3.35-0.1.0'));
-    expect(tags, contains('share_plus-9.0.0-ohos-3.35-0.1.0'));
-    expect(stdout, contains('Released 2 packages'));
-    expect(stderr, isEmpty);
-  });
-
-  test('release --all --push does not push partial remote tags', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamWorkspaceRepository(
-      Directory('${environment.homeDirectory.path}/release_all_push_upstream'),
-      packagePath: 'packages/camera/camera',
-      packageName: 'camera',
-    );
-    await _addWorkspacePackage(
-      upstream,
-      path: 'packages/share_plus/share_plus',
-      name: 'share_plus',
-      version: '9.0.0',
-    );
-    final packageRepository = Directory(
-      '${environment.homeDirectory.path}/release_all_push_pub',
-    );
-    final origin = Directory(
-      '${environment.homeDirectory.path}/release_all_push_origin.git',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    await origin.create(recursive: true);
-    await runGit(origin, ['init', '--bare']);
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      [
-        'package',
-        'create',
-        upstream.path,
-        '--package-path',
-        'packages/camera/camera',
-        '--package-path',
-        'packages/share_plus/share_plus',
-        '--output',
-        packageRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await commitGeneratedPackageRepository(packageRepository);
-    await runGit(packageRepository, [
-      'remote',
-      'set-url',
-      'origin',
-      origin.path,
-    ]);
-
-    final updateHook = File('${origin.path}/hooks/update');
-    await updateHook.writeAsString(r'''#!/bin/sh
-case "$1" in
-  refs/tags/share_plus-*) exit 1 ;;
-esac
-exit 0
-''');
-    final chmod = await Process.run('chmod', ['+x', updateHook.path]);
-    expect(chmod.exitCode, 0);
-
-    final releaseEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: packageRepository,
-    );
-    expect(
-      await runFluoh(
-        ['package', 'release', '--all', '--push'],
-        environment: releaseEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
       64,
     );
 
-    final remoteTags = (await runGit(origin, [
-      'tag',
-      '--list',
-    ])).stdout.toString();
-    expect(remoteTags, isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')));
-    expect(remoteTags, isNot(contains('share_plus-9.0.0-ohos-3.35-0.1.0')));
-  });
-
-  test(
-    'release --all does not create partial tags when a later tag conflicts',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await createPackageSourceFixture(
-        environment.homeDirectory,
-      );
-      final upstream = await createUpstreamWorkspaceRepository(
-        Directory(
-          '${environment.homeDirectory.path}/release_all_conflict_upstream',
-        ),
-        packagePath: 'packages/camera/camera',
-        packageName: 'camera',
-      );
-      await _addWorkspacePackage(
-        upstream,
-        path: 'packages/share_plus/share_plus',
-        name: 'share_plus',
-        version: '9.0.0',
-      );
-      final packageRepository = Directory(
-        '${environment.homeDirectory.path}/release_all_conflict_pub',
-      );
-      final stdout = <String>[];
-      final stderr = <String>[];
-
-      await runFluoh(
-        ['source', 'add', 'fixture', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        [
-          'package',
-          'create',
-          upstream.path,
-          '--package-path',
-          'packages/camera/camera',
-          '--package-path',
-          'packages/share_plus/share_plus',
-          '--output',
-          packageRepository.path,
-          '--sdk',
-          '3.35.8-ohos-0.0.3',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await commitGeneratedPackageRepository(packageRepository);
-      await runGit(packageRepository, [
-        'tag',
-        'share_plus-9.0.0-ohos-3.35-0.1.0',
-        'HEAD~1',
-      ]);
-
-      final releaseEnvironment = FluohEnvironment(
-        homeDirectory: environment.homeDirectory,
-        workingDirectory: packageRepository,
-      );
-      expect(
-        await runFluoh(
-          ['package', 'release', '--all'],
-          environment: releaseEnvironment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        64,
-      );
-
-      final tags = (await runGit(packageRepository, [
-        'tag',
-        '--list',
-      ])).stdout.toString();
-      expect(tags, isNot(contains('camera-0.11.0-ohos-3.35-0.1.0')));
-      expect(tags, contains('share_plus-9.0.0-ohos-3.35-0.1.0'));
-      final error = stderr.join('\n');
-      expect(error, contains('already exists on a different'));
-      expect(error, contains('commit'));
-    },
-  );
-
-  test('multi-package release notes must identify the package', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamWorkspaceRepository(
-      Directory('${environment.homeDirectory.path}/release_notes_upstream'),
-      packagePath: 'packages/camera/camera',
-      packageName: 'camera',
-    );
-    await _addWorkspacePackage(
-      upstream,
-      path: 'packages/share_plus/share_plus',
-      name: 'share_plus',
-      version: '9.0.0',
-    );
-    final packageRepository = Directory(
-      '${environment.homeDirectory.path}/release_notes_pub',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
-
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      [
-        'package',
-        'create',
-        upstream.path,
-        '--package-path',
-        'packages/camera/camera',
-        '--package-path',
-        'packages/share_plus/share_plus',
-        '--output',
-        packageRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await File('${packageRepository.path}/FLUOH_CHANGELOG.md').writeAsString('''
-# FlutterOH Changelog
-
-## 0.1.0
-
-- Generic release notes.
-''');
-    await commitGeneratedPackageRepository(packageRepository);
-
-    final releaseEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: packageRepository,
-    );
-    expect(
-      await runFluoh(
-        ['package', 'release', '--package', 'share_plus'],
-        environment: releaseEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
-
-    expect(stderr.join('\n'), contains('entry for share_plus release 0.1.0'));
-    expect(
-      stdout,
-      contains('Created release tag share_plus-9.0.0-ohos-3.35-0.1.0'),
-    );
+    expect(stderr.join('\n'), contains('--all'));
+    final tags = await runGit(packageRepository, ['tag', '--list']);
+    expect(tags.stdout.toString(), isEmpty);
   });
 }
 
@@ -1059,23 +818,4 @@ Release recommendation: $recommendation
 Reason: baseline and OHOS evidence are complete.
 ''');
   return report;
-}
-
-Future<void> _addWorkspacePackage(
-  Directory repository, {
-  required String path,
-  required String name,
-  required String version,
-}) async {
-  final packageDirectory = Directory('${repository.path}/$path');
-  await packageDirectory.create(recursive: true);
-  await File('${packageDirectory.path}/pubspec.yaml').writeAsString('''
-name: $name
-version: $version
-
-environment:
-  sdk: ^3.0.0
-''');
-  await runGit(repository, ['add', '.']);
-  await runGit(repository, ['commit', '-m', 'Add $name fixture']);
 }

@@ -39,7 +39,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
   String? phase,
 }) async {
   final repository = environment.workingDirectory;
-  final packageRoot = packageDirectory(repository, package.repositoryPath);
+  final packageRoot = packageDirectory(repository, package.path);
   final packagePath = packageRelativePath(repository, packageRoot);
   final packagePubspec = File('${packageRoot.path}/pubspec.yaml');
   if (!await packagePubspec.exists()) {

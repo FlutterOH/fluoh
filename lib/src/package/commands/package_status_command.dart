@@ -26,14 +26,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       ..addOption(
         'package',
         valueHelp: 'name',
-        help: 'Package to inspect when fluoh.yaml registers multiple packages.',
-      )
-      ..addFlag(
-        'all',
-        negatable: false,
-        help:
-            'Inspect every package registered in fluoh.yaml. This is the '
-            'default when --package is omitted.',
+        help: 'Package to inspect. Defaults to the current package branch.',
       )
       ..addFlag(
         'json',
@@ -56,17 +49,10 @@ class PackageStatusCommand extends FluohCommand<int> {
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
-    if (argResults!.flag('all') &&
-        (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
-      usageException('Use only one of --all or --package.');
-    }
 
     final repository = environment.workingDirectory;
     final manifest = await readPackageManifest(repository);
-    final packageName = argResults!.option('package')?.trim();
-    final packages = packageName == null || packageName.isEmpty
-        ? manifest.packages
-        : [manifest.packageForName(packageName)];
+    final packages = [manifest.packageForName(argResults!.option('package'))];
     final branch = await currentBranch(repository);
     final dirtyFiles = await _dirtyFiles(repository);
     final localPathFiles = await _trackedFilesContaining(
@@ -254,7 +240,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       checks.addAll(metadataChecks);
     }
 
-    final packageRoot = packageDirectory(repository, package.repositoryPath);
+    final packageRoot = packageDirectory(repository, package.path);
     if (await hasPackageTests(packageRoot)) {
       checks.add(
         const _PackageStatusCheck.ok('package-tests', 'Package tests exist'),

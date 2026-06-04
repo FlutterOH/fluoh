@@ -56,7 +56,7 @@ Commands that modify a project or package repository must be conservative:
 - Print concise summaries of changes and next steps.
 
 Commands that support `--json` must use the shared machine-output contract:
-write exactly one JSON object to stdout with top-level `schemaVersion`,
+write exactly one JSON object to stdout with top-level `schema`,
 `command`, `ok`, and `exitCode`, then keep command-specific fields at the top
 level. Keep human progress text off stdout/stderr while JSON mode is active.
 

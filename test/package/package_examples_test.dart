@@ -53,8 +53,9 @@ exit 0
       package: const PackageManifestPackage(
         name: 'plugin',
         upstreamVersion: '1.0.0',
+        upstreamCommit: '1111111111111111111111111111111111111111',
         version: '0.1.0',
-        repositoryPath: 'plugin',
+        path: 'plugin',
       ),
       sdkVersion: '3.35.8-ohos-0.0.3',
       stdout: stdout.add,
@@ -134,8 +135,9 @@ exit 0
       package: const PackageManifestPackage(
         name: 'plugin',
         upstreamVersion: '1.0.0',
+        upstreamCommit: '1111111111111111111111111111111111111111',
         version: '0.1.0',
-        repositoryPath: 'plugin',
+        path: 'plugin',
       ),
       sdkVersion: '3.35.8-ohos-0.0.3',
       stdout: (_) {},
@@ -173,8 +175,12 @@ dependencies:
 ''');
     await File('${example.path}/fluoh.yaml').writeAsString('''
 schema: 1
+kind: project
 sdk:
   version: old-sdk
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
     await File('${example.path}/.gitignore').writeAsString('existing\n');
     final oldSdk = Directory('${environment.homeDirectory.path}/old_sdk');
@@ -201,8 +207,9 @@ exit 1
         package: const PackageManifestPackage(
           name: 'plugin',
           upstreamVersion: '1.0.0',
+          upstreamCommit: '1111111111111111111111111111111111111111',
           version: '0.1.0',
-          repositoryPath: 'plugin',
+          path: 'plugin',
         ),
         sdkVersion: '3.35.8-ohos-0.0.3',
         stdout: stdout.add,
@@ -224,8 +231,12 @@ exit 1
     );
     expect(File('${example.path}/fluoh.yaml').readAsStringSync(), '''
 schema: 1
+kind: project
 sdk:
   version: old-sdk
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''');
     expect(File('${example.path}/.gitignore').readAsStringSync(), 'existing\n');
     expect(Directory('${example.path}/ohos').existsSync(), isFalse);

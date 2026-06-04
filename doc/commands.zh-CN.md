@@ -46,11 +46,20 @@ JSON 结果也会暴露 preflight、创建报告、检查报告、创建功能�
 以及报告模板和交互场景模板的 reference 路径。
 
 实现代码前，AI agent 必须先检查 preflight 的 `upgradeChecks`。schema blocker
-会暂停流程，直到升级 `fluoh` 或迁移 metadata。Package 仓库如果缺少生成文档、仍使用旧
-生成段，或生成文档模板已过期，应先运行 `fluoh package docs refresh --dry-run`；
+会暂停流程，直到当前安装的 `fluoh` 能接受这些 metadata。Package 仓库如果生成文档缺失或
+状态过期，应先运行 `fluoh package docs refresh --dry-run`；
 当工作树干净且不是 review-only 请求时，再运行 `fluoh package docs refresh`。如果
 preflight 因 dry-run 失败而无法确认生成文档是否最新，应先让 dry-run 成功，再假定生成文档
 是当前版本。
+
+全自动适配必须经过 setup gate。用户的初始请求只授权 CLI setup、只读 preflight 和
+setup 信息收集，不等于已经批准修改项目、Package、Source、本地 Git 或实现代码。CLI setup
+和只读 preflight 完成后，任何会修改这些状态的命令或实现代码改动前，AI agent 必须先展示
+最终确认清单，并等待用户明确批准。确认清单包括适配类型、工作目录、必要时的输出目录、SDK
+版本或版本线、必要时的 Package name 和 path、FlutterOH repository URL 或 path、可能创建
+提交时使用的 Git author 身份、即将执行的写操作或文件改动，以及 release、push、
+force-push、破坏性 Git 命令等需要单独批准的操作。只有用户已经在当前任务中明确确认过
+同一份已解析 setup，AI agent 才能跳过这次暂停。
 
 skill 版本跟随 `fluoh` CLI Package 版本。用 `fluoh upgrade` 更新 CLI 后，内置
 skill 文件也会更新；已复制 skill 的 AI agent 应重新运行 `fluoh skill --json`，
@@ -111,7 +120,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | FlutterOH Package 仓库命令组。 |
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | 从已配置 source 列出 FlutterOH Package。 |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH Package 仓库。 |
-| `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中注册另一个 Package。 |
+| `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中创建另一个 Package 适配分支。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS Package 分支。 |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 Package 发布就绪状态。 |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | 更新 Package 发布版本元数据。 |
@@ -135,7 +144,7 @@ fluoh run --platform ohos --device <id>
   已配置 source 快照，尽可能修复快照，重建合并后的 lock，然后再提交新的本地 Source 状态。
 - 消费 Source 数据的命令只能通过 Source 运行时的 load-index API 读取。这个 API 负责
   首次默认 Source 初始化；当 `sources.lock.json` 记录的 fingerprint 仍然匹配时会直接返回。
-  lock 缺失、过期或结构不兼容时，运行时会先校验或修复已配置 source 快照，
+  lock 缺失或过期时，运行时会先校验或修复已配置 source 快照，
   再重新生成 lock 并返回数据。
 - `fluoh source` 不带子命令和 `fluoh source list` 在打印配置前也会走同一套 Source
   运行时重建路径，所以用户会先看到无效或缺失的 source 状态，再依赖列表结果。
@@ -144,7 +153,7 @@ fluoh run --platform ohos --device <id>
   resolver 加载 Source index，因为安装已选择的 SDK 需要 SDK 元数据。
 - 用法错误和 schema 格式错误返回退出码 `64`。
 - 支持 `--json` 的命令只向 stdout 输出一个机器可读 JSON 对象。顶层契约在这些命令之间保持稳定：
-  `schemaVersion`、`command`、`ok` 和 `exitCode` 始终存在；`checks`、`targets`、
+  `schema`、`command`、`ok` 和 `exitCode` 始终存在；`checks`、`targets`、
   `packages`、`dependencies`、`error` 等命令专属字段仍保留在顶层。自动化应调用已安装的
   `fluoh` 可执行文件，不要用 `dart run bin/fluoh.dart ... --json` 作为机器接口，因为
   Dart launcher 可能在命令进程启动前输出依赖解析文本。严格机器解析优先使用
@@ -247,13 +256,15 @@ Source 本机副本。
 
 - SDK release 按 tag 合并。优先级高的 source 胜出；同优先级下发布记录冲突会报错。
 - Package 发布记录按 `package + sdkLine + upstreamVersion` 分组。高优先级会替换同组低优先级记录。
-  消费侧索引只包含 `compatible` 发布记录；`experimental` 和 `broken` 记录仍保留在
-  Manifest 文件中，但不会覆盖低优先级的 compatible 推荐。
-- 同优先级下，派生 tag 相同但 repository 或 path 不同会报错。同组内不同 tag 可以并存，由依赖规划器选择最佳 compatible 发布记录。
+  默认消费侧索引只包含 `compatible` 发布记录。`deps check`、`deps fix` 和
+  `deps upgrade` 可通过 `--all-release-statuses` 为单次命令显式包含非 compatible
+  记录。
+- 同优先级下，派生 tag 相同但 repository 或 path 不同会报错。同组内不同 tag 可以并存，由依赖规划器按项目策略选择最佳候选发布记录。
 - Package 级 upstream URL 和 advisory 文本来自定义该 Package 的最高优先级 source。
 
-`fluoh source remove <name>` 从工具配置中移除非官方 source。官方 Source alias
-`flutteroh` 不允许删除。该命令不拥有配置项以外的无关文件，lock 维护交给 Source 运行时。
+`fluoh source remove <name>` 从工具配置中移除用户 Source。官方 Source alias
+`flutteroh` 由工具持有，priority 固定为 `0`。该命令只拥有被移除的配置项，lock 维护交给
+Source 运行时。
 
 `fluoh source update [name]` 刷新全部 source 或单个指定 source。命令选中的 Git source
 会重新 clone，命令选中的 `file:` source 会从配置的本地目录重新复制。随后 Source 运行时会校验
@@ -268,9 +279,9 @@ sync 失败输出并给出重试提示；clone 成功后 source 内容未通过 
 
 `fluoh source check [path] --schema-only` 校验本地 Source 仓库，但不会读取或写入
 `$FLUOH_HOME/config.json`、source 快照或 `sources.lock.json`。不传 `path` 时默认使用当前目录。
-该模式会检查 Source root schema、`environment.fluoh`、SDK 元数据、Manifest routes、
-Manifest name、重复 Package、Package release 记录，以及 Package index 能否构建。它不会读取
-Git diff、fetch SDK tags、clone Package 仓库，也不会验证已声明的 release；发布数据更新仍由
+该模式会检查 Source root schema、SDK 元数据、Manifest routes、Manifest name、Package
+route/name 一致性、Package release 记录，以及 Package index 能否构建。它不会读取 Git diff、
+fetch SDK tags、clone Package 仓库，也不会验证已声明的 release；发布数据更新仍由
 `fluoh source sync` 负责。`--schema-only` 是本地 Source 校验模式，不能和 diff、release、
 work-root 或 Package 验证选项组合使用。
 
@@ -284,34 +295,39 @@ repository、SDK 和 Manifest 路由示例，维护者可按需取消注释。�
 Manifest 的 `repository.git.url` 作为 FlutterOH Package 仓库，先用
 `git ls-remote --tags` 发现 release tags，并和当前 Source release records 对比；只有发现
 所选 tag 尚未记录时，才打开 Package 仓库读取该 tag 下固化的 Package `fluoh.yaml`，再把
-历史发布记录汇总到 Manifest。不传 `path` 时默认使用当前目录。source 元数据应来自已发布
-适配记录，而不是维护中的仓库状态。当 `<path>` 是 `$FLUOH_HOME/sources/<name>` 下的某个
+历史发布记录写入同名 Package Manifest route。不传 `path` 时默认使用当前目录。source
+元数据应来自已发布适配记录，而不是维护中的仓库状态。当 `<path>` 是
+`$FLUOH_HOME/sources/<name>` 下的某个
 已配置 source 快照时，sync 会被视为已配置 Source 快照变更，由 Source 运行时重建合并后的
 lock。当 `<path>` 是配置快照之外的维护仓库时，本机 lock 不会变化；发布或复制到已配置快照
 后，再运行 `fluoh source update <name>`。使用 `--manifest <name>` 或 `--package <name>`
 可以定向 sync discovery；大型 Source 可用 `--concurrency <n>` 限制并行 tag discovery。
 `--json` 会输出已同步和跳过的 Package 记录，并附带包含 `knownTags`、`discoveredTags`、
-`tagsToSync` 和 route 状态的 `plan`。release tag 视为由 release metadata 推导出的不可变
-记录；移动已有 tag 不会自动 sync，应发布新的 release tag 或人工维护。
+`tagsToSync`、`skippedTags` 和 route 状态的 `plan`。当 Source 根声明了
+`sdk.versions` 时，SDK line 未被这些 SDK 版本覆盖的 tag 会以
+`sdk-line-not-in-source` 原因跳过。缺少或无效 Package `fluoh.yaml`、tag 和
+metadata 不一致、或 `package.path` 和当前 Source Manifest 不一致的 tag 也会按 tag
+跳过并记录在 `skippedTags`，不会中断整轮 sync。release tag 视为由 release metadata
+推导出的不可变记录；移动已有 tag 不会自动 sync，应发布新的 release tag 或人工维护。
 
 `fluoh source check [source]` 是给 Source 维护者和 CI 使用的只读验证命令。
 不传 `source` 时默认检查当前目录。`source` 可以是本地 Source checkout 路径，也可以是
 GitHub pull request URL。命令会校验 Source 文件，识别变更的 Manifest route，然后验证已
 声明的 Package release 引用。Release 验证会克隆引用的 FlutterOH Package 仓库，检查声明的
 release tag，读取每个 tag 下 Package manifest 记录的分支，并在 tag 固化的提交上运行
-`fluoh package check --package <name> --json`。它不会导入 Package metadata，也不会写
-Source 文件；生成或更新 Source release 数据应使用 `fluoh source sync`。JSON 输出包含
+`fluoh package check --package <name> --json`。Source metadata 导入和文件更新仍由
+`fluoh source sync` 负责。JSON 输出包含
 `recommendation`、`changeType`、`affectedManifests`、`changedReleaseRecords`、
 `releaseCheckPlan`、`skippedReleaseChecks`、`sdkChecks`、`changedFiles`、`errors`、
 `warnings`，以及 checkout/check 细节。默认按 `--base-ref` 识别变更 Manifest 文件。只有 Source 根
 `fluoh.yaml` 变更时，命令会比较 base ref 和 HEAD 的 Manifest route 名，只检查新增或删除
-的 route，并用 `git ls-remote --tags` 检查新增 SDK tag，不会因为 SDK-only 根元数据变更而
-展开检查所有 Manifest。Manifest 文件变更时，命令会对比 base ref 的 release records，只
+的 route，并用 `git ls-remote --tags` 检查新增 SDK tag；SDK-only 根元数据变更只检查根文件。
+Manifest 文件变更时，命令会对比 base ref 的 release records，只
 验证新增或修改的 release record、package 新增、SDK line 新增、repository 变化或
-repository/upstream package path 变化。PR diff 检查只校验 Source root 和受影响的 Manifest
+`package.path` 变化。PR diff 检查只校验 Source root 和受影响的 Manifest
 route；显式全量审计、diff fallback，以及 push/manual 的 `--skip-release-checks` 检查会校验
-全部 Manifest route。只改 advisory、maintenance 或删除 release record 不会克隆 Package
-仓库。目标不是 Git worktree 或 diff 无法读取时，会退回检查所有 Manifest route，并报告
+全部 Manifest route。只改 advisory、maintenance 或删除 release record 时作为 YAML-only
+检查处理。目标不是 Git worktree 或 diff 无法读取时，会退回检查所有 Manifest route，并报告
 warning。明确需要全量审计所有 Manifest route 时传 `--all`；只想校验 Source YAML 和变更
 route 选择、不克隆 Package 仓库时传 `--skip-release-checks`。全量审计可以用
 `--manifest <name>`、`--package <name>`、`--shard <index>/<total>`、
@@ -355,18 +371,21 @@ SDK 缺失，SDK resolver 只会为查询并安装该 SDK 而加载 Source index
 `fluoh deps check` 读取项目 `fluoh.yaml` 中的依赖策略，根据已配置 source 构建依赖计划，
 并把依赖分组为 ready、needs decision、manual action、unavailable、already OK、
 transitive 和 advisory。fresh Source lock 会提供 Package 路由提示；命令随后只读取可能包含
-项目 lockfile 中 Package 的 Manifest 文件。`--json` 输出同一计划的机器可读 JSON。
+项目 lockfile 中 Package 的 Manifest 文件。默认只考虑 `compatible` Source release 记录；
+传入 `--all-release-statuses` 会额外考虑 experimental 和 broken release。`--json`
+输出同一计划的机器可读 JSON。
 
 `fluoh deps fix` 根据依赖计划应用推荐 FlutterOH 适配变更。它会按照
 `dependencyPolicy.pubspecSection` 写入 `dependency_overrides` 或直接改写依赖声明。
-版本不匹配默认跳过，除非 `dependencyPolicy.versionChanges` 为 `any`。
+版本不匹配默认跳过，除非 `dependencyPolicy.versionChanges` 为 `any`；非 compatible
+release 状态默认跳过，除非本次命令使用了 `--all-release-statuses`。
 `--dry-run` 或 `-n` 只打印计划，不修改 `pubspec.yaml`。`--json` 输出机器可读 JSON，
 包含变更摘要、已应用数量和 dry-run 标记。写入前会校验生成后的 YAML；如果校验或写入失败，
 会恢复原始 `pubspec.yaml`。
 
 `fluoh deps upgrade` 比 `deps fix` 更窄：只升级已有 FlutterOH 依赖替换，不新增替换。它使用
-同样的版本变化策略和 dry-run 行为。`--json` 输出依赖计划、变更摘要、已应用数量和
-dry-run 标记，并且不会输出人类可读进度文本。
+同样的版本变化策略、命令级 release status 选项和 dry-run 行为。`--json`
+输出依赖计划、变更摘要、已应用数量和 dry-run 标记，并且不会输出人类可读进度文本。
 
 ## Package 仓库命令
 
@@ -382,15 +401,15 @@ dry-run 标记，并且不会输出人类可读进度文本。
 
 ### 适配流程
 
-适配以 Flutter OHOS 大版本线为单位维护，而不是以 SDK patch 版本为单位维护。
-例如完整 SDK `3.35.8-ohos-0.0.3` 对应 SDK 版本线 `3.35`，适配仓库分支使用
-`ohos/3.35`。
+适配以 Package 分支和 Flutter OHOS 大版本线为单位维护，而不是以 SDK patch 版本为单位维护。
+例如完整 SDK `3.35.8-ohos-0.0.3` 对应 SDK 版本线 `3.35`，Package `camera`
+维护在 `ohos/3.35/camera`。
 
 推荐流程：
 
 1. 选择完整 SDK 版本。
 2. 从 SDK 版本推导 SDK 版本线。
-3. 创建或切换 `ohos/<sdkLine>` 分支。
+3. 创建或切换 `ohos/<sdkLine>/<package>` 分支。
 4. 在 Package `fluoh.yaml` 中记录当前适配的 upstream Package 版本和 FlutterOH
    适配 Package 版本。
 5. 开始写 OHOS 代码前，先用已选择 SDK 做基线检查，包括 `fluoh deps get`、
@@ -402,45 +421,55 @@ dry-run 标记，并且不会输出人类可读进度文本。
 8. `fluoh package check` 运行最终本地 gate，不创建 tag。
 9. `fluoh package release` 打 release tag，tag 固化当前代码、测试和 Package
    `fluoh.yaml`。
-10. `fluoh source sync` 从 release tags 汇总 Source Manifest。
+10. `fluoh source sync` 从 release tags 导入逐 Package Source Manifest。
 
-`fluoh package create <upstream>` clone upstream 仓库，选择一个或多个 Package，配置
-`upstream` 和 `origin`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，配置
+`fluoh package create <upstream>` clone upstream 仓库，选择一个 Package，配置
+`upstream` 和 `origin`，创建 `ohos/3.35/camera` 这类 Flutter OHOS Package 分支，配置
 Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 agent
 指令，然后暂存生成文件。如果选中的 Package 已有 Flutter example，命令会给该 example
 新增 OHOS 平台、写入 example SDK 配置，并暂存 example 变更。生成的引导会要求维护者先
 建立已选择 SDK 基线并修复非 OHOS 平台回归，再实现 OHOS 代码。
 生成的 agent 指令也会要求 AI 在维护者要求本地提交时，按已完成且已验证的 checkpoint
 拆分小的本地 commit。
-不传 `--package-path` 时，命令只选择 upstream 仓库根目录 Package。若 upstream
-仓库同时有根目录 Package 和子目录 Package，需要传 `--package-path .`，并为每个要注册的
-子 Package 重复传 `--package-path <subdir>`。
+不传 `--package-path` 时，命令只选择 upstream 仓库根目录 Package，不表示适配 monorepo
+中的全部 Package。适配 monorepo 时，为当前要创建的 Package 分支传一个
+`--package-path <subdir>`。要在同一仓库继续适配另一个 Package，从生成仓库中运行
+`fluoh package add <package-path>`；它会基于该 Package 的最新 release tag 创建独立 Package
+分支。
+命令始终要求 `--repository-name <repository-name>`。`--repository-name` 只决定未传
+`--output` 时的默认输出目录，以及省略 `--repository` 时的默认 FlutterOH origin URL。
+它不会写入 Package `fluoh.yaml`；Package 身份来自 `package.name`。只选择一个子目录
+Package path 且遗漏 `--repository-name` 时，usage error 会根据 path 给出候选建议，
+但命令仍要求显式传入该参数。
 生成的 `fluoh.yaml` 会在 `repository`、`upstream`、Package 路径、`version` 和
-`status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括可重复的
-`--package-path`、`--output`、`--sdk`、`--repository`、`--git-author-name` 和
-`--git-author-email`。Git 作者参数只配置新仓库本地 Git `user.name` 和 `user.email`，
-供后续适配 commit 使用，不写入被跟踪文件。
+`status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括
+`--package-path`、`--output`、`--repository-name`、`--sdk`、`--repository`、
+`--git-author-name`、`--git-author-email`、`--plan` 和 `--json`。Git 作者参数只配置新仓库
+本地 Git `user.name` 和 `user.email`，供后续适配 commit 使用，不写入被跟踪文件。
+`--plan` 会把 upstream clone 到临时目录，解析所选 Package、SDK、输出路径、repository
+URL、目标分支和 Git author，然后删除临时 clone；它不会创建目标仓库、配置 SDK link、
+写文件、stage 文件或 commit。`--json` 只支持和 `--plan` 一起使用，并输出一个机器可读
+plan 对象，供 AI setup 确认使用。
 
-`fluoh package add <package-path>` 在现有 FlutterOH Package 仓库中注册另一个 Package。它要求
-工作树干净且位于 Package `repository.git.branch` 记录的维护分支，校验
-`<package-path>`，可选校验 `--expected-package`，追加 Package `fluoh.yaml` 和文档，
-在已有 Flutter example 时准备 example，并暂存生成文件。命令失败时会通过文件快照保护
-本地状态。
+`fluoh package add <package-path>` 在现有 FlutterOH Package 仓库中创建另一个 Package 分支。
+它要求工作树干净，基于 upstream 分支解析目标 Package，切到该 Package 最新 release tag
+commit，创建 `ohos/<sdkLine>/<package>`，写入单 Package `fluoh.yaml` 和文档，在已有
+Flutter example 时准备 example，并暂存生成文件。命令失败时会通过文件快照保护本地状态。
 
 `fluoh package sync` 会拉取 upstream，快进 Package `upstream.git.branch` 记录的 upstream
 分支，回到 `fluoh.yaml` 记录的 `repository.git.branch` 分支，先把 upstream 分支合并进来但
 不立即提交，然后更新 `fluoh.yaml` 中的 upstream 元数据并暂存；
-存在变更时提交 `Sync upstream packages`。合并冲突会留给用户解决，之后
+存在变更时提交 `Sync upstream package`。合并冲突会留给用户解决，之后
 `fluoh package sync --continue` 校验已暂存的解决结果并完成流程。`--abort` 对进行中的 sync
 执行 `git merge --abort`。`--json` 会输出完成的 sync 动作列表和提交状态。fetch 失败输出
 `sync.fetch_failed`；合并冲突输出 `sync.merge_conflict`，包含冲突文件列表和 `--continue`
 下一步命令；没有产生可解决冲突的 merge 失败输出 `sync.merge_failed`。Git 有有效输出时，
 JSON diagnostic 会包含裁剪后的 stdout 和 stderr 尾部。
 
-`fluoh verify` 会为当前项目或 Package `fluoh.yaml` 中已注册 Package 运行自动化验证。它会先用已选择 SDK 执行 `pub get` 和 `analyze`：Flutter Package 使用
+`fluoh verify` 会为当前项目或 Package `fluoh.yaml` 中记录的当前 Package 运行自动化验证。它会先用已选择 SDK 执行 `pub get` 和 `analyze`：Flutter Package 使用
 `flutter`，非 Flutter Package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行测试。
 在 Package 仓库中，如果存在顶层 Flutter example（`example/pubspec.yaml`），也会验证
-example。使用 `--package <name>` 验证单个 Package，或用 `--all` 验证所有已注册 Package。
+example。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支。
 `--json` 会在 `targets` 下输出每个项目或 Package 的目标身份、phase、steps、diagnostics 和
 `nextCommand`。
 
@@ -487,7 +516,7 @@ AI 辅助场景文件使用内置 `skills/fluoh/references/interaction-scenario-
 当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed` 等平台 diagnostic；
 Package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
 
-`fluoh package version` 更新 `fluoh.yaml` 中已注册 Package 的发布元数据。
+`fluoh package version` 更新 `fluoh.yaml` 中当前 Package 的发布元数据。
 用 `--bump patch|minor|major` 递增 FlutterOH 适配 Package 版本，用
 `--set <version>` 设置精确版本，用 `--status experimental|compatible|broken`
 设置发布状态。`compatible` 会移除 status 字段，因为 compatible 是默认状态。
@@ -497,14 +526,14 @@ Package example 则在可判断时继续使用更细的安装、启动、runtime
 `FLUOH.md` 和 `AGENTS.md` 中 fluoh 拥有的生成段。生成段使用包含稳定 section id
 和 template version 的 `fluoh:generated` marker，因此后续模板升级只会替换被工具拥有的段落，
 保留手写内容。已有非空 `FLUOH_CHANGELOG.md` 不会被整体重写；如果 changelog 缺失或为空，
-命令会根据当前 Package metadata 创建初始 release heading。`--dry-run` 只报告会变化的文件，
-不要求干净工作树。实际写入要求当前分支匹配 `fluoh.yaml` 记录的 Package 分支且工作树干净，
-不会 stage 文件，也不会修改 `fluoh.yaml`。`--json` 输出 `changed`、`applied`、`files`
-和 `dryRun`。
+命令会根据当前 Package metadata 创建带 TODO 占位条目的初始 release heading，发布前必须替换为
+真实 release notes。`--dry-run` 只报告会变化的文件，不要求干净工作树。实际写入要求当前分支匹配
+`fluoh.yaml` 记录的 Package 分支且工作树干净，不会 stage 文件，也不会修改 `fluoh.yaml`。
+`--json` 输出 `changed`、`applied`、`files` 和 `dryRun`。
 
 `fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送
-tag。使用 `--package <name>` 检查单个 Package，或用 `--all` 检查所有已注册 Package。
+tag。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支。
 `--json` 会输出 tag、warning、认证状态和验证结果。Check 默认不要求设备或 AI report
 证据；没有提供认证报告时只输出非阻断 warning。需要 AI/CI 认证交付时，传
 `--report <path>` 或 `--certification-report <path>` 强制检查已完成的
@@ -520,7 +549,7 @@ tag。使用 `--package <name>` 检查单个 Package，或用 `--all` 检查所�
 `fluoh package status` 读取 Package `fluoh.yaml` 并汇总发布就绪状态，不修改仓库。它会检查
 当前分支、工作树是否干净、package status、release notes、license warning、Package 测试、
 Flutter example、example OHOS 平台、example 测试，以及 tracked 文件是否包含本机 fluoh home
-路径。使用 `--package <name>` 检查单个 Package，`--all` 检查全部 Package，`--json`
+路径。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支，`--json`
 输出机器可读结果。
 
 ## 状态归属

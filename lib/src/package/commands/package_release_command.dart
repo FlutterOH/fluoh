@@ -48,15 +48,8 @@ class PackageReleaseCommand extends FluohCommand<int> {
         'package',
         valueHelp: 'name',
         help: kind == PackageReleaseCommandKind.check
-            ? 'Package to check when fluoh.yaml registers multiple packages.'
-            : 'Package to release when fluoh.yaml registers multiple packages.',
-      )
-      ..addFlag(
-        'all',
-        negatable: false,
-        help: kind == PackageReleaseCommandKind.check
-            ? 'Check every package registered in fluoh.yaml.'
-            : 'Release every package registered in fluoh.yaml.',
+            ? 'Package to check. Defaults to the current package branch.'
+            : 'Package to release. Defaults to the current package branch.',
       )
       ..addFlag('json', negatable: false, help: 'Print the result as JSON.')
       ..addOption(
@@ -121,10 +114,6 @@ class PackageReleaseCommand extends FluohCommand<int> {
 
     try {
       expectNoArguments(argResults!, usageException);
-      if (argResults!.flag('all') &&
-          (argResults!.option('package')?.trim().isNotEmpty ?? false)) {
-        usageException('Use only one of --all or --package.');
-      }
       final certificationReport = _trimmedOption('certification-report');
       final requireOhosRun = argResults!.flag('require-ohos-run');
       if (requireOhosRun && certificationReport == null) {
@@ -149,12 +138,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
         _cleanTreeLabel,
       );
       await _ensureSdkVersionExists(manifest.sdkVersion);
-      final packages = argResults!.flag('all')
-          ? manifest.packages
-          : [manifest.packageForName(argResults!.option('package'))];
-      if (certificationReport != null && packages.length != 1) {
-        usageException('Use --report with one package at a time.');
-      }
+      final packages = [manifest.packageForName(argResults!.option('package'))];
       for (final package in packages) {
         final result = await _validateAndTestPackage(
           manifest: manifest,
@@ -206,10 +190,6 @@ class PackageReleaseCommand extends FluohCommand<int> {
       if (kind == PackageReleaseCommandKind.check) {
         output.success(
           'Package release check passed for ${packages.length} package${_s(packages.length)}',
-        );
-      } else if (argResults!.flag('all')) {
-        output.success(
-          'Released ${packages.length} package${_s(packages.length)}',
         );
       }
       _printJsonIfRequested(
@@ -302,10 +282,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
     }
     await _ensureReleaseTagIsUsable(tag: tag, package: package);
 
-    final verifyCommand = manifest.packages.length == 1
-        ? 'fluoh verify'
-        : 'fluoh verify --package ${package.name}';
-    output.step('Running $verifyCommand as package release verification');
+    output.step('Running fluoh verify as package release verification');
     final verificationResult = await runPackageWorkflow(
       environment: environment,
       manifest: manifest,

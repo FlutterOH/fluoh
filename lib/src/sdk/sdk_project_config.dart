@@ -13,6 +13,14 @@ Future<String?> readProjectSdkVersion(Directory workingDirectory) async {
   if (content.trim().isEmpty) {
     return null;
   }
+  final yaml = parseYamlMap(content, label: fluohYaml.path);
+  final kind = yaml['kind'];
+  if (kind == packageManifestKind) {
+    return PackageManifest.parse(content).sdkVersion;
+  }
+  if (kind != null && kind != projectConfigKind) {
+    return null;
+  }
   return ProjectFluohConfig.parse(content).sdkVersion;
 }
 

@@ -3,6 +3,7 @@ import 'package:pub_semver/pub_semver.dart';
 import 'dependency_policy.dart';
 import 'pubspec.dart';
 import 'source_index.dart';
+import 'version_rules.dart';
 
 /// Compatibility status for one dependency on the selected FlutterOH SDK.
 enum DependencyStatus {
@@ -102,6 +103,8 @@ class DependencyCompatibility {
       if (implementation != null) 'implementationTag': implementation!.tag,
       if (implementation?.path != null)
         'implementationPath': implementation!.path,
+      if (implementation != null && implementation!.status != 'compatible')
+        'implementationStatus': implementation!.status,
       if (advisory != null) 'advisory': advisory!.toJson(),
       'dependencyChain': dependencyChain,
     };
@@ -197,7 +200,10 @@ int compareImplementationsDescending(
   PackageImplementation a,
   PackageImplementation b,
 ) {
-  final upstream = compareNumericVersion(b.upstreamVersion, a.upstreamVersion);
+  final upstream = comparePubVersionsDescending(
+    a.upstreamVersion,
+    b.upstreamVersion,
+  );
   if (upstream != 0) {
     return upstream;
   }
@@ -207,16 +213,19 @@ int compareImplementationsDescending(
     return sdkVersion;
   }
 
-  return compareNumericVersion(
-    implementationVersionFromTag(b.tag),
+  return comparePubVersionsDescending(
     implementationVersionFromTag(a.tag),
+    implementationVersionFromTag(b.tag),
   );
 }
 
 /// Extracts the package release version suffix from an implementation tag.
 String implementationVersionFromTag(String tag) {
-  final match = RegExp(r'-([0-9]+(?:\.[0-9]+)*)$').firstMatch(tag);
-  return match?.group(1) ?? '0';
+  try {
+    return parsePackageReleaseTag(tag).releaseVersion;
+  } on FormatException {
+    return '0.0.0';
+  }
 }
 
 /// Compares dot-separated numeric version-like strings.
@@ -323,6 +332,9 @@ class DependencyPlan {
       'sdkVersion': sdkVersion,
       'pubspecSection': policy.pubspecSection.yamlValue,
       'versionChanges': policy.versionChanges.yamlValue,
+      'releaseStatuses': orderedDependencyReleaseStatuses(
+        policy.allowedReleaseStatuses,
+      ),
       'dependencies': entries.map((entry) => entry.toJson()).toList(),
     };
   }

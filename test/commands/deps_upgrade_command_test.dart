@@ -63,12 +63,12 @@ void main() {
       expect(
         stdout,
         contains(
-          'Would update camera camera-0.11.0-ohos-3.35-0 -> camera-0.11.0-ohos-3.35-1',
+          'Would update camera camera-0.11.0-ohos-3.35-0 -> camera-0.11.0-ohos-3.35-1.0.0',
         ),
       );
       expect(stdout, contains('Updated 1 FlutterOH dependency replacement'));
       expect(stdout, contains('Next: run `fluoh deps get`'));
-      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
       expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-0')));
       expect(stderr, isEmpty);
     },
@@ -109,7 +109,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final dryRunReport = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(dryRunReport, containsPair('schemaVersion', 1));
+    expect(dryRunReport, containsPair('schema', 1));
     expect(dryRunReport, containsPair('command', 'deps upgrade'));
     expect(dryRunReport, containsPair('ok', false));
     expect(dryRunReport, containsPair('exitCode', 0));
@@ -123,7 +123,7 @@ void main() {
         containsPair('packageName', 'camera'),
         containsPair('kind', 'updateRef'),
         containsPair('currentRef', 'camera-0.11.0-ohos-3.35-0'),
-        containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1'),
+        containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1.0.0'),
       ),
     );
     expect(
@@ -146,7 +146,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final applyReport = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(applyReport, containsPair('schemaVersion', 1));
+    expect(applyReport, containsPair('schema', 1));
     expect(applyReport, containsPair('command', 'deps upgrade'));
     expect(applyReport, containsPair('ok', true));
     expect(applyReport, containsPair('exitCode', 0));
@@ -155,7 +155,7 @@ void main() {
     final pubspec = File(
       '${environment.workingDirectory.path}/pubspec.yaml',
     ).readAsStringSync();
-    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
     expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-0')));
     expect(stderr, isEmpty);
   });
@@ -278,9 +278,9 @@ dependency_overrides:
     final updated = pubspec.readAsStringSync();
     expect(
       updated,
-      contains("ref: 'camera-0.11.0-ohos-3.35-1' # keep comment"),
+      contains("ref: 'camera-0.11.0-ohos-3.35-1.0.0' # keep comment"),
     );
-    expect(updated, contains('ref: "camera-0.11.0-ohos-3.35-1"'));
+    expect(updated, contains('ref: "camera-0.11.0-ohos-3.35-1.0.0"'));
     expect(updated, isNot(contains('camera-0.11.0-ohos-3.35-0')));
     expect(stdout, contains('Updated 2 FlutterOH dependency replacements'));
     expect(stderr, isEmpty);
@@ -332,7 +332,7 @@ dependencies:
     );
 
     final updated = pubspec.readAsStringSync();
-    expect(updated, contains('camera-0.11.0-ohos-3.35-1'));
+    expect(updated, contains('camera-0.11.0-ohos-3.35-1.0.0'));
     expect(updated, isNot(contains('camera-0.11.0-ohos-3.35-0')));
     expect(stdout, contains('Updated 1 FlutterOH dependency replacement'));
     expect(stderr, isEmpty);
@@ -347,12 +347,12 @@ dependencies:
       );
       final manifest = File('${source.path}/manifests/share_plus/fluoh.yaml');
       await manifest.writeAsString(
-        manifest.readAsStringSync().replaceFirst(
-          '        releases:\n',
-          '        releases:\n'
-              '          - version: 1\n'
-              '            upstreamVersion: 10.1.0\n',
-        ),
+        '${manifest.readAsStringSync()}'
+        '        - version: 1.0.0\n'
+        '          upstream:\n'
+        '            version: 10.1.0\n'
+        '            ref: share_plus-v10.1.0\n'
+        '            commit: "1010101010101010101010101010101010101010"\n',
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
@@ -368,7 +368,7 @@ dependency_overrides:
   share_plus:
     git:
       url: ${environment.homeDirectory.path}/share_plus
-      ref: share_plus-10.0.0-ohos-3.35-1
+      ref: share_plus-10.0.0-ohos-3.35-1.0.0
       path: packages/share_plus/share_plus
 ''');
       final stdout = <String>[];
@@ -399,14 +399,14 @@ dependency_overrides:
       expect(
         stdout,
         contains(
-          'Would update share_plus share_plus-10.0.0-ohos-3.35-1 -> '
-          'share_plus-10.1.0-ohos-3.35-1 '
+          'Would update share_plus share_plus-10.0.0-ohos-3.35-1.0.0 -> '
+          'share_plus-10.1.0-ohos-3.35-1.0.0 '
           '(upstream 10.0.0 -> 10.1.0)',
         ),
       );
       expect(
         pubspec.readAsStringSync(),
-        contains('share_plus-10.0.0-ohos-3.35-1'),
+        contains('share_plus-10.0.0-ohos-3.35-1.0.0'),
       );
 
       expect(
@@ -420,8 +420,8 @@ dependency_overrides:
       );
 
       final updated = pubspec.readAsStringSync();
-      expect(updated, contains('share_plus-10.1.0-ohos-3.35-1'));
-      expect(updated, isNot(contains('share_plus-10.0.0-ohos-3.35-1')));
+      expect(updated, contains('share_plus-10.1.0-ohos-3.35-1.0.0'));
+      expect(updated, isNot(contains('share_plus-10.0.0-ohos-3.35-1.0.0')));
       expect(stderr, isEmpty);
     },
   );

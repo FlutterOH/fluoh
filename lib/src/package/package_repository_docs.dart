@@ -99,12 +99,11 @@ List<PackageRepositoryDocPackage> packageRepositoryDocPackagesForManifest(
   PackageManifest manifest,
 ) {
   return [
-    for (final package in manifest.packages)
-      PackageRepositoryDocPackage(
-        name: package.name,
-        version: package.upstreamVersion,
-        packagePath: package.repositoryPath,
-      ),
+    PackageRepositoryDocPackage(
+      name: manifest.package.name,
+      version: manifest.package.upstreamVersion,
+      packagePath: manifest.package.path,
+    ),
   ];
 }
 
@@ -180,184 +179,18 @@ String packageAgentsInstructionsContent({
   required List<PackageRepositoryDocPackage> packages,
   required bool includeTitle,
 }) {
-  if (packages.length == 1) {
-    return _singlePackageAgentsInstructionsContent(
-      package: packages.single,
-      includeTitle: includeTitle,
-    );
-  }
-
+  final packageLine = packages.length == 1
+      ? '- Current package: `${packages.single.name}`.'
+      : '- Current packages: ${packages.map((package) => '`${package.name}`').join(', ')}.';
   return [
     if (includeTitle) '# AGENTS.md',
     if (includeTitle) '',
-    '## FlutterOH Context',
+    '## FlutterOH/OHOS Adaptation',
     '',
-    'This repository contains OHOS implementations for multiple Flutter packages. Treat `fluoh.yaml` as the source of truth for the current SDK, repository URL, branch, package paths, upstream versions, release versions, and status.',
+    'For FlutterOH/OHOS package adaptation tasks, follow `FLUOH.md`.',
     '',
-    '- Package metadata: `packages.<name>` entries in `fluoh.yaml`.',
-    '- Repository branch: `repository.git.branch` in `fluoh.yaml`.',
-    '- Upstream repository: `upstream.git` in `fluoh.yaml`.',
-    '- Release notes: `FLUOH_CHANGELOG.md`.',
-    '',
-    '## Packages',
-    '',
-    for (final package in packages)
-      '- `${package.name}` ${package.version}: package path `${package.packagePath}`, example `${package.examplePath}`, verify command `${package.verifyCommand}`, version command `${package.versionCommand}`, release check `${package.releaseCheckCommand}`, release command `${package.releaseCommand}`.',
-    '',
-    '## Working Rules',
-    '',
-    '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh deps get` when dependencies may be stale.',
-    '- Before adding OHOS code, establish a selected-SDK baseline with `fluoh flutter analyze` and existing package tests or example builds. Fix non-OHOS platform regressions first.',
-    '- Keep OHOS implementation changes focused near each package path; preserve upstream APIs and non-OHOS behavior.',
-    '- Use upstream package tests and existing example tests as the automated baseline. Extend the package example for manual platform verification when behavior needs a device.',
-    '- Treat example apps as functional verification harnesses: every important workflow should provide an operation, expected result, pass/fail status, failure hint, and non-visual evidence such as Flutter debug output, widget/component state, semantic labels, stable status text, test keys, or log markers.',
-    '- Treat `fluoh run` launch success as smoke evidence only. Workflows that require taps, permissions, files, camera, location, media, deep links, or other device interaction need `integration_test` coverage where available, AI-assisted interaction evidence, or an explicitly accepted manual fallback.',
-    '- OHOS currently builds, signs, installs, launches, and captures hilog, but does not drive example interactions. Prefer an AI-assisted functional pass for required OHOS flows, then record steps, expected result, actual result, device id, Flutter debug/widget/semantic/log evidence, and optional screenshots.',
-    '- Do not assume the AI agent can recognize screenshots or judge UI appearance. Interaction scenarios should be verifiable through Flutter debug or VM service output when available, widget/component tree state, integration-test output, accessibility or semantics text, stable test keys, command JSON, hilog, or app log markers; screenshots and recordings are supporting artifacts only.',
-    '- Prefer the full automated OHOS loop when a local OpenHarmony emulator or device is available: `fluoh run --platform ohos --package <name> --json`. Add `--device <id>` for an already connected hdc target.',
-    '- After changing shared Dart code, dependencies, examples, or platform-channel contracts, run existing-platform regression checks when the example has those platforms: `fluoh run --platform android --package <name> --json` for Android, `fluoh run --platform ios --package <name> --json` for iOS, and `fluoh run --platform macos --package <name> --json` for macOS. Add `--emulator <name>` to start a local emulator or simulator where available, or `--device <id>` to select a connected target. iOS builds use `--no-codesign` automatically.',
-    '- Run `fluoh doctor --project --json --strict` when native toolchains, connected targets, current project, selected SDK, fluoh installation, or source snapshot health is unclear; fix warnings before editing package logic.',
-    '- Read JSON `nextCommand` and `diagnostics` before editing. Use the suggested next command and diagnostic code to decide whether to fix Dart analysis/tests, OHOS build, signing/permissions, target setup, install, launch, or runtime crash behavior.',
-    '- Keep `fluoh.yaml` aligned with SDK, repository URL, branch, package paths, release version, upstream version, and status changes.',
-    '- Update `FLUOH_CHANGELOG.md` for every package being released.',
-    '- When a `fluoh` command or option is unclear, run `fluoh help`, `fluoh help package`, or the command-specific help such as `fluoh help verify` before guessing.',
-    '- Keep tests focused on behavior and release contracts. For documentation or generated guidance, assert stable commands, files, and schema keys rather than exact prose.',
-    '- Do not invent OHOS APIs, permissions, manifest fields, or signing values. Derive them from upstream platform behavior, generated errors, or existing FlutterOH package implementations; stop and ask when the source is unclear.',
-    '- Run `${packages.first.verifyCommand}` or another package-specific `fluoh verify --package <name>` before release metadata changes, then commit the implementation checkpoint. Use `fluoh package version --package <name>` to update release version/status only from a clean worktree, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, then run final verify and `fluoh package check --package <name> --report <report-path>`.',
-    '',
-    ..._multiAdaptationCommandFlowLines(),
-    '## Stop and Ask',
-    '',
-    '- Ask before changing Dart public APIs, package names, dependency constraints, non-default release version policy, manual release version overrides, repository remotes, or branch layout. Normal `fluoh package version --bump patch --status ...` metadata updates in this workflow do not need separate confirmation.',
-    '- Ask before deleting upstream files, replacing platform implementations wholesale, force-pushing, running destructive Git commands, or committing failing work.',
-    '- If an OHOS API, permission, signing setting, device capability, or generated build error is unclear, report the evidence and the smallest next check instead of guessing.',
-    '- Preserve the local worktree on network, GitHub, push, sync, or release failures; summarize the failure and leave retryable next steps.',
-    '',
-    ..._multiPlatformVerificationLines(),
-    ..._diagnosticsRoutingLines(),
-    '## Adaptation Workflow',
-    '',
-    '1. Inventory: read `fluoh.yaml`, `FLUOH.md`, each package path, `pubspec.yaml`, existing platform implementations, tests, and any package example before editing.',
-    '2. Baseline: work one package at a time. Run `fluoh deps get`, `fluoh flutter analyze`, existing package tests, `fluoh doctor --project --json --strict`. Include Android/iOS/macOS run commands when `example/android`, `example/ios`, or `example/macos` exists and the local toolchain is available; fix non-OHOS regressions first.',
-    '3. Plan: map the Dart API to platform-channel or native entry points, permissions, configuration files, example flows, automated tests, and device-only checks. State any assumptions before implementing.',
-    '4. Implement: add OHOS behavior near the recorded package path while preserving upstream public APIs and non-OHOS behavior.',
-    '5. Refresh: run `fluoh deps get` after dependency, SDK, package metadata, or example setup changes. From each existing package example, run `fluoh sdk use <sdk-version> --pub-get` if the IDE link is missing or stale.',
-    '6. Test: add or update deterministic package tests and example tests. Cover arguments, return shapes, errors, platform-channel names, and user-visible example flows where applicable.',
-    '7. Verify OHOS example: extend each package example from its existing platforms plus OHOS. Run `fluoh run --platform ohos --package <name> --json` when a local emulator is available; use `--device <id>` for an already connected target. This builds, generates temporary debug signing from requested permissions, installs, launches, captures hilog, and reports JSON diagnostics.',
-    '8. Verify existing platforms: after OHOS changes, follow the Platform Verification Matrix for each existing platform directory. Build-only evidence is not enough for release readiness; use `fluoh doctor --platform android --json --strict`, `fluoh doctor --platform ios --json --strict`, or `fluoh doctor --platform macos --json --strict` to check native tooling, then use the matching `fluoh run --platform <platform> --package <name> --json` command so Android, iOS, and macOS examples are launched and integration tests run when present. If a local Android, Xcode, device, simulator, or macOS host environment is unavailable, record the exact skipped command and reason in the report.',
-    '9. Release prep: keep `packages.<name>.status: experimental` until that package is implemented, tested, and ready to be recommended. Run the matching `fluoh verify --package <name>`, commit the implementation checkpoint, run `fluoh package version --package <name>` from the clean worktree when release version/status must change, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, then run final verify and `fluoh package check --package <name> --report <report-path>`. Use `fluoh package release --package <name>` or `fluoh package release --all` only after maintainer approval.',
-    '',
-    '## Definition of Done',
-    '',
-    '- Each package being released has an OHOS implementation that matches upstream behavior for the supported API surface and preserves public Dart APIs unless upstream changed them.',
-    '- Automated checks cover the adapted behavior where practical; any device-only verification gap is covered by AI-assisted interaction evidence, an explicitly accepted manual fallback, or a documented blocker.',
-    '- Each existing package example exposes functional operations, expected results, pass/fail status, failure hints, and non-visual evidence for important workflows.',
-    '- The matching full OHOS run succeeds when a local emulator or device is available; otherwise the HAP build succeeds and the device-only blocker is documented.',
-    '- Existing Android, iOS, and macOS example builds, run smoke checks, and integration tests pass when their platform directories and local toolchains exist; skipped checks include the exact command and environment blocker.',
-    '- `FLUOH_CHANGELOG.md` is updated and `packages.<name>.status` remains `experimental` until the package is ready to recommend.',
-    '- The matching `fluoh verify --package <name>` succeeds before release.',
-    '- A timestamped `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` exists and gives the maintainer enough context to decide whether to release or request follow-up changes.',
-    '',
-    ..._completionReportLines(),
-    '## Final Response',
-    '',
-    '- Keep the final response short. Point to the generated `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md`, state whether the package is ready for release, and list only blocking risks or the maintainer decision needed next.',
-    '',
-    ..._localCommitCheckpointLines(multiPackage: true, packageScope: '<name>'),
-    '## Before Commit',
-    '',
-    '- Review `git status --short --ignored=matching` and staged files before committing.',
-    '- Do not commit local paths, IDE metadata, generated build outputs, caches, certificates, private keys, passwords, or signing profiles.',
-    '- Do not commit team-specific iOS signing state such as `DEVELOPMENT_TEAM`, `PROVISIONING_PROFILE_SPECIFIER`, profile UUIDs, or non-generic `CODE_SIGN_IDENTITY` values.',
-    '- OHOS `signingConfigs` may exist for local testing, but tracked files must not contain real certificate paths, passwords, or private signing material. Commit empty or placeholder signing settings only.',
-    '',
-  ].join('\n');
-}
-
-String _singlePackageAgentsInstructionsContent({
-  required PackageRepositoryDocPackage package,
-  required bool includeTitle,
-}) {
-  return [
-    if (includeTitle) '# AGENTS.md',
-    if (includeTitle) '',
-    '## FlutterOH Context',
-    '',
-    'This repository contains the OHOS implementation for `${package.name}`. Treat `fluoh.yaml` as the source of truth for the current SDK, repository URL, branch, package path, upstream version, release version, and status.',
-    '',
-    '- Package metadata: `packages.${package.name}` in `fluoh.yaml`.',
-    '- Upstream version: `${package.version}`.',
-    '- Package path: `packages.${package.name}.repository.path` when present; otherwise `repository.git.path` or `.` in `fluoh.yaml`.',
-    '- Repository branch: `repository.git.branch` in `fluoh.yaml`.',
-    '- Upstream repository: `upstream.git` in `fluoh.yaml`.',
-    '- Release notes: `FLUOH_CHANGELOG.md`.',
-    '',
-    '## Working Rules',
-    '',
-    '- Use `fluoh flutter <args>` so commands use the SDK selected in `fluoh.yaml`; start with `fluoh deps get` when dependencies may be stale.',
-    '- Before adding OHOS code, establish a selected-SDK baseline with `fluoh flutter analyze` and existing package tests or example builds. Fix non-OHOS platform regressions first.',
-    '- Keep OHOS implementation changes focused near the package path recorded in `fluoh.yaml`; preserve upstream APIs and non-OHOS behavior.',
-    '- Use upstream package tests and existing example tests as the automated baseline. Extend `${package.examplePath}` for AI-assisted or manual platform verification when behavior needs a device.',
-    '- Treat example apps as functional verification harnesses: every important workflow should provide an operation, expected result, pass/fail status, failure hint, and non-visual evidence such as Flutter debug output, widget/component state, semantic labels, stable status text, test keys, or log markers.',
-    '- Treat `fluoh run` launch success as smoke evidence only. Workflows that require taps, permissions, files, camera, location, media, deep links, or other device interaction need `integration_test` coverage where available, AI-assisted interaction evidence, or an explicitly accepted manual fallback.',
-    '- OHOS currently builds, signs, installs, launches, and captures hilog, but does not drive example interactions. Prefer an AI-assisted functional pass for required OHOS flows, then record steps, expected result, actual result, device id, Flutter debug/widget/semantic/log evidence, and optional screenshots.',
-    '- Do not assume the AI agent can recognize screenshots or judge UI appearance. Interaction scenarios should be verifiable through Flutter debug or VM service output when available, widget/component tree state, integration-test output, accessibility or semantics text, stable test keys, command JSON, hilog, or app log markers; screenshots and recordings are supporting artifacts only.',
-    '- Prefer the full automated OHOS loop when a local OpenHarmony emulator or device is available: `${package.ohosRunCommand}`. Use `${package.ohosDeviceRunCommand}` for an already connected hdc target.',
-    '- After changing shared Dart code, dependencies, `${package.examplePath}`, or platform-channel contracts, run existing-platform regression checks when the example has those platforms: `${package.androidRunCommand}` for Android, `${package.iosRunCommand}` for iOS, and `${package.macosRunCommand}` for macOS. Add `--emulator <name>` to start a local emulator or simulator where available, or `--device <id>` to select a connected target. iOS builds use `--no-codesign` automatically.',
-    '- Run `fluoh doctor --project --json --strict` when native toolchains, connected targets, current project, selected SDK, fluoh installation, or source snapshot health is unclear; fix warnings before editing package logic.',
-    '- Read JSON `nextCommand` and `diagnostics` before editing. Use the suggested next command and diagnostic code to decide whether to fix Dart analysis/tests, OHOS build, signing/permissions, target setup, install, launch, or runtime crash behavior.',
-    '- Keep `fluoh.yaml` aligned with SDK, repository URL, branch, package path, release version, upstream version, and status changes.',
-    '- Update `FLUOH_CHANGELOG.md` for FlutterOH release notes.',
-    '- When a `fluoh` command or option is unclear, run `fluoh help`, `fluoh help package`, or the command-specific help such as `fluoh help verify` before guessing.',
-    '- Keep tests focused on behavior and release contracts. For documentation or generated guidance, assert stable commands, files, and schema keys rather than exact prose.',
-    '- Do not invent OHOS APIs, permissions, manifest fields, or signing values. Derive them from upstream platform behavior, generated errors, or existing FlutterOH package implementations; stop and ask when the source is unclear.',
-    '- Run `${package.verifyCommand}` before release metadata changes, then commit the implementation checkpoint. Use `${package.versionCommand}` to update release version/status only from a clean worktree, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, then run final verify and `${package.releaseCheckCommand} --report <report-path>`.',
-    '',
-    ..._singleAdaptationCommandFlowLines(package),
-    '## Stop and Ask',
-    '',
-    '- Ask before changing Dart public APIs, package names, dependency constraints, non-default release version policy, manual release version overrides, repository remotes, or branch layout. Normal `${package.versionCommand} --bump patch --status ...` metadata updates in this workflow do not need separate confirmation.',
-    '- Ask before deleting upstream files, replacing platform implementations wholesale, force-pushing, running destructive Git commands, or committing failing work.',
-    '- If an OHOS API, permission, signing setting, device capability, or generated build error is unclear, report the evidence and the smallest next check instead of guessing.',
-    '- Preserve the local worktree on network, GitHub, push, sync, or release failures; summarize the failure and leave retryable next steps.',
-    '',
-    ..._singlePlatformVerificationLines(package),
-    ..._diagnosticsRoutingLines(),
-    '## Adaptation Workflow',
-    '',
-    '1. Inventory: read `fluoh.yaml`, `FLUOH.md`, `${package.examplePath}` when present, `pubspec.yaml`, existing platform implementations, tests, and the package code path recorded in `fluoh.yaml` before editing.',
-    '2. Baseline: run `fluoh deps get`, `fluoh flutter analyze`, existing package tests, `fluoh doctor --project --json --strict` before changing OHOS code. Include `${package.androidRunCommand}`, `${package.iosRunCommand}`, or `${package.macosRunCommand}` when `${package.examplePath}/android`, `${package.examplePath}/ios`, or `${package.examplePath}/macos` exists and the local toolchain is available; fix non-OHOS regressions first.',
-    '3. Plan: map the Dart API to platform-channel or native entry points, permissions, configuration files, example flows, automated tests, and device-only checks. State any assumptions before implementing.',
-    '4. Implement: add OHOS behavior near the recorded package path while preserving upstream public APIs and non-OHOS behavior.',
-    '5. Refresh: run `fluoh deps get` after dependency, SDK, package metadata, or example setup changes. From `${package.examplePath}` when it exists, run `fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get` if the IDE link is missing or stale.',
-    '6. Test: add or update deterministic package tests and example tests. Cover arguments, return shapes, errors, platform-channel names, and user-visible example flows where applicable.',
-    '7. Verify OHOS example: extend `${package.examplePath}` from the package\'s existing platforms plus OHOS when an example exists. Run `${package.ohosRunCommand}` when a local emulator is available; use `${package.ohosDeviceRunCommand}` for an already connected target. This builds, generates temporary debug signing from requested permissions, installs, launches, captures hilog, and reports JSON diagnostics. Then run AI-assisted functional scenarios for required example flows and record evidence.',
-    '8. Verify existing platforms: after OHOS changes, follow the Platform Verification Matrix for each existing platform directory. Build-only evidence is not enough for release readiness; use `fluoh doctor --platform android --json --strict`, `fluoh doctor --platform ios --json --strict`, or `fluoh doctor --platform macos --json --strict` to check native tooling, then use `${package.androidEmulatorRunCommand}`, `${package.iosSimulatorRunCommand}`, or `${package.macosRunCommand}` so Android, iOS, and macOS examples are launched and integration tests run when present. Add `${package.examplePath}/integration_test/` or AI-assisted interaction evidence for flows beyond launch smoke. If a local Android, Xcode, device, simulator, or macOS host environment is unavailable, record the exact skipped command and reason in the report.',
-    '9. Release prep: keep `packages.${package.name}.status: experimental` until the implementation is complete, tested, and ready to be recommended. Run `${package.verifyCommand}`, commit the implementation checkpoint, use `${package.versionCommand}` from the clean worktree when release version/status must change, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, then run final verify and `${package.releaseCheckCommand} --report <report-path>`. Run `${package.releaseCommand}` only after maintainer approval.',
-    '',
-    '## Definition of Done',
-    '',
-    '- `${package.name}` has an OHOS implementation that matches upstream behavior for the supported API surface and preserves public Dart APIs unless upstream changed them.',
-    '- Automated checks cover the adapted behavior where practical; any device-only verification gap is covered by AI-assisted interaction evidence, an explicitly accepted manual fallback, or a documented blocker.',
-    '- `${package.examplePath}` exposes functional operations, expected results, pass/fail status, failure hints, and non-visual evidence for important workflows when an example exists.',
-    '- `${package.ohosRunCommand}` succeeds when a local emulator is available; otherwise `${package.ohosBuildCommand}` succeeds and the device-only blocker is documented.',
-    '- `${package.androidRunCommand}`, `${package.iosRunCommand}`, `${package.macosRunCommand}`, run smoke checks, and integration tests pass when their platform directories and local toolchains exist; skipped checks include the exact command and environment blocker.',
-    '- `FLUOH_CHANGELOG.md` is updated and `packages.${package.name}.status` remains `experimental` until the package is ready to recommend.',
-    '- `${package.verifyCommand}` succeeds before release.',
-    '- A timestamped `.fluoh/ai-report-${package.name}-YYYYMMDD-HHMMSS.md` exists and gives the maintainer enough context to decide whether to release or request follow-up changes.',
-    '',
-    ..._completionReportLines(),
-    '## Final Response',
-    '',
-    '- Keep the final response short. Point to the generated `.fluoh/ai-report-${package.name}-YYYYMMDD-HHMMSS.md`, state whether `${package.name}` is ready for release, and list only blocking risks or the maintainer decision needed next.',
-    '',
-    ..._localCommitCheckpointLines(multiPackage: false),
-    '## Before Commit',
-    '',
-    '- Review `git status --short --ignored=matching` and staged files before committing.',
-    '- Do not commit local paths, IDE metadata, generated build outputs, caches, certificates, private keys, passwords, or signing profiles.',
-    '- Do not commit team-specific iOS signing state such as `DEVELOPMENT_TEAM`, `PROVISIONING_PROFILE_SPECIFIER`, profile UUIDs, or non-generic `CODE_SIGN_IDENTITY` values.',
-    '- OHOS `signingConfigs` may exist for local testing, but tracked files must not contain real certificate paths, passwords, or private signing material. Commit empty or placeholder signing settings only.',
+    'Keep the existing instructions in this `AGENTS.md` as the primary repository rules. Use `FLUOH.md` only for fluoh package workflow, verification, release evidence, and handoff requirements.',
+    packageLine,
     '',
   ].join('\n');
 }
@@ -369,20 +202,32 @@ List<String> _localCommitCheckpointLines({
   final packageCommitScope = packageScope ?? '<name>';
   final commitScopeGuidance = multiPackage
       ? '- Use Conventional Commits with the package name as the scope for package-specific changes, such as `feat($packageCommitScope): add OHOS platform scaffold` or `test($packageCommitScope): cover OHOS channel calls`. Use repository-level scopes such as `docs`, `ci`, or `release` only for changes that are not specific to one package.'
-      : '- Use Conventional Commits without a package-name scope when the repository contains only this package, such as `feat: add OHOS platform scaffold` or `test: cover OHOS channel calls`. Use a scope only when it adds real context, such as `docs`, `ci`, `example`, or `release`.';
+      : '- Use Conventional Commits without a package-name scope when the current branch adapts only this package, such as `feat: add OHOS platform scaffold` or `test: cover OHOS channel calls`. Use a scope only when it adds real context, such as `docs`, `ci`, `example`, or `release`.';
   return [
     '## Local Commit Checkpoints',
     '',
     '- Before adaptation commits, resolve the repository URL/path recorded in `repository.git.url` and the local Git author identity that will be used for commits.',
     '- Create small local commits at completed checkpoints instead of one large final commit when the workflow needs commits, such as before package sync, package check, or handoff. Before each commit, self-review the staged paths, commit message, and local Git author identity.',
     '- Keep commits local unless the maintainer explicitly asks you to push.',
-    '- Before the first commit, run `git config --local --get user.name` and `git config --local --get user.email`; if either is missing or contradicts the resolved identity, ask for author info, then set `git config --local user.name <name>` and `git config --local user.email <email>`. New package repositories can also be created with `fluoh package create --git-author-name <name> --git-author-email <email>`.',
+    '- Before the first commit, run `git config --local --get user.name` and `git config --local --get user.email`; if either is missing or contradicts the resolved identity, ask for author info, then set `git config --local user.name <name>` and `git config --local user.email <email>`. New package repositories can also be created with `fluoh package create <upstream> --repository-name <repository-name> --git-author-name <name> --git-author-email <email>`.',
     '- Stage explicit paths for each checkpoint and review `git diff --cached` before committing.',
-    '- Commit generated baseline files separately before implementation changes when `fluoh package create` or `fluoh package add` creates the repository or registers a package.',
+    '- Commit generated baseline files separately before implementation changes when `fluoh package create` or `fluoh package add` creates a package branch.',
     '- Suggested checkpoints: generated baseline, selected-SDK baseline fixes, OHOS scaffold, each implemented feature, tests and example verification, then release metadata.',
     '- Commit only after the checkpoint\'s relevant command succeeds; note skipped device-only checks in the commit body.',
     commitScopeGuidance,
     '- Do not commit failing work unless the maintainer explicitly requests a local WIP checkpoint.',
+    '',
+  ];
+}
+
+List<String> _adaptationGuardrailLines() {
+  return [
+    '## Guardrails',
+    '',
+    '- Ask before changing Dart public APIs, package names, dependency constraints, non-default release version policy, manual release version overrides, repository remotes, or branch layout. Normal package version/status metadata updates in this workflow do not need separate confirmation.',
+    '- Ask before deleting upstream files, replacing platform implementations wholesale, force-pushing, running destructive Git commands, or committing failing work.',
+    '- Do not invent OHOS APIs, permissions, manifest fields, or signing values. Derive them from upstream platform behavior, generated errors, or existing FlutterOH package implementations; stop and ask when the source is unclear.',
+    '- Preserve the local worktree on network, GitHub, push, sync, or release failures; summarize the failure and leave retryable next steps.',
     '',
   ];
 }
@@ -393,7 +238,7 @@ List<String> _multiAdaptationCommandFlowLines() {
     '',
     'Use this command flow as the primary loop. The detailed workflow and platform matrix below add context, but these commands decide when to edit, when to fix local environment, and when the work can be handed back.',
     '',
-    '1. Repository setup: use `fluoh package create <upstream>` for a new repository, `fluoh package add <package-path>` for additional packages, and `fluoh package sync` only after a completed, committed checkpoint when upstream needs to be merged. For whole-repository work, build a package queue and finish one package checkpoint sequence before moving to the next package.',
+    '1. Repository setup: use `fluoh package create <upstream> --repository-name <repository-name>` to create the first package branch, `fluoh package add <package-path>` to create another package branch from that package release, and `fluoh package sync` only after a completed, committed checkpoint when upstream needs to be merged. For whole-repository work, build a package queue and finish one package branch checkpoint sequence before moving to the next package.',
     '2. Baseline gates: run `fluoh deps get`, `fluoh doctor --project --json --strict`, `fluoh flutter analyze`, and existing package or example tests before adding OHOS code. Project warnings mean repository fixes; environment warnings mean local toolchain or Source fixes.',
     '3. Implementation loop: after code, dependency, SDK, or metadata changes, rerun `fluoh deps get` when needed, then `fluoh verify --package <name> --json` until pub get, analysis, and existing tests pass.',
     '4. OHOS loop: run `fluoh run --platform ohos --package <name> --json`, or add `--device <id>` for a connected hdc target. This proves build, signing, install, launch, and hilog diagnostics; then complete required example functional interactions with AI-assisted automation when possible and record evidence. If no target is available, run `fluoh build --platform ohos --package <name> --auto-sign --json` as build-only evidence and record the blocker.',
@@ -414,7 +259,7 @@ List<String> _singleAdaptationCommandFlowLines(
     '',
     'Use this command flow as the primary loop. The detailed workflow and platform matrix below add context, but these commands decide when to edit, when to fix local environment, and when the work can be handed back.',
     '',
-    '1. Repository setup: use `fluoh package create <upstream>` for a new repository and `fluoh package sync` only after a completed, committed checkpoint when upstream needs to be merged.',
+    '1. Repository setup: use `fluoh package create <upstream> --repository-name <repository-name>` for a new repository and `fluoh package sync` only after a completed, committed checkpoint when upstream needs to be merged.',
     '2. Baseline gates: run `fluoh deps get`, `fluoh doctor --project --json --strict`, `fluoh flutter analyze`, and existing package or example tests before adding OHOS code. Project warnings mean repository fixes; environment warnings mean local toolchain or Source fixes.',
     '3. Implementation loop: after code, dependency, SDK, or metadata changes, rerun `fluoh deps get` when needed, then `${package.verifyCommand} --json` until pub get, analysis, and existing tests pass.',
     '4. OHOS loop: run `${package.ohosRunCommand}`, or `${package.ohosDeviceRunCommand}` for a connected hdc target. This proves build, signing, install, launch, and hilog diagnostics; then complete required example functional interactions with AI-assisted automation when possible and record evidence. If no target is available, run `${package.ohosBuildCommand}` as build-only evidence and record the blocker.',
@@ -554,7 +399,7 @@ String packageImplementationGuideContent({
   return [
     if (includeTitle) '# FlutterOH Implementation',
     if (includeTitle) '',
-    'This repository contains OHOS implementations for multiple Flutter packages. Current SDK, package paths, upstream versions, release versions, and release status are recorded in `fluoh.yaml`.',
+    'This repository is being used for a package-branch adaptation queue. Current SDK, package path, upstream version, release version, and release status are recorded in the current branch `fluoh.yaml`.',
     '',
     '## Packages',
     '',
@@ -563,8 +408,8 @@ String packageImplementationGuideContent({
     '',
     '## Metadata',
     '',
-    '- `fluoh.yaml` records the upstream packages, FlutterOH repository, SDK target, and release metadata.',
-    '- Package metadata: `packages.<name>` entries in `fluoh.yaml`',
+    '- `fluoh.yaml` records the current upstream package, FlutterOH repository, SDK target, and release metadata.',
+    '- Package metadata: `package` in the current branch `fluoh.yaml`',
     '- Repository URL/path: `repository.git.url` in `fluoh.yaml`',
     '- Repository branch: `repository.git.branch` in `fluoh.yaml`',
     '- Upstream repository: `upstream.git` in `fluoh.yaml`',
@@ -578,12 +423,14 @@ String packageImplementationGuideContent({
       '- `${package.name}`: inspect `${package.packagePath}`, `${package.examplePath}`, package tests, example tests, and pubspec constraints.',
     '- Keep assumptions close to the current diff; remove stale notes before release.',
     '',
+    ..._adaptationGuardrailLines(),
     ..._multiAdaptationCommandFlowLines(),
     ..._multiPlatformVerificationLines(),
+    ..._diagnosticsRoutingLines(),
     '## Next Steps',
     '',
     '1. Establish a selected-SDK and native-platform baseline before adding OHOS code: run `fluoh deps get`, `fluoh flutter analyze`, `fluoh doctor --project --json --strict`, and existing package tests or example builds. Include the matching Android/iOS/macOS run command when the example has that platform directory and the local toolchain is available, then fix non-OHOS platform regressions first.',
-    '2. Implement the OHOS platform code for each registered package.',
+    '2. Implement the OHOS platform code for the current package branch.',
     '3. Use upstream package tests and existing example tests as the automated baseline before calling the package complete.',
     '4. Keep package tests and example tests deterministic, with existing example apps for AI-assisted or manual platform verification.',
     '5. Run the full automated OHOS loop for each package example when a local OpenHarmony emulator or device is available: `fluoh run --platform ohos --package <name> --json`. Add `--device <id>` for an already connected hdc target. Use `fluoh build --platform ohos --package <name> --auto-sign --json` as a build-only fallback when no device is available. JSON `nextCommand` and `diagnostics` give the next failure category. Complete and record required OHOS example functional interactions separately because the run command does not click through pages.',
@@ -595,7 +442,7 @@ String packageImplementationGuideContent({
     '',
     '## Adaptation Workflow',
     '',
-    '1. Inventory: read `fluoh.yaml` to confirm SDK version, package paths, upstream versions, current release status, and example locations.',
+    '1. Inventory: read `fluoh.yaml` to confirm SDK version, package path, upstream version, current release status, and example location.',
     '2. Baseline: for each package, run `fluoh deps get`, `fluoh flutter analyze`, `fluoh doctor --project --json --strict`, and existing package tests or example builds with the selected SDK before changing OHOS code. Include Android/iOS/macOS run commands when `example/android`, `example/ios`, or `example/macos` exists and local toolchains are available; fix non-OHOS regressions first.',
     '3. Plan: inspect the upstream Dart API and platform implementations, then identify required OHOS entry points, permissions, config files, tests, example flows, and device checks.',
     '4. Implement: add OHOS code without changing upstream public APIs unless upstream requires it.',
@@ -603,8 +450,8 @@ String packageImplementationGuideContent({
     '6. Example: from each existing package example, run `fluoh sdk use <sdk-version> --pub-get` when the IDE link is missing or stale. Extend examples from their existing platforms plus OHOS, including operation, expected result, pass/fail status, and failure hint.',
     '7. Build and run OHOS: use `fluoh run --platform ohos --package <name> --json` to build, auto-sign, install, launch, capture hilog, and classify failures. Then perform required example functional interactions on the emulator or device and record evidence. Fix permission, `reason`, `usedScene`, ArkTS, install, launch, runtime, or interaction diagnostics before release.',
     '8. Check existing platforms: follow the Platform Verification Matrix. Run `fluoh run --platform android --package <name> --json` when an Android example exists, `fluoh run --platform ios --package <name> --json` when an iOS example exists, and `fluoh run --platform macos --package <name> --json` when a macOS example exists, or add `--device <id>` for already connected targets. Use `integration_test/` or AI-assisted interaction evidence for scenario coverage beyond launch smoke. Record exact skip reasons for unavailable local toolchains.',
-    '9. Release prep: keep `packages.<name>.status: experimental` until that package is implemented, tested, and ready to be recommended. Run `fluoh deps get` after dependency or metadata changes, run the matching `fluoh verify --package <name>`, then commit the implementation checkpoint.',
-    '10. Finish: update release metadata, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, run final `fluoh verify --package <name>`, create the ignored `.fluoh/ai-report-...md`, run `$_reportCheckCommand`, then run `fluoh package check --package <name> --report <report-path>`. Use `fluoh package release --package <name>` or `fluoh package release --all` only after maintainer approval.',
+    '9. Release prep: keep `package.release.status: experimental` until that package is implemented, tested, and ready to be recommended. Run `fluoh deps get` after dependency or metadata changes, run the matching `fluoh verify --package <name>`, then commit the implementation checkpoint.',
+    '10. Finish: update release metadata, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, run final `fluoh verify --package <name>`, create the ignored `.fluoh/ai-report-...md`, run `$_reportCheckCommand`, then run `fluoh package check --package <name> --report <report-path>`. Use `fluoh package release --package <name>` only after maintainer approval.',
     '',
     '## Release Readiness',
     '',
@@ -615,6 +462,8 @@ String packageImplementationGuideContent({
     '- Android, iOS, and macOS example builds, run smoke checks, and integration tests pass when those platforms exist and local toolchains are available; unavailable toolchains are documented with exact skipped commands and block a `ready` recommendation.',
     '- `FLUOH_CHANGELOG.md`, `fluoh.yaml`, package status, and release version are ready for `fluoh package check` and `fluoh package release`.',
     '',
+    ..._completionReportLines(),
+    ..._localCommitCheckpointLines(multiPackage: true),
     '## Before Commit',
     '',
     '- Review `git status --short --ignored=matching`.',
@@ -636,9 +485,9 @@ String _singlePackageImplementationGuideContent({
     '## Metadata',
     '',
     '- `fluoh.yaml` records the upstream package, FlutterOH repository, SDK target, and release metadata.',
-    '- Package metadata: `packages.${package.name}` in `fluoh.yaml`',
+    '- Package metadata: `package` in `fluoh.yaml`',
     '- Upstream version: `${package.version}`',
-    '- Package path: `packages.${package.name}.repository.path` when present; otherwise `repository.git.path` or `.` in `fluoh.yaml`',
+    '- Package path: `package.path` in `fluoh.yaml`',
     '- Repository URL/path: `repository.git.url` in `fluoh.yaml`',
     '- Repository branch: `repository.git.branch` in `fluoh.yaml`',
     '- Upstream repository: `upstream.git` in `fluoh.yaml`',
@@ -651,8 +500,10 @@ String _singlePackageImplementationGuideContent({
     '- Inspect `${package.packagePath}`, `${package.examplePath}`, package tests, example tests, and pubspec constraints.',
     '- Keep assumptions close to the current diff; remove stale notes before release.',
     '',
+    ..._adaptationGuardrailLines(),
     ..._singleAdaptationCommandFlowLines(package),
     ..._singlePlatformVerificationLines(package),
+    ..._diagnosticsRoutingLines(),
     '## Next Steps',
     '',
     '1. Establish a selected-SDK and native-platform baseline before adding OHOS code: run `fluoh deps get`, `fluoh flutter analyze`, `fluoh doctor --project --json --strict`, and existing package tests or example builds. Include the matching Android/iOS/macOS run command when the example has that platform directory and the local toolchain is available, then fix non-OHOS platform regressions first.',
@@ -676,7 +527,7 @@ String _singlePackageImplementationGuideContent({
     '6. Example: from `${package.examplePath}` when it exists, run `fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get` when the IDE link is missing or stale. Extend the example from its existing platforms plus OHOS, including operation, expected result, pass/fail status, and failure hint.',
     '7. Build and run OHOS: use `${package.ohosRunCommand}` to build, auto-sign, install, launch, capture hilog, and classify failures. Then perform required example functional interactions on the emulator or device and record evidence. Fix permission, `reason`, `usedScene`, ArkTS, install, launch, runtime, or interaction diagnostics before release.',
     '8. Check existing platforms: follow the Platform Verification Matrix. Run `${package.androidEmulatorRunCommand}` when an Android example exists, `${package.iosSimulatorRunCommand}` when an iOS example exists, and `${package.macosRunCommand}` when a macOS example exists, or add `--device <id>` for already connected targets. Use `${package.examplePath}/integration_test/` or AI-assisted interaction evidence for scenario coverage beyond launch smoke. Record exact skip reasons for unavailable local toolchains.',
-    '9. Release prep: keep `packages.${package.name}.status: experimental` until the implementation is complete, tested, and ready to be recommended. Run `fluoh deps get` after dependency or metadata changes, run `${package.verifyCommand}`, then commit the implementation checkpoint.',
+    '9. Release prep: keep `package.release.status: experimental` until the implementation is complete, tested, and ready to be recommended. Run `fluoh deps get` after dependency or metadata changes, run `${package.verifyCommand}`, then commit the implementation checkpoint.',
     '10. Finish: update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, run final `${package.verifyCommand}`, create the ignored `.fluoh/ai-report-${package.name}-...md`, run `$_reportCheckCommand`, then run `${package.releaseCheckCommand} --report <report-path>`. Use `${package.releaseCommand}` only after maintainer approval.',
     '',
     '## Release Readiness',
@@ -688,6 +539,8 @@ String _singlePackageImplementationGuideContent({
     '- `${package.androidRunCommand}`, `${package.iosRunCommand}`, and `${package.macosRunCommand}` run smoke checks and integration tests when those platforms exist and local toolchains are available; unavailable toolchains are documented with exact skipped commands and block a `ready` recommendation.',
     '- `FLUOH_CHANGELOG.md`, `fluoh.yaml`, package status, and release version are ready for `${package.releaseCommand}`.',
     '',
+    ..._completionReportLines(),
+    ..._localCommitCheckpointLines(multiPackage: false),
     '## Before Commit',
     '',
     '- Review `git status --short --ignored=matching`.',
@@ -730,7 +583,7 @@ List<String> packageFluohChangelogEntryLines({
   return [
     '## $tag',
     '',
-    '- Initial OHOS implementation for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
+    '- TODO: Replace this generated placeholder with actual FlutterOH/OHOS release notes before release. Include implemented behavior, verification evidence, and remaining risks for `${package.name}` ${package.version} on Flutter OHOS SDK `$sdkVersion`.',
     '',
   ];
 }
@@ -748,8 +601,6 @@ String markdownAppendSeparator(String content) {
 
 const _implementationGuideSectionId = 'package-implementation-guide';
 const _agentsInstructionsSectionId = 'package-agents-instructions';
-const _legacyGeneratedSectionStart = '<!-- fluoh:generated:start -->';
-const _legacyGeneratedSectionEnd = '<!-- fluoh:generated:end -->';
 
 bool _generatedSectionOwnsFile(String? existing, {required String sectionId}) {
   if (existing == null || existing.trim().isEmpty) {
@@ -802,7 +653,7 @@ String _generatedSectionBlock(
 }
 
 String _generatedSectionStart(String sectionId, int templateVersion) =>
-    '<!-- fluoh:generated:start id=$sectionId version=$templateVersion -->';
+    '<!-- fluoh:generated:start id=$sectionId template=$templateVersion -->';
 
 String _generatedSectionEnd(String sectionId) =>
     '<!-- fluoh:generated:end id=$sectionId -->';
@@ -847,7 +698,7 @@ _GeneratedSectionMatch? _findGeneratedSection(
 }) {
   final startPattern = RegExp(
     '<!-- fluoh:generated:start id=${RegExp.escape(sectionId)} '
-    r'version=\d+ -->',
+    r'template=\d+ -->',
   );
   final startMatch = startPattern.firstMatch(content);
   if (startMatch != null) {
@@ -861,20 +712,7 @@ _GeneratedSectionMatch? _findGeneratedSection(
       );
     }
   }
-
-  final legacyStart = content.indexOf(_legacyGeneratedSectionStart);
-  if (legacyStart < 0) {
-    return null;
-  }
-  final legacyEnd = content.indexOf(_legacyGeneratedSectionEnd, legacyStart);
-  if (legacyEnd < 0) {
-    return null;
-  }
-  return _GeneratedSectionMatch(
-    start: legacyStart,
-    end: legacyEnd,
-    endMarker: _legacyGeneratedSectionEnd,
-  );
+  return null;
 }
 
 class _GeneratedSectionMatch {

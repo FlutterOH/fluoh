@@ -23,6 +23,7 @@ class DepsCheckCommand extends FluohCommand<int> {
       negatable: false,
       help: 'Print the dependency OHOS support report as JSON.',
     );
+    addAllReleaseStatusesFlag(argParser);
   }
 
   /// Runtime environment containing the project and Source config.
@@ -41,7 +42,10 @@ class DepsCheckCommand extends FluohCommand<int> {
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
-    final policy = await readDependencyPolicy(environment.workingDirectory);
+    final policy = applyAllReleaseStatusesFlag(
+      await readDependencyPolicy(environment.workingDirectory),
+      argResults!,
+    );
     final plan = await buildDependencyPlan(
       environment: environment,
       policy: policy,
@@ -75,6 +79,10 @@ bool _dependencyPlanOk(DependencyPlan plan) {
   });
 }
 
+String _displayReleaseStatuses(Set<String> statuses) {
+  return orderedDependencyReleaseStatuses(statuses).join(',');
+}
+
 /// Implements `fluoh deps fix`.
 class DepsFixCommand extends FluohCommand<int> {
   /// Creates the dependency fix command.
@@ -94,6 +102,7 @@ class DepsFixCommand extends FluohCommand<int> {
       negatable: false,
       help: 'Print the dependency fix result as JSON.',
     );
+    addAllReleaseStatusesFlag(argParser);
   }
 
   /// Runtime environment containing the project and Source config.
@@ -115,7 +124,10 @@ class DepsFixCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
     final jsonMode = argResults!.flag('json');
-    final policy = await readDependencyPolicy(environment.workingDirectory);
+    final policy = applyAllReleaseStatusesFlag(
+      await readDependencyPolicy(environment.workingDirectory),
+      argResults!,
+    );
     final plan = await buildDependencyPlan(
       environment: environment,
       policy: policy,
@@ -177,7 +189,8 @@ void _printCheckPlan(TerminalOutput output, DependencyPlan plan) {
   );
   output.info(
     'Policy: pubspecSection=${plan.policy.pubspecSection.yamlValue}, '
-    'versionChanges=${plan.policy.versionChanges.yamlValue}',
+    'versionChanges=${plan.policy.versionChanges.yamlValue}, '
+    'releaseStatuses=${_displayReleaseStatuses(plan.policy.allowedReleaseStatuses)}',
   );
 
   final ready = plan.entries

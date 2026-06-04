@@ -987,135 +987,121 @@ class SourceCheckCommand extends FluohCommand<int> {
 
     final checks = <_PlannedReleaseCheck>[];
     final skipped = <_SkippedReleaseCheck>[];
-    for (final package in head.packages.values) {
-      final basePackage = baseManifest.packages[package.name];
-      if (basePackage == null) {
-        checks.addAll(
-          _releaseChecksForPackage(
-            manifestName: headManifest.routeName,
-            package: package,
-            reason: 'package-added',
-          ),
-        );
-        continue;
-      }
-      if (basePackage.repositoryPath != package.repositoryPath ||
-          basePackage.upstreamPath != package.upstreamPath) {
-        checks.addAll(
-          _releaseChecksForPackage(
-            manifestName: headManifest.routeName,
-            package: package,
-            reason: 'package-path-changed',
-          ),
-        );
-        continue;
-      }
+    final package = head.package;
+    final basePackage = baseManifest.package.name == package.name
+        ? baseManifest.package
+        : null;
+    if (basePackage == null) {
+      checks.addAll(
+        _releaseChecksForPackage(
+          manifestName: headManifest.routeName,
+          package: package,
+          reason: 'package-added',
+        ),
+      );
+      skipped.addAll(
+        _skippedReleaseChecksForPackage(
+          manifestName: headManifest.routeName,
+          package: baseManifest.package,
+          reason: 'package-deleted',
+        ),
+      );
+      return _ReleaseManifestDiff(items: checks, skipped: skipped);
+    }
+    if (basePackage.path != package.path) {
+      checks.addAll(
+        _releaseChecksForPackage(
+          manifestName: headManifest.routeName,
+          package: package,
+          reason: 'package-path-changed',
+        ),
+      );
+      return _ReleaseManifestDiff(items: checks, skipped: skipped);
+    }
 
-      for (final sdk in package.sdks.values) {
-        final baseSdk = basePackage.sdks[sdk.sdkLine];
-        if (baseSdk == null) {
-          checks.addAll(
-            _releaseChecksForSdk(
+    for (final sdk in package.sdks.values) {
+      final baseSdk = basePackage.sdks[sdk.sdkLine];
+      if (baseSdk == null) {
+        checks.addAll(
+          _releaseChecksForSdk(
+            manifestName: headManifest.routeName,
+            package: package,
+            sdk: sdk,
+            reason: 'sdk-line-added',
+          ),
+        );
+        continue;
+      }
+      final baseReleases = {
+        for (final release in baseSdk.releases)
+          _releaseTag(package.name, sdk.sdkLine, release): _releaseFingerprint(
+            release,
+          ),
+      };
+      for (final release in sdk.releases) {
+        final tag = _releaseTag(package.name, sdk.sdkLine, release);
+        final baseFingerprint = baseReleases[tag];
+        if (baseFingerprint == null) {
+          checks.add(
+            _PlannedReleaseCheck(
               manifestName: headManifest.routeName,
               package: package,
               sdk: sdk,
-              reason: 'sdk-line-added',
+              release: release,
+              tag: tag,
+              reason: 'release-added',
             ),
           );
           continue;
         }
-        final baseReleases = {
-          for (final release in baseSdk.releases)
-            _releaseTag(package.name, sdk.sdkLine, release):
-                _releaseFingerprint(release),
-        };
-        for (final release in sdk.releases) {
-          final tag = _releaseTag(package.name, sdk.sdkLine, release);
-          final baseFingerprint = baseReleases[tag];
-          if (baseFingerprint == null) {
-            checks.add(
-              _PlannedReleaseCheck(
-                manifestName: headManifest.routeName,
-                package: package,
-                sdk: sdk,
-                release: release,
-                tag: tag,
-                reason: 'release-added',
-              ),
-            );
-            continue;
-          }
-          if (baseFingerprint != _releaseFingerprint(release)) {
-            checks.add(
-              _PlannedReleaseCheck(
-                manifestName: headManifest.routeName,
-                package: package,
-                sdk: sdk,
-                release: release,
-                tag: tag,
-                reason: 'release-modified',
-              ),
-            );
-          }
-        }
-        final headReleaseTags = {
-          for (final release in sdk.releases)
-            _releaseTag(package.name, sdk.sdkLine, release),
-        };
-        for (final baseRelease in baseSdk.releases) {
-          final tag = _releaseTag(
-            basePackage.name,
-            baseSdk.sdkLine,
-            baseRelease,
+        if (baseFingerprint != _releaseFingerprint(release)) {
+          checks.add(
+            _PlannedReleaseCheck(
+              manifestName: headManifest.routeName,
+              package: package,
+              sdk: sdk,
+              release: release,
+              tag: tag,
+              reason: 'release-modified',
+            ),
           );
-          if (!headReleaseTags.contains(tag)) {
-            skipped.add(
-              _SkippedReleaseCheck(
-                check: _PlannedReleaseCheck(
-                  manifestName: headManifest.routeName,
-                  package: basePackage,
-                  sdk: baseSdk,
-                  release: baseRelease,
-                  tag: tag,
-                  reason: 'release-deleted',
-                ),
-                skipReason: 'release-deleted',
+        }
+      }
+      final headReleaseTags = {
+        for (final release in sdk.releases)
+          _releaseTag(package.name, sdk.sdkLine, release),
+      };
+      for (final baseRelease in baseSdk.releases) {
+        final tag = _releaseTag(basePackage.name, baseSdk.sdkLine, baseRelease);
+        if (!headReleaseTags.contains(tag)) {
+          skipped.add(
+            _SkippedReleaseCheck(
+              check: _PlannedReleaseCheck(
+                manifestName: headManifest.routeName,
+                package: basePackage,
+                sdk: baseSdk,
+                release: baseRelease,
+                tag: tag,
+                reason: 'release-deleted',
               ),
-            );
-          }
+              skipReason: 'release-deleted',
+            ),
+          );
         }
       }
     }
-    for (final basePackage in baseManifest.packages.values) {
-      if (head.packages.containsKey(basePackage.name)) {
+    for (final baseSdk in basePackage.sdks.values) {
+      if (package.sdks.containsKey(baseSdk.sdkLine)) {
         continue;
       }
       skipped.addAll(
-        _skippedReleaseChecksForPackage(
+        _skippedReleaseChecksForSdk(
           manifestName: headManifest.routeName,
           package: basePackage,
-          reason: 'package-deleted',
+          sdk: baseSdk,
+          reason: 'sdk-line-deleted',
         ),
       );
-    }
-    for (final package in head.packages.values) {
-      final basePackage = baseManifest.packages[package.name];
-      if (basePackage == null) {
-        continue;
-      }
-      for (final baseSdk in basePackage.sdks.values) {
-        if (package.sdks.containsKey(baseSdk.sdkLine)) {
-          continue;
-        }
-        skipped.addAll(
-          _skippedReleaseChecksForSdk(
-            manifestName: headManifest.routeName,
-            package: basePackage,
-            sdk: baseSdk,
-            reason: 'sdk-line-deleted',
-          ),
-        );
-      }
     }
     return _ReleaseManifestDiff(items: checks, skipped: skipped);
   }
@@ -1124,14 +1110,11 @@ class SourceCheckCommand extends FluohCommand<int> {
     _CheckedSourceManifest manifest, {
     required String reason,
   }) {
-    return [
-      for (final package in manifest.manifest.packages.values)
-        ..._releaseChecksForPackage(
-          manifestName: manifest.routeName,
-          package: package,
-          reason: reason,
-        ),
-    ];
+    return _releaseChecksForPackage(
+      manifestName: manifest.routeName,
+      package: manifest.manifest.package,
+      reason: reason,
+    );
   }
 
   List<_PlannedReleaseCheck> _releaseChecksForPackage({
@@ -1429,14 +1412,12 @@ class SourceCheckCommand extends FluohCommand<int> {
     required List<String> fluohCommand,
     required Duration timeout,
   }) async {
-    final tag =
-        release.tag ??
-        packageReleaseTagForPackage(
-          packageName: package.name,
-          upstreamVersion: release.upstreamVersion,
-          sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
-          releaseVersion: release.version,
-        );
+    final tag = packageReleaseTagForPackage(
+      packageName: package.name,
+      upstreamVersion: release.upstreamVersion,
+      sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
+      releaseVersion: release.version,
+    );
     final tagCheck = await _runProcess([
       'git',
       'rev-parse',
@@ -1542,6 +1523,8 @@ class SourceCheckCommand extends FluohCommand<int> {
       final actualStatus = taggedPackage.status == 'compatible'
           ? null
           : taggedPackage.status;
+      final actualUpstreamRef =
+          taggedPackage.upstreamRef ?? taggedPackage.upstreamCommit;
       final mismatches = <String>[
         if (actualSdkLine != expectedSdkLine)
           'sdk line is $actualSdkLine, expected $expectedSdkLine',
@@ -1549,14 +1532,16 @@ class SourceCheckCommand extends FluohCommand<int> {
           'release version is ${taggedPackage.version}, expected ${release.version}',
         if (taggedPackage.upstreamVersion != release.upstreamVersion)
           'upstream version is ${taggedPackage.upstreamVersion}, expected ${release.upstreamVersion}',
-        if (taggedPackage.repositoryPath != package.repositoryPath)
-          'repository path is ${taggedPackage.repositoryPath}, expected ${package.repositoryPath}',
-        if (taggedPackage.upstreamPath != package.upstreamPath)
-          'upstream path is ${taggedPackage.upstreamPath}, expected ${package.upstreamPath}',
+        if (release.upstreamRef != null &&
+            actualUpstreamRef != release.upstreamRef)
+          'upstream ref is $actualUpstreamRef, expected ${release.upstreamRef}',
+        if (taggedPackage.upstreamCommit != release.upstreamCommit)
+          'upstream commit is ${taggedPackage.upstreamCommit}, expected ${release.upstreamCommit}',
+        if (taggedPackage.path != package.path)
+          'package.path is ${taggedPackage.path}, expected ${package.path}',
         if (actualStatus != expectedStatus)
           'status is ${actualStatus ?? 'compatible'}, expected ${expectedStatus ?? 'compatible'}',
-        if (release.tag == null &&
-            !taggedPackage.matchesReleaseTag(manifest.sdkVersion, tag))
+        if (!taggedPackage.matchesReleaseTag(manifest.sdkVersion, tag))
           'tag $tag does not match package-owned release metadata',
       ];
       return _TaggedPackageMetadataCheck(
@@ -1883,20 +1868,20 @@ String _releaseTag(
   String sdkLine,
   SourceManifestRelease release,
 ) {
-  return release.tag ??
-      packageReleaseTagForPackage(
-        packageName: packageName,
-        upstreamVersion: release.upstreamVersion,
-        sdkVersion: '$sdkLine.0-ohos-0.0.0',
-        releaseVersion: release.version,
-      );
+  return packageReleaseTagForPackage(
+    packageName: packageName,
+    upstreamVersion: release.upstreamVersion,
+    sdkVersion: '$sdkLine.0-ohos-0.0.0',
+    releaseVersion: release.version,
+  );
 }
 
 String _releaseFingerprint(SourceManifestRelease release) {
   return [
     release.version,
     release.upstreamVersion,
-    release.tag ?? '',
+    release.upstreamRef ?? '',
+    release.upstreamCommit,
     release.status,
   ].join('\u{1f}');
 }
@@ -1919,77 +1904,53 @@ String _rootManifestMetadataFingerprint(SourceRootManifest manifest) {
     manifest.name,
     manifest.description ?? '',
     manifest.repositoryGitUrl ?? '',
-    manifest.fluohConstraint ?? '',
   ].join('\u{1f}');
 }
 
 String _sourceManifestMetadataFingerprint(SourceManifest manifest) {
-  final packageFields = <String>[];
-  final packages = manifest.packages.values.toList(growable: false)
-    ..sort((a, b) => a.name.compareTo(b.name));
-  for (final package in packages) {
-    packageFields.add(
-      [
-        package.name,
-        package.repositoryPath,
-        package.upstreamPath,
-      ].join('\u{1e}'),
-    );
-  }
+  final package = manifest.package;
   return [
     manifest.schemaVersion,
     manifest.name,
     manifest.repositoryGitUrl,
-    manifest.repositoryPath,
     manifest.upstreamGitUrl,
-    manifest.upstreamBranch,
-    manifest.upstreamPath,
-    ...packageFields,
+    package.name,
+    package.path,
   ].join('\u{1f}');
 }
 
 Map<String, String> _manifestReleaseFingerprints(SourceManifest manifest) {
   final releases = <String, String>{};
-  final packages = manifest.packages.values.toList(growable: false)
-    ..sort((a, b) => a.name.compareTo(b.name));
-  for (final package in packages) {
-    final sdks = package.sdks.values.toList(growable: false)
-      ..sort((a, b) => a.sdkLine.compareTo(b.sdkLine));
-    for (final sdk in sdks) {
-      for (final release in sdk.releases) {
-        final tag = _releaseTag(package.name, sdk.sdkLine, release);
-        releases['${package.name}\u{1e}${sdk.sdkLine}\u{1e}$tag'] =
-            _releaseFingerprint(release);
-      }
+  final package = manifest.package;
+  final sdks = package.sdks.values.toList(growable: false)
+    ..sort((a, b) => a.sdkLine.compareTo(b.sdkLine));
+  for (final sdk in sdks) {
+    for (final release in sdk.releases) {
+      final tag = _releaseTag(package.name, sdk.sdkLine, release);
+      releases['${package.name}\u{1e}${sdk.sdkLine}\u{1e}$tag'] =
+          _releaseFingerprint(release);
     }
   }
   return releases;
 }
 
 String _advisoryMaintenanceFingerprint(SourceManifest manifest) {
-  final fields = <String>[];
-  final packages = manifest.packages.values.toList(growable: false)
-    ..sort((a, b) => a.name.compareTo(b.name));
-  for (final package in packages) {
-    final maintenance = package.maintenance;
-    final advisory = package.advisory;
-    fields.add(
-      [
-        package.name,
-        maintenance?.status ?? '',
-        maintenance?.reason ?? '',
-        advisory?.message ?? '',
-        if (advisory != null)
-          for (final alternative in advisory.alternatives)
-            [
-              alternative.name,
-              alternative.reason ?? '',
-              alternative.url ?? '',
-            ].join('\u{1d}'),
-      ].join('\u{1e}'),
-    );
-  }
-  return fields.join('\u{1f}');
+  final package = manifest.package;
+  final maintenance = package.maintenance;
+  final advisory = package.advisory;
+  return [
+    package.name,
+    maintenance?.status ?? '',
+    maintenance?.reason ?? '',
+    advisory?.message ?? '',
+    if (advisory != null)
+      for (final alternative in advisory.alternatives)
+        [
+          alternative.name,
+          alternative.reason ?? '',
+          alternative.url ?? '',
+        ].join('\u{1d}'),
+  ].join('\u{1e}');
 }
 
 List<String> _splitCommand(String value) {
@@ -2260,33 +2221,29 @@ class _CheckedSourceManifest {
     'routeName': routeName,
     'name': manifest.name,
     'repository': manifest.repositoryGitUrl,
-    'repositoryPath': manifest.repositoryPath,
+    'packagePath': manifest.package.path,
     'upstream': manifest.upstreamGitUrl,
-    'upstreamBranch': manifest.upstreamBranch,
-    'upstreamPath': manifest.upstreamPath,
-    'packages': [
-      for (final package in manifest.packages.values)
-        {
-          'name': package.name,
-          'repositoryPath': package.repositoryPath,
-          'upstreamPath': package.upstreamPath,
-          'sdks': [
-            for (final sdk in package.sdks.values)
-              {
-                'sdkLine': sdk.sdkLine,
-                'releases': [
-                  for (final release in sdk.releases)
-                    {
-                      'version': release.version,
-                      'upstreamVersion': release.upstreamVersion,
-                      if (release.tag != null) 'tag': release.tag,
-                      'status': release.status,
-                    },
-                ],
-              },
-          ],
-        },
-    ],
+    'package': {
+      'name': manifest.package.name,
+      'path': manifest.package.path,
+      'sdks': [
+        for (final sdk in manifest.package.sdks.values)
+          {
+            'sdkLine': sdk.sdkLine,
+            'releases': [
+              for (final release in sdk.releases)
+                {
+                  'version': release.version,
+                  'upstreamVersion': release.upstreamVersion,
+                  if (release.upstreamRef != null)
+                    'upstreamRef': release.upstreamRef,
+                  'upstreamCommit': release.upstreamCommit,
+                  'status': release.status,
+                },
+            ],
+          },
+      ],
+    },
   };
 }
 
@@ -2386,6 +2343,8 @@ class _PlannedReleaseCheck {
     'sdkLine': sdk.sdkLine,
     'version': release.version,
     'upstreamVersion': release.upstreamVersion,
+    'upstreamRef': release.upstreamRef,
+    'upstreamCommit': release.upstreamCommit,
     'status': release.status,
     'tag': tag,
     'reason': reason,
@@ -2435,9 +2394,10 @@ class _TaggedPackageMetadataCheck {
     if (package != null) ...{
       'version': package!.version,
       'upstreamVersion': package!.upstreamVersion,
+      if (package!.upstreamRef != null) 'upstreamRef': package!.upstreamRef,
+      'upstreamCommit': package!.upstreamCommit,
       'status': package!.status ?? 'compatible',
-      'repositoryPath': package!.repositoryPath,
-      'upstreamPath': package!.upstreamPath,
+      'packagePath': package!.path,
     },
     'show': show.toJson(),
   };

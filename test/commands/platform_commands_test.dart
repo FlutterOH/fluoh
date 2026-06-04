@@ -41,7 +41,7 @@ exit 1
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'devices'));
     expect(report, containsPair('ok', true));
     final platforms = report['platforms'] as List<Object?>;
@@ -98,7 +98,7 @@ exit 1
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'emulators'));
     final platforms = report['platforms'] as List<Object?>;
     final android = platforms.single as Map<String, Object?>;

@@ -394,7 +394,8 @@ class SourceSyncCommand extends FluohCommand<int> {
       final openedRepositories = <_SourceManifestRepository>[];
       repositories = openedRepositories;
       final syncPackages = <_SourceSyncPackage>[];
-      for (final item in plan) {
+      for (var index = 0; index < plan.length; index += 1) {
+        final item = plan[index];
         if (item.tagsToSync.isEmpty) {
           continue;
         }
@@ -404,13 +405,16 @@ class SourceSyncCommand extends FluohCommand<int> {
           url: item.repository,
         );
         openedRepositories.add(repository);
-        syncPackages.addAll(
-          await _releasedSourcePackages(
-            repository,
-            tags: item.tagsToSync,
-            packageFilters: packageFilters,
-          ),
+        final released = await _releasedSourcePackages(
+          repository,
+          tags: item.tagsToSync,
+          packageFilters: packageFilters,
+          expectedPackagePath: item.packagePath,
         );
+        syncPackages.addAll(released.packages);
+        if (released.skippedTags.isNotEmpty) {
+          plan[index] = item.withAdditionalSkippedTags(released.skippedTags);
+        }
       }
       var synced = 0;
       var skipped = 0;
@@ -424,11 +428,11 @@ class SourceSyncCommand extends FluohCommand<int> {
           manifestName: syncPackage.sourceManifestName,
           packageName: package.name,
           packageUrl: manifest.repositoryUrl,
-          packagePath: package.repositoryPath,
+          packagePath: package.path,
           upstreamGitUrl: manifest.upstreamUrl,
-          upstreamBranch: manifest.upstreamBranch,
-          upstreamPath: package.upstreamPath,
           upstreamVersion: package.upstreamVersion,
+          upstreamRef: package.upstreamRef,
+          upstreamCommit: package.upstreamCommit,
           sdkVersion: manifest.sdkVersion,
           releaseVersion: package.releaseVersion,
           releaseTag: syncPackage.releaseTag,
@@ -466,17 +470,26 @@ class SourceSyncCommand extends FluohCommand<int> {
             'configuredSource': configuredSource?.key,
             'synced': synced,
             'skipped': skipped,
+            'skippedTags': plan.fold<int>(
+              0,
+              (count, item) => count + item.skippedTags.length,
+            ),
             'plan': plan.map((item) => item.toJson()).toList(),
             'packages': results.map((result) => result.toJson()).toList(),
           },
         );
       } else {
+        for (final item in plan) {
+          for (final tag in item.skippedTags) {
+            _output.skipped(_sourceSyncSkippedTagMessage(tag));
+          }
+        }
         for (final item in results) {
           final result = item.result;
           if (result.skippedFrozen) {
             _output.skipped(
               'Skipped source metadata update for ${result.packageName} because '
-              'maintenance.status is frozen',
+              'maintenance.frozen is true',
             );
             if (result.frozenReason != null) {
               _output.next(result.frozenReason!);
@@ -522,6 +535,7 @@ class SourceSyncCommand extends FluohCommand<int> {
     if (root.manifests.isEmpty) {
       return const [];
     }
+    final supportedSdkLines = _supportedSdkLines(root);
     final routes = root.manifests
         .where(
           (route) =>
@@ -541,6 +555,10 @@ class SourceSyncCommand extends FluohCommand<int> {
         nextIndex += 1;
         final route = routes[index];
         final manifest = await _readSourceManifest(source, route.name);
+        final routePackageName = manifest.package.name;
+        final routePackageFilters = packageFilters.isEmpty
+            ? {routePackageName}
+            : packageFilters.intersection({routePackageName});
         final resolvedRepository = _resolveSyncRepositoryUrl(
           source,
           manifest.repositoryGitUrl,
@@ -549,26 +567,43 @@ class SourceSyncCommand extends FluohCommand<int> {
           resolvedRepository,
           () => _lsRemoteReleaseTags(resolvedRepository, source: source),
         );
-        final knownTags = _declaredReleaseTags(
-          manifest,
-          packageFilters: packageFilters,
+        final knownTags = routePackageFilters.isEmpty
+            ? <String>{}
+            : _declaredReleaseTags(
+                manifest,
+                packageFilters: routePackageFilters,
+              );
+        final selectedTags = routePackageFilters.isEmpty
+            ? <String>[]
+            : _filterTagsForPackages(
+                discoveredTags,
+                packageFilters: routePackageFilters,
+              );
+        final newTags = selectedTags
+            .where((tag) => !knownTags.contains(tag))
+            .toList(growable: false);
+        final skippedTags = _skippedTagsForUnsupportedSdkLines(
+          newTags,
+          supportedSdkLines: supportedSdkLines,
         );
-        final selectedTags = _filterTagsForPackages(
-          discoveredTags,
-          packageFilters: packageFilters,
-        );
+        final skippedTagNames = {
+          for (final skippedTag in skippedTags) skippedTag.tag,
+        };
         final tagsToSync =
-            selectedTags.where((tag) => !knownTags.contains(tag)).toList()
+            newTags.where((tag) => !skippedTagNames.contains(tag)).toList()
               ..sort();
         final knownTagList = knownTags.toList(growable: false)..sort();
         final discoveredTagList = selectedTags.toList(growable: false)..sort();
         plan[index] = _SourceSyncRoutePlan(
           manifestName: route.name,
+          packageName: routePackageName,
+          packagePath: manifest.package.path,
           repository: manifest.repositoryGitUrl,
           resolvedRepository: resolvedRepository,
           knownTags: knownTagList,
           discoveredTags: discoveredTagList,
           tagsToSync: tagsToSync,
+          skippedTags: skippedTags,
         );
       }
     }
@@ -620,49 +655,74 @@ class SourceSyncCommand extends FluohCommand<int> {
     }
   }
 
-  Future<List<_SourceSyncPackage>> _releasedSourcePackages(
+  Future<_ReleasedSourcePackages> _releasedSourcePackages(
     _SourceManifestRepository repository, {
     required List<String> tags,
     required Set<String> packageFilters,
+    required String expectedPackagePath,
   }) async {
     final packages = <_SourceSyncPackage>[];
+    final skippedTags = <_SourceSyncSkippedTag>[];
     for (final tag in tags) {
-      final manifest = await _readTaggedPackageManifest(repository.path, tag);
+      final tagged = await _readTaggedPackageManifest(repository.path, tag);
+      if (tagged.skippedTag != null) {
+        skippedTags.add(tagged.skippedTag!);
+        continue;
+      }
+      final manifest = tagged.manifest;
       if (manifest == null) {
         continue;
       }
-      for (final package in manifest.packages) {
-        final bool matchesTag;
-        try {
-          matchesTag = package.matchesReleaseTag(manifest.sdkVersion, tag);
-        } on FormatException catch (error) {
-          usageException(
-            'Could not read package repository ${repository.path.path} at tag $tag: '
-            '${error.message}',
-          );
-        }
-        if (!matchesTag) {
-          continue;
-        }
-        if (packageFilters.isNotEmpty &&
-            !packageFilters.contains(package.name)) {
-          continue;
-        }
-        packages.add(
-          _SourceSyncPackage(
-            sourceManifestName: repository.name,
-            repository: repository.path,
-            manifest: manifest,
-            package: package,
-            releaseTag: tag,
+      final package = manifest.package;
+      final bool matchesTag;
+      try {
+        matchesTag = package.matchesReleaseTag(manifest.sdkVersion, tag);
+      } on FormatException catch (error) {
+        skippedTags.add(
+          _skippedTagFor(
+            tag,
+            reason: 'invalid-package-metadata',
+            message: error.message,
           ),
         );
+        continue;
       }
+      if (!matchesTag) {
+        skippedTags.add(_skippedTagFor(tag, reason: 'tag-metadata-mismatch'));
+        continue;
+      }
+      if (package.path != expectedPackagePath) {
+        skippedTags.add(
+          _skippedTagFor(
+            tag,
+            reason: 'package-path-mismatch',
+            message:
+                'package.path is ${package.path}, expected $expectedPackagePath',
+          ),
+        );
+        continue;
+      }
+      if (packageFilters.isNotEmpty && !packageFilters.contains(package.name)) {
+        continue;
+      }
+      packages.add(
+        _SourceSyncPackage(
+          sourceManifestName: repository.name,
+          repository: repository.path,
+          manifest: manifest,
+          package: package,
+          releaseTag: tag,
+        ),
+      );
     }
-    return packages;
+    skippedTags.sort((a, b) => a.tag.compareTo(b.tag));
+    return _ReleasedSourcePackages(
+      packages: packages,
+      skippedTags: skippedTags,
+    );
   }
 
-  Future<PackageManifest?> _readTaggedPackageManifest(
+  Future<_TaggedPackageManifestRead> _readTaggedPackageManifest(
     Directory repository,
     String tag,
   ) async {
@@ -672,14 +732,21 @@ class SourceSyncCommand extends FluohCommand<int> {
       allowFailure: true,
     );
     if (result.exitCode != 0) {
-      return null;
+      return _TaggedPackageManifestRead(
+        skippedTag: _skippedTagFor(tag, reason: 'missing-package-manifest'),
+      );
     }
     try {
-      return PackageManifest.parse(result.stdout.toString());
+      return _TaggedPackageManifestRead(
+        manifest: PackageManifest.parse(result.stdout.toString()),
+      );
     } on FormatException catch (error) {
-      usageException(
-        'Could not read package repository ${repository.path} at tag $tag: '
-        '${error.message}',
+      return _TaggedPackageManifestRead(
+        skippedTag: _skippedTagFor(
+          tag,
+          reason: 'invalid-package-manifest',
+          message: error.message,
+        ),
       );
     }
   }
@@ -737,36 +804,111 @@ class _SourceManifestRepository {
   }
 }
 
+class _ReleasedSourcePackages {
+  const _ReleasedSourcePackages({
+    required this.packages,
+    required this.skippedTags,
+  });
+
+  final List<_SourceSyncPackage> packages;
+  final List<_SourceSyncSkippedTag> skippedTags;
+}
+
+class _TaggedPackageManifestRead {
+  const _TaggedPackageManifestRead({this.manifest, this.skippedTag});
+
+  final PackageManifest? manifest;
+  final _SourceSyncSkippedTag? skippedTag;
+}
+
 class _SourceSyncRoutePlan {
   const _SourceSyncRoutePlan({
     required this.manifestName,
+    required this.packageName,
+    required this.packagePath,
     required this.repository,
     required this.resolvedRepository,
     required this.knownTags,
     required this.discoveredTags,
     required this.tagsToSync,
+    this.skippedTags = const <_SourceSyncSkippedTag>[],
   });
 
   final String manifestName;
+  final String packageName;
+  final String packagePath;
   final String repository;
   final String resolvedRepository;
   final List<String> knownTags;
   final List<String> discoveredTags;
   final List<String> tagsToSync;
+  final List<_SourceSyncSkippedTag> skippedTags;
 
-  String get status => tagsToSync.isEmpty ? 'up-to-date' : 'sync';
+  String get status => tagsToSync.isNotEmpty
+      ? 'sync'
+      : skippedTags.isNotEmpty
+      ? 'skipped'
+      : 'up-to-date';
 
   Map<String, Object?> toJson() {
     return {
       'manifest': manifestName,
+      'package': packageName,
+      'packagePath': packagePath,
       'repository': repository,
       'resolvedRepository': resolvedRepository,
       'knownTags': knownTags,
       'discoveredTags': discoveredTags,
       'tagsToSync': tagsToSync,
+      'skippedTags': skippedTags.map((tag) => tag.toJson()).toList(),
       'status': status,
     };
   }
+
+  _SourceSyncRoutePlan withAdditionalSkippedTags(
+    List<_SourceSyncSkippedTag> additional,
+  ) {
+    final skippedTagNames = {for (final tag in additional) tag.tag};
+    final nextTagsToSync =
+        tagsToSync
+            .where((tag) => !skippedTagNames.contains(tag))
+            .toList(growable: false)
+          ..sort();
+    final nextSkippedTags = [...skippedTags, ...additional]
+      ..sort((a, b) => a.tag.compareTo(b.tag));
+    return _SourceSyncRoutePlan(
+      manifestName: manifestName,
+      packageName: packageName,
+      packagePath: packagePath,
+      repository: repository,
+      resolvedRepository: resolvedRepository,
+      knownTags: knownTags,
+      discoveredTags: discoveredTags,
+      tagsToSync: nextTagsToSync,
+      skippedTags: nextSkippedTags,
+    );
+  }
+}
+
+class _SourceSyncSkippedTag {
+  const _SourceSyncSkippedTag({
+    required this.tag,
+    required this.sdkLine,
+    required this.reason,
+    this.message,
+  });
+
+  final String tag;
+  final String sdkLine;
+  final String reason;
+  final String? message;
+
+  Map<String, Object?> toJson() => {
+    'tag': tag,
+    'sdkLine': sdkLine,
+    'reason': reason,
+    if (message != null) 'message': message,
+  };
 }
 
 class _SourceSyncResult {
@@ -779,7 +921,7 @@ class _SourceSyncResult {
     return {
       'package': result.packageName,
       'repository': repository.path,
-      'manifestPath': result.repositoryPath,
+      'manifestPath': result.manifestPath,
       'status': result.skippedFrozen ? 'skipped' : 'synced',
       if (result.frozenReason != null) 'reason': result.frozenReason,
     };
@@ -835,7 +977,9 @@ Future<Set<String>> _lsRemoteReleaseTags(
     if (ref.endsWith('^{}')) {
       ref = ref.substring(0, ref.length - 3);
     }
-    if (!ref.contains('-ohos-')) {
+    try {
+      parsePackageReleaseTag(ref);
+    } on FormatException {
       continue;
     }
     tags.add(ref);
@@ -848,14 +992,13 @@ Set<String> _declaredReleaseTags(
   required Set<String> packageFilters,
 }) {
   final tags = <String>{};
-  for (final package in manifest.packages.values) {
-    if (packageFilters.isNotEmpty && !packageFilters.contains(package.name)) {
-      continue;
-    }
-    for (final sdk in package.sdks.values) {
-      for (final release in sdk.releases) {
-        tags.add(_sourceReleaseTag(package.name, sdk.sdkLine, release));
-      }
+  final package = manifest.package;
+  if (packageFilters.isNotEmpty && !packageFilters.contains(package.name)) {
+    return tags;
+  }
+  for (final sdk in package.sdks.values) {
+    for (final release in sdk.releases) {
+      tags.add(_sourceReleaseTag(package.name, sdk.sdkLine, release));
     }
   }
   return tags;
@@ -867,13 +1010,81 @@ List<String> _filterTagsForPackages(
 }) {
   final filtered = tags
       .where((tag) {
+        final parsed = parsePackageReleaseTag(tag);
         if (packageFilters.isEmpty) {
           return true;
         }
-        return packageFilters.any((package) => tag.startsWith('$package-'));
+        return packageFilters.contains(parsed.packageName);
       })
       .toList(growable: false);
   return filtered..sort();
+}
+
+Set<String>? _supportedSdkLines(SourceRootManifest root) {
+  if (root.sdkReleases.isEmpty) {
+    return null;
+  }
+  return {
+    for (final release in root.sdkReleases)
+      sdkLineFromSdkVersion(release.version),
+  };
+}
+
+List<_SourceSyncSkippedTag> _skippedTagsForUnsupportedSdkLines(
+  Iterable<String> tags, {
+  required Set<String>? supportedSdkLines,
+}) {
+  if (supportedSdkLines == null) {
+    return const <_SourceSyncSkippedTag>[];
+  }
+  final skipped = <_SourceSyncSkippedTag>[];
+  for (final tag in tags) {
+    final sdkLine = parsePackageReleaseTag(tag).sdkLine;
+    if (supportedSdkLines.contains(sdkLine)) {
+      continue;
+    }
+    skipped.add(
+      _SourceSyncSkippedTag(
+        tag: tag,
+        sdkLine: sdkLine,
+        reason: 'sdk-line-not-in-source',
+      ),
+    );
+  }
+  skipped.sort((a, b) => a.tag.compareTo(b.tag));
+  return skipped;
+}
+
+_SourceSyncSkippedTag _skippedTagFor(
+  String tag, {
+  required String reason,
+  String? message,
+}) {
+  return _SourceSyncSkippedTag(
+    tag: tag,
+    sdkLine: parsePackageReleaseTag(tag).sdkLine,
+    reason: reason,
+    message: message,
+  );
+}
+
+String _sourceSyncSkippedTagMessage(_SourceSyncSkippedTag tag) {
+  final detail = tag.message == null ? '' : ': ${tag.message}';
+  return switch (tag.reason) {
+    'sdk-line-not-in-source' =>
+      'Skipped ${tag.tag}: SDK line ${tag.sdkLine} is not declared in source sdk.versions',
+    'missing-package-manifest' =>
+      'Skipped ${tag.tag}: tag does not contain fluoh.yaml',
+    'invalid-package-manifest' =>
+      'Skipped ${tag.tag}: package fluoh.yaml is invalid$detail',
+    'invalid-package-metadata' =>
+      'Skipped ${tag.tag}: package metadata is invalid$detail',
+    'tag-metadata-mismatch' =>
+      'Skipped ${tag.tag}: tag does not match package metadata',
+    'package-path-mismatch' =>
+      'Skipped ${tag.tag}: package.path does not match Source Manifest$detail',
+    _ => 'Skipped ${tag.tag}: ${tag.reason}$detail',
+  };
 }
 
 String _sourceReleaseTag(
@@ -881,13 +1092,12 @@ String _sourceReleaseTag(
   String sdkLine,
   SourceManifestRelease release,
 ) {
-  return release.tag ??
-      packageReleaseTagForPackage(
-        packageName: packageName,
-        upstreamVersion: release.upstreamVersion,
-        sdkVersion: '$sdkLine.0-ohos-0.0.0',
-        releaseVersion: release.version,
-      );
+  return packageReleaseTagForPackage(
+    packageName: packageName,
+    upstreamVersion: release.upstreamVersion,
+    sdkVersion: '$sdkLine.0-ohos-0.0.0',
+    releaseVersion: release.version,
+  );
 }
 
 String _resolveSyncRepositoryUrl(Directory source, String url) {
@@ -935,13 +1145,13 @@ int _positiveIntOption(
 class _SourcePackageMetadataResult {
   const _SourcePackageMetadataResult({
     required this.packageName,
-    required this.repositoryPath,
+    required this.manifestPath,
     required this.skippedFrozen,
     this.frozenReason,
   });
 
   final String packageName;
-  final String repositoryPath;
+  final String manifestPath;
   final bool skippedFrozen;
   final String? frozenReason;
 }
@@ -953,9 +1163,9 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
   required String packageUrl,
   required String packagePath,
   required String upstreamGitUrl,
-  required String upstreamBranch,
-  required String upstreamPath,
   required String upstreamVersion,
+  required String? upstreamRef,
+  required String upstreamCommit,
   required String sdkVersion,
   required String releaseVersion,
   required String releaseTag,
@@ -976,19 +1186,45 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
     source,
     usageException: usageException,
   );
+  final sdkLine = sdkLineFromSdkVersion(sdkVersion);
+  final supportedSdkLines = _supportedSdkLines(sourceManifest);
+  if (supportedSdkLines != null && !supportedSdkLines.contains(sdkLine)) {
+    usageException(
+      'Package $packageName release $releaseTag targets SDK line $sdkLine, '
+      'but source sdk.versions does not declare a matching SDK version.',
+    );
+  }
   manifestName = _validatedSourceName(manifestName);
+  if (manifestName != packageName) {
+    usageException(
+      'Source manifest route $manifestName cannot sync package $packageName. '
+      'Use one route per package, named $packageName.',
+    );
+  }
   final manifestPath = 'manifests/$manifestName';
   final manifestFile = File('${source.path}/$manifestPath/fluoh.yaml');
   final packageTemplate = SourceManifestPackageTemplate(
     name: packageName,
-    repositoryPath: packagePath,
-    upstreamPath: upstreamPath,
+    path: packagePath,
     upstreamVersion: upstreamVersion,
+    upstreamRef: upstreamRef,
+    upstreamCommit: upstreamCommit,
     version: releaseVersion,
-    sdkLine: sdkLineFromSdkVersion(sdkVersion),
-    tag: releaseTag,
+    sdkLine: sdkLine,
     status: releaseStatus,
   );
+  final canonicalTag = packageReleaseTagForPackage(
+    packageName: packageName,
+    upstreamVersion: upstreamVersion,
+    sdkVersion: sdkVersion,
+    releaseVersion: releaseVersion,
+  );
+  if (releaseTag != canonicalTag) {
+    usageException(
+      'Release tag $releaseTag does not match package metadata; expected '
+      '$canonicalTag.',
+    );
+  }
 
   final _SourceManifestUpdate manifestUpdate;
   try {
@@ -997,7 +1233,6 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
       manifestName: manifestName,
       repositoryUrl: packageUrl,
       upstreamGitUrl: upstreamGitUrl,
-      upstreamBranch: upstreamBranch,
       package: packageTemplate,
       usageException: usageException,
     );
@@ -1009,7 +1244,6 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
     name: sourceManifest.name,
     description: sourceManifest.description,
     repositoryGitUrl: sourceManifest.repositoryGitUrl,
-    fluohConstraint: sourceManifest.fluohConstraint,
     sdkRepository: sourceManifest.sdkRepository,
     sdkReleases: sourceManifest.sdkReleases,
     manifests: _updatedManifestRoutes(
@@ -1034,7 +1268,7 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
 
   return _SourcePackageMetadataResult(
     packageName: packageName,
-    repositoryPath: manifestPath,
+    manifestPath: manifestPath,
     skippedFrozen: manifestUpdate.skippedFrozen,
     frozenReason: manifestUpdate.frozenReason,
   );
@@ -1119,7 +1353,6 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
   required String manifestName,
   required String repositoryUrl,
   required String upstreamGitUrl,
-  required String upstreamBranch,
   required SourceManifestPackageTemplate package,
   required Never Function(String message) usageException,
 }) async {
@@ -1128,11 +1361,9 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
       manifest: parseSourceManifest(
         content: sourceManifestContent(
           SourceManifestTemplate(
-            name: manifestName,
             repositoryGitUrl: repositoryUrl,
             upstreamGitUrl: upstreamGitUrl,
-            upstreamBranch: upstreamBranch,
-            packages: [package],
+            package: package,
           ),
         ),
         label: manifestFile.path,
@@ -1156,72 +1387,57 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
       '${existing.upstreamGitUrl}.',
     );
   }
+  if (existing.package.name != package.name) {
+    usageException(
+      'Manifest ${existing.name} already manages package '
+      '${existing.package.name}.',
+    );
+  }
 
-  final packages = {...existing.packages};
-  final currentPackage = packages[package.name];
-  if (currentPackage?.maintenance?.status == 'frozen') {
+  final currentPackage = existing.package;
+  if (currentPackage.maintenance?.status == 'frozen') {
     return _SourceManifestUpdate(
       manifest: existing,
       skippedFrozen: true,
-      frozenReason: currentPackage!.maintenance!.reason,
+      frozenReason: currentPackage.maintenance!.reason,
     );
   }
   final release = SourceManifestRelease(
     version: package.version,
     upstreamVersion: package.upstreamVersion,
-    tag: package.tag,
+    upstreamRef: package.upstreamRef,
+    upstreamCommit: package.upstreamCommit,
     status: package.status,
   );
   final sdk = SourceManifestSdk(sdkLine: package.sdkLine, releases: [release]);
 
-  if (currentPackage == null) {
-    packages[package.name] = SourceManifestPackage(
-      name: package.name,
-      repositoryPath: package.repositoryPath,
-      upstreamPath: package.upstreamPath,
-      sdks: {package.sdkLine: sdk},
-    );
-  } else {
-    if (currentPackage.repositoryPath != package.repositoryPath) {
-      usageException(
-        'Package ${package.name} already uses path '
-        '${currentPackage.repositoryPath}.',
-      );
-    }
-    if (currentPackage.upstreamPath != package.upstreamPath) {
-      usageException(
-        'Package ${package.name} already uses upstream path '
-        '${currentPackage.upstreamPath}.',
-      );
-    }
-    final sdks = {...currentPackage.sdks};
-    final currentSdk = sdks[package.sdkLine];
-    sdks[package.sdkLine] = currentSdk == null
-        ? sdk
-        : SourceManifestSdk(
-            sdkLine: currentSdk.sdkLine,
-            releases: _upsertManifestRelease(currentSdk.releases, release),
-          );
-    packages[package.name] = SourceManifestPackage(
-      name: currentPackage.name,
-      repositoryPath: currentPackage.repositoryPath,
-      upstreamPath: currentPackage.upstreamPath,
-      maintenance: currentPackage.maintenance,
-      advisory: currentPackage.advisory,
-      sdks: sdks,
+  if (currentPackage.path != package.path) {
+    usageException(
+      'Package ${package.name} already uses package.path '
+      '${currentPackage.path}.',
     );
   }
+  final sdks = {...currentPackage.sdks};
+  final currentSdk = sdks[package.sdkLine];
+  sdks[package.sdkLine] = currentSdk == null
+      ? sdk
+      : SourceManifestSdk(
+          sdkLine: currentSdk.sdkLine,
+          releases: _upsertManifestRelease(currentSdk.releases, release),
+        );
 
   return _SourceManifestUpdate(
     manifest: SourceManifest(
       schemaVersion: existing.schemaVersion,
-      name: existing.name,
       repositoryGitUrl: existing.repositoryGitUrl,
-      repositoryPath: existing.repositoryPath,
       upstreamGitUrl: existing.upstreamGitUrl,
-      upstreamBranch: upstreamBranch,
-      upstreamPath: existing.upstreamPath,
-      packages: packages,
+      package: SourceManifestPackage(
+        name: currentPackage.name,
+        path: currentPackage.path,
+        maintenance: currentPackage.maintenance,
+        advisory: currentPackage.advisory,
+        sdks: sdks,
+      ),
     ),
   );
 }
@@ -1564,10 +1780,10 @@ Sync released package repositories with:
 fluoh source sync .
 ```
 
-Root `fluoh.yaml` declares SDK versions and package routing.
-`manifests/example/fluoh.yaml` contains a commented Manifest template.
-Copy or rename it when adding package routing, or let `fluoh source sync`
-create released package metadata from Manifest repository URLs.
+Root `fluoh.yaml` declares SDK versions and per-package routing.
+`manifests/example/fluoh.yaml` contains a commented package Manifest template.
+Copy or rename it for a package route, or let `fluoh source sync` create
+released package metadata from Manifest repository URLs.
 Edit Manifest files directly for advisory and maintenance notes.
 
 A source repository can add scheduled validation or ingestion workflows on top of these files.
@@ -1578,11 +1794,8 @@ String _localSourceMetadata() {
   return [
     'schema: 1',
     'kind: source',
-    'name: "Local FlutterOH source"',
+    'name: local-flutteroh-source',
     'description: "Local FlutterOH source maintained by fluoh users."',
-    '',
-    'environment:',
-    "  fluoh: '>=0.1.0'",
     '',
     '# Uncomment to document where this source is published.',
     '# repository:',
@@ -1594,8 +1807,8 @@ String _localSourceMetadata() {
     '#   git:',
     '#     url: "https://gitcode.com/CPF-Flutter/flutter_flutter.git"',
     '#   versions:',
-    '#     - 3.35.8-ohos-1.0.1',
     '#     - 3.35.8-ohos-0.0.3',
+    '#     - 3.35.8-ohos-1.0.1',
     '',
     '# Uncomment after editing manifests/example/fluoh.yaml, or run:',
     '# fluoh source sync .',
@@ -1609,7 +1822,6 @@ String _localSourceManifestTemplate() {
   return [
     '# schema: 1',
     '# kind: manifest',
-    '# name: example',
     '#',
     '# repository:',
     '#   git:',
@@ -1618,25 +1830,24 @@ String _localSourceManifestTemplate() {
     '# upstream:',
     '#   git:',
     '#     url: "https://github.com/example/upstream.git"',
-    '#     branch: main',
     '#',
-    '# packages:',
-    '#   example_package:',
-    '#     repository:',
-    '#       path: .',
-    '#     upstream:',
-    '#       path: .',
-    '#     # maintenance:',
-    '#     #   status: frozen',
-    '#     #   reason: Upstream now supports OHOS natively.',
-    '#     # advisory:',
-    '#     #   message: Prefer upstream example_package for new projects.',
-    '#     sdks:',
-    '#       "3.35":',
-    '#         releases:',
-    '#           - version: "0.1.0"',
-    '#             upstreamVersion: "1.0.0"',
-    '#             # status: experimental',
+    '# package:',
+    '#   name: example',
+    '#   path: .',
+    '#   # maintenance:',
+    '#   #   frozen: true',
+    '#   #   note: Upstream now supports OHOS natively.',
+    '#   # advisory:',
+    '#   #   message: Prefer upstream example for new projects.',
+    '#   sdks:',
+    '#     "3.35":',
+    '#       releases:',
+    '#         - version: "0.1.0"',
+    '#           upstream:',
+    '#             version: "1.0.0"',
+    '#             ref: example-v1.0.0',
+    '#             commit: "0123456789abcdef0123456789abcdef01234567"',
+    '#           # status: experimental',
     '',
   ].join('\n');
 }
@@ -1645,8 +1856,9 @@ List<SourceManifestRoute> _updatedManifestRoutes(
   List<SourceManifestRoute> routes, {
   required String manifestName,
 }) {
-  if (routes.any((route) => route.name == manifestName)) {
-    return routes;
-  }
-  return [...routes, SourceManifestRoute(name: manifestName)];
+  final updated = routes.any((route) => route.name == manifestName)
+      ? routes
+      : [...routes, SourceManifestRoute(name: manifestName)];
+  return updated.toList(growable: false)
+    ..sort((left, right) => left.name.compareTo(right.name));
 }

@@ -77,8 +77,9 @@ void main() {
       upstream: 'https://github.com/fluttercandies/image_gallery_saver',
       packagePath: '.',
       sdkVersion: '3.35.8-ohos-0.0.3',
-      branch: 'ohos/3.35',
+      branch: 'ohos/3.35/image_gallery_saver',
       repositoryUrl: 'https://github.com/FlutterOH/image_gallery_saver.git',
+      upstreamCommit: '1111111111111111111111111111111111111111',
     );
 
     final content = File('${root.path}/fluoh.yaml').readAsStringSync();
@@ -87,30 +88,39 @@ void main() {
     final repositoryGit = repository['git'] as YamlMap;
     final upstream = yaml['upstream'] as YamlMap;
     final upstreamGit = upstream['git'] as YamlMap;
-    final packages = yaml['packages'] as YamlMap;
-    final package = packages['image_gallery_saver'] as YamlMap;
+    final package = yaml['package'] as YamlMap;
+    final release = package['release'] as YamlMap;
+    final releaseUpstream = release['upstream'] as YamlMap;
 
     expect(yaml['schema'], 1);
-    expect(yaml['name'], 'image_gallery_saver');
+    expect(yaml['kind'], 'package');
+    expect(yaml.containsKey('name'), isFalse);
     expect((yaml['sdk'] as YamlMap)['version'], '3.35.8-ohos-0.0.3');
     expect(
       repositoryGit['url'],
       'https://github.com/FlutterOH/image_gallery_saver.git',
     );
-    expect(repositoryGit['branch'], 'ohos/3.35');
+    expect(repositoryGit['branch'], 'ohos/3.35/image_gallery_saver');
     expect(
       upstreamGit['url'],
       'https://github.com/fluttercandies/image_gallery_saver',
     );
-    expect(package['version'], '0.1.0');
-    expect(package['upstreamVersion'], '2.0.3');
-    expect(package['status'], 'experimental');
-    expect(package.containsKey('repository'), isFalse);
+    expect(upstreamGit['branch'], 'main');
+    expect(package['name'], 'image_gallery_saver');
+    expect(package.containsKey('path'), isFalse);
+    expect(releaseUpstream['version'], '2.0.3');
+    expect(
+      releaseUpstream['commit'],
+      '1111111111111111111111111111111111111111',
+    );
+    expect(release['version'], '0.1.0');
+    expect(release['status'], 'experimental');
     expect(package.containsKey('upstream'), isFalse);
+    expect(package.containsKey('repository'), isFalse);
     expect(repositoryGit.containsKey('ref'), isFalse);
     expect(repositoryGit.containsKey('type'), isFalse);
-    expect(package.containsKey('release'), isFalse);
     expect(package.containsKey('tag'), isFalse);
+    expect(yaml.containsKey('packages'), isFalse);
     expect(yaml.containsKey('implementation'), isFalse);
     expect(yaml.containsKey('dependency'), isFalse);
     expect(yaml.containsKey('fluoh'), isFalse);
@@ -125,8 +135,8 @@ void main() {
       manifest.dependencyUrl,
       'https://github.com/FlutterOH/image_gallery_saver.git',
     );
-    expect(manifest.dependencyPath, '.');
-    expect(manifest.primaryPackage.upstreamPath, '.');
+    expect(manifest.package.path, '.');
+    expect(manifest.primaryPackage.path, '.');
     expect(manifest.primaryPackage.upstreamRef, isNull);
     expect(manifest.releaseTag, 'image_gallery_saver-2.0.3-ohos-3.35-0.1.0');
   });
@@ -148,58 +158,54 @@ void main() {
         packagePath: 'packages/camera/camera',
         upstreamRef: 'camera-v0.12.0+1',
         sdkVersion: '3.35.8-ohos-0.0.3',
-        branch: 'ohos/3.35',
+        branch: 'ohos/3.35/camera',
         repositoryUrl: 'https://github.com/FlutterOH/packages.git',
+        upstreamCommit: '2222222222222222222222222222222222222222',
       );
 
       final content = File('${root.path}/fluoh.yaml').readAsStringSync();
       final yaml = loadYaml(content) as YamlMap;
-      final packages = yaml['packages'] as YamlMap;
-      final package = packages['camera'] as YamlMap;
-      final upstream = package['upstream'] as YamlMap;
+      final package = yaml['package'] as YamlMap;
+      final release = package['release'] as YamlMap;
+      final upstream = release['upstream'] as YamlMap;
 
-      expect(package['upstreamVersion'], '0.12.0+1');
-      expect(upstream['path'], 'packages/camera/camera');
+      expect(package['name'], 'camera');
+      expect(package['path'], 'packages/camera/camera');
+      expect(upstream['version'], '0.12.0+1');
       expect(upstream['ref'], 'camera-v0.12.0+1');
+      expect(upstream['commit'], '2222222222222222222222222222222222222222');
 
       final manifest = await readPackageManifest(root);
       expect(manifest.primaryPackage.upstreamVersion, '0.12.0+1');
-      expect(manifest.primaryPackage.upstreamPath, 'packages/camera/camera');
+      expect(manifest.primaryPackage.path, 'packages/camera/camera');
       expect(manifest.primaryPackage.upstreamRef, 'camera-v0.12.0+1');
     },
   );
 
-  test(
-    'uses the upstream package path as the downstream dependency path',
-    () async {
-      final root = await Directory.systemTemp.createTemp(
-        'fluoh_manifest_path_',
-      );
-      addTearDown(() async {
-        if (await root.exists()) {
-          await root.delete(recursive: true);
-        }
-      });
+  test('uses package.path for package directory metadata', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_manifest_path_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
 
-      await writePackageManifest(
-        destination: root,
-        package: const PubspecPackage(name: 'share_plus', version: '10.0.0'),
-        upstream: 'https://github.com/fluttercommunity/plus_plugins',
-        packagePath: 'packages/share_plus/share_plus',
-        sdkVersion: '3.35.8-ohos-0.0.3',
-        branch: 'ohos/3.35',
-        repositoryUrl: 'https://github.com/FlutterOH/share_plus.git',
-      );
+    await writePackageManifest(
+      destination: root,
+      package: const PubspecPackage(name: 'share_plus', version: '10.0.0'),
+      upstream: 'https://github.com/fluttercommunity/plus_plugins',
+      packagePath: 'packages/share_plus/share_plus',
+      sdkVersion: '3.35.8-ohos-0.0.3',
+      branch: 'ohos/3.35/share_plus',
+      repositoryUrl: 'https://github.com/FlutterOH/share_plus.git',
+      upstreamCommit: '3333333333333333333333333333333333333333',
+    );
 
-      final manifest = await readPackageManifest(root);
+    final manifest = await readPackageManifest(root);
 
-      expect(
-        manifest.primaryPackage.upstreamPath,
-        'packages/share_plus/share_plus',
-      );
-      expect(manifest.dependencyPath, 'packages/share_plus/share_plus');
-    },
-  );
+    expect(manifest.primaryPackage.path, 'packages/share_plus/share_plus');
+    expect(manifest.package.path, 'packages/share_plus/share_plus');
+  });
 
   test('clears upstream refs when upstream versions are refreshed', () {
     final manifest = schema.createPackageManifest(
@@ -208,8 +214,9 @@ void main() {
       packagePath: 'packages/camera/camera',
       upstreamRef: 'camera-v0.12.0+1',
       sdkVersion: '3.35.8-ohos-0.0.3',
-      branch: 'ohos/3.35',
+      branch: 'ohos/3.35/camera',
       repositoryUrl: 'https://github.com/FlutterOH/packages.git',
+      upstreamCommit: '4444444444444444444444444444444444444444',
     );
 
     final updated = schema.updatePackageManifestUpstreamVersions(
@@ -221,7 +228,7 @@ void main() {
     expect(updated.primaryPackage.upstreamRef, isNull);
   });
 
-  test('writes separate upstream and dependency package paths', () async {
+  test('uses one package path for upstream and dependency metadata', () async {
     final root = await Directory.systemTemp.createTemp(
       'fluoh_manifest_split_path_',
     );
@@ -235,19 +242,15 @@ void main() {
       destination: root,
       package: const PubspecPackage(name: 'share_plus', version: '10.0.0'),
       upstream: 'https://github.com/fluttercommunity/plus_plugins',
-      packagePath: 'implementation/share_plus',
-      dependencyPath: 'implementation/share_plus',
-      upstreamPath: 'packages/share_plus/share_plus',
+      packagePath: 'packages/share_plus/share_plus',
       sdkVersion: '3.35.8-ohos-0.0.3',
-      branch: 'ohos/3.35',
+      branch: 'ohos/3.35/share_plus',
       repositoryUrl: 'https://github.com/FlutterOH/share_plus.git',
+      upstreamCommit: '5555555555555555555555555555555555555555',
     );
 
     final manifest = await readPackageManifest(root);
-    expect(manifest.dependencyPath, 'implementation/share_plus');
-    expect(
-      manifest.primaryPackage.upstreamPath,
-      'packages/share_plus/share_plus',
-    );
+    expect(manifest.package.path, 'packages/share_plus/share_plus');
+    expect(manifest.primaryPackage.path, 'packages/share_plus/share_plus');
   });
 }

@@ -6,6 +6,7 @@ import '../context/fluoh_environment.dart';
 import '../schema/schema.dart';
 import '../sdk/sdk_project_config.dart';
 import '../source/source_runtime.dart';
+import 'dependency_policy.dart';
 
 export '../schema/schema.dart'
     show
@@ -23,19 +24,22 @@ class DependencyAnalyzer {
   final FluohEnvironment environment;
 
   /// Builds a dependency compatibility report for the current project.
-  Future<DependencyReport> analyze() async {
-    final sdkVersion = await _readSdkVersion();
+  Future<DependencyReport> analyze({DependencyPolicy? policy}) async {
     final pubspec = await _readRequiredFile('pubspec.yaml');
     final lock = await _readRequiredFile('pubspec.lock');
+    final sdkVersion = await _readSdkVersion();
     final directDependencies = directDependencyNamesFromPubspec(pubspec);
     final lockedPackages = pubLockPackagesFromLock(lock);
     final chains = dependencyChains(lockedPackages, directDependencies);
     final packageNames = lockedPackages.keys.toSet();
     final sdkLine = sdkLineFromSdkVersion(sdkVersion);
+    final resolvedPolicy =
+        policy ?? await readDependencyPolicy(environment.workingDirectory);
 
     final runtime = SourceRuntime(environment);
     final packageIndex = await runtime.loadPackageIndex(
       packageNames: packageNames,
+      releaseStatuses: resolvedPolicy.allowedReleaseStatuses,
     );
 
     final dependencies = <DependencyCompatibility>[];

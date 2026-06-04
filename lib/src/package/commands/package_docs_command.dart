@@ -277,12 +277,11 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
     return [
       '# FlutterOH Changelog',
       '',
-      for (final package in manifest.packages)
-        ...packageFluohChangelogEntryLines(
-          package: packageDocs[package.name]!,
-          sdkVersion: manifest.sdkVersion,
-          releaseVersion: package.releaseVersion,
-        ),
+      ...packageFluohChangelogEntryLines(
+        package: packageDocs[manifest.package.name]!,
+        sdkVersion: manifest.sdkVersion,
+        releaseVersion: manifest.package.releaseVersion,
+      ),
     ].join('\n');
   }
 

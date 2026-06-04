@@ -85,7 +85,7 @@ dart pub publish --dry-run
 
 面向用户的命令输出应简洁，并方便复制到 issue。短状态片段、路径、URL、版本号、标识符、命令名，以及 `SDK path: ...`、`Dart version ...`、`Branch ...`、`No SDK selected` 这类标签/值输出末尾不要加句点。只有完整解释句、多句指导、help 文本，以及需要原样保留的外部工具输出才使用句末标点。
 
-支持 `--json` 的命令必须只向 stdout 输出一个 JSON 对象，顶层包含 `schemaVersion`、`command`、`ok` 和 `exitCode` 字段。命令专属字段保留在顶层；JSON 模式下不要输出人类可读的进度文本。
+支持 `--json` 的命令必须只向 stdout 输出一个 JSON 对象，顶层包含 `schema`、`command`、`ok` 和 `exitCode` 字段。命令专属字段保留在顶层；JSON 模式下不要输出人类可读的进度文本。
 
 ## 提交前检查
 
@@ -166,7 +166,7 @@ fluoh --version
 
 ## Package 仓库工作流维护
 
-`fluoh package create` 会保持上游分支干净，把克隆来源保留为 `upstream`，创建 `ohos/3.35` 这类 Flutter OHOS SDK 版本线分支，把 `origin` 设置为 package 仓库最终推送位置，并配置所选 Flutter OHOS SDK 环境。默认仓库 URL 会根据 package 名称推导：
+`fluoh package create` 会保持上游分支干净，把克隆来源保留为 `upstream`，创建 `ohos/3.35/camera` 这类 Flutter OHOS Package 分支，把 `origin` 设置为 package 仓库最终推送位置，并配置所选 Flutter OHOS SDK 环境。默认仓库 URL 会根据 package 名称推导：
 
 ```sh
 https://github.com/FlutterOH/<package>.git
@@ -188,7 +188,7 @@ fluoh package create https://github.com/upstream/package.git \
 git commit -m "feat(package): initialize FlutterOH package"
 ```
 
-使用 `fluoh package sync` 从 `upstream` 快进同步 Package `fluoh.yaml` 记录的上游分支，把该分支合入当前 `ohos/<sdkLine>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 upstream package 版本不变。
+使用 `fluoh package sync` 从 `upstream` 快进同步 Package `fluoh.yaml` 记录的上游分支，把该分支合入当前 `ohos/<sdkLine>/<package>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 upstream package 版本不变。
 
 沿用上游 package 测试和已有 example 测试作为自动化基线。`fluoh verify` 会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用 `flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行 package 自身测试。存在顶层 Flutter example（`example/pubspec.yaml`）时也会检查 example。
 

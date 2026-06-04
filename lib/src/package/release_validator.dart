@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:pub_semver/pub_semver.dart';
 
 import 'git/package_git.dart';
 import 'manifest/package_manifest.dart';
@@ -31,7 +32,6 @@ Future<List<String>> packageReleaseMetadataWarnings({
   final warnings = <String>[];
   final changelogWarning = await _fluohChangelogWarning(
     repository,
-    manifest,
     package,
     tag,
   );
@@ -41,7 +41,7 @@ Future<List<String>> packageReleaseMetadataWarnings({
   warnings.addAll(
     await packageLicenseWarnings(
       repository: repository,
-      packagePath: package.dependencyPath,
+      packagePath: package.path,
       packageName: package.name,
     ),
   );
@@ -88,7 +88,6 @@ Future<void> _ensureReleaseVersionAfterPreviousTags(
 
 Future<String?> _fluohChangelogWarning(
   Directory repository,
-  PackageManifest manifest,
   PackageManifestPackage package,
   String tag,
 ) async {
@@ -99,16 +98,21 @@ Future<String?> _fluohChangelogWarning(
   }
 
   final content = await changelog.readAsString();
-  if (!_hasChangelogEntry(content, manifest, package, tag)) {
+  final entryLines = _changelogEntryLines(content, package, tag);
+  if (entryLines == null || !_hasNonEmptyChangelogLine(entryLines)) {
     return 'Warning: FLUOH_CHANGELOG.md does not contain a non-empty '
         'entry for ${package.name} release ${package.releaseVersion}.';
+  }
+  if (_containsPlaceholderChangelogLine(entryLines)) {
+    return 'Warning: FLUOH_CHANGELOG.md entry for ${package.name} release '
+        '${package.releaseVersion} still contains TODO placeholder release '
+        'notes.';
   }
   return null;
 }
 
-bool _hasChangelogEntry(
+List<String>? _changelogEntryLines(
   String content,
-  PackageManifest manifest,
   PackageManifestPackage package,
   String tag,
 ) {
@@ -120,28 +124,40 @@ bool _hasChangelogEntry(
           releaseHeading,
           package,
           tag,
-          requirePackage: manifest.packages.length > 1,
+          requirePackage: false,
         )) {
       continue;
     }
 
+    final entryLines = <String>[];
     for (var j = i + 1; j < lines.length; j += 1) {
       final nextHeading = _markdownHeading(lines[j]);
       if (nextHeading != null && nextHeading.level <= releaseHeading.level) {
-        return false;
+        break;
       }
       if (nextHeading != null) {
         continue;
       }
 
-      final line = lines[j].trim();
-      if (line.isNotEmpty) {
-        return true;
-      }
+      entryLines.add(lines[j]);
     }
-    return false;
+    return entryLines;
   }
-  return false;
+  return null;
+}
+
+bool _hasNonEmptyChangelogLine(List<String> entryLines) {
+  return entryLines.any((line) => line.trim().isNotEmpty);
+}
+
+bool _containsPlaceholderChangelogLine(List<String> entryLines) {
+  return entryLines.any((line) {
+    final trimmed = line.trimLeft();
+    final withoutBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ')
+        ? trimmed.substring(2).trimLeft()
+        : trimmed;
+    return withoutBullet.toLowerCase().startsWith('todo:');
+  });
 }
 
 _MarkdownHeading? _markdownHeading(String line) {
@@ -173,30 +189,14 @@ bool _headingContainsRelease(String heading, String value) {
 }
 
 int _compareReleaseVersions(String a, String b) {
-  final aParts = _numericReleaseParts(a);
-  final bParts = _numericReleaseParts(b);
-  final maxLength = aParts.length > bParts.length
-      ? aParts.length
-      : bParts.length;
-  for (var i = 0; i < maxLength; i += 1) {
-    final left = i < aParts.length ? aParts[i] : 0;
-    final right = i < bParts.length ? bParts[i] : 0;
-    if (left != right) {
-      return left.compareTo(right);
-    }
-  }
-  return 0;
-}
-
-List<int> _numericReleaseParts(String version) {
-  final core = version.split(RegExp(r'[-+]')).first;
-  if (!RegExp(r'^\d+(?:\.\d+)*$').hasMatch(core)) {
+  try {
+    return Version.parse(a).compareTo(Version.parse(b));
+  } on FormatException catch (error) {
     throw UsageException(
-      'Release version $version must use numeric dot-separated parts.',
+      'Release versions must be valid pub semantic versions: ${error.message}',
       '',
     );
   }
-  return core.split('.').map(int.parse).toList(growable: false);
 }
 
 class _MarkdownHeading {

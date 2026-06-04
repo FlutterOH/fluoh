@@ -51,7 +51,7 @@ Future<PackageExampleSetupResult> preparePackageExample({
   required TerminalOutput output,
   Directory? sdkDirectory,
 }) async {
-  final packageRoot = packageDirectory(repository, package.repositoryPath);
+  final packageRoot = packageDirectory(repository, package.path);
   final example = Directory('${packageRoot.path}/example');
   final pubspec = File('${example.path}/pubspec.yaml');
   if (!await pubspec.exists()) {
@@ -131,7 +131,7 @@ Future<List<Directory>> packageExampleDirectories({
   final examples = <Directory>[];
   for (final package in packages) {
     final example = Directory(
-      '${packageDirectory(repository, package.repositoryPath).path}/example',
+      '${packageDirectory(repository, package.path).path}/example',
     );
     final pubspec = File('${example.path}/pubspec.yaml');
     if (!await pubspec.exists()) {
@@ -205,9 +205,20 @@ bool _containsSdkFlutter(Object? section, String packageName) {
 }
 
 Future<void> _ensureExampleGitIgnore(Directory example) async {
-  for (final entry in const ['.fluoh/', 'flutter_*.log', 'local.properties']) {
-    await _ensureGitIgnoreEntry(example, entry);
-  }
+  await _ensureGitIgnoreEntries(
+    example,
+    const _GitIgnoreSection(
+      comment: 'fluoh local state',
+      entries: ['.fluoh/', 'flutter_*.log'],
+    ),
+  );
+  await _ensureGitIgnoreEntries(
+    example,
+    const _GitIgnoreSection(
+      comment: 'Flutter local files',
+      entries: ['local.properties'],
+    ),
+  );
 }
 
 Future<void> _removeFlutterCreateTemplateFiles(
@@ -238,24 +249,54 @@ Future<void> _removeFlutterCreateTemplateFiles(
   }
 }
 
-Future<void> _ensureGitIgnoreEntry(Directory directory, String entry) async {
+Future<void> _ensureGitIgnoreEntries(
+  Directory directory,
+  _GitIgnoreSection section,
+) async {
   final gitignore = File('${directory.path}/.gitignore');
+  final block = section.toBlock();
   if (!await gitignore.exists()) {
-    await gitignore.writeAsString('$entry\n');
+    await gitignore.writeAsString('$block\n');
     return;
   }
 
   final content = await gitignore.readAsString();
-  final exists = content
+  final existingLines = content
       .split(RegExp(r'\r?\n'))
       .map((line) => line.trim())
-      .contains(entry);
-  if (exists) {
+      .toSet();
+  final missing = [
+    for (final entry in section.entries)
+      if (!existingLines.contains(entry)) entry,
+  ];
+  if (missing.isEmpty) {
     return;
   }
 
-  final separator = content.isEmpty || content.endsWith('\n') ? '' : '\n';
-  await gitignore.writeAsString('$content$separator$entry\n');
+  final separator = content.isEmpty
+      ? ''
+      : content.endsWith('\n')
+      ? '\n'
+      : '\n\n';
+  await gitignore.writeAsString(
+    '$content$separator${section.copyWith(entries: missing).toBlock()}\n',
+  );
+}
+
+class _GitIgnoreSection {
+  const _GitIgnoreSection({required this.comment, required this.entries});
+
+  final String comment;
+  final List<String> entries;
+
+  _GitIgnoreSection copyWith({List<String>? entries}) {
+    return _GitIgnoreSection(
+      comment: comment,
+      entries: entries ?? this.entries,
+    );
+  }
+
+  String toBlock() => ['# $comment', ...entries].join('\n');
 }
 
 String _relativePath(Directory rootDirectory, Directory directory) {

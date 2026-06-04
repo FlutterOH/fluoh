@@ -238,7 +238,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'sdk list'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -353,7 +353,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'sdk current'));
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 1));
@@ -367,8 +367,12 @@ void main() {
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos-0.0.3
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''',
     );
     final stdout = <String>[];
@@ -393,8 +397,12 @@ sdk:
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos-0.0.3
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''',
     );
     final stdout = <String>[];
@@ -412,7 +420,7 @@ sdk:
 
     expect(stdout, hasLength(1));
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'sdk current'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));

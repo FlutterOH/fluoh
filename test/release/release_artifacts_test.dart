@@ -166,9 +166,18 @@ void main() {
     expect(skill, contains('fluoh skill --json'));
     expect(skill, contains('--package <package-name>'));
     expect(skill, contains('repository.git.url'));
+    expect(skill, contains('--repository-name'));
     expect(skill, contains('--repository'));
     expect(skill, contains('--git-author-name'));
     expect(skill, contains('--git-author-email'));
+    expect(skill, contains('--plan --json'));
+    expect(skill, contains('final setup confirmation'));
+    expect(skill, contains('wait for explicit user approval'));
+    expect(skill, contains('operations that will not run'));
+    expect(skill, contains('approval such as release'));
+    expect(skill, contains('It is not authorization to change project files'));
+    expect(skill, contains('setup step does not authorize project'));
+    expect(skill, contains('Git state changes'));
     expect(skill, contains('commit message, and local Git author identity'));
     expect(skill, contains('package queue'));
     expect(skill, contains('Implementation checkpoint'));
@@ -257,7 +266,7 @@ void main() {
     expect(reportTemplate, contains('Release recommendation: ready'));
 
     expectContainsAll(preflight, [
-      'schemaVersion',
+      'schema',
       'upgradeChecks',
       'PACKAGE_DOC_TEMPLATE_VERSION',
       'fluoh package docs refresh --dry-run',
@@ -268,7 +277,7 @@ void main() {
       'sessionInspectCommand',
       'scenarioCommand',
       'pathIsDirectory',
-      'needsPackageSelection',
+      'hasPackageBranch',
       'selectedPackage',
       'examplePlatforms',
       '--package',
@@ -292,7 +301,7 @@ void main() {
       '--name',
     ]);
     expectContainsAll(inspectSession, [
-      'schemaVersion',
+      'schema',
       'flutterRunSession',
       'vmServiceUri',
       'attachHints',
@@ -302,7 +311,7 @@ void main() {
       '--expect-platform',
     ]);
     expectContainsAll(checkReport, [
-      'schemaVersion',
+      'schema',
       'Delivery checklist',
       'Interaction Evidence',
       'interactionRows',
@@ -342,6 +351,9 @@ void main() {
       'fluoh skill --json',
       'returned localPath',
       'fluoh upgrade',
+      'read-only setup checks',
+      'asks for final setup confirmation',
+      'package changes',
       'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
@@ -356,6 +368,7 @@ void main() {
       'fluoh build --platform ohos --auto-sign',
       'For package maintainers',
       'fluoh package create <upstream-git-url>',
+      '--repository-name <flutteroh-repo-name>',
       'fluoh verify',
       'fluoh package status',
       'fluohf pub get',
@@ -396,6 +409,8 @@ void main() {
       'fluoh skill --json',
       '返回的 localPath',
       'fluoh upgrade',
+      '只读 setup 检查',
+      '最终 setup 确认',
       '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill。',
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。',
@@ -410,6 +425,7 @@ void main() {
       'fluoh build --platform ohos --auto-sign',
       'Package 维护者可以用',
       'fluoh package create <upstream-git-url>',
+      '--repository-name <flutteroh-repo-name>',
       'fluoh verify',
       'fluoh package status',
       'fluohf pub get',
@@ -528,8 +544,9 @@ void main() {
       'kind: manifest',
       'ohos/3.35',
       'repository.git.branch',
+      'package.release.version',
       'upstreamVersion',
-      'sdks.<sdkLine>.releases',
+      'package.sdks.<sdkLine>.releases',
       '`config.json`',
       '`sources.lock.json`',
       '"fingerprint"',
@@ -538,7 +555,6 @@ void main() {
     ]);
     expectContainsNone(schema, [
       'repository.git.ref',
-      'release.version',
       'manifests[].packages',
       'repositories/<repository>/fluoh.yaml',
       'CompatibilityMatrix',
@@ -557,8 +573,9 @@ void main() {
       'kind: manifest',
       'ohos/3.35',
       'repository.git.branch',
+      'package.release.version',
       'upstreamVersion',
-      'sdks.<sdkLine>.releases',
+      'package.sdks.<sdkLine>.releases',
       '`config.json`',
       '`sources.lock.json`',
       '"fingerprint"',
@@ -567,7 +584,6 @@ void main() {
     ]);
     expectContainsNone(chineseSchema, [
       'repository.git.ref',
-      'release.version',
       'manifests[].packages',
       'repositories/<repository>/fluoh.yaml',
       'CompatibilityMatrix',
@@ -598,6 +614,11 @@ void main() {
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
+      'does not authorize project, package, Source, local Git, or implementation',
+      'final setup',
+      'confirmation includes',
+      'wait for explicit user approval',
+      'operations that require separate approval',
       'skills/fluoh/SKILL.md',
       'fluoh help [command]',
       'fluoh skill',
@@ -620,6 +641,8 @@ void main() {
       'fluoh deps upgrade',
       'fluoh package list',
       'fluoh package create <upstream>',
+      '--repository-name',
+      '--plan',
       'fluoh package add <package-path>',
       'fluoh package status',
       'fluoh package version',
@@ -687,6 +710,10 @@ void main() {
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 按 SDK 3.35 适配为 FlutterOH Package。',
       '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',
+      '不等于已经批准修改项目、Package、Source、本地 Git 或实现代码',
+      '最终确认清单',
+      '等待用户明确批准',
+      '需要单独批准的操作',
       'skills/fluoh/SKILL.md',
       'fluoh help [command]',
       'fluoh skill',
@@ -709,6 +736,8 @@ void main() {
       'fluoh deps upgrade',
       'fluoh package list',
       'fluoh package create <upstream>',
+      '--repository-name',
+      '--plan',
       'fluoh package add <package-path>',
       'fluoh package status',
       'fluoh package version',

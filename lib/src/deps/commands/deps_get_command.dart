@@ -116,14 +116,10 @@ class DepsGetCommand extends Command<int> {
     try {
       final manifest = await readPackageManifest(environment.workingDirectory);
       return [
-        for (final package in manifest.packages)
-          packageDirectory(
-            environment.workingDirectory,
-            package.dependencyPath,
-          ),
+        packageDirectory(environment.workingDirectory, manifest.package.path),
         ...await packageExampleDirectories(
           repository: environment.workingDirectory,
-          packages: manifest.packages,
+          packages: [manifest.package],
         ),
       ];
     } on UsageException catch (error) {

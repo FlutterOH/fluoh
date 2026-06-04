@@ -2,6 +2,12 @@ import 'dependency_policy.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
+/// Current project `fluoh.yaml` schema version.
+const projectConfigSchema = 1;
+
+/// Project manifest kind.
+const projectConfigKind = 'project';
+
 /// Parsed project-level `fluoh.yaml` configuration.
 class ProjectFluohConfig {
   /// Creates a project configuration value.
@@ -14,16 +20,23 @@ class ProjectFluohConfig {
   /// Parses project `fluoh.yaml` content.
   factory ProjectFluohConfig.parse(String content) {
     final yaml = parseYamlMap(content, label: 'fluoh.yaml');
-    ensureSupportedSchema(yaml);
-    final sdk = yaml['sdk'];
-    final sdkVersion = sdk is Map<String, Object?> && sdk['version'] != null
-        ? '${sdk['version']}'
-        : null;
-    if (sdkVersion != null) {
-      flutterVersionFromSdkVersion(sdkVersion);
+    _ensureProjectConfigSchema(yaml);
+    ensureAllowedKeys(yaml, 'fluoh.yaml', {
+      'schema',
+      'kind',
+      'sdk',
+      'dependencyPolicy',
+    });
+    final kind = requiredString(yaml, 'kind');
+    if (kind != projectConfigKind) {
+      throw FluohSchemaException('fluoh.yaml kind must be $projectConfigKind.');
     }
+    final sdk = objectMap(yaml['sdk'], 'fluoh.yaml sdk');
+    ensureAllowedKeys(sdk, 'fluoh.yaml sdk', {'version'});
+    final sdkVersion = requiredString(sdk, 'version');
+    flutterVersionFromSdkVersion(sdkVersion);
     return ProjectFluohConfig(
-      schemaVersion: yaml['schema'] as int? ?? supportedFluohYamlSchema,
+      schemaVersion: yaml['schema'] as int,
       sdkVersion: sdkVersion,
       dependencyPolicy: parseDependencyPolicy(yaml),
     );
@@ -42,7 +55,8 @@ class ProjectFluohConfig {
 /// Creates a new project `fluoh.yaml` for [sdkVersion].
 String newProjectFluohConfigContent(String sdkVersion) {
   return [
-    'schema: 1',
+    'schema: $projectConfigSchema',
+    'kind: $projectConfigKind',
     '',
     'sdk:',
     '  version: $sdkVersion',
@@ -76,14 +90,23 @@ String upsertProjectSdkVersion(String content, String sdkVersion) {
       lines.insert(sdkIndex + 1, '  version: $sdkVersion');
     }
     _ensureSchemaLine(lines);
+    _ensureKindLine(lines);
     return '${lines.join('\n')}\n';
   }
 
   final schemaIndex = _topLevelKeyIndex(lines, 'schema');
   if (schemaIndex == -1) {
-    lines.insertAll(0, ['schema: 1', '']);
+    lines.insertAll(0, [
+      'schema: $projectConfigSchema',
+      'kind: $projectConfigKind',
+      '',
+    ]);
+  } else {
+    _ensureKindLine(lines);
   }
-  final insertIndex = _topLevelKeyIndex(lines, 'schema') + 1;
+  final kindIndex = _topLevelKeyIndex(lines, 'kind');
+  final insertIndex =
+      (kindIndex == -1 ? _topLevelKeyIndex(lines, 'schema') : kindIndex) + 1;
   lines.insertAll(insertIndex, ['', 'sdk:', '  version: $sdkVersion', '']);
   return '${lines.join('\n')}\n';
 }
@@ -92,7 +115,25 @@ void _ensureSchemaLine(List<String> lines) {
   if (_topLevelKeyIndex(lines, 'schema') != -1) {
     return;
   }
-  lines.insertAll(0, ['schema: 1', '']);
+  lines.insertAll(0, ['schema: $projectConfigSchema', '']);
+}
+
+void _ensureKindLine(List<String> lines) {
+  final kindIndex = _topLevelKeyIndex(lines, 'kind');
+  if (kindIndex != -1) {
+    lines[kindIndex] = 'kind: $projectConfigKind';
+    return;
+  }
+  final schemaIndex = _topLevelKeyIndex(lines, 'schema');
+  if (schemaIndex == -1) {
+    lines.insertAll(0, [
+      'schema: $projectConfigSchema',
+      'kind: $projectConfigKind',
+      '',
+    ]);
+    return;
+  }
+  lines.insert(schemaIndex + 1, 'kind: $projectConfigKind');
 }
 
 void _upsertSdkVersion(List<String> lines, int sdkIndex, String sdkVersion) {
@@ -129,4 +170,25 @@ int _topLevelSectionEnd(List<String> lines, int sectionIndex) {
     }
   }
   return lines.length;
+}
+
+void _ensureProjectConfigSchema(Map<String, Object?> yaml) {
+  final schema = yaml['schema'];
+  if (schema == null) {
+    throw const FluohSchemaException('fluoh.yaml missing "schema".');
+  }
+  if (schema is! int) {
+    throw const FluohSchemaException('fluoh.yaml schema must be an integer.');
+  }
+  if (schema > projectConfigSchema) {
+    throw FluohSchemaException(
+      'fluoh.yaml schema $schema requires a newer fluoh.',
+    );
+  }
+  if (schema < projectConfigSchema) {
+    throw FluohSchemaException(
+      'fluoh.yaml schema $schema is not supported for projects. Expected '
+      'schema $projectConfigSchema.',
+    );
+  }
 }

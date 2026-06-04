@@ -45,7 +45,8 @@ Use $fluoh to continue adapting <package-name> for OHOS.
 ```
 
 The skill checks `fluoh --version`, installs the CLI when it is missing, runs
-`fluoh` commands, follows JSON diagnostics, edits the project or package,
+read-only setup checks, asks for final setup confirmation before project or
+package changes, follows JSON diagnostics, edits the project or package,
 verifies the result, and saves `.fluoh/ai-report-...md` with a delivery
 checklist.
 It prefers `dart pub global activate fluoh`, with Homebrew as the macOS
@@ -88,10 +89,18 @@ strict `--json` automation because they do not invoke `dart pub global run`.
 For package maintainers:
 
 ```sh
-fluoh package create <upstream-git-url>
+fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 fluoh verify
 fluoh package status
 ```
+
+For monorepos, pass one `--package-path <path>` to create the first package
+branch. Omitting `--package-path` selects only the repository root package; it
+never means all packages. To adapt another package in the same repository, run
+`fluoh package add <package-path>` from the generated repository; it creates a
+separate `ohos/<sdkLine>/<package>` branch for that package.
+`--repository-name` is required for every new package repository; when a single
+package path is selected, the CLI can suggest a candidate if it is omitted.
 
 Use `fluohf` to run Flutter through the selected FlutterOH SDK:
 

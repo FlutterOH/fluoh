@@ -43,14 +43,11 @@ Future<Directory> createPackageSourceFixture(Directory parent) async {
   await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test FlutterOH source
+name: test-flutteroh-source
 description: Test source fixture.
 repository:
   git:
     url: file:${source.path}
-
-environment:
-  fluoh: ">=0.1.0"
 
 sdk:
   git:
@@ -66,7 +63,6 @@ manifests:
   await File('${source.path}/manifests/camera/fluoh.yaml').writeAsString('''
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -75,27 +71,28 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    sdks:
-      "3.35":
-        releases:
-          - version: "0"
-            upstreamVersion: "0.11.0"
-          - version: "1"
-            upstreamVersion: "0.11.0"
+package:
+  name: camera
+  path: packages/camera/camera
+  sdks:
+    "3.35":
+      releases:
+        - version: "0.0.0"
+          upstream:
+            version: "0.11.0"
+            ref: camera-v0.11.0
+            commit: "1111111111111111111111111111111111111111"
+        - version: "1.0.0"
+          upstream:
+            version: "0.11.0"
+            ref: camera-v0.11.0
+            commit: "1111111111111111111111111111111111111111"
 ''');
 
   await File('${source.path}/manifests/share_plus/fluoh.yaml').writeAsString('''
 schema: 1
 kind: manifest
-name: share_plus
 
 repository:
   git:
@@ -104,19 +101,18 @@ repository:
 upstream:
   git:
     url: https://github.com/fluttercommunity/plus_plugins
-    branch: main
 
-packages:
-  share_plus:
-    repository:
-      path: packages/share_plus/share_plus
-    upstream:
-      path: packages/share_plus/share_plus
-    sdks:
-      "3.35":
-        releases:
-          - version: "1"
-            upstreamVersion: "9.0.0"
+package:
+  name: share_plus
+  path: packages/share_plus/share_plus
+  sdks:
+    "3.35":
+      releases:
+        - version: "1.0.0"
+          upstream:
+            version: "9.0.0"
+            ref: share_plus-v9.0.0
+            commit: "9999999999999999999999999999999999999999"
 ''');
 
   return source;
@@ -131,7 +127,7 @@ Future<void> writeSdkSourceFixture(
   final buffer = StringBuffer()
     ..writeln('schema: 1')
     ..writeln('kind: source')
-    ..writeln('name: Test FlutterOH source')
+    ..writeln('name: test-flutteroh-source')
     ..writeln('description: Test source fixture.')
     ..writeln()
     ..writeln('repository:')

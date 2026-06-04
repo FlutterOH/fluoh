@@ -35,6 +35,8 @@ void main() {
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -76,12 +78,12 @@ void main() {
         '-1',
         '--format=%s',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
       expect(pubspec, contains('version: 0.12.0'));
-      expect(manifest, contains('packages:\n  camera:'));
+      expect(manifest, contains('package:\n  name: camera'));
       expect(manifest, contains('    version: 0.1.0'));
-      expect(manifest, contains('    upstreamVersion: 0.12.0'));
-      expect(subject.stdout.toString().trim(), 'Sync upstream packages');
+      expect(manifest, contains('    upstream:\n      version: 0.12.0'));
+      expect(subject.stdout.toString().trim(), 'Sync upstream package');
 
       await runGit(packageRepository, ['checkout', 'main']);
       final upstreamPubspec = File(
@@ -93,11 +95,8 @@ void main() {
         isFalse,
       );
       expect(stdout, contains('Synchronized main from upstream/main'));
-      expect(stdout, contains('Merged main into ohos/3.35'));
-      expect(
-        stdout,
-        contains('Updated upstream metadata for registered packages'),
-      );
+      expect(stdout, contains('Merged main into ohos/3.35/camera'));
+      expect(stdout, contains('Updated upstream metadata for package branch'));
       expect(stderr, isEmpty);
     },
   );
@@ -125,6 +124,8 @@ void main() {
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -152,13 +153,13 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'package sync'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
     expect(report, containsPair('status', 'synced'));
     expect(report, containsPair('committed', true));
-    expect(report, containsPair('packageBranch', 'ohos/3.35'));
+    expect(report, containsPair('packageBranch', 'ohos/3.35/camera'));
     expect(stderr, isEmpty);
   });
 
@@ -189,6 +190,8 @@ void main() {
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -204,7 +207,7 @@ void main() {
       await File('${packageRepository.path}/LOCAL.md').writeAsString('local\n');
       await runGit(packageRepository, ['add', 'LOCAL.md']);
       await runGit(packageRepository, ['commit', '-m', 'Local main change']);
-      await runGit(packageRepository, ['checkout', 'ohos/3.35']);
+      await runGit(packageRepository, ['checkout', 'ohos/3.35/camera']);
       await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
 
       final packageEnvironment = FluohEnvironment(
@@ -225,7 +228,7 @@ void main() {
         'branch',
         '--show-current',
       ]);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
       expect(stderr.join('\n'), contains('Not possible to fast-forward'));
     },
   );
@@ -257,6 +260,8 @@ void main() {
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -295,7 +300,7 @@ void main() {
         '--show-current',
       ]);
       final status = await runGit(packageRepository, ['status', '--short']);
-      expect(branch.stdout.toString().trim(), 'ohos/3.35');
+      expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
       expect(status.stdout.toString(), contains('M README.md'));
       expect(status.stdout.toString(), contains('?? LOCAL_NOTES.md'));
       expect(
@@ -328,6 +333,8 @@ void main() {
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -392,6 +399,8 @@ void main() {
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -404,7 +413,7 @@ void main() {
     await commitGeneratedPackageRepository(packageRepository);
 
     await runGit(packageRepository, ['checkout', '-b', 'feature/manual-merge']);
-    await runGit(packageRepository, ['checkout', 'ohos/3.35']);
+    await runGit(packageRepository, ['checkout', 'ohos/3.35/camera']);
     await File(
       '${packageRepository.path}/UPSTREAM_NOTE.md',
     ).writeAsString('upstream note\n');
@@ -415,7 +424,7 @@ void main() {
       'merge',
       '--no-ff',
       '--no-commit',
-      'ohos/3.35',
+      'ohos/3.35/camera',
     ]);
 
     final packageEnvironment = FluohEnvironment(
@@ -442,7 +451,7 @@ void main() {
       stderr.join('\n'),
       contains(
         'Current branch feature/manual-merge does not match package branch '
-        'ohos/3.35.',
+        'ohos/3.35/camera.',
       ),
     );
     await runGit(packageRepository, ['merge', '--abort']);
@@ -471,6 +480,8 @@ void main() {
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -509,10 +520,10 @@ void main() {
     );
 
     final manifest = manifestFile.readAsStringSync();
-    expect(manifest, contains('packages:\n  camera:'));
+    expect(manifest, contains('package:\n  name: camera'));
     expect(manifest, contains('    version: 0.2.0'));
     expect(manifest, isNot(contains('status: experimental')));
-    expect(manifest, contains('    upstreamVersion: 0.12.0'));
+    expect(manifest, contains('    upstream:\n      version: 0.12.0'));
     expect(stderr, isEmpty);
   });
 
@@ -539,6 +550,8 @@ void main() {
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -608,8 +621,8 @@ environment:
       '-1',
       '--format=%s',
     ]);
-    expect(manifest, contains('    upstreamVersion: 0.12.0'));
-    expect(subject.stdout.toString().trim(), 'Sync upstream packages');
+    expect(manifest, contains('    upstream:\n      version: 0.12.0'));
+    expect(subject.stdout.toString().trim(), 'Sync upstream package');
   });
 
   test('package sync emits json diagnostics on fetch failure', () async {
@@ -635,6 +648,8 @@ environment:
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -667,7 +682,7 @@ environment:
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'package sync'));
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 1));
@@ -708,6 +723,8 @@ environment:
         'package',
         'create',
         upstream.path,
+        '--repository-name',
+        'camera',
         '--output',
         packageRepository.path,
         '--sdk',
@@ -746,7 +763,7 @@ environment:
     );
 
     final report = jsonDecode(stdout.last) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'package sync'));
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 1));
@@ -796,6 +813,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -813,7 +832,7 @@ environment:
         '-m',
         'Create unrelated package branch',
       ]);
-      await runGit(packageRepository, ['branch', '-M', 'ohos/3.35']);
+      await runGit(packageRepository, ['branch', '-M', 'ohos/3.35/camera']);
 
       stdout.clear();
       expect(
@@ -830,7 +849,7 @@ environment:
       );
 
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('schemaVersion', 1));
+      expect(report, containsPair('schema', 1));
       expect(report, containsPair('command', 'package sync'));
       expect(report, containsPair('ok', false));
       expect(report, containsPair('exitCode', 1));
@@ -851,7 +870,7 @@ environment:
   );
 
   test(
-    'package sync preserves separate upstream and dependency paths',
+    'package sync preserves the manifest package path while updating metadata',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -878,6 +897,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -891,27 +912,9 @@ environment:
       );
 
       final manifestFile = File('${packageRepository.path}/fluoh.yaml');
-      await Directory(
-        '${packageRepository.path}/implementation/camera',
-      ).create(recursive: true);
-      await File(
-        '${packageRepository.path}/implementation/camera/pubspec.yaml',
-      ).writeAsString('''
-name: camera
-version: 0.11.0
-
-environment:
-  sdk: ^3.0.0
-''');
-      await manifestFile.writeAsString(
-        manifestFile.readAsStringSync().replaceFirst(
-          '    path: packages/camera/camera',
-          '    path: implementation/camera',
-        ),
-      );
       await commitGeneratedPackageRepository(
         packageRepository,
-        message: 'Use separate dependency path',
+        message: 'Commit package path fixture',
       );
       await bumpUpstreamPackageVersion(
         upstream,
@@ -934,86 +937,7 @@ environment:
       );
 
       final manifest = manifestFile.readAsStringSync();
-      expect(manifest, contains('upstreamVersion: 0.12.0'));
-      expect(manifest, contains('    path: implementation/camera'));
-      expect(manifest, contains('    path: packages/camera/camera'));
-      expect(stderr, isEmpty);
-    },
-  );
-
-  test(
-    'package sync does not copy upstream paths to root implementations',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await createPackageSourceFixture(
-        environment.homeDirectory,
-      );
-      final upstream = await createUpstreamWorkspaceRepository(
-        Directory('${environment.homeDirectory.path}/upstream_sync_root_path'),
-        packagePath: 'packages/camera/camera',
-      );
-      final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_root_path',
-      );
-      final stdout = <String>[];
-      final stderr = <String>[];
-
-      await runFluoh(
-        ['source', 'add', 'fixture', source.path],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-      await runFluoh(
-        [
-          'package',
-          'create',
-          upstream.path,
-          '--output',
-          packageRepository.path,
-          '--sdk',
-          '3.35.8-ohos-0.0.3',
-          '--package-path',
-          'packages/camera/camera',
-        ],
-        environment: environment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
-
-      final manifestFile = File('${packageRepository.path}/fluoh.yaml');
-      await manifestFile.writeAsString(
-        manifestFile.readAsStringSync().replaceFirst(
-          '    repository:\n      path: packages/camera/camera\n',
-          '',
-        ),
-      );
-      await commitGeneratedPackageRepository(
-        packageRepository,
-        message: 'Use root dependency path',
-      );
-      await bumpUpstreamPackageVersion(
-        upstream,
-        version: '0.12.0',
-        packagePath: 'packages/camera/camera',
-      );
-
-      final packageEnvironment = FluohEnvironment(
-        homeDirectory: environment.homeDirectory,
-        workingDirectory: packageRepository,
-      );
-      expect(
-        await runFluoh(
-          ['package', 'sync'],
-          environment: packageEnvironment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-
-      final manifest = manifestFile.readAsStringSync();
-      expect(manifest, contains('upstreamVersion: 0.12.0'));
+      expect(manifest, contains('    upstream:\n      version: 0.12.0'));
       expect(
         RegExp(
           r'^\s+path: packages/camera/camera$',
@@ -1025,8 +949,70 @@ environment:
     },
   );
 
+  test('package sync keeps root package path omitted', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_sync_root_path'),
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_sync_root_path',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    final manifestFile = File('${packageRepository.path}/fluoh.yaml');
+    await commitGeneratedPackageRepository(
+      packageRepository,
+      message: 'Commit root package fixture',
+    );
+    await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    expect(
+      await runFluoh(
+        ['package', 'sync'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = manifestFile.readAsStringSync();
+    expect(manifest, contains('    upstream:\n      version: 0.12.0'));
+    expect(RegExp(r'^\s+path:', multiLine: true).allMatches(manifest), isEmpty);
+    expect(stderr, isEmpty);
+  });
+
   test(
-    'package sync fails when an upstream path points at another package',
+    'package sync fails when package path points at another package',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -1060,6 +1046,8 @@ environment:
           'package',
           'create',
           upstream.path,
+          '--repository-name',
+          'camera',
           '--output',
           packageRepository.path,
           '--sdk',
@@ -1075,13 +1063,13 @@ environment:
       final manifestFile = File('${packageRepository.path}/fluoh.yaml');
       await manifestFile.writeAsString(
         manifestFile.readAsStringSync().replaceFirst(
-          '    upstream:\n      path: packages/camera/camera',
-          '    upstream:\n      path: packages/share_plus/share_plus',
+          '  path: packages/camera/camera',
+          '  path: packages/share_plus/share_plus',
         ),
       );
       await commitGeneratedPackageRepository(
         packageRepository,
-        message: 'Point camera upstream path at share_plus',
+        message: 'Point camera package path at share_plus',
       );
 
       final packageEnvironment = FluohEnvironment(

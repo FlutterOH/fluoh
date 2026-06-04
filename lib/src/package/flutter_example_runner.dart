@@ -1021,7 +1021,7 @@ Future<void> _writeDebugSession({
     await sessionFile.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
     final session = {
-      'schemaVersion': 1,
+      'schema': 1,
       'kind': 'flutterRunSession',
       'status': status,
       'platform': platform,

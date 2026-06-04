@@ -1,3 +1,4 @@
+import 'dependency_policy.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
@@ -17,7 +18,6 @@ class SourceRootManifest {
     required this.sdkReleases,
     this.description,
     this.repositoryGitUrl,
-    this.fluohConstraint,
   });
 
   /// Schema version from the root `fluoh.yaml`.
@@ -41,9 +41,6 @@ class SourceRootManifest {
   /// SDK releases advertised by this Source.
   final List<SdkRelease> sdkReleases;
 
-  /// Optional version constraint for compatible `fluoh` clients.
-  final String? fluohConstraint;
-
   /// SDK-only view of this Source.
   SdkIndex get sdkIndex =>
       SdkIndex(schemaVersion: schemaVersion, releases: sdkReleases);
@@ -56,7 +53,6 @@ class SourceRootManifestTemplate {
     required this.name,
     this.description,
     this.repositoryGitUrl,
-    this.fluohConstraint,
     this.manifests = const <SourceManifestRoute>[],
     this.sdkRepository,
     this.sdkReleases = const <SdkRelease>[],
@@ -70,9 +66,6 @@ class SourceRootManifestTemplate {
 
   /// Optional Git URL for the Source repository itself.
   final String? repositoryGitUrl;
-
-  /// Optional compatible fluoh version constraint.
-  final String? fluohConstraint;
 
   /// Package Manifest routes written under `manifests`.
   final List<SourceManifestRoute> manifests;
@@ -105,7 +98,7 @@ class SdkIndex {
   final List<SdkRelease> releases;
 }
 
-/// Backwards-compatible alias for SDK index data.
+/// Public name for SDK index data used by source APIs.
 typedef SourceSdkIndex = SdkIndex;
 
 /// FlutterOH SDK release advertised by Source data.
@@ -171,38 +164,25 @@ class SourceManifest {
   /// Creates parsed Source package Manifest data.
   const SourceManifest({
     required this.schemaVersion,
-    required this.name,
     required this.repositoryGitUrl,
     required this.upstreamGitUrl,
-    required this.upstreamBranch,
-    required this.packages,
-    this.repositoryPath = '.',
-    this.upstreamPath = '.',
+    required this.package,
   });
 
   /// Schema version from the Manifest file.
   final int schemaVersion;
 
-  /// Manifest name.
-  final String name;
+  /// Manifest name, derived from the package name.
+  String get name => package.name;
 
   /// FlutterOH implementation repository URL.
   final String repositoryGitUrl;
 
-  /// Package root inside the FlutterOH implementation repository.
-  final String repositoryPath;
-
   /// Upstream repository URL.
   final String upstreamGitUrl;
 
-  /// Upstream branch used by package sync.
-  final String upstreamBranch;
-
-  /// Package root inside the upstream repository.
-  final String upstreamPath;
-
-  /// Package records keyed by package name.
-  final Map<String, SourceManifestPackage> packages;
+  /// Package record described by this Manifest.
+  final SourceManifestPackage package;
 }
 
 /// Package entry inside a Source Manifest.
@@ -210,21 +190,17 @@ class SourceManifestPackage {
   /// Creates a package entry from a Source Manifest.
   const SourceManifestPackage({
     required this.name,
-    required this.repositoryPath,
-    required this.upstreamPath,
     required this.sdks,
+    String? path,
     this.maintenance,
     this.advisory,
-  });
+  }) : path = path ?? '.';
 
   /// Package name.
   final String name;
 
-  /// Package path inside the FlutterOH implementation repository.
-  final String repositoryPath;
-
-  /// Package path inside the upstream repository.
-  final String upstreamPath;
+  /// Package path inside both the FlutterOH implementation and upstream repositories.
+  final String path;
 
   /// Optional maintenance status for this package.
   final SourcePackageMaintenance? maintenance;
@@ -254,7 +230,8 @@ class SourceManifestRelease {
   const SourceManifestRelease({
     required this.version,
     required this.upstreamVersion,
-    this.tag,
+    required this.upstreamCommit,
+    this.upstreamRef,
     this.status = 'compatible',
   });
 
@@ -264,23 +241,39 @@ class SourceManifestRelease {
   /// Upstream package version this implementation targets.
   final String upstreamVersion;
 
-  /// Optional implementation repository tag.
-  final String? tag;
+  /// Upstream release tag or ref used for the adaptation.
+  final String? upstreamRef;
 
-  /// Compatibility status; only `compatible` releases are used by consumers.
+  /// Resolved upstream commit used for the adaptation.
+  final String upstreamCommit;
+
+  /// Compatibility status; consumers use `compatible` releases by default and
+  /// may explicitly opt into every status through project policy.
   final String status;
 }
 
 /// Maintainer-provided package maintenance state.
 class SourcePackageMaintenance {
   /// Creates package maintenance status metadata.
-  const SourcePackageMaintenance({required this.status, this.reason});
+  const SourcePackageMaintenance({
+    bool? frozen,
+    String? note,
+    String? status,
+    String? reason,
+  }) : frozen = frozen ?? status == 'frozen',
+       note = note ?? reason;
 
-  /// Maintenance status, for example `maintained` or `deprecated`.
-  final String status;
+  /// Whether source sync should skip generated release updates.
+  final bool frozen;
 
-  /// Optional explanation for the status.
-  final String? reason;
+  /// Optional explanation for the maintenance state.
+  final String? note;
+
+  /// Compatibility alias for older command code.
+  String get status => frozen ? 'frozen' : 'active';
+
+  /// Compatibility alias for older command code.
+  String? get reason => note;
 }
 
 /// Advisory shown when a package needs user or maintainer attention.
@@ -337,35 +330,22 @@ class SourcePackageAlternative {
 class SourceManifestTemplate {
   /// Creates data for a Source package Manifest template.
   const SourceManifestTemplate({
-    required this.name,
     required this.repositoryGitUrl,
     required this.upstreamGitUrl,
-    required this.packages,
-    this.repositoryPath = '.',
-    this.upstreamBranch = 'main',
-    this.upstreamPath = '.',
+    required this.package,
   });
 
-  /// Manifest name.
-  final String name;
+  /// Manifest name, derived from the package name.
+  String get name => package.name;
 
   /// FlutterOH implementation repository URL.
   final String repositoryGitUrl;
 
-  /// Default package path inside the implementation repository.
-  final String repositoryPath;
-
   /// Upstream repository URL.
   final String upstreamGitUrl;
 
-  /// Upstream branch used by package sync.
-  final String upstreamBranch;
-
-  /// Default package path inside the upstream repository.
-  final String upstreamPath;
-
-  /// Package entries to generate.
-  final List<SourceManifestPackageTemplate> packages;
+  /// Package entry to generate.
+  final SourceManifestPackageTemplate package;
 }
 
 /// Data used to generate one package entry in a Manifest template.
@@ -373,35 +353,35 @@ class SourceManifestPackageTemplate {
   /// Creates a package entry for a Source Manifest template.
   const SourceManifestPackageTemplate({
     required this.name,
-    required this.repositoryPath,
-    required this.upstreamPath,
     required this.upstreamVersion,
     required this.sdkLine,
     required this.version,
-    this.tag,
+    required this.upstreamCommit,
+    this.path = '.',
+    this.upstreamRef,
     this.status = 'compatible',
   });
 
   /// Package name.
   final String name;
 
-  /// Package path inside the FlutterOH implementation repository.
-  final String repositoryPath;
-
-  /// Package path inside the upstream repository.
-  final String upstreamPath;
+  /// Package path inside both the FlutterOH implementation and upstream repositories.
+  final String path;
 
   /// Upstream version targeted by the generated implementation release.
   final String upstreamVersion;
+
+  /// Upstream release tag or ref used for the generated release.
+  final String? upstreamRef;
+
+  /// Resolved upstream commit used for the generated release.
+  final String upstreamCommit;
 
   /// SDK line for the generated implementation release.
   final String sdkLine;
 
   /// FlutterOH package version for the generated implementation release.
   final String version;
-
-  /// Optional implementation repository tag.
-  final String? tag;
 
   /// Compatibility status written to the Manifest.
   final String status;
@@ -426,9 +406,6 @@ class PackageEntry {
     required this.repository,
     required this.upstream,
     required this.implementations,
-    this.repositoryPath,
-    this.upstreamPath,
-    this.upstreamBranch = 'main',
     this.compatibility = const <SourceCompatibilityStatus>[],
     this.sourceNames = const <String>[],
     this.advisory,
@@ -441,19 +418,10 @@ class PackageEntry {
   /// Upstream repository URL.
   final String upstream;
 
-  /// Package path inside the implementation repository.
-  final String? repositoryPath;
-
-  /// Package path inside the upstream repository.
-  final String? upstreamPath;
-
-  /// Upstream branch used by package sync.
-  final String upstreamBranch;
-
   /// Compatible implementation releases for this package.
   final List<PackageImplementation> implementations;
 
-  /// Non-compatible compatibility records retained for reporting.
+  /// Non-compatible release records used for reporting.
   final List<SourceCompatibilityStatus> compatibility;
 
   /// Configured Source aliases that contributed this package entry.
@@ -476,10 +444,9 @@ class PackageImplementation {
     required this.tag,
     required this.version,
     this.path,
-    this.upstreamPath,
-    this.upstreamBranch = 'main',
     this.sourceName,
     this.sourcePriority = 0,
+    this.status = 'compatible',
   });
 
   /// SDK line this implementation supports.
@@ -500,11 +467,8 @@ class PackageImplementation {
   /// Package path inside the implementation repository.
   final String? path;
 
-  /// Package path inside the upstream repository.
-  final String? upstreamPath;
-
-  /// Upstream branch used by package sync.
-  final String upstreamBranch;
+  /// Source release status that produced this implementation.
+  final String status;
 
   /// Source name that provided this implementation after merge.
   final String? sourceName;
@@ -512,7 +476,7 @@ class PackageImplementation {
   /// Source priority used to resolve overlapping implementation records.
   final int sourcePriority;
 
-  /// Alias kept for command code that treats SDK line as a version selector.
+  /// SDK version selector used by command code.
   String get sdkVersion => sdkLine;
 
   /// Returns a copy annotated with Source merge metadata.
@@ -524,15 +488,14 @@ class PackageImplementation {
       tag: tag,
       version: version,
       path: path,
-      upstreamPath: upstreamPath,
-      upstreamBranch: upstreamBranch,
       sourceName: name,
       sourcePriority: priority,
+      status: status,
     );
   }
 }
 
-/// Non-compatible package status retained for diagnostics.
+/// Non-compatible package status used for diagnostics.
 class SourceCompatibilityStatus {
   /// Creates one non-compatible package status record.
   const SourceCompatibilityStatus({
@@ -550,7 +513,7 @@ class SourceCompatibilityStatus {
   /// Status such as `experimental` or `broken`.
   final String status;
 
-  /// Alias kept for command code that treats SDK line as a version selector.
+  /// SDK version selector used by command code.
   String get sdkVersion => sdkLine;
 }
 
@@ -563,9 +526,6 @@ class SourcePackageManifest {
     required this.upstream,
     required this.implementations,
     required this.compatibility,
-    this.repositoryPath,
-    this.upstreamPath,
-    this.upstreamBranch = 'main',
     this.maintenance,
     this.advisory,
   });
@@ -579,19 +539,10 @@ class SourcePackageManifest {
   /// Upstream repository URL.
   final String upstream;
 
-  /// Package path inside the implementation repository.
-  final String? repositoryPath;
-
-  /// Package path inside the upstream repository.
-  final String? upstreamPath;
-
-  /// Upstream branch used by package sync.
-  final String upstreamBranch;
-
   /// Compatible implementation releases.
   final List<PackageImplementation> implementations;
 
-  /// Non-compatible compatibility records retained for reporting.
+  /// Non-compatible release records used for reporting.
   final List<SourceCompatibilityStatus> compatibility;
 
   /// Optional maintenance state for this package.
@@ -601,9 +552,9 @@ class SourcePackageManifest {
   final SourcePackageAdvisory? advisory;
 }
 
-/// Legacy compatibility matrix shape retained for schema parsing tests.
+/// Compatibility buckets derived from Source manifests.
 class CompatibilityMatrix {
-  /// Creates legacy compatibility matrix data.
+  /// Creates compatibility matrix data.
   const CompatibilityMatrix({
     required this.schemaVersion,
     required this.sdkVersions,
@@ -645,11 +596,12 @@ SourceRootManifest parseSourceRootManifest(String content) {
     'name',
     'description',
     'repository',
-    'environment',
     'sdk',
     'manifests',
   });
   _requireKind(yaml, 'source', 'fluoh.yaml');
+  final sourceName = requiredString(yaml, 'name');
+  _validateSourceName(sourceName, label: 'fluoh.yaml name');
 
   final repository = optionalObjectMap(yaml['repository'], 'repository');
   String? repositoryGitUrl;
@@ -660,22 +612,17 @@ SourceRootManifest parseSourceRootManifest(String content) {
     repositoryGitUrl = requiredString(repositoryGit, 'url');
   }
 
-  final environment = optionalObjectMap(yaml['environment'], 'environment');
-  if (environment != null) {
-    ensureAllowedKeys(environment, 'environment', {'fluoh'});
-  }
   final sdkSource = _readFlutterOhosSdkSource(yaml['sdk']);
   final manifests = _readManifestRoutes(yaml['manifests']);
 
   return SourceRootManifest(
     schemaVersion: yaml['schema'] as int,
-    name: requiredString(yaml, 'name'),
+    name: sourceName,
     description: optionalString(yaml, 'description'),
     repositoryGitUrl: repositoryGitUrl,
     manifests: manifests,
     sdkRepository: sdkSource?.repository,
     sdkReleases: sdkSource?.releases ?? const <SdkRelease>[],
-    fluohConstraint: optionalString(environment ?? const {}, 'fluoh'),
   );
 }
 
@@ -691,60 +638,40 @@ SourceManifest parseSourceManifest({
 }) {
   final yaml = parseYamlMap(content, label: label);
   _ensureSourceSchema(yaml, label);
+  if (yaml.containsKey('packages')) {
+    throw FluohSchemaException(
+      '$label must use package; multi-package Source Manifests are no longer '
+      'supported.',
+    );
+  }
   ensureAllowedKeys(yaml, label, {
     'schema',
     'kind',
-    'name',
     'repository',
     'upstream',
-    'packages',
+    'package',
   });
   _requireKind(yaml, 'manifest', label);
 
   final repository = objectMap(yaml['repository'], '$label repository');
   ensureAllowedKeys(repository, '$label repository', {'git'});
   final repositoryGit = objectMap(repository['git'], '$label repository.git');
-  ensureAllowedKeys(repositoryGit, '$label repository.git', {'url', 'path'});
+  ensureAllowedKeys(repositoryGit, '$label repository.git', {'url'});
 
   final upstream = objectMap(yaml['upstream'], '$label upstream');
   ensureAllowedKeys(upstream, '$label upstream', {'git'});
   final upstreamGit = objectMap(upstream['git'], '$label upstream.git');
-  ensureAllowedKeys(upstreamGit, '$label upstream.git', {
-    'url',
-    'branch',
-    'path',
-  });
+  ensureAllowedKeys(upstreamGit, '$label upstream.git', {'url'});
 
-  final packagesMap = objectMap(yaml['packages'], '$label packages');
-  if (packagesMap.isEmpty) {
-    throw FluohSchemaException('$label packages must not be empty.');
-  }
+  final packageYaml = objectMap(yaml['package'], '$label package');
+  final packageName = requiredString(packageYaml, 'name');
+  validateDartPackageName(packageName, label: '$label package.name');
 
   return SourceManifest(
     schemaVersion: yaml['schema'] as int,
-    name: requiredString(yaml, 'name'),
     repositoryGitUrl: requiredString(repositoryGit, 'url'),
-    repositoryPath: _manifestPath(optionalString(repositoryGit, 'path')),
     upstreamGitUrl: requiredString(upstreamGit, 'url'),
-    upstreamBranch: optionalString(upstreamGit, 'branch') ?? 'main',
-    upstreamPath: _manifestPath(optionalString(upstreamGit, 'path')),
-    packages: packagesMap.map((name, value) {
-      final packageName = _nonEmptyString(name, '$label package name');
-      return MapEntry(
-        packageName,
-        _readManifestPackage(
-          packageName,
-          objectMap(value, '$label packages.$packageName'),
-          '$label packages.$packageName',
-          defaultRepositoryPath: _manifestPath(
-            optionalString(repositoryGit, 'path'),
-          ),
-          defaultUpstreamPath: _manifestPath(
-            optionalString(upstreamGit, 'path'),
-          ),
-        ),
-      );
-    }),
+    package: _readManifestPackage(packageName, packageYaml, '$label package'),
   );
 }
 
@@ -752,69 +679,72 @@ SourceManifest parseSourceManifest({
 List<SourcePackageManifest> sourcePackageManifestsFromManifest(
   SourceManifest manifest, {
   Set<String>? packageNames,
+  Set<String> releaseStatuses = compatibleDependencyReleaseStatuses,
 }) {
-  final manifests = <SourcePackageManifest>[];
-  for (final package in manifest.packages.values) {
-    if (packageNames != null && !packageNames.contains(package.name)) {
-      continue;
-    }
-
-    final implementations = <PackageImplementation>[];
-    final compatibility = <SourceCompatibilityStatus>[];
-    for (final sdk in package.sdks.values) {
-      for (final release in sdk.releases) {
-        if (release.status != 'compatible') {
-          continue;
-        }
-        implementations.add(
-          PackageImplementation(
-            sdkLine: sdk.sdkLine,
-            upstreamVersion: release.upstreamVersion,
-            repository: manifest.repositoryGitUrl,
-            tag:
-                release.tag ??
-                packageReleaseTagForPackage(
-                  packageName: package.name,
-                  upstreamVersion: release.upstreamVersion,
-                  sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
-                  releaseVersion: release.version,
-                ),
-            version: release.version,
-            path: _manifestPath(package.repositoryPath),
-            upstreamPath: _manifestPath(package.upstreamPath),
-            upstreamBranch: manifest.upstreamBranch,
-          ),
-        );
-        compatibility.add(
-          SourceCompatibilityStatus(
-            sdkLine: sdk.sdkLine,
-            upstreamVersion: release.upstreamVersion,
-            status: 'implemented',
-          ),
-        );
-      }
-    }
-
-    manifests.add(
-      SourcePackageManifest(
-        name: package.name,
-        repository: manifest.repositoryGitUrl,
-        upstream: manifest.upstreamGitUrl,
-        repositoryPath: package.repositoryPath,
-        upstreamPath: package.upstreamPath,
-        upstreamBranch: manifest.upstreamBranch,
-        implementations: implementations,
-        compatibility: compatibility,
-        maintenance: package.maintenance,
-        advisory: package.advisory,
-      ),
-    );
+  final package = manifest.package;
+  if (packageNames != null && !packageNames.contains(package.name)) {
+    return const <SourcePackageManifest>[];
   }
-  return manifests;
+
+  final implementations = <PackageImplementation>[];
+  final compatibility = <SourceCompatibilityStatus>[];
+  final packagePath = normalizeManifestPath(
+    package.path,
+    label: 'Source Manifest package.path',
+  );
+  for (final sdk in package.sdks.values) {
+    for (final release in sdk.releases) {
+      if (!releaseStatuses.contains(release.status)) {
+        continue;
+      }
+      implementations.add(
+        PackageImplementation(
+          sdkLine: sdk.sdkLine,
+          upstreamVersion: release.upstreamVersion,
+          repository: manifest.repositoryGitUrl,
+          tag: packageReleaseTagForPackage(
+            packageName: package.name,
+            upstreamVersion: release.upstreamVersion,
+            sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
+            releaseVersion: release.version,
+          ),
+          version: release.version,
+          path: packagePath,
+          status: release.status,
+        ),
+      );
+      compatibility.add(
+        SourceCompatibilityStatus(
+          sdkLine: sdk.sdkLine,
+          upstreamVersion: release.upstreamVersion,
+          status: release.status == 'compatible'
+              ? 'implemented'
+              : release.status,
+        ),
+      );
+    }
+  }
+
+  return [
+    SourcePackageManifest(
+      name: package.name,
+      repository: manifest.repositoryGitUrl,
+      upstream: manifest.upstreamGitUrl,
+      implementations: implementations,
+      compatibility: compatibility,
+      maintenance: package.maintenance,
+      advisory: package.advisory,
+    ),
+  ];
 }
 
 /// Generates canonical YAML for a Source root Manifest.
 String sourceRootManifestContent(SourceRootManifestTemplate template) {
+  for (final manifest in template.manifests) {
+    validateDartPackageName(manifest.name, label: 'manifests[].name');
+  }
+  final sdkReleases = _sortedSdkReleases(template.sdkReleases);
+  final manifests = _sortedManifestRoutes(template.manifests);
   final lines = [
     'schema: $sourceManifestSchema',
     'kind: source',
@@ -828,11 +758,6 @@ String sourceRootManifestContent(SourceRootManifestTemplate template) {
       '    url: ${_yamlScalar(template.repositoryGitUrl!)}',
       '',
     ],
-    if (template.fluohConstraint != null) ...[
-      'environment:',
-      '  fluoh: ${_singleQuotedYamlScalar(template.fluohConstraint!)}',
-      '',
-    ],
   ];
 
   if (template.sdkRepository != null) {
@@ -844,16 +769,16 @@ String sourceRootManifestContent(SourceRootManifestTemplate template) {
         '  versions: []'
       else ...[
         '  versions:',
-        for (final release in template.sdkReleases)
+        for (final release in sdkReleases)
           '    - ${_yamlScalar(release.version)}',
       ],
       '',
     ]);
   }
 
-  if (template.manifests.isNotEmpty) {
+  if (manifests.isNotEmpty) {
     lines.add('manifests:');
-    for (final manifest in template.manifests) {
+    for (final manifest in manifests) {
       lines.add('  - name: ${_yamlScalar(manifest.name)}');
     }
     lines.add('');
@@ -869,100 +794,101 @@ String sourceManifestContent(SourceManifestTemplate template) {
   return sourceManifestToContent(
     SourceManifest(
       schemaVersion: sourceManifestSchema,
-      name: template.name,
       repositoryGitUrl: template.repositoryGitUrl,
-      repositoryPath: template.repositoryPath,
       upstreamGitUrl: template.upstreamGitUrl,
-      upstreamBranch: template.upstreamBranch,
-      upstreamPath: template.upstreamPath,
-      packages: {
-        for (final package in template.packages)
-          package.name: SourceManifestPackage(
-            name: package.name,
-            repositoryPath: package.repositoryPath,
-            upstreamPath: package.upstreamPath,
-            sdks: {
-              package.sdkLine: SourceManifestSdk(
-                sdkLine: package.sdkLine,
-                releases: [
-                  SourceManifestRelease(
-                    version: package.version,
-                    upstreamVersion: package.upstreamVersion,
-                    tag: package.tag,
-                    status: package.status,
-                  ),
-                ],
+      package: SourceManifestPackage(
+        name: template.package.name,
+        path: template.package.path,
+        sdks: {
+          template.package.sdkLine: SourceManifestSdk(
+            sdkLine: template.package.sdkLine,
+            releases: [
+              SourceManifestRelease(
+                version: template.package.version,
+                upstreamVersion: template.package.upstreamVersion,
+                upstreamRef: template.package.upstreamRef,
+                upstreamCommit: template.package.upstreamCommit,
+                status: template.package.status,
               ),
-            },
+            ],
           ),
-      },
+        },
+      ),
     ),
   );
 }
 
 /// Serializes a parsed package Manifest back to canonical YAML.
 String sourceManifestToContent(SourceManifest manifest) {
+  final package = manifest.package;
+  validateDartPackageName(package.name, label: 'Source Manifest package.name');
+  final packagePath = normalizeManifestPath(
+    package.path,
+    label: 'Source Manifest package.path',
+  );
   final lines = [
     'schema: $sourceManifestSchema',
     'kind: manifest',
-    'name: ${_yamlScalar(manifest.name)}',
     '',
     'repository:',
     '  git:',
     '    url: ${_yamlScalar(manifest.repositoryGitUrl)}',
-    if (manifest.repositoryPath != '.')
-      '    path: ${_yamlScalar(manifest.repositoryPath)}',
     '',
     'upstream:',
     '  git:',
     '    url: ${_yamlScalar(manifest.upstreamGitUrl)}',
-    if (manifest.upstreamBranch != 'main')
-      '    branch: ${_yamlScalar(manifest.upstreamBranch)}',
-    if (manifest.upstreamPath != '.')
-      '    path: ${_yamlScalar(manifest.upstreamPath)}',
     '',
-    'packages:',
+    'package:',
+    '  name: ${_yamlScalar(package.name)}',
+    if (packagePath != '.') '  path: ${_yamlScalar(packagePath)}',
   ];
 
-  for (final package in manifest.packages.values) {
-    lines.addAll([
-      '  ${package.name}:',
-      if (package.repositoryPath != manifest.repositoryPath) ...[
-        '    repository:',
-        '      path: ${_yamlScalar(package.repositoryPath)}',
-      ],
-      if (package.upstreamPath != manifest.upstreamPath) ...[
-        '    upstream:',
-        '      path: ${_yamlScalar(package.upstreamPath)}',
-      ],
-      if (package.maintenance != null) ...[
-        '    maintenance:',
-        '      status: ${package.maintenance!.status}',
-        if (package.maintenance!.reason != null)
-          '      reason: ${_yamlScalar(package.maintenance!.reason!)}',
-      ],
-      if (package.advisory != null) ..._advisoryLines(package.advisory!),
-      '    sdks:',
-    ]);
-    for (final sdk in package.sdks.values) {
-      lines.addAll(['      "${sdk.sdkLine}":', '        releases:']);
-      for (final release in sdk.releases) {
-        validateReleaseVersion(release.version, label: 'release version');
-        final canonicalTag = packageReleaseTagForPackage(
-          packageName: package.name,
-          upstreamVersion: release.upstreamVersion,
-          sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
-          releaseVersion: release.version,
+  lines.addAll([
+    if (package.maintenance != null) ...[
+      '  maintenance:',
+      if (package.maintenance!.frozen) '    frozen: true',
+      if (package.maintenance!.note != null)
+        '    note: ${_yamlScalar(package.maintenance!.note!)}',
+    ],
+    if (package.advisory != null) ..._advisoryLines(package.advisory!),
+    '  sdks:',
+  ]);
+  for (final sdk in _sortedManifestSdks(package.sdks.values)) {
+    lines.addAll(['    "${sdk.sdkLine}":', '      releases:']);
+    for (final release in _sortedManifestReleases(sdk.releases)) {
+      validateReleaseVersion(release.version, label: 'release version');
+      final upstreamVersion = _manifestPubVersion(
+        release.upstreamVersion,
+        label: 'release upstream.version',
+      );
+      final upstreamRef = release.upstreamRef == null
+          ? null
+          : normalizeGitRef(
+              release.upstreamRef!,
+              label: 'release upstream.ref',
+            );
+      final upstreamCommit = normalizeGitCommitHash(
+        release.upstreamCommit,
+        label: 'release upstream.commit',
+      );
+      if (!const {
+        'compatible',
+        'experimental',
+        'broken',
+      }.contains(release.status)) {
+        throw const FluohSchemaException(
+          'release status must be compatible, experimental, or broken.',
         );
-        lines.addAll([
-          '          - version: ${_yamlScalar(release.version)}',
-          '            upstreamVersion: ${_yamlScalar(release.upstreamVersion)}',
-          if (release.tag != null && release.tag != canonicalTag)
-            '            tag: ${_yamlScalar(release.tag!)}',
-          if (release.status != 'compatible')
-            '            status: ${release.status}',
-        ]);
       }
+      lines.addAll([
+        '        - version: ${_yamlScalar(release.version)}',
+        '          upstream:',
+        '            version: ${_yamlScalar(upstreamVersion)}',
+        if (upstreamRef != null) '            ref: ${_yamlScalar(upstreamRef)}',
+        '            commit: ${_yamlScalar(upstreamCommit)}',
+        if (release.status != 'compatible')
+          '          status: ${release.status}',
+      ]);
     }
   }
   lines.add('');
@@ -978,9 +904,6 @@ PackageIndex packageIndexFromManifests(Iterable<SourcePackageManifest> items) {
       packages[manifest.name] = PackageEntry(
         repository: manifest.repository,
         upstream: manifest.upstream,
-        repositoryPath: manifest.repositoryPath,
-        upstreamPath: manifest.upstreamPath,
-        upstreamBranch: manifest.upstreamBranch,
         implementations: manifest.implementations,
         compatibility: manifest.compatibility,
         sourceNames: _sourceNamesFromImplementations(manifest.implementations),
@@ -992,9 +915,6 @@ PackageIndex packageIndexFromManifests(Iterable<SourcePackageManifest> items) {
     packages[manifest.name] = PackageEntry(
       repository: existing.repository,
       upstream: existing.upstream,
-      repositoryPath: existing.repositoryPath,
-      upstreamPath: existing.upstreamPath,
-      upstreamBranch: existing.upstreamBranch,
       implementations: [
         ...existing.implementations,
         ...manifest.implementations,
@@ -1070,12 +990,26 @@ List<SourceManifestRoute> _readManifestRoutes(Object? value) {
     final item = items[index];
     ensureAllowedKeys(item, 'manifests[$index]', {'name'});
     final name = requiredString(item, 'name');
+    validateDartPackageName(name, label: 'manifests[$index].name');
     if (!names.add(name)) {
       throw FluohSchemaException('Duplicate manifest name "$name".');
     }
     routes.add(SourceManifestRoute(name: name));
   }
+  _ensureManifestRoutesAscending(routes);
   return routes;
+}
+
+void _ensureManifestRoutesAscending(List<SourceManifestRoute> routes) {
+  for (var index = 1; index < routes.length; index += 1) {
+    final previous = routes[index - 1].name;
+    final current = routes[index].name;
+    if (previous.compareTo(current) > 0) {
+      throw const FluohSchemaException(
+        'manifests must be sorted by name in ascending order.',
+      );
+    }
+  }
 }
 
 _FlutterOhosSdkSource? _readFlutterOhosSdkSource(Object? value) {
@@ -1092,6 +1026,13 @@ _FlutterOhosSdkSource? _readFlutterOhosSdkSource(Object? value) {
     'sdk versions',
     allowNull: true,
   );
+  final seenVersions = <String>{};
+  for (final version in versions) {
+    if (!seenVersions.add(version)) {
+      throw FluohSchemaException('Duplicate SDK version "$version".');
+    }
+  }
+  _ensureSdkVersionsAscending(versions);
 
   return _FlutterOhosSdkSource(
     repository: repository,
@@ -1111,53 +1052,66 @@ _FlutterOhosSdkSource? _readFlutterOhosSdkSource(Object? value) {
   );
 }
 
+void _ensureSdkVersionsAscending(List<String> versions) {
+  for (var index = 1; index < versions.length; index += 1) {
+    final previous = versions[index - 1];
+    final current = versions[index];
+    if (comparePubVersionsAscending(previous, current) > 0) {
+      throw const FluohSchemaException(
+        'sdk.versions must be sorted in ascending semantic version order. '
+        'Append newer SDK versions after older versions.',
+      );
+    }
+  }
+}
+
 SourceManifestPackage _readManifestPackage(
   String packageName,
   Map<String, Object?> yaml,
-  String label, {
-  required String defaultRepositoryPath,
-  required String defaultUpstreamPath,
-}) {
+  String label,
+) {
   ensureAllowedKeys(yaml, label, {
-    'repository',
-    'upstream',
+    'name',
+    'path',
     'maintenance',
     'advisory',
     'sdks',
   });
-  final repository = optionalObjectMap(yaml['repository'], '$label repository');
-  final upstream = optionalObjectMap(yaml['upstream'], '$label upstream');
-  if (repository != null) {
-    ensureAllowedKeys(repository, '$label repository', {'path'});
-  }
-  if (upstream != null) {
-    ensureAllowedKeys(upstream, '$label upstream', {'path'});
-  }
   final sdks = objectMap(yaml['sdks'], '$label sdks');
   if (sdks.isEmpty) {
     throw FluohSchemaException('$label sdks must not be empty.');
   }
-  return SourceManifestPackage(
-    name: packageName,
-    repositoryPath: _manifestPath(
-      optionalString(repository ?? const {}, 'path') ?? defaultRepositoryPath,
-    ),
-    upstreamPath: _manifestPath(
-      optionalString(upstream ?? const {}, 'path') ?? defaultUpstreamPath,
-    ),
-    maintenance: _readMaintenance(yaml['maintenance'], '$label maintenance'),
-    advisory: _readAdvisory(yaml['advisory'], '$label advisory'),
-    sdks: sdks.map((sdkLine, value) {
-      final parsedSdkLine = _sdkLine(sdkLine, '$label SDK line');
-      return MapEntry(
+  final parsedSdks = <MapEntry<String, SourceManifestSdk>>[];
+  String? previousSdkLine;
+  for (final entry in sdks.entries) {
+    final parsedSdkLine = _sdkLine(entry.key, '$label SDK line');
+    if (previousSdkLine != null &&
+        _compareSdkLinesAscending(previousSdkLine, parsedSdkLine) > 0) {
+      throw FluohSchemaException(
+        '$label sdks must be sorted by SDK line in ascending order.',
+      );
+    }
+    previousSdkLine = parsedSdkLine;
+    parsedSdks.add(
+      MapEntry(
         parsedSdkLine,
         _readManifestSdk(
           parsedSdkLine,
-          objectMap(value, '$label sdks.$parsedSdkLine'),
+          objectMap(entry.value, '$label sdks.$parsedSdkLine'),
           '$label sdks.$parsedSdkLine',
         ),
-      );
-    }),
+      ),
+    );
+  }
+  return SourceManifestPackage(
+    name: packageName,
+    path: normalizeManifestPath(
+      optionalString(yaml, 'path'),
+      label: '$label path',
+    ),
+    maintenance: _readMaintenance(yaml['maintenance'], '$label maintenance'),
+    advisory: _readAdvisory(yaml['advisory'], '$label advisory'),
+    sdks: Map.fromEntries(parsedSdks),
   );
 }
 
@@ -1171,25 +1125,47 @@ SourceManifestSdk _readManifestSdk(
   if (releases.isEmpty) {
     throw FluohSchemaException('$label releases must not be empty.');
   }
-  return SourceManifestSdk(
-    sdkLine: sdkLine,
-    releases: [
-      for (var index = 0; index < releases.length; index += 1)
-        _readManifestRelease(releases[index], '$label releases[$index]'),
-    ],
-  );
+  final parsedReleases = <SourceManifestRelease>[];
+  final seenReleaseKeys = <String>{};
+  for (var index = 0; index < releases.length; index += 1) {
+    final release = _readManifestRelease(
+      releases[index],
+      '$label releases[$index]',
+    );
+    final key = '${release.upstreamVersion}|${release.version}';
+    if (!seenReleaseKeys.add(key)) {
+      throw FluohSchemaException(
+        '$label releases contains duplicate upstream ${release.upstreamVersion} '
+        'and release ${release.version}.',
+      );
+    }
+    parsedReleases.add(release);
+  }
+  _ensureManifestReleasesAscending(parsedReleases, label);
+  return SourceManifestSdk(sdkLine: sdkLine, releases: parsedReleases);
+}
+
+void _ensureManifestReleasesAscending(
+  List<SourceManifestRelease> releases,
+  String label,
+) {
+  for (var index = 1; index < releases.length; index += 1) {
+    final previous = releases[index - 1];
+    final current = releases[index];
+    if (_compareManifestReleasesAscending(previous, current) > 0) {
+      throw FluohSchemaException(
+        '$label releases must be sorted by upstream version and release version '
+        'in ascending order.',
+      );
+    }
+  }
 }
 
 SourceManifestRelease _readManifestRelease(
   Map<String, Object?> yaml,
   String label,
 ) {
-  ensureAllowedKeys(yaml, label, {
-    'version',
-    'upstreamVersion',
-    'tag',
-    'status',
-  });
+  ensureAllowedKeys(yaml, label, {'version', 'upstream', 'status'});
   final status = optionalString(yaml, 'status') ?? 'compatible';
   if (!const {'compatible', 'experimental', 'broken'}.contains(status)) {
     throw FluohSchemaException(
@@ -1198,10 +1174,26 @@ SourceManifestRelease _readManifestRelease(
   }
   final version = _requiredScalarString(yaml, 'version');
   validateReleaseVersion(version, label: '$label version');
+  final upstreamYaml = objectMap(yaml['upstream'], '$label upstream');
+  ensureAllowedKeys(upstreamYaml, '$label upstream', {
+    'version',
+    'ref',
+    'commit',
+  });
   return SourceManifestRelease(
     version: version,
-    upstreamVersion: requiredString(yaml, 'upstreamVersion'),
-    tag: optionalString(yaml, 'tag'),
+    upstreamVersion: _manifestPubVersion(
+      _requiredScalarString(upstreamYaml, 'version'),
+      label: '$label upstream.version',
+    ),
+    upstreamRef: switch (optionalString(upstreamYaml, 'ref')) {
+      final ref? => normalizeGitRef(ref, label: '$label upstream.ref'),
+      null => null,
+    },
+    upstreamCommit: normalizeGitCommitHash(
+      _requiredScalarString(upstreamYaml, 'commit'),
+      label: '$label upstream.commit',
+    ),
     status: status,
   );
 }
@@ -1211,15 +1203,13 @@ SourcePackageMaintenance? _readMaintenance(Object? value, String label) {
     return null;
   }
   final yaml = objectMap(value, label);
-  ensureAllowedKeys(yaml, label, {'status', 'reason'});
-  final status = requiredString(yaml, 'status');
-  if (!const {'active', 'frozen'}.contains(status)) {
-    throw FluohSchemaException('$label status must be active or frozen.');
+  ensureAllowedKeys(yaml, label, {'frozen', 'note'});
+  final frozen = yaml['frozen'];
+  if (frozen != null && frozen is! bool) {
+    throw FluohSchemaException('$label frozen must be a boolean.');
   }
-  return SourcePackageMaintenance(
-    status: status,
-    reason: optionalString(yaml, 'reason'),
-  );
+  final note = optionalString(yaml, 'note');
+  return SourcePackageMaintenance(frozen: frozen as bool? ?? false, note: note);
 }
 
 SourcePackageAdvisory? _readAdvisory(Object? value, String label) {
@@ -1246,31 +1236,102 @@ SourcePackageAlternative _readAlternative(
   String label,
 ) {
   ensureAllowedKeys(yaml, label, {'name', 'reason', 'url'});
+  final name = requiredString(yaml, 'name');
+  validateDartPackageName(name, label: '$label name');
   return SourcePackageAlternative(
-    name: requiredString(yaml, 'name'),
+    name: name,
     reason: optionalString(yaml, 'reason'),
     url: optionalString(yaml, 'url'),
   );
 }
 
 List<String> _advisoryLines(SourcePackageAdvisory advisory) {
-  final lines = <String>['    advisory:'];
+  final lines = <String>['  advisory:'];
   if (advisory.message != null) {
-    lines.add('      message: ${_yamlScalar(advisory.message!)}');
+    lines.add('    message: ${_yamlScalar(advisory.message!)}');
   }
   if (advisory.alternatives.isNotEmpty) {
-    lines.add('      alternatives:');
+    lines.add('    alternatives:');
     for (final alternative in advisory.alternatives) {
-      lines.add('        - name: ${_yamlScalar(alternative.name)}');
+      lines.add('      - name: ${_yamlScalar(alternative.name)}');
       if (alternative.reason != null) {
-        lines.add('          reason: ${_yamlScalar(alternative.reason!)}');
+        lines.add('        reason: ${_yamlScalar(alternative.reason!)}');
       }
       if (alternative.url != null) {
-        lines.add('          url: ${_yamlScalar(alternative.url!)}');
+        lines.add('        url: ${_yamlScalar(alternative.url!)}');
       }
     }
   }
   return lines;
+}
+
+List<SourceManifestSdk> _sortedManifestSdks(Iterable<SourceManifestSdk> sdks) {
+  return sdks.toList(growable: false)..sort(
+    (left, right) => _compareSdkLinesAscending(left.sdkLine, right.sdkLine),
+  );
+}
+
+List<SourceManifestRelease> _sortedManifestReleases(
+  Iterable<SourceManifestRelease> releases,
+) {
+  return releases.toList(growable: false)
+    ..sort(_compareManifestReleasesAscending);
+}
+
+int _compareManifestReleasesAscending(
+  SourceManifestRelease left,
+  SourceManifestRelease right,
+) {
+  final upstream = comparePubVersionsAscending(
+    left.upstreamVersion,
+    right.upstreamVersion,
+  );
+  if (upstream != 0) {
+    return upstream;
+  }
+  final release = comparePubVersionsAscending(left.version, right.version);
+  if (release != 0) {
+    return release;
+  }
+  final commit = left.upstreamCommit.compareTo(right.upstreamCommit);
+  if (commit != 0) {
+    return commit;
+  }
+  return (left.upstreamRef ?? '').compareTo(right.upstreamRef ?? '');
+}
+
+List<SdkRelease> _sortedSdkReleases(Iterable<SdkRelease> releases) {
+  return releases.toList(growable: false)..sort((left, right) {
+    final version = comparePubVersionsAscending(left.version, right.version);
+    if (version != 0) {
+      return version;
+    }
+    return left.repository.compareTo(right.repository);
+  });
+}
+
+List<SourceManifestRoute> _sortedManifestRoutes(
+  Iterable<SourceManifestRoute> routes,
+) {
+  return routes.toList(growable: false)
+    ..sort((left, right) => left.name.compareTo(right.name));
+}
+
+int _compareSdkLinesAscending(String left, String right) {
+  final leftParts = left.split('.').map(int.parse).toList(growable: false);
+  final rightParts = right.split('.').map(int.parse).toList(growable: false);
+  for (var i = 0; i < leftParts.length && i < rightParts.length; i += 1) {
+    final compared = leftParts[i].compareTo(rightParts[i]);
+    if (compared != 0) {
+      return compared;
+    }
+  }
+  return leftParts.length.compareTo(rightParts.length);
+}
+
+String _manifestPubVersion(String version, {required String label}) {
+  validatePubVersion(version, label: label);
+  return version;
 }
 
 String _yamlScalar(String value) {
@@ -1286,10 +1347,6 @@ String _yamlScalar(String value) {
   return '"$escaped"';
 }
 
-String _singleQuotedYamlScalar(String value) {
-  return "'${value.replaceAll("'", "''")}'";
-}
-
 bool _shouldQuoteYamlScalar(String value) {
   if (value.isEmpty) {
     return true;
@@ -1298,6 +1355,11 @@ bool _shouldQuoteYamlScalar(String value) {
     return true;
   }
   if (value.contains(RegExp(r'[\s:]'))) {
+    return true;
+  }
+  if (RegExp(
+    r'^[+-]?(?:\d+|\d+\.\d+|\.\d+)(?:[eE][+-]?\d+)?$',
+  ).hasMatch(value)) {
     return true;
   }
   if (const {'true', 'false', 'null', '~'}.contains(value.toLowerCase())) {
@@ -1362,11 +1424,10 @@ String _sdkLine(Object? value, String label) {
   return text;
 }
 
-String _manifestPath(String? path) {
-  if (path == null || path.isEmpty || path == '.') {
-    return '.';
+void _validateSourceName(String value, {required String label}) {
+  if (value.isEmpty || RegExp(r'\s').hasMatch(value)) {
+    throw FluohSchemaException('$label must be a non-empty token.');
   }
-  return path;
 }
 
 void _ensureSourceSchema(Map<String, Object?> yaml, String label) {

@@ -61,7 +61,7 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'package list'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -104,8 +104,15 @@ void main() {
       );
       await sharePlusManifest.writeAsString(
         (await sharePlusManifest.readAsString()).replaceFirst(
-          'upstreamVersion: "9.0.0"',
-          'upstreamVersion: "9.0.0"\n            status: experimental',
+          '          upstream:\n'
+              '            version: "9.0.0"\n'
+              '            ref: share_plus-v9.0.0\n'
+              '            commit: "9999999999999999999999999999999999999999"',
+          '          upstream:\n'
+              '            version: "9.0.0"\n'
+              '            ref: share_plus-v9.0.0\n'
+              '            commit: "9999999999999999999999999999999999999999"\n'
+              '          status: experimental',
         ),
       );
       final stdout = <String>[];

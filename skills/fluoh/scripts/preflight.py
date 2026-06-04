@@ -129,29 +129,22 @@ def top_level_scalar(content: str, key: str) -> str | None:
 
 
 def generated_section_state(content: str, section_id: str) -> dict[str, Any]:
-    version_match = re.search(
-        rf"<!--\s*fluoh:generated:start\s+id={re.escape(section_id)}\s+version=(\d+)\s*-->",
+    template_match = re.search(
+        rf"<!--\s*fluoh:generated:start\s+id={re.escape(section_id)}\s+template=(\d+)\s*-->",
         content,
     )
-    if version_match:
-        version = int(version_match.group(1))
-        if version < PACKAGE_DOC_TEMPLATE_VERSION:
+    if template_match:
+        template_version = int(template_match.group(1))
+        if template_version < PACKAGE_DOC_TEMPLATE_VERSION:
             status = "stale"
-        elif version > PACKAGE_DOC_TEMPLATE_VERSION:
+        elif template_version > PACKAGE_DOC_TEMPLATE_VERSION:
             status = "newer"
         else:
             status = "current"
         return {
             "sectionId": section_id,
             "status": status,
-            "version": version,
-            "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
-        }
-    if "<!-- fluoh:generated:start -->" in content:
-        return {
-            "sectionId": section_id,
-            "status": "legacy",
-            "version": None,
+            "version": template_version,
             "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
         }
     return {
@@ -213,43 +206,38 @@ def append_command(checks: dict[str, Any], command: str) -> None:
 
 
 def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
-    packages: list[dict[str, Any]] = []
-    current: dict[str, Any] | None = None
-    section: str | None = None
-    in_packages = False
-    for line in content.splitlines():
-        if re.match(r"^packages\s*:\s*$", line):
-            in_packages = True
-            continue
-        if in_packages and line and not line.startswith((" ", "\t", "#")):
-            break
-        match = re.match(r"^  ([A-Za-z0-9_][A-Za-z0-9_-]*)\s*:", line)
-        if in_packages and match:
-            current = {"name": match.group(1), "path": None}
-            packages.append(current)
-            section = None
-            continue
-        if current is None:
-            continue
-        section_match = re.match(r"^    ([A-Za-z0-9_-]+)\s*:\s*$", line)
-        if section_match:
-            section = section_match.group(1)
-            continue
-        path_match = re.match(r"^      path\s*:\s*(.+?)\s*$", line)
-        if path_match and section == "repository":
-            current["path"] = clean_scalar(path_match.group(1))
+    if top_level_key(content, "package"):
+        package: dict[str, Any] = {"name": None, "path": None}
+        in_package = False
+        for line in content.splitlines():
+            if re.match(r"^package\s*:\s*$", line):
+                in_package = True
+                continue
+            if in_package and line and not line.startswith((" ", "\t", "#")):
+                break
+            if not in_package:
+                continue
+            name_match = re.match(r"^  name\s*:\s*(.+?)\s*$", line)
+            if name_match:
+                package["name"] = clean_scalar(name_match.group(1))
+                continue
+            path_match = re.match(r"^  path\s*:\s*(.+?)\s*$", line)
+            if path_match:
+                package["path"] = clean_scalar(path_match.group(1))
+        if package["name"]:
+            path = package["path"]
+            package_root = root / path if path else root
+            example_root = package_root / "example"
+            package["examplePlatforms"] = {
+                "ohos": (example_root / "ohos").is_dir(),
+                "android": (example_root / "android").is_dir(),
+                "ios": (example_root / "ios").is_dir(),
+                "macos": (example_root / "macos").is_dir(),
+            }
+            return [package]
+        return []
 
-    for package in packages:
-        path = package["path"]
-        package_root = root / path if path else root
-        example_root = package_root / "example"
-        package["examplePlatforms"] = {
-            "ohos": (example_root / "ohos").is_dir(),
-            "android": (example_root / "android").is_dir(),
-            "ios": (example_root / "ios").is_dir(),
-            "macos": (example_root / "macos").is_dir(),
-        }
-    return packages
+    return []
 
 
 def sdk_version(content: str) -> str | None:
@@ -296,12 +284,15 @@ def project_info(root: Path, requested_package: str | None = None) -> dict[str, 
     pubspec_content = read_text(pubspec) if pubspec.exists() else ""
     packages = package_entries(content, root)
     package_names = [package["name"] for package in packages]
-    registers_packages = top_level_key(content, "packages")
+    package_adaptation = (
+        top_level_scalar(content, "kind") == "package"
+        or top_level_key(content, "package")
+    )
     has_example = (root / "example" / "pubspec.yaml").is_file()
     has_app_entry = (root / "lib" / "main.dart").is_file()
     has_flutter = is_flutter_pubspec(pubspec_content)
     has_flutter_plugin = is_flutter_plugin_pubspec(pubspec_content)
-    if registers_packages:
+    if package_adaptation:
         kind = "package-repository"
     elif pubspec.exists() and has_flutter_plugin:
         kind = "flutter-package"
@@ -325,7 +316,7 @@ def project_info(root: Path, requested_package: str | None = None) -> dict[str, 
         "pathIsDirectory": root.is_dir(),
         "hasPubspec": pubspec.exists(),
         "hasFluohYaml": fluoh_yaml.exists(),
-        "registersPackages": registers_packages,
+        "hasPackageBranch": package_adaptation,
         "name": top_level_scalar(pubspec_content, "name"),
         "isFlutter": has_flutter,
         "isFlutterPlugin": has_flutter_plugin,
@@ -336,9 +327,6 @@ def project_info(root: Path, requested_package: str | None = None) -> dict[str, 
         "requestedPackage": requested_package,
         "selectedPackage": selected_package,
         "packageSelectionValid": package_selection_valid,
-        "needsPackageSelection": registers_packages
-        and len(package_names) > 1
-        and selected_package is None,
         "sdkVersion": sdk_version(content),
         "platformDirectories": {
             "ohos": (root / "ohos").is_dir(),
@@ -366,7 +354,7 @@ def upgrade_checks(
     if schema["status"] == "requires-newer-fluoh":
         append_command(checks, "fluoh upgrade")
         checks["notes"].append(
-            "fluoh.yaml declares a newer schema; upgrade fluoh before editing."
+            "fluoh.yaml declares an unsupported schema; upgrade fluoh before editing."
         )
     elif checks["needsMigration"]:
         checks["notes"].append(
@@ -395,7 +383,7 @@ def upgrade_checks(
                 },
             ],
         }
-        refresh_statuses = {"missing", "legacy", "stale"}
+        refresh_statuses = {"missing", "stale"}
         marker_needs_refresh = any(
             section["status"] in refresh_statuses for section in docs["sections"]
         )
@@ -422,7 +410,7 @@ def upgrade_checks(
                 ["fluoh package docs refresh --dry-run", "fluoh package docs refresh"]
             )
             checks["notes"].append(
-                "Generated package docs are missing, legacy, or stale; refresh them before implementation edits."
+                "Generated package docs are missing or stale; refresh them before implementation edits."
             )
         if docs["needsRefreshUnknown"]:
             checks["commands"].append("fluoh package docs refresh --dry-run")
@@ -469,7 +457,13 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
         output = flutter_package_output(project)
         upstream = shlex.quote(info["cwd"])
         return [
-            f"fluoh package create {upstream} --package-path . --output {output}",
+            "Resolve package setup: "
+            f"repository-name={package}, output={output}, repository=<flutteroh-repo-url-or-path>, "
+            "git-author-name=<name>, git-author-email=<email>, sdk=<sdk-version-or-line>",
+            f"fluoh package create {upstream} --repository-name {package} --output {output} "
+            "--repository <flutteroh-repo-url-or-path> "
+            "--git-author-name <name> --git-author-email <email> "
+            "--sdk <sdk-version-or-line> --package-path .",
             f"cd {output}",
             f"fluoh verify --package {package} --json",
             f"fluoh run --platform ohos --package {package} --json",
@@ -482,7 +476,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "This is a Dart package, not a Flutter app or FlutterOH package repository; ask for a Flutter project/package path before editing.",
         ]
     return [
-        "Run this from a Flutter project, a FlutterOH package repository, or create one with fluoh package create <upstream>.",
+        "Run this from a Flutter project, a FlutterOH package repository, or create one with fluoh package create <upstream> --repository-name <repository-name>.",
     ]
 
 
@@ -623,13 +617,8 @@ def notes(project: dict[str, Any]) -> list[str]:
         names = ", ".join(project["packageNames"]) or "none"
         requested = project["requestedPackage"]
         return [
-            f"Requested package {requested!r} is not registered; "
-            f"choose one of: {names}."
-        ]
-    if project["needsPackageSelection"]:
-        return [
-            "Multiple packages are registered; select one package before "
-            "running package commands."
+            f"Requested package {requested!r} does not match the current "
+            f"package branch; current package: {names}."
         ]
     if project["kind"] == "flutter-package":
         return [
@@ -657,7 +646,7 @@ def main() -> int:
     parser.add_argument(
         "--package",
         default="",
-        help="Package name to select in a multi-package repository.",
+        help="Package name to validate against the current package branch.",
     )
     args = parser.parse_args()
     root = Path(args.path).expanduser().resolve()
@@ -667,7 +656,7 @@ def main() -> int:
     if not fluoh_command:
         fluoh_command = ["fluoh"]
     info: dict[str, Any] = {
-        "schemaVersion": 1,
+        "schema": 1,
         "cwd": str(root),
         "pathExists": root.exists(),
         "pathIsDirectory": root.is_dir(),

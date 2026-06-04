@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../config/fluoh_config.dart';
 import '../context/fluoh_environment.dart';
+import '../schema/dependency_policy.dart';
 import '../schema/version_rules.dart';
 import '../version.dart';
 import 'source_index.dart';
@@ -25,17 +26,22 @@ class SourceRuntime {
   }
 
   /// Loads the merged package index, optionally limited to [packageNames].
-  Future<PackageIndex> loadPackageIndex({Set<String>? packageNames}) async {
+  Future<PackageIndex> loadPackageIndex({
+    Set<String>? packageNames,
+    Set<String> releaseStatuses = compatibleDependencyReleaseStatuses,
+  }) async {
     final config = await FluohConfigStore(environment).load();
     final lock = await _loadResolvedLock(config: config);
     return _buildPackageIndex(
       config,
       packageNames: packageNames,
       packageRoutes: lock.packageRoutes,
+      sdkIndex: lock.sdkIndex,
+      releaseStatuses: releaseStatuses,
     );
   }
 
-  /// Loads the legacy compatibility matrix view.
+  /// Loads package compatibility buckets derived from Source manifests.
   Future<CompatibilityMatrix> loadCompatibilityMatrix({
     Set<String>? packageNames,
   }) async {
@@ -188,7 +194,7 @@ class SourceRuntime {
       config: config,
       hasIndex: (source) => source.hasPackageIndex,
     );
-    final manifests = <String, Map<String, Map<String, List<String>>>>{};
+    final packages = <String, Map<String, List<String>>>{};
 
     for (final source in sources) {
       final routeIndex = await _loadSourceIndex(
@@ -196,21 +202,18 @@ class SourceRuntime {
         (pubSource) => pubSource.loadPackageRouteIndex(),
       );
       if (routeIndex.manifests.isNotEmpty) {
-        manifests[source.name] = {
+        packages[source.name] = {
           for (final entry in _sortedRouteManifests(routeIndex.manifests))
-            entry.name: {
-              for (final packageEntry in _sortedPackageRoutes(entry.packages))
-                packageEntry.key: packageEntry.value,
-            },
+            entry.packageName: entry.sdkLines,
         };
       }
     }
 
     return _PackageRouteLock(
-      manifests: {
-        for (final sourceName in _sortedStrings(manifests.keys))
+      packages: {
+        for (final sourceName in _sortedStrings(packages.keys))
           sourceName: {
-            for (final entry in _sortedManifestRoutes(manifests[sourceName]!))
+            for (final entry in _sortedPackageRoutes(packages[sourceName]!))
               entry.key: entry.value,
           },
       },
@@ -221,6 +224,8 @@ class SourceRuntime {
     FluohConfig config, {
     Set<String>? packageNames,
     _PackageRouteLock? packageRoutes,
+    SdkIndex? sdkIndex,
+    Set<String> releaseStatuses = compatibleDependencyReleaseStatuses,
   }) async {
     final sources = await _readableSources(
       config: config,
@@ -245,6 +250,7 @@ class SourceRuntime {
         (pubSource) => pubSource.loadPackageIndex(
           packageNames: packageNames,
           manifestNames: manifestNames,
+          releaseStatuses: releaseStatuses,
         ),
       );
       for (final packageEntry in index.packages.entries) {
@@ -342,12 +348,6 @@ class SourceRuntime {
         packages[packageName] = PackageEntry(
           repository: current?.repository ?? packageEntry.value.repository,
           upstream: current?.upstream ?? packageEntry.value.upstream,
-          repositoryPath:
-              current?.repositoryPath ?? packageEntry.value.repositoryPath,
-          upstreamPath:
-              current?.upstreamPath ?? packageEntry.value.upstreamPath,
-          upstreamBranch:
-              current?.upstreamBranch ?? packageEntry.value.upstreamBranch,
           implementations: implementations,
           compatibility: compatibility,
           sourceNames: <String>{
@@ -364,7 +364,49 @@ class SourceRuntime {
       }
     }
 
-    return PackageIndex(schemaVersion: 1, packages: packages);
+    final index = PackageIndex(schemaVersion: 1, packages: packages);
+    if (sdkIndex != null) {
+      _validatePackageSdkLines(index, sdkIndex);
+    }
+    return index;
+  }
+
+  void _validatePackageSdkLines(PackageIndex packageIndex, SdkIndex sdkIndex) {
+    final sdkLines = {
+      for (final release in sdkIndex.releases)
+        sdkLineFromSdkVersion(release.version),
+    };
+    for (final packageEntry in packageIndex.packages.entries) {
+      for (final implementation in packageEntry.value.implementations) {
+        _validatePackageSdkLine(
+          packageName: packageEntry.key,
+          sdkLine: implementation.sdkLine,
+          availableSdkLines: sdkLines,
+        );
+      }
+      for (final status in packageEntry.value.compatibility) {
+        _validatePackageSdkLine(
+          packageName: packageEntry.key,
+          sdkLine: status.sdkLine,
+          availableSdkLines: sdkLines,
+        );
+      }
+    }
+  }
+
+  void _validatePackageSdkLine({
+    required String packageName,
+    required String sdkLine,
+    required Set<String> availableSdkLines,
+  }) {
+    if (availableSdkLines.contains(sdkLine)) {
+      return;
+    }
+    throw UsageException(
+      'Package $packageName declares SDK line $sdkLine, but no configured '
+          'Source provides a matching SDK version.',
+      '',
+    );
   }
 
   Future<List<_NamedSource>> _readableSources({
@@ -613,6 +655,7 @@ class _ResolvedSourceLock {
     return {
       'fingerprint': fingerprint,
       'sdk': {
+        'sources': _sdkSourcesToJson(sdkIndex.releases),
         'versions': {
           for (final release in _sortedSdkReleases(sdkIndex.releases))
             release.version: _sdkReleaseToJson(release),
@@ -635,9 +678,9 @@ _ResolvedSourceLock _resolvedSourceLockFromJson(Map<String, Object?> json) {
 }
 
 class _PackageRouteLock {
-  const _PackageRouteLock({required this.manifests});
+  const _PackageRouteLock({required this.packages});
 
-  final Map<String, Map<String, Map<String, List<String>>>> manifests;
+  final Map<String, Map<String, List<String>>> packages;
 
   Set<String>? manifestNamesForSource(
     String sourceName,
@@ -646,49 +689,38 @@ class _PackageRouteLock {
     if (packageNames == null) {
       return null;
     }
-    final sourceManifests = manifests[sourceName];
-    if (sourceManifests == null) {
+    final sourcePackages = packages[sourceName];
+    if (sourcePackages == null) {
       return <String>{};
     }
     return {
-      for (final entry in sourceManifests.entries)
-        if (entry.value.keys.any(packageNames.contains)) entry.key,
+      for (final packageName in sourcePackages.keys)
+        if (packageNames.contains(packageName)) packageName,
     };
   }
 
   Map<String, Object?> toJson() {
     return {
-      for (final sourceEntry in manifests.entries)
+      for (final sourceEntry in packages.entries)
         sourceEntry.key: {
-          for (final manifestEntry in sourceEntry.value.entries)
-            manifestEntry.key: manifestEntry.value,
+          for (final packageEntry in sourceEntry.value.entries)
+            packageEntry.key: packageEntry.value,
         },
     };
   }
 }
 
 _PackageRouteLock _packageRouteLockFromJson(Object? value) {
-  final manifests = _jsonObject(value, 'sources.lock.json packageRoutes');
+  final packages = _jsonObject(value, 'sources.lock.json packageRoutes');
   return _PackageRouteLock(
-    manifests: {
-      for (final sourceEntry in manifests.entries)
-        sourceEntry.key: _packageManifestRoutesFromJson(
+    packages: {
+      for (final sourceEntry in packages.entries)
+        sourceEntry.key: _packageSdkLinesFromJson(
           sourceEntry.value,
           'sources.lock.json packageRoutes.${sourceEntry.key}',
         ),
     },
   );
-}
-
-Map<String, Map<String, List<String>>> _packageManifestRoutesFromJson(
-  Object? value,
-  String label,
-) {
-  final json = _jsonObject(value, label);
-  return {
-    for (final entry in json.entries)
-      entry.key: _packageSdkLinesFromJson(entry.value, '$label.${entry.key}'),
-  };
 }
 
 Map<String, List<String>> _packageSdkLinesFromJson(
@@ -703,8 +735,14 @@ Map<String, List<String>> _packageSdkLinesFromJson(
 }
 
 Map<String, Object?> _sdkReleaseToJson(SdkRelease release) {
+  final sourceName = release.sourceName;
+  if (sourceName == null) {
+    throw StateError(
+      'Source lock SDK release ${release.version} is missing source metadata.',
+    );
+  }
   return {
-    if (release.sourceName != null) 'source': release.sourceName,
+    'source': sourceName,
     if (release.versionSeries !=
         sdkVersionSeriesFromSdkVersion(release.version))
       'versionSeries': release.versionSeries,
@@ -713,30 +751,84 @@ Map<String, Object?> _sdkReleaseToJson(SdkRelease release) {
     if (release.channel != 'stable') 'channel': release.channel,
     if (release.tag != release.version) 'tag': release.tag,
     if (release.publishedAt != null) 'publishedAt': release.publishedAt,
-    'git': {'url': release.repository},
+  };
+}
+
+Map<String, Object?> _sdkSourcesToJson(Iterable<SdkRelease> releases) {
+  final repositories = <String, String>{};
+  for (final release in releases) {
+    final sourceName = release.sourceName;
+    if (sourceName == null) {
+      throw StateError(
+        'Source lock SDK release ${release.version} is missing source metadata.',
+      );
+    }
+    final existing = repositories[sourceName];
+    if (existing != null && existing != release.repository) {
+      throw StateError(
+        'Source lock SDK source $sourceName has multiple repositories.',
+      );
+    }
+    repositories[sourceName] = release.repository;
+  }
+  return {
+    for (final sourceName in _sortedStrings(repositories.keys))
+      sourceName: {
+        'git': {'url': repositories[sourceName]},
+      },
   };
 }
 
 SdkIndex _sdkIndexFromLock(Map<String, Object?> json) {
-  final sdk = _optionalJsonObject(json['sdk'], 'sources.lock.json sdk');
-  final versions = sdk == null
-      ? const <String, Object?>{}
-      : _jsonObject(sdk['versions'], 'sources.lock.json sdk.versions');
+  final sdk = _jsonObject(json['sdk'], 'sources.lock.json sdk');
+  final sources = _sdkSourceRepositoriesFromLock(sdk['sources']);
+  final versions = _jsonObject(
+    sdk['versions'],
+    'sources.lock.json sdk.versions',
+  );
   return SdkIndex(
     schemaVersion: 1,
     releases: [
       for (final entry in versions.entries)
-        _sdkReleaseFromLock(entry.key, entry.value),
+        _sdkReleaseFromLock(entry.key, entry.value, sources),
     ],
   );
 }
 
-SdkRelease _sdkReleaseFromLock(String version, Object? value) {
+Map<String, String> _sdkSourceRepositoriesFromLock(Object? value) {
+  final sources = _jsonObject(value, 'sources.lock.json sdk.sources');
+  return {
+    for (final entry in sources.entries)
+      entry.key: _requiredString(
+        _jsonObject(
+          _jsonObject(
+            entry.value,
+            'sources.lock.json sdk.sources.${entry.key}',
+          )['git'],
+          'sources.lock.json sdk.sources.${entry.key}.git',
+        )['url'],
+        'sources.lock.json sdk.sources.${entry.key}.git.url',
+      ),
+  };
+}
+
+SdkRelease _sdkReleaseFromLock(
+  String version,
+  Object? value,
+  Map<String, String> sourceRepositories,
+) {
   final json = _jsonObject(value, 'sources.lock.json sdk.versions.$version');
-  final git = _jsonObject(
-    json['git'],
-    'sources.lock.json sdk.versions.$version.git',
+  final sourceName = _requiredString(
+    json['source'],
+    'sources.lock.json sdk.versions.$version.source',
   );
+  final repository = sourceRepositories[sourceName];
+  if (repository == null) {
+    throw FormatException(
+      'sources.lock.json sdk.versions.$version.source must reference '
+      'sdk.sources.',
+    );
+  }
   return SdkRelease(
     version: version,
     versionSeries:
@@ -746,10 +838,10 @@ SdkRelease _sdkReleaseFromLock(String version, Object? value) {
         _optionalString(json['flutterVersion']) ??
         flutterVersionFromSdkVersion(version),
     channel: _optionalString(json['channel']) ?? 'stable',
-    repository: _requiredString(git['url'], 'sdk.versions.$version.git.url'),
+    repository: repository,
     tag: _optionalString(json['tag']) ?? version,
     publishedAt: _optionalString(json['publishedAt']),
-    sourceName: _optionalString(json['source']),
+    sourceName: sourceName,
     sourcePriority: _optionalInt(json['priority']) ?? 0,
   );
 }
@@ -780,8 +872,13 @@ CompatibilityMatrix _compatibilityMatrixFromPackageIndex(PackageIndex index) {
 }
 
 List<SdkRelease> _sortedSdkReleases(Iterable<SdkRelease> releases) {
-  return releases.toList(growable: false)
-    ..sort((a, b) => a.version.compareTo(b.version));
+  return releases.toList(growable: false)..sort((a, b) {
+    final version = comparePubVersionsAscending(a.version, b.version);
+    if (version != 0) {
+      return version;
+    }
+    return a.repository.compareTo(b.repository);
+  });
 }
 
 List<SourcePackageRouteManifest> _sortedRouteManifests(
@@ -795,13 +892,6 @@ List<MapEntry<String, List<String>>> _sortedPackageRoutes(
   Map<String, List<String>> packages,
 ) {
   return packages.entries.toList(growable: false)
-    ..sort((a, b) => a.key.compareTo(b.key));
-}
-
-List<MapEntry<String, Map<String, List<String>>>> _sortedManifestRoutes(
-  Map<String, Map<String, List<String>>> manifests,
-) {
-  return manifests.entries.toList(growable: false)
     ..sort((a, b) => a.key.compareTo(b.key));
 }
 
@@ -962,13 +1052,6 @@ List<String> _jsonStringList(Object? value, String label) {
   return [for (final item in value) _requiredString(item, '$label[]')];
 }
 
-Map<String, Object?>? _optionalJsonObject(Object? value, String label) {
-  if (value == null) {
-    return null;
-  }
-  return _jsonObject(value, label);
-}
-
 String _requiredString(Object? value, String label) {
   final text = _optionalString(value);
   if (text == null || text.isEmpty) {
@@ -1092,6 +1175,7 @@ class _Replacement {
     required this.repository,
     required this.tag,
     required this.path,
+    required this.status,
     required this.priority,
     required this.sourceName,
   });
@@ -1104,6 +1188,7 @@ class _Replacement {
       repository: implementation.repository,
       tag: implementation.tag,
       path: implementation.path,
+      status: implementation.status,
       priority: implementation.sourcePriority,
       sourceName: sourceName,
     );
@@ -1112,6 +1197,7 @@ class _Replacement {
   final String repository;
   final String tag;
   final String? path;
+  final String status;
   final int priority;
   final String sourceName;
 
@@ -1121,11 +1207,12 @@ class _Replacement {
         repository == other.repository &&
         tag == other.tag &&
         path == other.path &&
+        status == other.status &&
         priority == other.priority;
   }
 
   @override
-  int get hashCode => Object.hash(repository, tag, path, priority);
+  int get hashCode => Object.hash(repository, tag, path, status, priority);
 }
 
 class _CompatibilityStatus {

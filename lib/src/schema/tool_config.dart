@@ -134,7 +134,7 @@ class SourceConfig {
   /// Optional Git URL used to synchronize this Source.
   final String? url;
 
-  /// Merge priority; lower values win on conflicts.
+  /// Merge priority; higher values win on conflicts.
   final int priority;
 
   /// Local snapshot directory.

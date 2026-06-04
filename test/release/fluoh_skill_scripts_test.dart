@@ -109,7 +109,7 @@ sdk:
       expect(project['isFlutter'], isTrue);
       expect(project['isFlutterPlugin'], isFalse);
       expect(project['sdkVersion'], '3.35.8-ohos-0.0.3');
-      expect(project['needsPackageSelection'], isFalse);
+      expect(project['hasPackageBranch'], isFalse);
       expect(platforms['ohos'], isTrue);
       expect(platforms['android'], isTrue);
       expect(fluohResult['ok'], isTrue);
@@ -296,11 +296,28 @@ dependencies:
       expect(project['hasExample'], isTrue);
       expect(
         stringList(report['suggestedCommands']).first,
-        allOf(
+        allOf([
+          contains('Resolve package setup'),
+          contains('repository-name=camera'),
+          contains('output=../camera_ohos'),
+          contains('repository=<flutteroh-repo-url-or-path>'),
+          contains('git-author-name=<name>'),
+          contains('git-author-email=<email>'),
+          contains('sdk=<sdk-version-or-line>'),
+        ]),
+      );
+      expect(
+        stringList(report['suggestedCommands'])[1],
+        allOf([
           contains('fluoh package create'),
+          contains('--repository-name camera'),
+          contains('--repository <flutteroh-repo-url-or-path>'),
+          contains('--git-author-name <name>'),
+          contains('--git-author-email <email>'),
+          contains('--sdk <sdk-version-or-line>'),
           contains('--package-path .'),
           contains('--output ../camera_ohos'),
-        ),
+        ]),
       );
       expect(
         stringList(report['suggestedCommands']),
@@ -336,17 +353,19 @@ dependencies:
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: "0.1.0"
     upstream:
-      path: packages/camera/camera
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await Directory(
         '${root.path}/packages/camera/camera/example/android',
@@ -365,9 +384,9 @@ packages:
       final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
 
       expect(project['kind'], 'package-repository');
+      expect(project['hasPackageBranch'], isTrue);
       expect(project['packageNames'], ['camera']);
       expect(project['selectedPackage'], 'camera');
-      expect(project['needsPackageSelection'], isFalse);
       expect(project['sdkVersion'], '3.35.8-ohos-0.0.3');
       expect(package['path'], 'packages/camera/camera');
       expect(examplePlatforms['ohos'], isTrue);
@@ -477,25 +496,27 @@ Package docs would be refreshed
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: "0.1.0"
     upstream:
-      path: packages/camera/camera
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide version=1 -->
+<!-- fluoh:generated:start id=package-implementation-guide template=1 -->
 Generated content.
 <!-- fluoh:generated:end id=package-implementation-guide -->
 ''');
       await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions version=1 -->
+<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
 Generated content.
 <!-- fluoh:generated:end id=package-agents-instructions -->
 ''');
@@ -536,25 +557,27 @@ Package docs would be refreshed
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: "0.1.0"
     upstream:
-      path: packages/camera/camera
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide version=2 -->
+<!-- fluoh:generated:start id=package-implementation-guide template=2 -->
 Generated content.
 <!-- fluoh:generated:end id=package-implementation-guide -->
 ''');
       await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions version=2 -->
+<!-- fluoh:generated:start id=package-agents-instructions template=2 -->
 Generated content.
 <!-- fluoh:generated:end id=package-agents-instructions -->
 ''');
@@ -588,25 +611,27 @@ Generated content.
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: "0.1.0"
     upstream:
-      path: packages/camera/camera
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide version=1 -->
+<!-- fluoh:generated:start id=package-implementation-guide template=1 -->
 Generated content.
 <!-- fluoh:generated:end id=package-implementation-guide -->
 ''');
       await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions version=1 -->
+<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
 Generated content.
 <!-- fluoh:generated:end id=package-agents-instructions -->
 ''');
@@ -632,7 +657,7 @@ Generated content.
   );
 
   test(
-    'preflight makes multi-package selection explicit',
+    'preflight reports the current package branch',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -640,22 +665,19 @@ Generated content.
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: plugins
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: share_plus
+  path: packages/share_plus/share_plus
+  release:
+    version: "0.1.0"
     upstream:
-      path: packages/camera/camera
-  share_plus:
-    repository:
-      path: packages/share_plus/share_plus
-    upstream:
-      path: packages/share_plus/share_plus
+      version: "9.0.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await Directory(
         '${root.path}/packages/share_plus/share_plus/example/ios',
@@ -674,37 +696,37 @@ packages:
           sharePlus['examplePlatforms'] as Map<String, Object?>;
 
       expect(project['kind'], 'package-repository');
-      expect(project['packageNames'], ['camera', 'share_plus']);
-      expect(project['selectedPackage'], isNull);
-      expect(project['needsPackageSelection'], isTrue);
+      expect(project['hasPackageBranch'], isTrue);
+      expect(project['packageNames'], ['share_plus']);
+      expect(project['selectedPackage'], 'share_plus');
       expect(sharePlusPlatforms['ios'], isTrue);
       expect(sharePlusPlatforms['macos'], isTrue);
       expect(
         stringList(report['suggestedCommands']),
         containsAll([
-          'fluoh verify --package <name> --json',
-          'fluoh run --platform ohos --package <name> --json',
+          'fluoh verify --package share_plus --json',
+          'fluoh run --platform ohos --package share_plus --json',
         ]),
       );
       expect(
         stringList(report['finalCheckCommands']),
-        contains('fluoh verify --package <name> --json'),
+        contains('fluoh verify --package share_plus --json'),
       );
       expect(
         stringList(report['deliveryChecks']),
-        contains(contains('.fluoh/ai-report-<name>-...md')),
+        contains(contains('.fluoh/ai-report-share_plus-...md')),
       );
-      expect(stringList(report['notes']).single, contains('Multiple packages'));
+      expect(stringList(report['notes']), isEmpty);
       expect(
         report['reportCommand'],
-        'python3 <skill-dir>/scripts/new_report.py . --scope <name> --package <name>',
+        'python3 <skill-dir>/scripts/new_report.py . --scope share_plus --package share_plus',
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
 
   test(
-    'preflight selects a requested package in a multi-package repository',
+    'preflight validates a requested package against the current branch',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -712,18 +734,19 @@ packages:
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: plugins
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-  share_plus:
-    repository:
-      path: packages/share_plus/share_plus
+package:
+  name: share_plus
+  path: packages/share_plus/share_plus
+  release:
+    version: "0.1.0"
+    upstream:
+      version: "9.0.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await Directory(
         '${root.path}/packages/share_plus/share_plus/example/android',
@@ -735,7 +758,7 @@ packages:
         path: root.path,
       );
       expect(
-        (report['project'] as Map<String, Object?>)['needsPackageSelection'],
+        (report['project'] as Map<String, Object?>)['hasPackageBranch'],
         isTrue,
       );
 
@@ -755,7 +778,7 @@ packages:
       expect(project['requestedPackage'], 'share_plus');
       expect(project['selectedPackage'], 'share_plus');
       expect(project['packageSelectionValid'], isTrue);
-      expect(project['needsPackageSelection'], isFalse);
+      expect(project['hasPackageBranch'], isTrue);
       expect(stringList(selected['notes']), isEmpty);
       expect(
         stringList(selected['suggestedCommands']),
@@ -803,10 +826,19 @@ packages:
 
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+kind: package
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: "0.1.0"
+    upstream:
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
 
       final selectedResult = await Process.run('python3', [
@@ -825,6 +857,7 @@ packages:
       expect(project['requestedPackage'], 'share_plus');
       expect(project['selectedPackage'], isNull);
       expect(project['packageSelectionValid'], isFalse);
+      expect(stringList(selected['notes']).single, contains('current package'));
       expect(stringList(selected['notes']).single, contains('camera'));
       expect(
         stringList(selected['suggestedCommands']),
@@ -1019,7 +1052,7 @@ sdk:
       final session = File('${root.path}/session.json');
       await session.writeAsString(
         jsonEncode({
-          'schemaVersion': 1,
+          'schema': 1,
           'kind': 'flutterRunSession',
           'status': 'running',
           'platform': 'android',
@@ -1049,7 +1082,7 @@ sdk:
       final pendingSession = File('${root.path}/pending-session.json');
       await pendingSession.writeAsString(
         jsonEncode({
-          'schemaVersion': 1,
+          'schema': 1,
           'kind': 'flutterRunSession',
           'status': 'running',
           'platform': 'android',
@@ -1073,7 +1106,7 @@ sdk:
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await pendingSession.writeAsString(
         jsonEncode({
-          'schemaVersion': 1,
+          'schema': 1,
           'kind': 'flutterRunSession',
           'status': 'running',
           'platform': 'android',
@@ -1118,17 +1151,19 @@ sdk:
       final fluoh = await writeFakeFluoh(root);
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
-name: camera_ohos
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: "0.1.0"
     upstream:
-      path: packages/camera/camera
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
 ''');
       await Directory(
         '${root.path}/packages/camera/camera/example/android',
@@ -1233,7 +1268,7 @@ packages:
       await sessionFile.parent.create(recursive: true);
       await sessionFile.writeAsString(
         jsonEncode({
-          'schemaVersion': 1,
+          'schema': 1,
           'kind': 'flutterRunSession',
           'status': 'running',
           'platform': 'android',

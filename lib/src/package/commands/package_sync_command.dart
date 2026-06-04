@@ -274,23 +274,24 @@ class PackageSyncCommand extends FluohCommand<int> {
     required List<String> actions,
   }) async {
     final packageVersions = <String, String>{};
-    for (final packageManifest in manifest.packages) {
-      final upstreamPath = packageManifest.upstreamPath;
-      final package = await readPubspecPackage(
-        packageDirectory(repository, upstreamPath),
+    final packageManifest = manifest.package;
+    final packagePath = packageManifest.path;
+    final package = await readPubspecPackage(
+      packageDirectory(repository, packagePath),
+    );
+    if (package.name != packageManifest.name) {
+      throw UsageException(
+        'Package path $packagePath contains ${package.name}, expected '
+            '${packageManifest.name}. Update fluoh.yaml before syncing.',
+        '',
       );
-      if (package.name != packageManifest.name) {
-        throw UsageException(
-          'Package path $upstreamPath contains ${package.name}, expected '
-              '${packageManifest.name}. Update fluoh.yaml before syncing.',
-          '',
-        );
-      }
-      packageVersions[package.name] = package.version;
     }
+    packageVersions[package.name] = package.version;
     await updatePackageManifestUpstream(
       destination: repository,
       packageVersions: packageVersions,
+      upstreamCommit: await _revParseCommit(repository, defaultBranch),
+      clearUpstreamRef: true,
     );
     await runGit(['add', 'fluoh.yaml'], workingDirectory: repository);
     final mergeInProgress = await _isMergeInProgress(repository);
@@ -320,9 +321,9 @@ class PackageSyncCommand extends FluohCommand<int> {
     await runGit([
       'commit',
       '-m',
-      'Sync upstream packages',
+      'Sync upstream package',
     ], workingDirectory: repository);
-    actions.add('committed Sync upstream packages');
+    actions.add('committed Sync upstream package');
     if (json) {
       _writeJson({
         'status': 'synced',
@@ -332,7 +333,7 @@ class PackageSyncCommand extends FluohCommand<int> {
         'committed': true,
       });
     } else {
-      _output.success('Updated upstream metadata for registered packages');
+      _output.success('Updated upstream metadata for package branch');
       _output.next(
         'Complete the OHOS implementation, then update package.version and '
         'FLUOH_CHANGELOG.md before release.',
@@ -415,6 +416,14 @@ class PackageSyncCommand extends FluohCommand<int> {
       );
     }
   }
+}
+
+Future<String> _revParseCommit(Directory repository, String ref) async {
+  final result = await runGit([
+    'rev-parse',
+    '$ref^{commit}',
+  ], workingDirectory: repository);
+  return result.stdout.toString().trim();
 }
 
 Map<String, Object?> _processOutputFields(ProcessResult result) {

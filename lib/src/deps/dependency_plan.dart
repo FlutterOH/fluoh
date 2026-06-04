@@ -19,7 +19,7 @@ Future<DependencyPlan> buildDependencyPlan({
   required DependencyPolicy policy,
   required DependencyPlanPurpose purpose,
 }) async {
-  final report = await DependencyAnalyzer(environment).analyze();
+  final report = await DependencyAnalyzer(environment).analyze(policy: policy);
   final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
   final state = await readPubspecDependencyState(pubspec);
   return buildDependencyPlanFromReport(

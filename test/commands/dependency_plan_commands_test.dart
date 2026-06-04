@@ -2,11 +2,40 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/schema/source_index.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
+  test('reports missing project files before SDK selection', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['deps', 'check', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schema', 1));
+    expect(report, containsPair('command', 'deps check'));
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 64));
+    expect(
+      report['error'],
+      containsPair('message', 'Missing pubspec.yaml in the current project.'),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('checks dependency compatibility and emits json', () async {
     final environment = await _preparedEnvironment();
     final stdout = <String>[];
@@ -34,7 +63,7 @@ void main() {
     expect(stdout, contains('Ready to fix:'));
     expect(
       stdout,
-      contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1'),
+      contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1.0.0'),
     );
     expect(stdout, contains('Needs decision:'));
     expect(
@@ -63,7 +92,7 @@ void main() {
     );
 
     final jsonReport = jsonDecode(stdout.last) as Map<String, Object?>;
-    expect(jsonReport, containsPair('schemaVersion', 1));
+    expect(jsonReport, containsPair('schema', 1));
     expect(jsonReport, containsPair('command', 'deps check'));
     expect(jsonReport, containsPair('ok', false));
     expect(jsonReport, containsPair('exitCode', 0));
@@ -126,9 +155,8 @@ void main() {
           jsonDecode(lockFile.readAsStringSync()) as Map<String, Object?>;
       final packageRoutes =
           repairedLock['packageRoutes'] as Map<String, Object?>;
-      final fixtureManifests = packageRoutes['fixture'] as Map<String, Object?>;
-      final cameraManifest = fixtureManifests['camera'] as Map<String, Object?>;
-      expect(cameraManifest, containsPair('camera', ['3.35']));
+      final fixturePackages = packageRoutes['fixture'] as Map<String, Object?>;
+      expect(fixturePackages, containsPair('camera', ['3.35']));
       expect(stderr, isEmpty);
     },
   );
@@ -191,7 +219,7 @@ void main() {
 
       expect(
         stdout,
-        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1'),
+        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1.0.0'),
       );
       expect(stderr, isEmpty);
     },
@@ -235,16 +263,19 @@ void main() {
       ).readAsStringSync();
       expect(
         stdout,
-        contains('Would override camera -> camera-0.11.0-ohos-3.35-1'),
+        contains('Would override camera -> camera-0.11.0-ohos-3.35-1.0.0'),
       );
-      expect(stdout, contains('override camera -> camera-0.11.0-ohos-3.35-1'));
+      expect(
+        stdout,
+        contains('override camera -> camera-0.11.0-ohos-3.35-1.0.0'),
+      );
       expect(stdout, contains('Updated pubspec.yaml with 1 dependency change'));
       expect(stdout, contains('Next: run `fluoh deps get`'));
       expect(pubspec, contains('dependency_overrides:'));
-      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
       expect(pubspec, contains('path: packages/camera/camera'));
       expect(pubspec, isNot(contains('camera_platform_interface:')));
-      expect(pubspec, isNot(contains('share_plus-9.0.0-ohos-3.35-1')));
+      expect(pubspec, isNot(contains('share_plus-9.0.0-ohos-3.35-1.0.0')));
       expect(stderr, isEmpty);
     },
   );
@@ -267,7 +298,7 @@ void main() {
     // --json mode outputs only JSON on stdout, no human-readable text.
     expect(stdout, hasLength(1));
     final dryRunReport = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(dryRunReport, containsPair('schemaVersion', 1));
+    expect(dryRunReport, containsPair('schema', 1));
     expect(dryRunReport, containsPair('command', 'deps fix'));
     expect(dryRunReport, containsPair('ok', false));
     expect(dryRunReport, containsPair('exitCode', 0));
@@ -278,7 +309,10 @@ void main() {
     final cameraChange = dryRunChanges.first as Map<String, Object?>;
     expect(cameraChange, containsPair('packageName', 'camera'));
     expect(cameraChange, containsPair('kind', 'writeOverride'));
-    expect(cameraChange, containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1'));
+    expect(
+      cameraChange,
+      containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1.0.0'),
+    );
     expect(
       File(
         '${environment.workingDirectory.path}/pubspec.yaml',
@@ -299,7 +333,7 @@ void main() {
 
     expect(stdout, hasLength(1));
     final fixReport = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(fixReport, containsPair('schemaVersion', 1));
+    expect(fixReport, containsPair('schema', 1));
     expect(fixReport, containsPair('command', 'deps fix'));
     expect(fixReport, containsPair('ok', true));
     expect(fixReport, containsPair('exitCode', 0));
@@ -309,12 +343,15 @@ void main() {
     expect(fixChanges, hasLength(1));
     final appliedChange = fixChanges.first as Map<String, Object?>;
     expect(appliedChange, containsPair('packageName', 'camera'));
-    expect(appliedChange, containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1'));
+    expect(
+      appliedChange,
+      containsPair('nextRef', 'camera-0.11.0-ohos-3.35-1.0.0'),
+    );
     final pubspec = File(
       '${environment.workingDirectory.path}/pubspec.yaml',
     ).readAsStringSync();
     expect(pubspec, contains('dependency_overrides:'));
-    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
     expect(stderr, isEmpty);
   });
 
@@ -323,14 +360,14 @@ void main() {
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final manifest = File('${source.path}/manifests/share_plus/fluoh.yaml');
     await manifest.writeAsString(
-      manifest.readAsStringSync().replaceFirst('    sdks:', '''
-    advisory:
-      message: Prefer upstream share_plus when native OHOS support is enough.
-      alternatives:
-        - name: share_plus_ohos
-          reason: Provides native OHOS support.
-          url: https://pub.dev/packages/share_plus_ohos
-    sdks:'''),
+      manifest.readAsStringSync().replaceFirst('  sdks:', '''
+  advisory:
+    message: Prefer upstream share_plus when native OHOS support is enough.
+    alternatives:
+      - name: share_plus_ohos
+        reason: Provides native OHOS support.
+        url: https://pub.dev/packages/share_plus_ohos
+  sdks:'''),
     );
     await writeFlutterProjectFixture(environment.workingDirectory);
     final stdout = <String>[];
@@ -452,7 +489,7 @@ dependency_overrides:
       ),
     );
     expect(pubspec, contains('path: ../camera'));
-    expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-1')));
+    expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-1.0.0')));
     expect(stderr, isEmpty);
   });
 
@@ -485,7 +522,7 @@ dependency_overrides:
     expect(pubspec, contains('dependencies:'));
     expect(pubspec, contains('  camera:'));
     expect(pubspec, contains('    git:'));
-    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
+    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
     expect(pubspec, contains('path: packages/camera/camera'));
     expect(pubspec, isNot(contains('dependency_overrides:')));
     expect(stderr, isEmpty);
@@ -524,12 +561,101 @@ dependency_overrides:
       expect(
         stdout,
         contains(
-          'override share_plus -> share_plus-9.0.0-ohos-3.35-1 '
+          'override share_plus -> share_plus-9.0.0-ohos-3.35-1.0.0 '
           '(upstream 10.0.0 -> 9.0.0)',
         ),
       );
-      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1'));
-      expect(pubspec, contains('share_plus-9.0.0-ohos-3.35-1'));
+      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
+      expect(pubspec, contains('share_plus-9.0.0-ohos-3.35-1.0.0'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'uses non-compatible implementation statuses only with command opt-in',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      await _setImplementationStatus(
+        source,
+        packageName: 'camera',
+        status: 'experimental',
+      );
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(
+        await runFluoh(
+          ['deps', 'check', '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      final defaultJson =
+          jsonDecode(stdout.removeLast()) as Map<String, Object?>;
+      final defaultDependencies = defaultJson['dependencies'] as List<Object?>;
+      expect(
+        defaultDependencies,
+        contains(
+          allOf(
+            containsPair('name', 'camera'),
+            containsPair('status', 'unknown'),
+            containsPair('actionable', false),
+            isNot(containsPair('implementationStatus', 'experimental')),
+          ),
+        ),
+      );
+
+      expect(
+        await runFluoh(
+          ['deps', 'check', '--all-release-statuses', '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      final allStatusesJson =
+          jsonDecode(stdout.removeLast()) as Map<String, Object?>;
+      final allStatusesDependencies =
+          allStatusesJson['dependencies'] as List<Object?>;
+      expect(
+        allStatusesJson,
+        containsPair('releaseStatuses', [
+          'compatible',
+          'experimental',
+          'broken',
+        ]),
+      );
+      expect(
+        allStatusesDependencies,
+        contains(
+          allOf(
+            containsPair('name', 'camera'),
+            containsPair('status', 'implemented'),
+            containsPair('actionable', true),
+            containsPair('implementationStatus', 'experimental'),
+          ),
+        ),
+      );
       expect(stderr, isEmpty);
     },
   );
@@ -546,7 +672,7 @@ dependency_overrides:
         packageName: 'share_plus',
         upstreamVersion: '10.1.0',
         upstreamRef: 'share_plus-v10.1.0',
-        implementationRef: 'share_plus-10.1.0-ohos-3.35-1',
+        implementationRef: 'share_plus-10.1.0-ohos-3.35-1.0.0',
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final stdout = <String>[];
@@ -601,7 +727,7 @@ dependency_overrides:
 
       _expectOutputContains(
         stdout,
-        'Would override share_plus -> share_plus-10.1.0-ohos-3.35-1 '
+        'Would override share_plus -> share_plus-10.1.0-ohos-3.35-1.0.0 '
         '(upstream 10.0.0 -> 10.1.0)',
       );
       expect(
@@ -631,7 +757,7 @@ dependency_overrides:
         packagePath: 'packages/zero_implementation',
         upstreamVersion: '0.12.0',
         upstreamRef: 'zero_implementation-v0.12.0',
-        implementationRef: 'zero_implementation-0.12.0-ohos-3.35-1',
+        implementationRef: 'zero_implementation-0.12.0-ohos-3.35-1.0.0',
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final pubspec = File('${environment.workingDirectory.path}/pubspec.yaml');
@@ -719,6 +845,7 @@ sdks:'''),
     final configFile = File('${environment.workingDirectory.path}/fluoh.yaml');
     await configFile.writeAsString('''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos-0.0.3
 dependencyPolicy: true
@@ -755,7 +882,7 @@ dependencyPolicy: true
         manifest
             .readAsStringSync()
             .replaceAll('version: "0"', 'version: "9"')
-            .replaceAll('version: "1"', 'version: "10"'),
+            .replaceAll('version: "1.0.0"', 'version: "10.0.0"'),
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final stdout = <String>[];
@@ -785,7 +912,7 @@ dependencyPolicy: true
       );
       expect(
         stdout,
-        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-10'),
+        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-10.0.0'),
       );
       expect(stderr, isEmpty);
     },
@@ -892,6 +1019,31 @@ dependencyPolicy: true
       contains('  camera 0.11.0: No known OHOS implementation is available.'),
     );
     expect(stdout.join('\n'), isNot(contains('camera-v0.11.0-ohos')));
+
+    expect(
+      await runFluoh(
+        ['deps', 'check', '--all-release-statuses', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    final brokenJson = jsonDecode(stdout.removeLast()) as Map<String, Object?>;
+    expect(
+      brokenJson,
+      containsPair('releaseStatuses', ['compatible', 'experimental', 'broken']),
+    );
+    expect(
+      brokenJson['dependencies'] as List<Object?>,
+      contains(
+        allOf(
+          containsPair('name', 'camera'),
+          containsPair('status', 'implemented'),
+          containsPair('implementationStatus', 'broken'),
+        ),
+      ),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -911,7 +1063,7 @@ dependencyPolicy: true
         packagePath: 'packages/share_plus/share_plus',
         upstreamVersion: '10.0.0',
         upstreamRef: 'share_plus-v10.0.0',
-        implementationRef: 'share_plus-10.0.0-ohos-3.35-1',
+        implementationRef: 'share_plus-10.0.0-ohos-3.35-1.0.0',
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final stdout = <String>[];
@@ -948,12 +1100,12 @@ dependencyPolicy: true
 
       expect(
         stdout,
-        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1'),
+        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1.0.0'),
       );
       expect(
         stdout,
         contains(
-          '  share_plus 10.0.0: override -> share_plus-10.0.0-ohos-3.35-1',
+          '  share_plus 10.0.0: override -> share_plus-10.0.0-ohos-3.35-1.0.0',
         ),
       );
       expect(stderr, isEmpty);
@@ -1021,7 +1173,7 @@ manifests:
 
       expect(
         stdout,
-        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1'),
+        contains('  camera 0.11.0: override -> camera-0.11.0-ohos-3.35-1.0.0'),
       );
       expect(stderr, isEmpty);
     },
@@ -1052,7 +1204,7 @@ manifests:
     final content = pubspecFile.readAsStringSync();
     expect(content, equals(modifiedContent));
     expect(content, isNot(contains('dependency_overrides')));
-    expect(content, isNot(contains('camera-0.11.0-ohos-3.35-1')));
+    expect(content, isNot(contains('camera-0.11.0-ohos-3.35-1.0.0')));
   });
 
   test(
@@ -1072,7 +1224,7 @@ manifests:
         packagePath: 'packages/camera/camera',
         upstreamVersion: '0.12.0',
         upstreamRef: 'camera-v0.12.0',
-        implementationRef: 'camera-0.12.0-ohos-3.35-1',
+        implementationRef: 'camera-0.12.0-ohos-3.35-1.0.0',
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final pubspecFile = File(
@@ -1129,7 +1281,7 @@ manifests:
 
       final pubspec = pubspecFile.readAsStringSync();
       expect(pubspec, contains('url: $teamRepository'));
-      expect(pubspec, contains('ref: camera-0.12.0-ohos-3.35-1'));
+      expect(pubspec, contains('ref: camera-0.12.0-ohos-3.35-1.0.0'));
       expect(
         pubspec,
         isNot(
@@ -1272,7 +1424,7 @@ Future<void> _setImplementationStatus(
     upstreamVersion: packageName == 'camera' ? '0.11.0' : '1.0.0',
     upstreamRef: packageName == 'camera' ? 'camera-v0.11.0' : 'v1.0.0',
     implementationRef: packageName == 'camera'
-        ? 'camera-0.11.0-ohos-3.35-1'
+        ? 'camera-0.11.0-ohos-3.35-1.0.0'
         : '$packageName-v1.0.0-ohos-3.35.8-1',
     status: status,
   );
@@ -1293,12 +1445,12 @@ Future<void> _appendImplementationVersion(
       '1';
   final content = manifest.readAsStringSync();
   await manifest.writeAsString(
-    content.replaceFirst(
-      '        releases:\n',
-      '        releases:\n'
-          '          - version: $releaseVersion\n'
-          '            upstreamVersion: $upstreamVersion\n',
-    ),
+    '$content'
+    '        - version: $releaseVersion\n'
+    '          upstream:\n'
+    '            version: $upstreamVersion\n'
+    '            ref: $upstreamRef\n'
+    '            commit: "1111111111111111111111111111111111111111"\n',
   );
 }
 
@@ -1325,10 +1477,20 @@ Future<void> _addRepositoryPackage(
   required String implementationRef,
 }) async {
   final root = File('${source.path}/fluoh.yaml');
+  final manifest = parseSourceRootManifest(root.readAsStringSync());
   await root.writeAsString(
-    root.readAsStringSync().replaceFirst(
-      '\nmanifests:\n',
-      '\nmanifests:\n  - name: $packageName\n',
+    sourceRootManifestContent(
+      SourceRootManifestTemplate(
+        name: manifest.name,
+        description: manifest.description,
+        repositoryGitUrl: manifest.repositoryGitUrl,
+        sdkRepository: manifest.sdkRepository,
+        sdkReleases: manifest.sdkReleases,
+        manifests: [
+          ...manifest.manifests,
+          SourceManifestRoute(name: packageName),
+        ],
+      ),
     ),
   );
   await _writeImplementationManifest(
@@ -1359,15 +1521,12 @@ Future<void> _writePackageOnlySource(
   await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Team source
+name: team-source
 description: Team source.
 
 repository:
   git:
     url: file:${source.path}
-
-environment:
-  fluoh: ">=0.1.0"
 
 manifests:
   - name: $packageName
@@ -1404,11 +1563,10 @@ Future<void> _writeImplementationManifest(
       RegExp(
         r'-([0-9]+(?:\.[0-9]+)*)$',
       ).firstMatch(implementationRef)?.group(1) ??
-      '1';
+      '1.0.0';
   await File('${repository.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: manifest
-name: $repositoryName
 
 repository:
   git:
@@ -1418,17 +1576,17 @@ upstream:
   git:
     url: $upstreamUrl
 
-packages:
-  $packageName:
-    repository:
-      path: $packagePath
-    upstream:
-      path: $packagePath
-    sdks:
-      "3.35":
-        releases:
-          - version: $releaseVersion
-            upstreamVersion: $upstreamVersion
-${status == 'compatible' ? '' : '            status: $status\n'}
+package:
+  name: $packageName
+  path: $packagePath
+  sdks:
+    "3.35":
+      releases:
+        - version: $releaseVersion
+          upstream:
+            version: $upstreamVersion
+            ref: $upstreamRef
+            commit: "1111111111111111111111111111111111111111"
+${status == 'compatible' ? '' : '          status: $status\n'}
 ''');
 }

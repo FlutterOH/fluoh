@@ -1,6 +1,5 @@
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -9,16 +8,15 @@ repository:
 upstream:
   git:
     url: https://github.com/flutter/packages
-    branch: main
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    sdks:
-      "3.35":
-        releases:
-          - version: "1"
-            upstreamVersion: "0.11.0"
+package:
+  name: camera
+  path: packages/camera/camera
+  sdks:
+    "3.35":
+      releases:
+        - version: "1.0.0"
+          upstream:
+            version: "0.11.0"
+            ref: camera-v0.11.0
+            commit: "1111111111111111111111111111111111111111"

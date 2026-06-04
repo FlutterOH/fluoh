@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:fluoh/fluoh.dart';
 import 'package:fluoh/src/config/fluoh_config.dart';
+import 'package:fluoh/src/schema/schema.dart'
+    show unrestrictedDependencyReleaseStatuses;
+import 'package:fluoh/src/source/source_runtime.dart';
 import 'package:fluoh/src/source/source_sync.dart';
 import 'package:test/test.dart';
 
@@ -25,7 +28,7 @@ void main() {
     expect(packageIndex.packages, contains('camera'));
     expect(
       packageIndex.packages['camera']!.implementations.single.tag,
-      'camera-0.11.0-ohos-3.35-1',
+      'camera-0.11.0-ohos-3.35-1.0.0',
     );
     expect(
       packageIndex.packages['camera']!.compatibility.single.upstreamVersion,
@@ -83,6 +86,34 @@ void main() {
     },
   );
 
+  test(
+    'exposes experimental releases only when explicitly requested',
+    () async {
+      final root = await _createSourceRoot();
+      await _writeSourceRoot(root, manifests: const ['camera']);
+      await _writeManifest(
+        root,
+        packageName: 'camera',
+        releaseVersions: const ['0.1.0'],
+        releaseStatus: 'experimental',
+      );
+      final source = SourceIndex.directory(root);
+
+      final packageIndex = await source.loadPackageIndex(
+        releaseStatuses: unrestrictedDependencyReleaseStatuses,
+      );
+      final implementation =
+          packageIndex.packages['camera']!.implementations.single;
+
+      expect(implementation.tag, 'camera-1.0.0-ohos-3.35-0.1.0');
+      expect(implementation.status, 'experimental');
+      expect(
+        packageIndex.packages['camera']!.compatibility.single.status,
+        'experimental',
+      );
+    },
+  );
+
   test('loads package route indexes with compatible sdk lines', () async {
     final root = await _createSourceRoot();
     await _writeSourceRoot(root, manifests: const ['camera', 'share_plus']);
@@ -97,12 +128,10 @@ void main() {
 
     final routeIndex = await source.loadPackageRouteIndex();
 
-    expect(routeIndex.manifests['camera']!.packages, {
-      'camera': ['3.35'],
-    });
-    expect(routeIndex.manifests['share_plus']!.packages, {
-      'share_plus': <String>[],
-    });
+    expect(routeIndex.manifests['camera']!.packageName, 'camera');
+    expect(routeIndex.manifests['camera']!.sdkLines, ['3.35']);
+    expect(routeIndex.manifests['share_plus']!.packageName, 'share_plus');
+    expect(routeIndex.manifests['share_plus']!.sdkLines, <String>[]);
   });
 
   test('rejects release records without releases', () async {
@@ -123,14 +152,55 @@ void main() {
     );
   });
 
-  test('rejects duplicate package names across manifests', () async {
+  test('rejects duplicate source SDK versions', () async {
     final root = await _createSourceRoot();
-    await _writeSourceRoot(root, manifests: const ['camera', 'duplicate']);
-    await _writeManifest(root, manifestName: 'camera', packageName: 'camera');
+    await _writeSourceRoot(
+      root,
+      manifests: const [],
+      sdkVersions: const ['3.35.8-ohos-0.0.3', '3.35.8-ohos-0.0.3'],
+    );
+    final source = SourceIndex.directory(root);
+
+    expect(
+      source.loadSdkIndex,
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('Duplicate SDK version "3.35.8-ohos-0.0.3"'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects unsorted source SDK versions', () async {
+    final root = await _createSourceRoot();
+    await _writeSourceRoot(
+      root,
+      manifests: const [],
+      sdkVersions: const ['3.35.8-ohos-1.0.1', '3.35.8-ohos-0.0.3'],
+    );
+    final source = SourceIndex.directory(root);
+
+    expect(
+      source.loadSdkIndex,
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('sdk.versions must be sorted'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects duplicate source manifest release records', () async {
+    final root = await _createSourceRoot();
+    await _writeSourceRoot(root, manifests: const ['camera']);
     await _writeManifest(
       root,
-      manifestName: 'duplicate',
       packageName: 'camera',
+      releaseVersions: const ['0.1.0', '0.1.0'],
     );
     final source = SourceIndex.directory(root);
 
@@ -140,7 +210,60 @@ void main() {
         isA<FormatException>().having(
           (error) => error.message,
           'message',
-          contains('appears in both'),
+          contains('duplicate upstream 1.0.0 and release 0.1.0'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects package SDK lines missing from the merged SDK index', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createSourceRoot();
+    await _writeSourceRoot(
+      source,
+      manifests: const ['camera'],
+      sdkVersions: const ['3.36.1-ohos-0.0.1'],
+    );
+    await _writeManifest(source, packageName: 'camera', sdkLine: '3.35');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      SourceRuntime(environment).loadPackageIndex,
+      throwsA(
+        isA<UsageException>().having(
+          (error) => error.message,
+          'message',
+          contains('Package camera declares SDK line 3.35'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects manifest package name mismatches', () async {
+    final root = await _createSourceRoot();
+    await _writeSourceRoot(root, manifests: const ['camera']);
+    await _writeManifest(
+      root,
+      manifestName: 'camera',
+      packageName: 'camera_alias',
+    );
+    final source = SourceIndex.directory(root);
+
+    expect(
+      source.loadPackageIndex,
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('name must match source manifest route camera'),
         ),
       ),
     );
@@ -172,7 +295,7 @@ void main() {
     'loads only selected manifests when manifest routes are provided',
     () async {
       final root = await _createSourceRoot();
-      await _writeSourceRoot(root, manifests: const ['camera', 'broken']);
+      await _writeSourceRoot(root, manifests: const ['broken', 'camera']);
       await _writeManifest(root, manifestName: 'camera', packageName: 'camera');
       await _writeManifest(
         root,
@@ -216,7 +339,7 @@ void main() {
     await File('${source.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Broken source
+name: broken-source
 repository:
   git: {}
 ''');
@@ -260,11 +383,12 @@ Future<Directory> _createSourceRoot() async {
 Future<void> _writeSourceRoot(
   Directory root, {
   required List<String> manifests,
+  List<String> sdkVersions = const ['3.35.8-ohos-0.0.3'],
 }) async {
   await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: source
-name: Test source
+name: test-source
 description: Test source.
 
 repository:
@@ -275,7 +399,7 @@ sdk:
   git:
     url: /tmp/flutter-ohos-sdk
   versions:
-    - 3.35.8-ohos-0.0.3
+${sdkVersions.map((entry) => '    - $entry').join('\n')}
 
 manifests:
 ${manifests.map((entry) => '  - name: $entry').join('\n')}
@@ -289,6 +413,7 @@ Future<void> _writeManifest(
   List<String> releaseVersions = const ['0.1.0'],
   String releaseStatus = 'compatible',
   bool includeReleases = true,
+  String sdkLine = '3.35',
 }) async {
   final manifest = Directory('${root.path}/manifests/$manifestName');
   await manifest.create(recursive: true);
@@ -296,16 +421,18 @@ Future<void> _writeManifest(
       ? releaseVersions
             .map(
               (version) =>
-                  '          - version: "$version"\n'
-                  '            upstreamVersion: "1.0.0"'
-                  '${releaseStatus == 'compatible' ? '' : '\n            status: $releaseStatus'}',
+                  '        - version: "$version"\n'
+                  '          upstream:\n'
+                  '            version: "1.0.0"\n'
+                  '            ref: "$packageName-v1.0.0"\n'
+                  '            commit: "1111111111111111111111111111111111111111"'
+                  '${releaseStatus == 'compatible' ? '' : '\n          status: $releaseStatus'}',
             )
             .join('\n')
       : '';
   await File('${manifest.path}/fluoh.yaml').writeAsString('''
 schema: 1
 kind: manifest
-name: $manifestName
 
 repository:
   git:
@@ -314,16 +441,12 @@ repository:
 upstream:
   git:
     url: https://github.com/example/$manifestName
-    branch: main
 
-packages:
-  $packageName:
-    repository:
-      path: packages/$packageName
-    upstream:
-      path: packages/$packageName
-    sdks:
-      "3.35":
-        releases:${includeReleases ? '\n$releases' : ' []'}
+package:
+  name: $packageName
+  path: packages/$packageName
+  sdks:
+    "$sdkLine":
+      releases:${includeReleases ? '\n$releases' : ' []'}
 ''');
 }

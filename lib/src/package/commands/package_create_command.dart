@@ -5,6 +5,7 @@ import 'package:pub_semver/pub_semver.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../sdk/sdk_manager.dart';
@@ -30,15 +31,24 @@ class PackageCreateCommand extends FluohCommand<int> {
        _stderr = stderr {
     _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr);
     argParser
-      ..addMultiOption(
+      ..addOption(
         'package-path',
         valueHelp: 'path',
-        help: 'Package path inside the upstream repository. Can be repeated.',
+        help:
+            'Package path inside the upstream repository. Pass one path; '
+            'omitting it selects only the root package.',
       )
       ..addOption(
         'output',
         valueHelp: 'path',
         help: 'Destination path for the FlutterOH package repository.',
+      )
+      ..addOption(
+        'repository-name',
+        valueHelp: 'repository-name',
+        help:
+            'Required FlutterOH package repository name for the default '
+            'output path and repository URL.',
       )
       ..addOption(
         'sdk',
@@ -60,6 +70,18 @@ class PackageCreateCommand extends FluohCommand<int> {
         'git-author-email',
         valueHelp: 'email',
         help: 'Configure local Git user.email for adaptation commits.',
+      )
+      ..addFlag(
+        'plan',
+        negatable: false,
+        help:
+            'Inspect the upstream repository and print the creation plan '
+            'without creating the destination repository.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the creation plan as JSON. Requires --plan.',
       );
   }
 
@@ -93,6 +115,13 @@ class PackageCreateCommand extends FluohCommand<int> {
 
   @override
   Future<int> run() async {
+    final planOnly = argResults!.flag('plan');
+    final json = argResults!.flag('json');
+    if (json && !planOnly) {
+      usageException(
+        '--json is supported only with --plan for package create.',
+      );
+    }
     final rest = expectArgumentCount(
       argResults!,
       1,
@@ -101,18 +130,37 @@ class PackageCreateCommand extends FluohCommand<int> {
     );
 
     final upstream = rest.single;
+    _ensureSinglePackagePathOption();
+    final packagePath = _packagePathFromOptions();
+    final packagePaths = packagePath == null ? const <String>[] : [packagePath];
+    final packageRepositoryName = _packageRepositoryNameFromOptions();
     final gitAuthor = _gitAuthorConfigFromOptions();
-    _output.step('Resolving Flutter OHOS SDK');
+    final repositoryOption = argResults!.option('repository');
+    if (!json) {
+      _output.step('Resolving Flutter OHOS SDK');
+    }
     final release = await _resolveSdkRelease();
-    final packagePaths = argResults!.multiOption('package-path');
     final destination = _packageCreateDestination(
       environment: environment,
-      upstream: upstream,
       output: argResults!.option('output'),
+      repositoryName: packageRepositoryName,
     );
 
     if (await destination.exists()) {
       usageException('Destination already exists: ${destination.path}');
+    }
+
+    if (planOnly) {
+      return _runPlan(
+        upstream: upstream,
+        packagePaths: packagePaths,
+        repositoryName: packageRepositoryName,
+        repositoryOption: repositoryOption,
+        gitAuthor: gitAuthor,
+        release: release,
+        destination: destination,
+        json: json,
+      );
     }
 
     var shouldRollbackDestination = true;
@@ -129,36 +177,23 @@ class PackageCreateCommand extends FluohCommand<int> {
       final publishedRefs = await _PublishedPackageRefResolver.load(
         destination,
       );
-      selectedPackages = await _restoreLatestPublishedPackageRefs(
+      selectedPackages = await _resolveLatestPublishedPackageRefs(
         repository: destination,
         selectedPackages: selectedPackages,
         publishedRefs: publishedRefs,
       );
-      final packageCollection = await _isPackageCollectionRepository(
-        repository: destination,
-        selectedPackages: selectedPackages,
-      );
-      for (final selected in selectedPackages) {
-        if (selected.path != '.') {
-          _output.info(
-            'Selected package ${selected.package.name} at ${selected.path}',
-          );
-        }
+      final selected = selectedPackages.single;
+      final implementationRepositoryName = packageRepositoryName;
+      if (selected.path != '.') {
+        _output.info(
+          'Selected package ${selected.package.name} at ${selected.path}',
+        );
       }
-      final docPackages = [
-        for (final selected in selectedPackages)
-          _docPackageForSelection(selectedPackage: selected),
-      ];
+      final docPackages = [_docPackageForSelection(selectedPackage: selected)];
 
       final repositoryUrl =
-          argResults!.option('repository') ??
-          defaultPackageRepositoryUrl(
-            _defaultImplementationRepositoryName(
-              upstream,
-              selectedPackages,
-              packageCollection: packageCollection,
-            ),
-          );
+          repositoryOption ??
+          defaultPackageRepositoryUrl(implementationRepositoryName);
       await configurePackageRemotes(destination, repositoryUrl);
       if (gitAuthor != null) {
         await configurePackageGitAuthor(destination, gitAuthor);
@@ -168,7 +203,15 @@ class PackageCreateCommand extends FluohCommand<int> {
       }
 
       final upstreamBranch = await upstreamDefaultBranch(destination);
-      final branch = flutterOhosBranchForSdk(release.tag);
+      await runGit([
+        'checkout',
+        '--detach',
+        selected.upstreamCommit!,
+      ], workingDirectory: destination);
+      final branch = flutterOhosPackageBranchForSdk(
+        sdkVersion: release.tag,
+        packageName: selected.package.name,
+      );
       await runGit(['checkout', '-b', branch], workingDirectory: destination);
       final packageEnvironment = FluohEnvironment(
         homeDirectory: environment.homeDirectory,
@@ -209,28 +252,20 @@ class PackageCreateCommand extends FluohCommand<int> {
       await writePackageManifestFile(
         destination,
         PackageManifest(
-          name: _defaultImplementationRepositoryName(
-            upstream,
-            selectedPackages,
-            packageCollection: packageCollection,
-          ),
           sdkVersion: release.tag,
           repositoryBranch: branch,
           upstreamUrl: upstream,
           upstreamBranch: upstreamBranch,
           repositoryUrl: repositoryUrl,
-          packages: [
-            for (final selected in selectedPackages)
-              PackageManifestPackage(
-                name: selected.package.name,
-                upstreamVersion: selected.package.version,
-                version: initialPackageReleaseVersion,
-                repositoryPath: selected.path,
-                upstreamPath: selected.path,
-                upstreamRef: selected.upstreamRef,
-                status: 'experimental',
-              ),
-          ],
+          package: PackageManifestPackage(
+            name: selected.package.name,
+            path: selected.path,
+            upstreamVersion: selected.package.version,
+            upstreamRef: selected.upstreamRef,
+            upstreamCommit: selected.upstreamCommit!,
+            version: initialPackageReleaseVersion,
+            status: 'experimental',
+          ),
         ),
       );
       await writeOrReplacePackageImplementationGuide(
@@ -249,33 +284,29 @@ class PackageCreateCommand extends FluohCommand<int> {
         packages: docPackages,
       );
       await _writeClaudeInstructions(destination);
-      final preparedExamples = <PackageExampleSetupResult>[];
-      for (final selected in selectedPackages) {
-        final result = await preparePackageExample(
-          environment: packageEnvironment,
-          repository: destination,
-          package: PackageManifestPackage(
-            name: selected.package.name,
-            upstreamVersion: selected.package.version,
-            version: initialPackageReleaseVersion,
-            repositoryPath: selected.path,
-            upstreamPath: selected.path,
-            upstreamRef: selected.upstreamRef,
-            status: 'experimental',
-          ),
-          sdkVersion: release.tag,
-          sdkDirectory: configuredSdkDirectory,
-          stdout: _stdout,
-          stderr: _stderr,
-          output: _output,
+      final preparedExample = await preparePackageExample(
+        environment: packageEnvironment,
+        repository: destination,
+        package: PackageManifestPackage(
+          name: selected.package.name,
+          path: selected.path,
+          upstreamVersion: selected.package.version,
+          upstreamRef: selected.upstreamRef,
+          upstreamCommit: selected.upstreamCommit!,
+          version: initialPackageReleaseVersion,
+          status: 'experimental',
+        ),
+        sdkVersion: release.tag,
+        sdkDirectory: configuredSdkDirectory,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      );
+      if (!preparedExample.prepared && preparedExample.reason != null) {
+        _output.skipped(
+          'Skipping example OHOS setup for ${preparedExample.packageName}: '
+          '${preparedExample.reason}',
         );
-        preparedExamples.add(result);
-        if (!result.prepared && result.reason != null) {
-          _output.skipped(
-            'Skipping example OHOS setup for ${result.packageName}: '
-            '${result.reason}',
-          );
-        }
       }
       await runGit([
         'add',
@@ -287,36 +318,22 @@ class PackageCreateCommand extends FluohCommand<int> {
         '.gitignore',
         'fluoh.yaml',
       ], workingDirectory: destination);
-      for (final selected in selectedPackages.where(
-        (selected) => selected.upstreamRef != null,
-      )) {
-        await runGit([
-          'add',
-          '-f',
-          '-A',
-          selected.path,
-        ], workingDirectory: destination);
-      }
-      for (final result in preparedExamples.where(
-        (result) => result.prepared,
-      )) {
+      if (preparedExample.prepared) {
         await runGit([
           'add',
           '-A',
-          packageRelativePath(destination, result.example),
+          packageRelativePath(destination, preparedExample.example),
         ], workingDirectory: destination);
       }
 
       final licenseWarnings = <String>[];
-      for (final selected in selectedPackages) {
-        licenseWarnings.addAll(
-          await packageLicenseWarnings(
-            repository: destination,
-            packagePath: selected.path,
-            packageName: selected.package.name,
-          ),
-        );
-      }
+      licenseWarnings.addAll(
+        await packageLicenseWarnings(
+          repository: destination,
+          packagePath: selected.path,
+          packageName: selected.package.name,
+        ),
+      );
       _output.blank();
       for (final warning in licenseWarnings) {
         _output.warningError(warning);
@@ -372,6 +389,64 @@ class PackageCreateCommand extends FluohCommand<int> {
     return PackageGitAuthor(name: name, email: email);
   }
 
+  String? _packagePathFromOptions() {
+    final packagePath = argResults!.option('package-path')?.trim();
+    if (packagePath == null) {
+      return null;
+    }
+    if (packagePath.isEmpty) {
+      usageException('--package-path must not be empty.');
+    }
+    return packagePath;
+  }
+
+  void _ensureSinglePackagePathOption() {
+    final occurrences = argResults!.arguments.where((argument) {
+      return argument == '--package-path' ||
+          argument.startsWith('--package-path=');
+    }).length;
+    if (occurrences > 1) {
+      usageException(
+        'package create creates one package branch. Pass one --package-path '
+        'and use "fluoh package add <package-path>" for additional packages.',
+      );
+    }
+  }
+
+  String _packageRepositoryNameFromOptions() {
+    final name = argResults!.option('repository-name')?.trim();
+    if (name == null) {
+      usageException(_missingPackageRepositoryNameMessage());
+    }
+    if (name.isEmpty) {
+      usageException('--repository-name must not be empty.');
+    }
+    if (name == '.' ||
+        name == '..' ||
+        name.contains('/') ||
+        name.contains('\\')) {
+      usageException(
+        '--repository-name must be a repository name, not a path.',
+      );
+    }
+    if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(name)) {
+      usageException(
+        '--repository-name may contain only letters, numbers, ".", "_", and "-".',
+      );
+    }
+    return name;
+  }
+
+  String _missingPackageRepositoryNameMessage() {
+    final suggestion = _packageRepositoryNameSuggestion(
+      argResults!.option('package-path'),
+    );
+    return [
+      'Pass --repository-name <repository-name> for the FlutterOH package repository.',
+      if (suggestion != null) 'Suggested name: $suggestion',
+    ].join(' ');
+  }
+
   String get _usageWithoutDescription {
     return [
       'Usage: $invocation',
@@ -384,10 +459,183 @@ class PackageCreateCommand extends FluohCommand<int> {
   }
 }
 
+extension on PackageCreateCommand {
+  Future<int> _runPlan({
+    required String upstream,
+    required List<String> packagePaths,
+    required String repositoryName,
+    required String? repositoryOption,
+    required PackageGitAuthor? gitAuthor,
+    required SdkRelease release,
+    required Directory destination,
+    required bool json,
+  }) async {
+    Directory? tempRoot;
+    try {
+      tempRoot = await Directory.systemTemp.createTemp('fluoh-create-plan-');
+      final scratchRepository = Directory('${tempRoot.path}/upstream');
+      if (!json) {
+        _output.step('Inspecting upstream repository');
+      }
+      await runGit(['clone', '--quiet', upstream, scratchRepository.path]);
+      var selectedPackages = await _selectPackages(
+        repository: scratchRepository,
+        packagePaths: packagePaths,
+      );
+      final publishedRefs = await _PublishedPackageRefResolver.load(
+        scratchRepository,
+      );
+      selectedPackages = await _resolveLatestPublishedPackageRefs(
+        repository: scratchRepository,
+        selectedPackages: selectedPackages,
+        publishedRefs: publishedRefs,
+      );
+      final selected = selectedPackages.single;
+      final repositoryUrl =
+          repositoryOption ?? defaultPackageRepositoryUrl(repositoryName);
+      await configurePackageRemotes(scratchRepository, repositoryUrl);
+      final upstreamBranch = await upstreamDefaultBranch(scratchRepository);
+      final branch = flutterOhosPackageBranchForSdk(
+        sdkVersion: release.tag,
+        packageName: selected.package.name,
+      );
+      final plan = _PackageCreatePlan(
+        upstream: upstream,
+        upstreamBranch: upstreamBranch,
+        repositoryName: repositoryName,
+        repositoryUrl: repositoryUrl,
+        outputPath: destination.path,
+        sdkVersion: release.tag,
+        sdkLine: sdkLineFromSdkVersion(release.tag),
+        packageName: selected.package.name,
+        packagePath: selected.path,
+        upstreamVersion: selected.package.version,
+        upstreamRef: selected.upstreamRef,
+        upstreamCommit: selected.upstreamCommit!,
+        branch: branch,
+        gitAuthor: gitAuthor,
+      );
+      if (json) {
+        writeMachineOutput(
+          _stdout,
+          command: 'package create',
+          ok: true,
+          exitCode: 0,
+          fields: {'changed': false, 'applied': false, 'plan': plan.toJson()},
+        );
+      } else {
+        _printPlan(plan);
+      }
+      return 0;
+    } finally {
+      if (tempRoot != null && await tempRoot.exists()) {
+        await tempRoot.delete(recursive: true);
+      }
+    }
+  }
+
+  void _printPlan(_PackageCreatePlan plan) {
+    _output.success('Package creation plan');
+    _output.info('Repository name: ${plan.repositoryName}');
+    _output.info('Output path: ${_output.style.path(plan.outputPath)}');
+    _output.info('Origin: ${_output.style.url(plan.repositoryUrl)}');
+    _output.info('Package: ${plan.packageName} at ${plan.packagePath}');
+    _output.info('SDK: ${plan.sdkVersion} (${plan.sdkLine})');
+    _output.info('Branch: ${plan.branch}');
+    if (plan.gitAuthor != null) {
+      _output.info(
+        'Git author: ${plan.gitAuthor!.name} <${plan.gitAuthor!.email}>',
+      );
+    } else {
+      _output.info('Git author: not configured by this command');
+    }
+    _output.next('Run without --plan after confirming these values');
+  }
+}
+
+class _PackageCreatePlan {
+  const _PackageCreatePlan({
+    required this.upstream,
+    required this.upstreamBranch,
+    required this.repositoryName,
+    required this.repositoryUrl,
+    required this.outputPath,
+    required this.sdkVersion,
+    required this.sdkLine,
+    required this.packageName,
+    required this.packagePath,
+    required this.upstreamVersion,
+    required this.upstreamRef,
+    required this.upstreamCommit,
+    required this.branch,
+    required this.gitAuthor,
+  });
+
+  final String upstream;
+  final String upstreamBranch;
+  final String repositoryName;
+  final String repositoryUrl;
+  final String outputPath;
+  final String sdkVersion;
+  final String sdkLine;
+  final String packageName;
+  final String packagePath;
+  final String upstreamVersion;
+  final String? upstreamRef;
+  final String upstreamCommit;
+  final String branch;
+  final PackageGitAuthor? gitAuthor;
+
+  Map<String, Object?> toJson() {
+    return {
+      'adaptationKind': 'package',
+      'upstream': {
+        'urlOrPath': upstream,
+        'branch': upstreamBranch,
+        'selectedRef': upstreamRef,
+        'selectedCommit': upstreamCommit,
+      },
+      'repository': {
+        'name': repositoryName,
+        'url': repositoryUrl,
+        'outputPath': outputPath,
+        'branch': branch,
+      },
+      'sdk': {'version': sdkVersion, 'line': sdkLine},
+      'package': {
+        'name': packageName,
+        'path': packagePath,
+        'upstreamVersion': upstreamVersion,
+        'releaseVersion': initialPackageReleaseVersion,
+        'status': 'experimental',
+      },
+      'gitAuthor': gitAuthor == null
+          ? null
+          : {'name': gitAuthor!.name, 'email': gitAuthor!.email},
+      'willRun': [
+        'git clone <upstream> <outputPath>',
+        'configure origin remote',
+        if (gitAuthor != null) 'configure local Git author',
+        'checkout $branch',
+        'configure Flutter OHOS SDK $sdkVersion',
+        'write fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, AGENTS.md, and CLAUDE.md',
+        'prepare example OHOS platform when an example exists',
+        'stage generated files',
+      ],
+      'willNotRunWithoutSeparateApproval': [
+        'fluoh package release',
+        'git push',
+        'git push --force',
+        'destructive Git commands',
+      ],
+    };
+  }
+}
+
 Directory _packageCreateDestination({
   required FluohEnvironment environment,
-  required String upstream,
   required String? output,
+  required String repositoryName,
 }) {
   final trimmedOutput = output?.trim();
   if (trimmedOutput != null && trimmedOutput.isNotEmpty) {
@@ -399,9 +647,20 @@ Directory _packageCreateDestination({
   }
   return Directory(
     _normalizeDirectoryPath(
-      '${environment.workingDirectory.path}/${repositoryNameFromUpstream(upstream)}',
+      '${environment.workingDirectory.path}/$repositoryName',
     ),
   );
+}
+
+String? _packageRepositoryNameSuggestion(String? packagePath) {
+  if (packagePath == null) {
+    return null;
+  }
+  final normalized = _normalizePackagePath(packagePath);
+  if (normalized == '.') {
+    return null;
+  }
+  return _pathName(normalized);
 }
 
 String _normalizeDirectoryPath(String path) {
@@ -437,11 +696,13 @@ class _SelectedPackage {
   const _SelectedPackage({
     required this.package,
     required this.path,
+    this.upstreamCommit,
     this.upstreamRef,
   });
 
   final PubspecPackage package;
   final String path;
+  final String? upstreamCommit;
   final String? upstreamRef;
 }
 
@@ -468,11 +729,12 @@ Future<List<_SelectedPackage>> _selectPackages({
   return selected;
 }
 
-Future<List<_SelectedPackage>> _restoreLatestPublishedPackageRefs({
+Future<List<_SelectedPackage>> _resolveLatestPublishedPackageRefs({
   required Directory repository,
   required List<_SelectedPackage> selectedPackages,
   required _PublishedPackageRefResolver publishedRefs,
 }) async {
+  final headCommit = await _revParseCommit(repository, 'HEAD');
   final resolved = <_SelectedPackage>[];
   for (final selected in selectedPackages) {
     final releaseRef = await publishedRefs.latest(
@@ -480,32 +742,21 @@ Future<List<_SelectedPackage>> _restoreLatestPublishedPackageRefs({
       packagePath: selected.path,
     );
     if (releaseRef == null) {
-      resolved.add(selected);
+      resolved.add(
+        _SelectedPackage(
+          package: selected.package,
+          path: selected.path,
+          upstreamCommit: headCommit,
+        ),
+      );
       continue;
     }
 
-    await runGit([
-      'restore',
-      '--source',
-      releaseRef.ref,
-      '--',
-      selected.path,
-    ], workingDirectory: repository);
-    final package = await _readSelectedPackage(
-      repository: repository,
-      packagePath: selected.path,
-    );
-    if (package.name != selected.package.name) {
-      throw UsageException(
-        'Upstream ref ${releaseRef.ref} contains package ${package.name} at '
-            '${selected.path}, expected ${selected.package.name}.',
-        '',
-      );
-    }
     resolved.add(
       _SelectedPackage(
-        package: package,
+        package: releaseRef.package,
         path: selected.path,
+        upstreamCommit: releaseRef.commit,
         upstreamRef: releaseRef.ref,
       ),
     );
@@ -545,11 +796,13 @@ String? _packageVersionFromReleaseTag({
 class _PublishedPackageRef {
   const _PublishedPackageRef({
     required this.ref,
+    required this.commit,
     required this.version,
     required this.package,
   });
 
   final String ref;
+  final String commit;
   final Version version;
   final PubspecPackage package;
 }
@@ -639,9 +892,11 @@ class _PublishedPackageRefResolver {
         continue;
       }
       try {
+        final commit = await _revParseCommit(repository, tag);
         candidates.add(
           _PublishedPackageRef(
             ref: tag,
+            commit: commit,
             version: Version.parse(pubspec.version),
             package: pubspec,
           ),
@@ -682,6 +937,14 @@ class _PublishedPackageRefResolver {
       return null;
     }
   }
+}
+
+Future<String> _revParseCommit(Directory repository, String ref) async {
+  final result = await runGit([
+    'rev-parse',
+    '$ref^{commit}',
+  ], workingDirectory: repository);
+  return result.stdout.toString().trim();
 }
 
 Future<void> _warnForSelectedPackageSdkCompatibility({
@@ -757,19 +1020,6 @@ Future<Version?> _dartVersionForSdk(Directory sdkDirectory) async {
   }
 }
 
-String _defaultImplementationRepositoryName(
-  String upstream,
-  List<_SelectedPackage> selectedPackages, {
-  required bool packageCollection,
-}) {
-  if (!packageCollection &&
-      selectedPackages.length == 1 &&
-      selectedPackages.single.path == '.') {
-    return selectedPackages.single.package.name;
-  }
-  return repositoryNameFromUpstream(upstream);
-}
-
 PackageRepositoryDocPackage _docPackageForSelection({
   required _SelectedPackage selectedPackage,
 }) {
@@ -778,91 +1028,6 @@ PackageRepositoryDocPackage _docPackageForSelection({
     version: selectedPackage.package.version,
     packagePath: selectedPackage.path,
   );
-}
-
-bool _isPackageCollectionSelection(List<_SelectedPackage> selectedPackages) {
-  return selectedPackages.length > 1 ||
-      selectedPackages.any((selected) => selected.path != '.');
-}
-
-Future<bool> _isPackageCollectionRepository({
-  required Directory repository,
-  required List<_SelectedPackage> selectedPackages,
-}) async {
-  if (_isPackageCollectionSelection(selectedPackages)) {
-    return true;
-  }
-
-  final packagePaths = await _discoverRepositoryPackagePaths(repository);
-  if (packagePaths.length > 1) {
-    return true;
-  }
-
-  final selectedPaths = selectedPackages
-      .map((selected) => _normalizePackagePath(selected.path))
-      .toSet();
-  return packagePaths.any((path) => !selectedPaths.contains(path));
-}
-
-Future<List<String>> _discoverRepositoryPackagePaths(
-  Directory repository,
-) async {
-  final paths = <String>{};
-  final pending = <Directory>[repository];
-  while (pending.isNotEmpty) {
-    final directory = pending.removeLast();
-    await for (final entity in directory.list(followLinks: false)) {
-      if (entity is Directory) {
-        final relativeDirectory = _relativeDirectoryPath(repository, entity);
-        if (!_isIgnoredPackageScanDirectory(relativeDirectory)) {
-          pending.add(entity);
-        }
-        continue;
-      }
-      if (entity is File && _pathName(entity.path) == 'pubspec.yaml') {
-        final packagePath = _relativeDirectoryPath(repository, entity.parent);
-        if (!_isIgnoredPackageScanDirectory(packagePath)) {
-          paths.add(packagePath);
-        }
-      }
-    }
-  }
-  return paths.toList()..sort();
-}
-
-bool _isIgnoredPackageScanDirectory(String path) {
-  if (path == '.') {
-    return false;
-  }
-  return _pathSegments(path).any(_ignoredPackageScanSegmentNames.contains);
-}
-
-const _ignoredPackageScanSegmentNames = {
-  '.dart_tool',
-  '.git',
-  '.idea',
-  'build',
-  'coverage',
-  'example',
-  'examples',
-  'fixture',
-  'fixtures',
-  'integration_test',
-  'test',
-  'tool',
-  'tools',
-};
-
-String _relativeDirectoryPath(Directory root, Directory directory) {
-  final rootPath = root.absolute.path;
-  final directoryPath = directory.absolute.path;
-  if (directoryPath == rootPath) {
-    return '.';
-  }
-  if (directoryPath.startsWith('$rootPath/')) {
-    return _normalizePackagePath(directoryPath.substring(rootPath.length + 1));
-  }
-  return _normalizePackagePath(directoryPath);
 }
 
 String _normalizePackagePath(String path) {
@@ -986,7 +1151,7 @@ String _packageSelectionCandidateHelp(
       if (package.sdkConstraint != null) ' (Dart ${package.sdkConstraint})',
       if (candidate.latestRef != null)
         ' [latest tag ${candidate.latestRef!.ref}]',
-      ': --package-path ${candidate.path}',
+      ': --package-path ${candidate.path} --repository-name ${package.name}',
     ].join();
   }).join();
   final hidden = candidates.length > 20

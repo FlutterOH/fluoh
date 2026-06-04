@@ -30,6 +30,7 @@ class DepsUpgradeCommand extends FluohCommand<int> {
       negatable: false,
       help: 'Print the dependency upgrade result as JSON.',
     );
+    addAllReleaseStatusesFlag(argParser);
   }
 
   /// Runtime environment containing the project and Source config.
@@ -49,7 +50,10 @@ class DepsUpgradeCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
     final json = argResults!.flag('json');
-    final policy = await readDependencyPolicy(environment.workingDirectory);
+    final policy = applyAllReleaseStatusesFlag(
+      await readDependencyPolicy(environment.workingDirectory),
+      argResults!,
+    );
     final plan = await buildDependencyPlan(
       environment: environment,
       policy: policy,

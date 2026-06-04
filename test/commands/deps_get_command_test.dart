@@ -103,7 +103,7 @@ void main() {
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
@@ -111,21 +111,21 @@ sdk:
 repository:
   git:
     url: git@github.com:FlutterOH/camera.git
-    branch: ohos/3.35
+    branch: ohos/3.35/camera
 
 upstream:
   git:
     url: https://github.com/flutter/packages.git
     branch: main
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
     version: 0.1.0
-    upstreamVersion: 0.11.0
+    upstream:
+      version: 0.11.0
+      commit: "1111111111111111111111111111111111111111"
     status: experimental
 ''',
     );

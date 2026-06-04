@@ -332,12 +332,12 @@ void _addPackageSelectionOptions(ArgParser parser) {
     ..addOption(
       'package',
       valueHelp: 'name',
-      help: 'Package to use when fluoh.yaml registers multiple packages.',
+      help: 'Package to use. Defaults to the current package branch.',
     )
     ..addFlag(
       'all',
       negatable: false,
-      help: 'Run for every package registered in fluoh.yaml.',
+      help: 'Run every target in the current project or package branch.',
     );
 }
 
@@ -386,7 +386,7 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
   }
 
   final packages = all
-      ? manifest.packages
+      ? [manifest.package]
       : [manifest.packageForName(packageName)];
   final results = <WorkflowTargetResult>[];
   for (final package in packages) {

@@ -44,9 +44,9 @@
 使用 $fluoh，继续适配 <package-name> 到 OHOS。
 ```
 
-skill 会先检查 `fluoh --version`，缺失时安装 CLI，然后运行 `fluoh` 命令，
-跟随 JSON diagnostics，修改 App 或 Package，验证结果，并保存带交付清单的
-`.fluoh/ai-report-...md`。
+skill 会先检查 `fluoh --version`，缺失时安装 CLI，运行只读 setup 检查，并在修改
+App 或 Package 前请求最终 setup 确认；之后跟随 JSON diagnostics，修改 App 或 Package，
+验证结果，并保存带交付清单的 `.fluoh/ai-report-...md`。
 安装 CLI 时优先使用 `dart pub global activate fluoh`，macOS 下可退到 Homebrew。
 
 如果已经安装了 CLI，AI agent 也可以通过下面命令发现本地内置 skill 路径和 helper
@@ -85,10 +85,16 @@ Homebrew formula 会安装 native 可执行文件；严格 `--json` 自动化优
 Package 维护者可以用：
 
 ```sh
-fluoh package create <upstream-git-url>
+fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 fluoh verify
 fluoh package status
 ```
+
+适配 monorepo 时，先传一个 `--package-path <path>` 创建第一个 Package 分支。不传
+`--package-path` 只会选择仓库根目录 Package，不表示适配全部 Package。要在同一仓库继续适配
+另一个 Package，从生成仓库中运行 `fluoh package add <package-path>`；它会为该 Package
+创建独立的 `ohos/<sdkLine>/<package>` 分支。`--repository-name` 对所有新 Package
+仓库都是必填；只选择单个 Package path 时，若遗漏该参数，CLI 会给出候选建议。
 
 用 `fluohf` 通过已选择的 FlutterOH SDK 运行 Flutter：
 

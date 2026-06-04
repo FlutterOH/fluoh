@@ -112,7 +112,7 @@ void main() {
     expect(exitCode, 0);
     expect(stderr, isEmpty);
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'skill'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
@@ -337,7 +337,7 @@ dependencies:
     final sessionFile = io.File('${workspace.path}/session.json');
     await sessionFile.writeAsString(
       jsonEncode({
-        'schemaVersion': 1,
+        'schema': 1,
         'kind': 'flutterRunSession',
         'status': 'running',
         'platform': 'android',
@@ -396,7 +396,7 @@ dependencies:
     expect(exitCode, 64);
     expect(stderr, isEmpty);
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('schemaVersion', 1));
+    expect(report, containsPair('schema', 1));
     expect(report, containsPair('command', 'doctor'));
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 64));
@@ -839,7 +839,7 @@ dependencies:
     expect(exitCode, 0);
     final help = stdout.join('\n');
     expect(help, contains('    --package=<name>'));
-    expect(help, contains('registered in fluoh.yaml.'));
+    expect(help, contains('current package branch.'));
     expect(help.split('\n').where((line) => line.length > 80), isEmpty);
     expect(stderr, isEmpty);
   });

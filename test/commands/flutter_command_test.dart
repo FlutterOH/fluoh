@@ -201,8 +201,12 @@ void main() {
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
 schema: 1
+kind: project
 sdk:
   version: 3.35.8-ohos-0.0.3
+dependencyPolicy:
+  pubspecSection: dependency_overrides
+  versionChanges: compatible
 ''',
     );
     final stdout = <String>[];

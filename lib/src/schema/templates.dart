@@ -10,6 +10,7 @@ const fluohSchemaTemplates = <String, String>{
 /// Template for a project-level `fluoh.yaml`.
 const projectFluohYamlTemplate = '''
 schema: 1
+kind: project
 
 sdk:
   version: 3.35.8-ohos-0.0.3
@@ -22,7 +23,7 @@ dependencyPolicy:
 /// Template for a package repository `fluoh.yaml`.
 const packageRepositoryFluohYamlTemplate = '''
 schema: 1
-name: camera
+kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
@@ -30,21 +31,21 @@ sdk:
 repository:
   git:
     url: https://github.com/FlutterOH/camera.git
-    branch: ohos/3.35
+    branch: ohos/3.35/camera
 
 upstream:
   git:
-    url: https://github.com/flutter/packages
+    url: https://github.com/flutter/packages.git
     branch: main
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
     version: 0.1.0
-    upstreamVersion: 0.11.0
+    upstream:
+      version: 0.11.0
+      commit: "0123456789abcdef0123456789abcdef01234567"
     status: experimental
 ''';
 
@@ -53,21 +54,18 @@ const sourceRootYamlTemplate = '''
 schema: 1
 kind: source
 name: flutteroh
-description: Flutter OHOS SDK and package implementation source.
+description: Flutter OHOS SDK and package adaptation source.
 
 # repository:
 #   git:
 #     url: https://github.com/FlutterOH/source.git
 
-environment:
-  fluoh: '>=0.1.0'
-
 sdk:
   git:
     url: https://gitcode.com/CPF-Flutter/flutter_flutter.git
   versions:
-    - 3.35.8-ohos-1.0.1
     - 3.35.8-ohos-0.0.3
+    - 3.35.8-ohos-1.0.1
 
 manifests:
   - name: camera
@@ -77,7 +75,6 @@ manifests:
 const sourcePackageManifestYamlTemplate = '''
 schema: 1
 kind: manifest
-name: camera
 
 repository:
   git:
@@ -85,20 +82,20 @@ repository:
 
 upstream:
   git:
-    url: https://github.com/flutter/packages
+    url: https://github.com/flutter/packages.git
 
-packages:
-  camera:
-    repository:
-      path: packages/camera/camera
-    upstream:
-      path: packages/camera/camera
-    sdks:
-      "3.35":
-        releases:
-          - version: 0.1.0
-            upstreamVersion: 0.11.0
-            status: experimental
+package:
+  name: camera
+  path: packages/camera/camera
+  sdks:
+    "3.35":
+      releases:
+        - version: 0.1.0
+          upstream:
+            version: 0.11.0
+            ref: camera-v0.11.0
+            commit: "0123456789abcdef0123456789abcdef01234567"
+          status: experimental
 ''';
 
 /// Template for persisted tool configuration JSON.
