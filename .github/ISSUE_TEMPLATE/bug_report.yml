@@ -13,7 +13,7 @@ body:
     attributes:
       label: fluoh version
       description: Run `fluoh --version` and paste the first line.
-      placeholder: fluoh 0.0.1 - CLI for Flutter OHOS SDKs and package workflows
+      placeholder: fluoh 0.1.0 - CLI for Flutter OHOS SDKs and package workflows
     validations:
       required: true
   - type: input
@@ -58,6 +58,21 @@ body:
     validations:
       required: true
   - type: textarea
+    id: json_output
+    attributes:
+      label: JSON output
+      description: If the command supports `--json`, rerun with `--json` and paste the exact output. It should be one JSON object with `schema`, `command`, `ok`, and `exitCode`.
+      render: json
+      placeholder: |
+        {
+          "schema": "...",
+          "command": "...",
+          "ok": false,
+          "exitCode": 1
+        }
+    validations:
+      required: false
+  - type: textarea
     id: expected
     attributes:
       label: Expected behavior
@@ -73,6 +88,17 @@ body:
         FlutterOH SDK:
         FLUOH_HOME override:
         Private source or mirror notes:
+    validations:
+      required: false
+  - type: textarea
+    id: local_state
+    attributes:
+      label: Local state and changed files
+      description: Note local changes before and after the command, especially changed pubspec, fluoh.yaml, source indexes, SDK cache, or package repository state.
+      placeholder: |
+        Changed files before command:
+        Changed files after failure:
+        FLUOH_HOME:
     validations:
       required: false
   - type: textarea

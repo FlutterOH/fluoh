@@ -20,6 +20,21 @@ void main() {
     }
   }
 
+  List<String> issueFormIds(YamlMap template) {
+    final body = template['body'] as YamlList;
+    return [
+      for (final field in body)
+        if (field is YamlMap && field['id'] != null) field['id'] as String,
+    ];
+  }
+
+  List<String> markdownHeadings(String markdown) {
+    return RegExp(
+      r'^## (.+)$',
+      multiLine: true,
+    ).allMatches(markdown).map((match) => match.group(1)!).toList();
+  }
+
   test('publishes to pub.dev from version tags using OIDC', () {
     final workflow = File('.github/workflows/publish.yml').readAsStringSync();
 
@@ -78,28 +93,48 @@ void main() {
     final bugYaml = loadYaml(bugTemplate) as YamlMap;
     final featureYaml = loadYaml(featureTemplate) as YamlMap;
     final configYaml = loadYaml(issueConfig) as YamlMap;
+    final bugIds = issueFormIds(bugYaml);
+    final featureIds = issueFormIds(featureYaml);
+    final pullRequestHeadings = markdownHeadings(pullRequestTemplate);
 
     expect(bugYaml['name'], 'Bug report');
+    expect(bugIds, containsAll(['version', 'command', 'json_output']));
+    expect(bugIds, containsAll(['environment', 'local_state']));
     expect(bugTemplate, contains('fluoh --version'));
+    expect(bugTemplate, contains('fluoh 0.1.0'));
     expect(bugTemplate, contains('fluoh doctor -p'));
     expect(bugTemplate, contains('Doctor output'));
     expect(bugTemplate, contains('Reproduction steps'));
     expect(bugTemplate, contains('Actual behavior'));
+    expect(bugTemplate, contains('JSON output'));
+    expect(bugTemplate, contains('schema'));
+    expect(bugTemplate, contains('exitCode'));
     expect(bugTemplate, contains('Expected behavior'));
     expect(bugTemplate, contains('Environment'));
+    expect(bugTemplate, contains('Local state and changed files'));
 
     expect(featureYaml['name'], 'Feature request');
+    expect(featureIds, containsAll(['output_contract', 'local_state']));
     expect(featureTemplate, contains('Problem'));
     expect(featureTemplate, contains('Proposed behavior'));
+    expect(featureTemplate, contains('CLI and JSON output contract'));
+    expect(featureTemplate, contains('Safety and local state'));
     expect(featureTemplate, contains('Compatibility and release impact'));
     expect(configYaml['blank_issues_enabled'], isFalse);
 
-    expect(pullRequestTemplate, contains('## Summary'));
-    expect(pullRequestTemplate, contains('## Verification'));
+    expect(pullRequestHeadings, containsAll(['Summary', 'Verification']));
+    expect(pullRequestHeadings, contains('Behavior and contracts'));
+    expect(pullRequestHeadings, contains('Release impact'));
     expect(pullRequestTemplate, contains('`dart format .`'));
     expect(pullRequestTemplate, contains('`dart analyze`'));
     expect(pullRequestTemplate, contains('`dart test`'));
-    expect(pullRequestTemplate, contains('## Release impact'));
+    expect(pullRequestTemplate, contains('`dart pub publish --dry-run`'));
+    expect(pullRequestTemplate, contains('schema'));
+    expect(pullRequestTemplate, contains('exitCode'));
+    expect(
+      pullRequestTemplate,
+      contains('test/release/release_artifacts_test.dart'),
+    );
   });
 
   test('declares pub metadata and an executable for global activation', () {

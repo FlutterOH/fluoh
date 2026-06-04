@@ -36,8 +36,26 @@ body:
       description: List the fluoh commands or domains involved.
       placeholder: sdk, deps, package, source, doctor
   - type: textarea
+    id: output_contract
+    attributes:
+      label: CLI and JSON output contract
+      description: Describe expected human output, `--json` fields, schema keys, and exact file or config changes when relevant.
+      placeholder: |
+        Human output:
+        JSON fields:
+        Changed files:
+  - type: textarea
+    id: local_state
+    attributes:
+      label: Safety and local state
+      description: For commands that write files, clone repositories, or push tags, describe validation, local work preservation, and failure behavior.
+      placeholder: |
+        Validation before writes:
+        Failure behavior:
+        Local repositories or working trees preserved:
+  - type: textarea
     id: compatibility
     attributes:
       label: Compatibility and release impact
-      description: Note whether this changes existing CLI output, config files, source index rules, or release artifacts.
+      description: Note whether this changes existing CLI output, config files, source index rules, release artifacts, pub.dev metadata, or Homebrew packaging.
       placeholder: This is backwards compatible because ...
