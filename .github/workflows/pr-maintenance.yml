@@ -1,0 +1,385 @@
+name: Maintain pull requests
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: maintain-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize PR impact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- fluoh-pr-maintenance-summary -->';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+            const head = context.payload.pull_request.head;
+
+            const labelDefinitions = {
+              'risk:low': {
+                color: '2DA44E',
+                description: 'Low fluoh review risk.',
+              },
+              'risk:medium': {
+                color: 'D29922',
+                description: 'Normal fluoh review required.',
+              },
+              'risk:high': {
+                color: 'CF222E',
+                description: 'High-risk fluoh behavior, release, or automation change.',
+              },
+              'area:sdk': {
+                color: '0969DA',
+                description: 'FlutterOH SDK selection, install, or listing.',
+              },
+              'area:deps': {
+                color: '0969DA',
+                description: 'Dependency analysis or pubspec rewrite behavior.',
+              },
+              'area:package': {
+                color: '0969DA',
+                description: 'FlutterOH package adaptation workflows.',
+              },
+              'area:source': {
+                color: '0969DA',
+                description: 'Source registry, cache, sync, or checks.',
+              },
+              'area:schema': {
+                color: '0969DA',
+                description: 'fluoh YAML, JSON, or schema contracts.',
+              },
+              'area:platform': {
+                color: '0969DA',
+                description: 'OHOS platform build, run, signing, or tooling.',
+              },
+              'area:doctor': {
+                color: '0969DA',
+                description: 'Doctor diagnostics.',
+              },
+              'area:upgrade': {
+                color: '0969DA',
+                description: 'fluoh upgrade behavior.',
+              },
+              'area:docs': {
+                color: '6F42C1',
+                description: 'Documentation.',
+              },
+              'area:ci': {
+                color: '6F42C1',
+                description: 'GitHub automation and CI.',
+              },
+              'area:skill': {
+                color: '6F42C1',
+                description: 'Bundled AI skill and helper scripts.',
+              },
+              'area:release': {
+                color: '6F42C1',
+                description: 'Release metadata, packaging, or publishing.',
+              },
+            };
+            const riskLabels = ['risk:low', 'risk:medium', 'risk:high'];
+
+            const changedFiles = await github.paginate(
+              github.rest.pulls.listFiles,
+              { owner, repo, pull_number, per_page: 100 },
+            );
+
+            const fileNames = changedFiles.map((file) => file.filename);
+            const fileMatches = (pattern) => fileNames.some((name) => pattern.test(name));
+            const patchMatches = (pattern) =>
+              changedFiles.some((file) => pattern.test(file.patch || ''));
+            const areas = new Set();
+            const highReasons = [];
+            const mediumReasons = [];
+            const focusedTests = new Set();
+
+            const addArea = (area, testCommand) => {
+              areas.add(area);
+              if (testCommand) {
+                focusedTests.add(testCommand);
+              }
+            };
+
+            if (fileMatches(/^(lib\/src\/sdk\/|test\/sdk\/|test\/commands\/sdk_)/)) {
+              addArea('area:sdk', 'dart test test/sdk test/commands/sdk_command_test.dart test/commands/sdk_use_command_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/deps\/|test\/commands\/deps_|test\/commands\/dependency_plan)/)) {
+              addArea('area:deps', 'dart test test/commands/deps_get_command_test.dart test/commands/deps_upgrade_command_test.dart test/commands/dependency_plan_commands_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/package\/|test\/package\/|test\/commands\/package_)/)) {
+              addArea('area:package', 'dart test test/package test/commands/package_*_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/source\/|test\/source\/|test\/commands\/source_)/)) {
+              addArea('area:source', 'dart test test/source test/commands/source_command_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/schema\/|test\/schema\/|doc\/schema)/)) {
+              addArea('area:schema', 'dart test test/schema');
+            }
+            if (fileMatches(/^(lib\/src\/platform\/|test\/platform\/|test\/commands\/platform_|test\/commands\/flutter_|bin\/fluohf\.dart)/)) {
+              addArea('area:platform', 'dart test test/platform test/commands/platform_commands_test.dart test/commands/flutter_command_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/doctor\/|test\/commands\/doctor_)/)) {
+              addArea('area:doctor', 'dart test test/commands/doctor_command_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/upgrade\/|test\/commands\/upgrade_)/)) {
+              addArea('area:upgrade', 'dart test test/commands/upgrade_command_test.dart');
+            }
+            if (fileMatches(/^(README|CONTRIBUTING|AGENTS|CLAUDE|doc\/commands|doc\/assets|doc\/schema|.*\.md$)/)) {
+              addArea('area:docs', 'dart test test/release/release_artifacts_test.dart');
+            }
+            if (fileMatches(/^\.github\//)) {
+              addArea('area:ci', 'dart test test/release/release_artifacts_test.dart');
+            }
+            if (fileMatches(/^(skills\/fluoh\/|test\/release\/fluoh_skill_scripts_test\.dart)/)) {
+              addArea('area:skill', 'dart test test/release/fluoh_skill_scripts_test.dart');
+            }
+
+            const releaseFiles = [
+              'pubspec.yaml',
+              'lib/src/version.dart',
+              'CHANGELOG.md',
+              'Formula/fluoh.rb',
+              '.github/workflows/publish.yml',
+            ];
+            const releaseFilesChanged = changedFiles.filter((file) =>
+              releaseFiles.includes(file.filename));
+            const releaseMetadataChanged = releaseFilesChanged.some((file) =>
+              file.filename !== '.github/workflows/publish.yml');
+            if (releaseFilesChanged.length > 0) {
+              addArea('area:release', 'dart pub publish --dry-run');
+            }
+
+            const jsonContractImpact =
+              fileNames.includes('lib/src/cli/machine_output.dart') ||
+              changedFiles.some((file) =>
+                /^(lib\/src\/|test\/)/.test(file.filename) &&
+                /--json|MachineOutput|"schema"|"exitCode"|"ok"|schema['"]|exitCode/.test(file.patch || ''));
+
+            if (fileMatches(/^lib\/src\/schema\//)) {
+              highReasons.push('Schema code changed');
+            }
+            if (fileNames.includes('lib/src/deps/pubspec_dependency_editor.dart')) {
+              highReasons.push('Pubspec rewrite behavior changed');
+            }
+            if (fileMatches(/^lib\/src\/package\/(commands\/package_(create|sync|release)_command\.dart|package_workflow_runner\.dart|release_validator\.dart|manifest\/)/)) {
+              highReasons.push('Package create, sync, release, or manifest workflow changed');
+            }
+            if (jsonContractImpact) {
+              highReasons.push('JSON or machine-output contract may have changed');
+            }
+            if (releaseFilesChanged.length > 0) {
+              highReasons.push('Release, publishing, or packaging metadata changed');
+            }
+            if (fileNames.includes('.github/workflows/publish.yml')) {
+              highReasons.push('Publishing workflow changed');
+            }
+
+            if (fileMatches(/^(lib\/src\/|bin\/|test\/|skills\/fluoh\/)/)) {
+              mediumReasons.push('Dart code, tests, or bundled skill changed');
+            }
+            if (fileMatches(/^\.github\//)) {
+              mediumReasons.push('GitHub automation or templates changed');
+            }
+            let risk = 'risk:low';
+            if (highReasons.length > 0) {
+              risk = 'risk:high';
+            } else if (mediumReasons.length > 0) {
+              risk = 'risk:medium';
+            }
+
+            async function readHeadFile(path) {
+              const response = await github.rest.repos.getContent({
+                owner: head.repo.owner.login,
+                repo: head.repo.name,
+                path,
+                ref: head.sha,
+              });
+              if (Array.isArray(response.data) || response.data.type !== 'file') {
+                throw new Error(`${path} is not a file in the PR head.`);
+              }
+              return Buffer.from(response.data.content, response.data.encoding).toString('utf8');
+            }
+
+            const versionParsers = {
+              'pubspec.yaml': (text) => /^version:\s*([^\s]+)\s*$/m.exec(text)?.[1],
+              'lib/src/version.dart': (text) => /const packageVersion = '([^']+)'/.exec(text)?.[1],
+              'CHANGELOG.md': (text) => /^##\s+([0-9]+\.[0-9]+\.[0-9][^\s]*)\s*$/m.exec(text)?.[1],
+              'Formula/fluoh.rb': (text) => /version "([^"]+)"/.exec(text)?.[1],
+            };
+            const releaseVersions = {};
+            const releaseErrors = [];
+            let releaseVersionStatus = 'No release metadata changes detected.';
+
+            if (releaseMetadataChanged) {
+              for (const [path, parser] of Object.entries(versionParsers)) {
+                try {
+                  const text = await readHeadFile(path);
+                  const value = parser(text);
+                  if (!value) {
+                    releaseErrors.push(`Could not parse version from \`${path}\`.`);
+                  } else {
+                    releaseVersions[path] = value;
+                  }
+                } catch (error) {
+                  releaseErrors.push(`Could not read \`${path}\`: ${error.message}`);
+                }
+              }
+
+              const uniqueVersions = [...new Set(Object.values(releaseVersions))];
+              if (releaseErrors.length === 0 && uniqueVersions.length === 1) {
+                releaseVersionStatus = `Aligned at \`${uniqueVersions[0]}\`.`;
+              } else {
+                releaseVersionStatus = 'Version metadata is not aligned.';
+              }
+            } else if (fileNames.includes('.github/workflows/publish.yml')) {
+              releaseVersionStatus = 'Publishing workflow changed; review pub.dev release behavior manually.';
+            }
+
+            for (const [name, data] of Object.entries(labelDefinitions)) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color: data.color,
+                  description: data.description,
+                });
+              }
+            }
+
+            const currentIssue = await github.rest.issues.get({
+              owner,
+              repo,
+              issue_number: pull_number,
+            });
+            const existingLabels = currentIssue.data.labels.map((label) =>
+              typeof label === 'string' ? label : label.name);
+            for (const label of riskLabels) {
+              if (label !== risk && existingLabels.includes(label)) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  name: label,
+                });
+              }
+            }
+
+            const labelsToAdd = [risk, ...areas].filter((label) =>
+              !existingLabels.includes(label));
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pull_number,
+                labels: labelsToAdd,
+              });
+            }
+
+            const formatList = (items) =>
+              items.length === 0
+                ? '- none'
+                : [...items].map((item) => `- ${item}`).join('\n');
+            const formatInlineLabels = (items) =>
+              items.size === 0
+                ? 'none'
+                : [...items].sort().map((item) => `\`${item}\``).join(', ');
+            const changedFileSummary = changedFiles
+              .map((file) => `- ${file.status}: \`${file.filename}\``)
+              .join('\n');
+            const riskReasons = risk === 'risk:high'
+              ? highReasons
+              : risk === 'risk:medium'
+                ? mediumReasons
+                : ['Low-risk documentation, template, or maintenance change'];
+            const releaseVersionLines = Object.keys(releaseVersions).length === 0
+              ? '- none'
+              : Object.entries(releaseVersions)
+                  .map(([path, value]) => `- \`${path}\`: \`${value}\``)
+                  .join('\n');
+            const verificationCommands = new Set([
+              'dart format .',
+              'dart analyze',
+              'dart test',
+              ...focusedTests,
+            ]);
+
+            const body = `${marker}
+            ## fluoh PR maintenance summary
+
+            **Risk label:** \`${risk}\`
+            **Changed areas:** ${formatInlineLabels(areas)}
+            **Changed files:** ${changedFiles.length}
+            **JSON contract impact:** ${jsonContractImpact ? 'yes' : 'no'}
+
+            **Risk reasons**
+            ${formatList(riskReasons)}
+
+            **Release impact**
+            ${releaseVersionStatus}
+
+            **Release metadata versions**
+            ${releaseVersionLines}
+
+            **Suggested focused tests**
+            ${formatList(focusedTests)}
+
+            **Required verification**
+            ${formatList(verificationCommands)}
+
+            **Changed files**
+            ${changedFileSummary}
+            `.replace(/^ {12}/gm, '').trim();
+
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number: pull_number, per_page: 100 },
+            );
+            const previous = comments.find((comment) =>
+              comment.user.type === 'Bot' && comment.body.includes(marker));
+
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body,
+              });
+            }
+
+            if (releaseErrors.length > 0) {
+              core.setFailed(releaseErrors.join('\n'));
+            } else if (releaseMetadataChanged) {
+              const uniqueVersions = [...new Set(Object.values(releaseVersions))];
+              if (uniqueVersions.length !== 1) {
+                core.setFailed('Release metadata versions must stay aligned across pubspec.yaml, lib/src/version.dart, CHANGELOG.md, and Formula/fluoh.rb.');
+              }
+            }

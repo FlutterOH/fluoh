@@ -76,6 +76,71 @@ void main() {
     expect(workflow, contains('dart test'));
   });
 
+  test('provides maintainer automation workflows', () {
+    final prWorkflow = File(
+      '.github/workflows/pr-maintenance.yml',
+    ).readAsStringSync();
+    final issueWorkflow = File(
+      '.github/workflows/issue-triage.yml',
+    ).readAsStringSync();
+
+    expect(prWorkflow, contains('name: Maintain pull requests'));
+    expect(prWorkflow, contains('pull_request_target:'));
+    expect(prWorkflow, contains('issues: write'));
+    expect(prWorkflow, contains('pull-requests: read'));
+    expect(prWorkflow, contains('<!-- fluoh-pr-maintenance-summary -->'));
+    expect(prWorkflow, contains('risk:low'));
+    expect(prWorkflow, contains('risk:medium'));
+    expect(prWorkflow, contains('risk:high'));
+    expect(prWorkflow, isNot(contains('areaLabels')));
+    expect(prWorkflow, contains('Low-risk documentation'));
+    expect(
+      prWorkflow,
+      isNot(contains('Documentation or generated guidance changed')),
+    );
+    expect(prWorkflow, contains('area:sdk'));
+    expect(prWorkflow, contains('area:deps'));
+    expect(prWorkflow, contains('area:package'));
+    expect(prWorkflow, contains('area:source'));
+    expect(prWorkflow, contains('area:schema'));
+    expect(prWorkflow, contains('area:platform'));
+    expect(prWorkflow, contains('area:skill'));
+    expect(prWorkflow, contains('area:release'));
+    expect(prWorkflow, contains('JSON contract impact'));
+    expect(prWorkflow, contains('Suggested focused tests'));
+    expect(prWorkflow, contains('Release metadata versions'));
+    expect(prWorkflow, contains('dart pub publish --dry-run'));
+    expect(prWorkflow, contains('lib/src/deps/pubspec_dependency_editor.dart'));
+    expect(prWorkflow, contains('lib/src/cli/machine_output.dart'));
+    expect(prWorkflow, contains('Formula/fluoh.rb'));
+
+    expect(issueWorkflow, contains('name: Triage issues'));
+    expect(issueWorkflow, contains('issues:'));
+    expect(issueWorkflow, contains('issues: write'));
+    expect(issueWorkflow, contains('<!-- fluoh-issue-triage -->'));
+    expect(issueWorkflow, contains('needs-info:auto'));
+    expect(issueWorkflow, contains('classifierText'));
+    expect(issueWorkflow, contains('existingAreaLabels'));
+    expect(issueWorkflow, contains('hasKnownArea'));
+    expect(issueWorkflow, contains(r'^### ${escaped}[ \\t]*'));
+    expect(issueWorkflow, isNot(contains(r'### ${escaped}\\s*\\n\\n')));
+    expect(issueWorkflow, contains('deleteComment'));
+    expect(issueWorkflow, isNot(contains('for (const label of areaLabels)')));
+    expect(issueWorkflow, contains('area:sdk'));
+    expect(issueWorkflow, contains('area:deps'));
+    expect(issueWorkflow, contains('area:package'));
+    expect(issueWorkflow, contains('area:source'));
+    expect(issueWorkflow, contains('area:schema'));
+    expect(issueWorkflow, contains('area:platform'));
+    expect(issueWorkflow, contains('area:skill'));
+    expect(issueWorkflow, contains('area:release'));
+    expect(issueWorkflow, contains('fluoh\\s+sdk'));
+    expect(issueWorkflow, contains('fluoh\\s+package'));
+    expect(issueWorkflow, contains('fluoh\\s+source'));
+    expect(issueWorkflow, contains('Doctor output'));
+    expect(issueWorkflow, contains('Reproduction steps'));
+  });
+
   test('provides GitHub issue and pull request templates', () {
     final bugTemplate = File(
       '.github/ISSUE_TEMPLATE/bug_report.yml',

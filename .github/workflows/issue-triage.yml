@@ -1,0 +1,236 @@
+name: Triage issues
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+
+permissions:
+  issues: write
+
+concurrency:
+  group: triage-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Classify issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- fluoh-issue-triage -->';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue = context.payload.issue;
+
+            if (issue.pull_request) {
+              return;
+            }
+
+            const labelDefinitions = {
+              'needs-info:auto': {
+                color: 'FBCA04',
+                description: 'Automation found missing triage information.',
+              },
+              'area:sdk': {
+                color: '0969DA',
+                description: 'FlutterOH SDK selection, install, or listing.',
+              },
+              'area:deps': {
+                color: '0969DA',
+                description: 'Dependency analysis or pubspec rewrite behavior.',
+              },
+              'area:package': {
+                color: '0969DA',
+                description: 'FlutterOH package adaptation workflows.',
+              },
+              'area:source': {
+                color: '0969DA',
+                description: 'Source registry, cache, sync, or checks.',
+              },
+              'area:schema': {
+                color: '0969DA',
+                description: 'fluoh YAML, JSON, or schema contracts.',
+              },
+              'area:platform': {
+                color: '0969DA',
+                description: 'OHOS platform build, run, signing, or tooling.',
+              },
+              'area:doctor': {
+                color: '0969DA',
+                description: 'Doctor diagnostics.',
+              },
+              'area:upgrade': {
+                color: '0969DA',
+                description: 'fluoh upgrade behavior.',
+              },
+              'area:docs': {
+                color: '6F42C1',
+                description: 'Documentation.',
+              },
+              'area:ci': {
+                color: '6F42C1',
+                description: 'GitHub automation and CI.',
+              },
+              'area:skill': {
+                color: '6F42C1',
+                description: 'Bundled AI skill and helper scripts.',
+              },
+              'area:release': {
+                color: '6F42C1',
+                description: 'Release metadata, packaging, or publishing.',
+              },
+            };
+            const title = issue.title || '';
+            const body = issue.body || '';
+            const areas = new Set();
+
+            const sectionValue = (heading) => {
+              const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const match = new RegExp(`^### ${escaped}[ \\t]*\\r?\\n\\r?\\n([\\s\\S]*?)(?=\\r?\\n### |$)`, 'im').exec(body);
+              return match ? match[1].trim() : '';
+            };
+            const classifierText = [
+              title,
+              sectionValue('Command'),
+              sectionValue('Actual behavior'),
+              sectionValue('Expected behavior'),
+              sectionValue('Affected commands'),
+              sectionValue('Proposed behavior'),
+              sectionValue('CLI and JSON output contract'),
+              sectionValue('Compatibility and release impact'),
+            ].join('\n').toLowerCase();
+            const addWhen = (label, pattern) => {
+              if (pattern.test(classifierText)) {
+                areas.add(label);
+              }
+            };
+
+            addWhen('area:sdk', /\bfluoh\s+sdk\b|\bsdk\s+(use|list|install|remove)\b|flutteroh sdk/);
+            addWhen('area:deps', /\bfluoh\s+deps\b|\bdeps\s+(check|fix|get|upgrade)\b|dependency|dependencies|pubspec|dependency_overrides/);
+            addWhen('area:package', /\bfluoh\s+package\b|package adaptation|package workflow|package create|package sync|package release/);
+            addWhen('area:source', /\bfluoh\s+source\b|source index|source check|source sync|manifest route|manifests\//);
+            addWhen('area:schema', /\bfluoh\.yaml\b|\bschema\b|machine output|"schema"|"exitcode"|--json/);
+            addWhen('area:platform', /\bfluohf\b|\bfluoh\s+(build|run|flutter)\b|ohos|openharmony|hap|hdc|deveco|signing/);
+            addWhen('area:doctor', /\bfluoh\s+doctor\b|\bdiagnostic\b/);
+            addWhen('area:upgrade', /\bfluoh\s+upgrade\b|\bupgrade\b/);
+            addWhen('area:docs', /\breadme\b|\bcontributing\b|\bdocumentation\b|\bdocs?\b|agents\.md/);
+            addWhen('area:ci', /github actions|\bworkflow\b|\bci\b|publish workflow|\.github/);
+            addWhen('area:skill', /\bskill\b|ai agent|agent skill|\$fluoh/);
+            addWhen('area:release', /pub\.dev|homebrew|formula|release tag|version metadata|publishing|publish/);
+
+            const blankLike = (value) =>
+              value.length === 0 || value === '_No response_';
+            const existingLabels = issue.labels.map((label) =>
+              typeof label === 'string' ? label : label.name);
+            const existingAreaLabels = existingLabels.filter((label) =>
+              label.startsWith('area:'));
+            const isBug = existingLabels.includes('bug') || /^fix:/i.test(title);
+            const isFeature = existingLabels.includes('enhancement') || /^feat:/i.test(title);
+            const missingReasons = [];
+            const hasKnownArea = areas.size > 0 || existingAreaLabels.length > 0;
+
+            if (!hasKnownArea) {
+              missingReasons.push('No affected command or area could be inferred.');
+            }
+            if (isBug) {
+              if (blankLike(sectionValue('Command'))) {
+                missingReasons.push('The failed command is missing.');
+              }
+              if (blankLike(sectionValue('Doctor output'))) {
+                missingReasons.push('Doctor output is missing.');
+              }
+              if (blankLike(sectionValue('Reproduction steps'))) {
+                missingReasons.push('Reproduction steps are missing.');
+              }
+            }
+            if (isFeature &&
+                blankLike(sectionValue('Affected commands')) &&
+                !hasKnownArea) {
+              missingReasons.push('Affected commands or workflow area are missing.');
+            }
+
+            for (const [name, data] of Object.entries(labelDefinitions)) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color: data.color,
+                  description: data.description,
+                });
+              }
+            }
+
+            const labelsToAdd = [...areas].filter((label) =>
+              !existingLabels.includes(label));
+            if (missingReasons.length > 0 &&
+                !existingLabels.includes('needs-info:auto')) {
+              labelsToAdd.push('needs-info:auto');
+            }
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issue.number,
+                labels: labelsToAdd,
+              });
+            }
+
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number: issue.number, per_page: 100 },
+            );
+            const previous = comments.find((comment) =>
+              comment.user.type === 'Bot' && comment.body.includes(marker));
+
+            if (missingReasons.length === 0) {
+              if (existingLabels.includes('needs-info:auto')) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  name: 'needs-info:auto',
+                });
+              }
+              if (previous) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: previous.id,
+                });
+              }
+            } else {
+              const body = `${marker}
+              Thanks for the report. I could not triage this automatically yet.
+
+              Please update the issue with:
+
+              ${missingReasons.map((reason) => `- ${reason}`).join('\n')}
+              `.replace(/^ +/gm, '').trim();
+
+              if (previous) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: previous.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  body,
+                });
+              }
+            }
