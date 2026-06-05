@@ -489,6 +489,7 @@ sdk:
         root,
         docsDryRunOutput: '''
 Package docs would be refreshed
+    - README.md
     - FLUOH.md
     - AGENTS.md
 ''',
@@ -520,6 +521,11 @@ Generated content.
 Generated content.
 <!-- fluoh:generated:end id=package-agents-instructions -->
 ''');
+      await File('${root.path}/README.md').writeAsString('''
+<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-readme-adaptation -->
+''');
 
       final report = await runPreflight(root, fluohCommand: fluoh.path);
       final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
@@ -529,7 +535,7 @@ Generated content.
       expect(packageDocs['needsRefresh'], isTrue);
       expect(dryRun['ok'], isTrue);
       expect(dryRun['needsRefresh'], isTrue);
-      expect(dryRun['files'], ['FLUOH.md', 'AGENTS.md']);
+      expect(dryRun['files'], ['README.md', 'FLUOH.md', 'AGENTS.md']);
       expect(
         stringList(report['suggestedCommands']),
         containsAll([
@@ -550,6 +556,7 @@ Generated content.
         root,
         docsDryRunOutput: '''
 Package docs would be refreshed
+    - README.md
     - FLUOH.md
     - AGENTS.md
 ''',
@@ -580,6 +587,11 @@ Generated content.
 <!-- fluoh:generated:start id=package-agents-instructions template=2 -->
 Generated content.
 <!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+      await File('${root.path}/README.md').writeAsString('''
+<!-- fluoh:generated:start id=package-readme-adaptation template=2 -->
+Generated content.
+<!-- fluoh:generated:end id=package-readme-adaptation -->
 ''');
 
       final report = await runPreflight(root, fluohCommand: fluoh.path);
@@ -634,6 +646,11 @@ Generated content.
 <!-- fluoh:generated:start id=package-agents-instructions template=1 -->
 Generated content.
 <!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+      await File('${root.path}/README.md').writeAsString('''
+<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-readme-adaptation -->
 ''');
 
       final report = await runPreflight(root, fluohCommand: fluoh.path);

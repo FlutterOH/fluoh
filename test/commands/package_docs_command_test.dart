@@ -2,22 +2,131 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/package/package_repository_docs.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
 import '../helpers/package_test_context.dart';
 
 void main() {
-  test(
-    'refresh replaces generated blocks and preserves user content',
-    () async {
-      final environment = await createTestEnvironment();
-      final packageRepository = await createPackageRepositoryFixture(
-        environment,
+  test('README release badge handles GitHub URL variants', () {
+    const variants = [
+      'https://github.com/FlutterOH/camera',
+      'https://github.com/FlutterOH/camera.git',
+      'https://github.com/FlutterOH/camera/',
+      'ssh://git@github.com/FlutterOH/camera.git',
+      'git@github.com:FlutterOH/camera.git',
+      'git@github.com:FlutterOH/camera.git/',
+    ];
+
+    for (final repositoryUrl in variants) {
+      final content = packageReadmeAdaptationContent(
+        packages: [
+          PackageRepositoryDocPackage(
+            name: 'camera',
+            version: '0.11.0',
+            packagePath: '.',
+            repositoryUrl: repositoryUrl,
+          ),
+        ],
       );
-      final guide = File('${packageRepository.path}/FLUOH.md');
-      final agents = File('${packageRepository.path}/AGENTS.md');
-      await guide.writeAsString('''
+
+      expect(
+        content,
+        contains(
+          '[![Latest release](https://img.shields.io/github/v/tag/FlutterOH/camera?label=release&sort=date&filter=camera-*)](https://github.com/FlutterOH/camera/tags)',
+        ),
+        reason: repositoryUrl,
+      );
+    }
+  });
+
+  test('README release badge is omitted for non-GitHub repositories', () {
+    final content = packageReadmeAdaptationContent(
+      packages: const [
+        PackageRepositoryDocPackage(
+          name: 'camera',
+          version: '0.11.0',
+          packagePath: '.',
+          repositoryUrl: '../camera',
+        ),
+      ],
+    );
+
+    expect(content, contains('## FlutterOH adaptation'));
+    expect(content, isNot(contains('img.shields.io')));
+    expect(content, isNot(contains('github.com')));
+  });
+
+  test(
+    'README adaptation content handles missing and titleless README files',
+    () {
+      final created = updatedPackageReadmeAdaptationContent(
+        packages: const [
+          PackageRepositoryDocPackage(
+            name: 'camera',
+            version: '0.11.0',
+            packagePath: '.',
+          ),
+        ],
+        existing: null,
+      );
+      expect(created, startsWith('<!-- fluoh:generated:start'));
+      expect(created, contains('## FlutterOH adaptation'));
+      expect(created, contains('# camera'));
+      expect(created, isNot(contains('0.11.0')));
+
+      final titleless = updatedPackageReadmeAdaptationContent(
+        packages: const [
+          PackageRepositoryDocPackage(
+            name: 'camera',
+            version: '0.11.0',
+            packagePath: '.',
+          ),
+        ],
+        existing: 'Original upstream README body.\n',
+      );
+      expect(titleless, startsWith('<!-- fluoh:generated:start'));
+      expect(titleless, contains('Original upstream README body.'));
+    },
+  );
+
+  test('README adaptation content rejects multiple package descriptors', () {
+    expect(
+      () => packageReadmeAdaptationContent(
+        packages: const [
+          PackageRepositoryDocPackage(
+            name: 'camera',
+            version: '0.11.0',
+            packagePath: 'packages/camera/camera',
+          ),
+          PackageRepositoryDocPackage(
+            name: 'share_plus',
+            version: '9.0.0',
+            packagePath: 'packages/share_plus/share_plus',
+          ),
+        ],
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('refresh replaces generated blocks and preserves user content', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final readme = File('${packageRepository.path}/README.md');
+    final guide = File('${packageRepository.path}/FLUOH.md');
+    final agents = File('${packageRepository.path}/AGENTS.md');
+    await readme.writeAsString('''
+# camera
+
+<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
+## Old README Guidance
+<!-- fluoh:generated:end id=package-readme-adaptation -->
+
+Original upstream README body.
+''');
+    await guide.writeAsString('''
 # Local Notes
 
 Keep this hand-written note.
@@ -30,7 +139,7 @@ Keep this hand-written note.
 
 Keep this footer.
 ''');
-      await agents.writeAsString('''
+    await agents.writeAsString('''
 # Upstream Agent Notes
 
 Keep the public Dart API stable.
@@ -41,64 +150,83 @@ Keep the public Dart API stable.
 Old generated agent guidance.
 <!-- fluoh:generated:end id=package-agents-instructions -->
 ''');
-      await runGit(packageRepository, ['add', 'FLUOH.md', 'AGENTS.md']);
-      await runGit(packageRepository, ['commit', '-m', 'Add generated guide']);
-      final stdout = <String>[];
-      final stderr = <String>[];
-      final packageEnvironment = FluohEnvironment(
-        homeDirectory: environment.homeDirectory,
-        workingDirectory: packageRepository,
-      );
+    await runGit(packageRepository, [
+      'add',
+      'README.md',
+      'FLUOH.md',
+      'AGENTS.md',
+    ]);
+    await runGit(packageRepository, ['commit', '-m', 'Add generated guide']);
+    final stdout = <String>[];
+    final stderr = <String>[];
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
 
-      final result = await runFluoh(
-        ['package', 'docs', 'refresh'],
-        environment: packageEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
+    final result = await runFluoh(
+      ['package', 'docs', 'refresh'],
+      environment: packageEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
 
-      expect(result, 0);
-      final content = guide.readAsStringSync();
-      expect(content, contains('# Local Notes'));
-      expect(content, contains('Keep this hand-written note.'));
-      expect(content, contains('## Maintainer Notes'));
-      expect(content, contains('Keep this footer.'));
-      expect(content, isNot(contains('Old Generated Guidance')));
-      expect(
-        content,
-        contains(
-          '<!-- fluoh:generated:start id=package-implementation-guide '
-          'template=1 -->',
-        ),
-      );
-      expect(
-        content,
-        contains(
-          'This section is generated by fluoh. Do not edit inside this block',
-        ),
-      );
-      expect(
-        content,
-        contains(
-          '<!-- fluoh:generated:end id=package-implementation-guide -->',
-        ),
-      );
-      final agentsContent = agents.readAsStringSync();
-      expect(agentsContent, contains('# Upstream Agent Notes'));
-      expect(agentsContent, contains('Keep the public Dart API stable.'));
-      expect(agentsContent, contains('## FlutterOH/OHOS Adaptation'));
-      expect(agentsContent, contains('follow `FLUOH.md`'));
-      expect(agentsContent, isNot(contains('## Working Rules')));
-      expect(agentsContent, isNot(contains('Old generated agent guidance')));
-      expect(agentsContent, isNot(contains('# AGENTS.md')));
-      final status = await runGit(packageRepository, ['status', '--porcelain']);
-      expect(status.stdout.toString(), contains(' M AGENTS.md'));
-      expect(status.stdout.toString(), contains(' M FLUOH.md'));
-      expect(status.stdout.toString(), isNot(contains('M  FLUOH.md')));
-      expect(stdout, contains('Refreshed package docs'));
-      expect(stderr, isEmpty);
-    },
-  );
+    expect(result, 0);
+    final readmeContent = readme.readAsStringSync();
+    expect(readmeContent, startsWith('<!-- fluoh:generated:start'));
+    expect(readmeContent, contains('## FlutterOH adaptation'));
+    expect(readmeContent, contains('# camera'));
+    expect(
+      readmeContent,
+      contains(
+        '[![Latest release](https://img.shields.io/github/v/tag/FlutterOH/camera?label=release&sort=date&filter=camera-*)](https://github.com/FlutterOH/camera/tags)',
+      ),
+    );
+    expect(readmeContent, contains('[fluoh.yaml](fluoh.yaml)'));
+    expect(readmeContent, contains('[FLUOH.md](FLUOH.md)'));
+    expect(readmeContent, contains('[FLUOH_CHANGELOG.md](FLUOH_CHANGELOG.md)'));
+    expect(readmeContent, contains('`fluoh package check`'));
+    expect(readmeContent, contains('Original upstream README body.'));
+    expect(readmeContent, isNot(contains('Old README Guidance')));
+    final content = guide.readAsStringSync();
+    expect(content, contains('# Local Notes'));
+    expect(content, contains('Keep this hand-written note.'));
+    expect(content, contains('## Maintainer Notes'));
+    expect(content, contains('Keep this footer.'));
+    expect(content, isNot(contains('Old Generated Guidance')));
+    expect(
+      content,
+      contains(
+        '<!-- fluoh:generated:start id=package-implementation-guide '
+        'template=1 -->',
+      ),
+    );
+    expect(
+      content,
+      contains(
+        'This section is generated by fluoh. Do not edit inside this block',
+      ),
+    );
+    expect(
+      content,
+      contains('<!-- fluoh:generated:end id=package-implementation-guide -->'),
+    );
+    final agentsContent = agents.readAsStringSync();
+    expect(agentsContent, contains('# Upstream Agent Notes'));
+    expect(agentsContent, contains('Keep the public Dart API stable.'));
+    expect(agentsContent, contains('## FlutterOH/OHOS Adaptation'));
+    expect(agentsContent, contains('follow `FLUOH.md`'));
+    expect(agentsContent, isNot(contains('## Working Rules')));
+    expect(agentsContent, isNot(contains('Old generated agent guidance')));
+    expect(agentsContent, isNot(contains('# AGENTS.md')));
+    final status = await runGit(packageRepository, ['status', '--porcelain']);
+    expect(status.stdout.toString(), contains(' M AGENTS.md'));
+    expect(status.stdout.toString(), contains(' M FLUOH.md'));
+    expect(status.stdout.toString(), contains(' M README.md'));
+    expect(status.stdout.toString(), isNot(contains('M  FLUOH.md')));
+    expect(stdout, contains('Refreshed package docs'));
+    expect(stderr, isEmpty);
+  });
 
   test('dry-run reports stale docs without requiring a clean tree', () async {
     final environment = await createTestEnvironment();

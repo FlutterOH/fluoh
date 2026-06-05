@@ -122,7 +122,14 @@ class PackageAddCommand extends FluohCommand<int> {
         ),
       );
       await writePackageManifestFile(repository, packageManifest);
-      final docPackage = _docPackageForManifest(packageManifest.package);
+      final docPackage = _docPackageForManifest(
+        packageManifest.package,
+        repositoryUrl: packageManifest.repositoryUrl,
+      );
+      await writeOrReplacePackageReadmeAdaptation(
+        destination: repository,
+        packages: [docPackage],
+      );
       await writeOrReplacePackageImplementationGuide(
         destination: repository,
         packages: [docPackage],
@@ -159,6 +166,7 @@ class PackageAddCommand extends FluohCommand<int> {
         'add',
         '-f',
         'fluoh.yaml',
+        'README.md',
         'FLUOH.md',
         'FLUOH_CHANGELOG.md',
         'AGENTS.md',
@@ -369,11 +377,13 @@ String _normalizePackagePath(String path) {
 }
 
 PackageRepositoryDocPackage _docPackageForManifest(
-  PackageManifestPackage package,
-) {
+  PackageManifestPackage package, {
+  required String repositoryUrl,
+}) {
   return PackageRepositoryDocPackage(
     name: package.name,
     version: package.upstreamVersion,
     packagePath: package.path,
+    repositoryUrl: repositoryUrl,
   );
 }

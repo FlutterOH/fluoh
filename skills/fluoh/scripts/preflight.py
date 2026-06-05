@@ -21,6 +21,7 @@ from typing import Any
 PACKAGE_DOC_TEMPLATE_VERSION = 1
 PACKAGE_IMPLEMENTATION_GUIDE_SECTION = "package-implementation-guide"
 PACKAGE_AGENTS_INSTRUCTIONS_SECTION = "package-agents-instructions"
+PACKAGE_README_ADAPTATION_SECTION = "package-readme-adaptation"
 
 
 def run(command: list[str], cwd: Path, timeout: int = 20) -> dict[str, Any]:
@@ -362,6 +363,7 @@ def upgrade_checks(
         )
 
     if project["kind"] == "package-repository":
+        readme_content = read_text(root / "README.md")
         guide_content = read_text(root / "FLUOH.md")
         agents_content = read_text(root / "AGENTS.md")
         docs = {
@@ -369,6 +371,12 @@ def upgrade_checks(
             "refreshCommand": "fluoh package docs refresh",
             "dryRunCommand": "fluoh package docs refresh --dry-run",
             "sections": [
+                {
+                    "file": "README.md",
+                    **generated_section_state(
+                        readme_content, PACKAGE_README_ADAPTATION_SECTION
+                    ),
+                },
                 {
                     "file": "FLUOH.md",
                     **generated_section_state(

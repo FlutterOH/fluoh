@@ -189,11 +189,15 @@ class PackageCreateCommand extends FluohCommand<int> {
           'Selected package ${selected.package.name} at ${selected.path}',
         );
       }
-      final docPackages = [_docPackageForSelection(selectedPackage: selected)];
-
       final repositoryUrl =
           repositoryOption ??
           defaultPackageRepositoryUrl(implementationRepositoryName);
+      final docPackages = [
+        _docPackageForSelection(
+          selectedPackage: selected,
+          repositoryUrl: repositoryUrl,
+        ),
+      ];
       await configurePackageRemotes(destination, repositoryUrl);
       if (gitAuthor != null) {
         await configurePackageGitAuthor(destination, gitAuthor);
@@ -268,6 +272,10 @@ class PackageCreateCommand extends FluohCommand<int> {
           ),
         ),
       );
+      await writeOrReplacePackageReadmeAdaptation(
+        destination: destination,
+        packages: docPackages,
+      );
       await writeOrReplacePackageImplementationGuide(
         destination: destination,
         packages: docPackages,
@@ -315,6 +323,7 @@ class PackageCreateCommand extends FluohCommand<int> {
         'CLAUDE.md',
         'FLUOH.md',
         'FLUOH_CHANGELOG.md',
+        'README.md',
         '.gitignore',
         'fluoh.yaml',
       ], workingDirectory: destination);
@@ -618,7 +627,7 @@ class _PackageCreatePlan {
         if (gitAuthor != null) 'configure local Git author',
         'checkout $branch',
         'configure Flutter OHOS SDK $sdkVersion',
-        'write fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, AGENTS.md, and CLAUDE.md',
+        'write README.md, fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, AGENTS.md, and CLAUDE.md',
         'prepare example OHOS platform when an example exists',
         'stage generated files',
       ],
@@ -1022,11 +1031,13 @@ Future<Version?> _dartVersionForSdk(Directory sdkDirectory) async {
 
 PackageRepositoryDocPackage _docPackageForSelection({
   required _SelectedPackage selectedPackage,
+  required String repositoryUrl,
 }) {
   return PackageRepositoryDocPackage(
     name: selectedPackage.package.name,
     version: selectedPackage.package.version,
     packagePath: selectedPackage.path,
+    repositoryUrl: repositoryUrl,
   );
 }
 

@@ -222,6 +222,15 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
     await _addUpdate(
       updates,
       repository: repository,
+      path: 'README.md',
+      contentBuilder: (existing) => updatedPackageReadmeAdaptationContent(
+        packages: packages,
+        existing: existing,
+      ),
+    );
+    await _addUpdate(
+      updates,
+      repository: repository,
       path: 'FLUOH.md',
       contentBuilder: (existing) => updatedPackageImplementationGuideContent(
         packages: packages,

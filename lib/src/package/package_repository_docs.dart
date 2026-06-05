@@ -9,6 +9,7 @@ class PackageRepositoryDocPackage {
     required this.name,
     required this.version,
     required this.packagePath,
+    this.repositoryUrl,
   });
 
   /// Package name from the upstream pubspec.
@@ -19,6 +20,9 @@ class PackageRepositoryDocPackage {
 
   /// Package path inside the FlutterOH repository.
   final String packagePath;
+
+  /// FlutterOH package repository URL, when known.
+  final String? repositoryUrl;
 
   /// Recommended package verification command.
   String get verifyCommand =>
@@ -91,6 +95,9 @@ const int packageImplementationGuideTemplateVersion = 1;
 /// Template version for generated `AGENTS.md` package guidance.
 const int packageAgentsInstructionsTemplateVersion = 1;
 
+/// Template version for generated root `README.md` package guidance.
+const int packageReadmeAdaptationTemplateVersion = 1;
+
 const String _reportCheckCommand =
     'python3 <skill-dir>/scripts/check_report.py <report-path>';
 
@@ -103,8 +110,135 @@ List<PackageRepositoryDocPackage> packageRepositoryDocPackagesForManifest(
       name: manifest.package.name,
       version: manifest.package.upstreamVersion,
       packagePath: manifest.package.path,
+      repositoryUrl: manifest.repositoryUrl,
     ),
   ];
+}
+
+/// Writes or updates the generated root `README.md` adaptation section.
+///
+/// Package adaptation repositories describe one package per branch, so
+/// [packages] must contain the current branch package only.
+Future<void> writeOrReplacePackageReadmeAdaptation({
+  required Directory destination,
+  required List<PackageRepositoryDocPackage> packages,
+}) async {
+  final file = File('${destination.path}/README.md');
+  final existing = await file.exists() ? await file.readAsString() : null;
+  await file.writeAsString(
+    updatedPackageReadmeAdaptationContent(
+      packages: packages,
+      existing: existing,
+    ),
+  );
+}
+
+/// Returns root `README.md` content with package adaptation guidance refreshed.
+///
+/// Package adaptation repositories describe one package per branch, so
+/// [packages] must contain the current branch package only.
+String updatedPackageReadmeAdaptationContent({
+  required List<PackageRepositoryDocPackage> packages,
+  required String? existing,
+}) {
+  final generated = packageReadmeAdaptationContent(packages: packages);
+  return _contentWithReadmeGeneratedSection(
+    existing,
+    generated,
+    sectionId: _readmeAdaptationSectionId,
+    templateVersion: packageReadmeAdaptationTemplateVersion,
+    fallbackTitle: packages.single.name,
+  );
+}
+
+/// Builds generated root `README.md` package adaptation guidance.
+///
+/// Package adaptation repositories describe one package per branch, so
+/// [packages] must contain the current branch package only.
+String packageReadmeAdaptationContent({
+  required List<PackageRepositoryDocPackage> packages,
+}) {
+  final package = packages.single;
+  final badge = _latestReleaseBadgeMarkdown(package);
+  final lines = <String>[
+    '## FlutterOH adaptation',
+    '',
+    ?badge,
+    if (badge != null) '',
+    'This branch maintains the FlutterOH adaptation for this package. The original README continues below.',
+    '',
+    '- Metadata: [fluoh.yaml](fluoh.yaml)',
+    '- Maintainer guide: [FLUOH.md](FLUOH.md)',
+    '- Release notes: [FLUOH_CHANGELOG.md](FLUOH_CHANGELOG.md)',
+  ];
+  if (package.packagePath != '.') {
+    lines.add(
+      '- Package path: [${package.packagePath}](${package.packagePath})',
+    );
+  }
+  lines.add('- Validation: `${package.releaseCheckCommand}`');
+  lines.add('');
+  return lines.join('\n');
+}
+
+String? _latestReleaseBadgeMarkdown(PackageRepositoryDocPackage package) {
+  final githubRepository = _githubRepositoryPath(package.repositoryUrl);
+  if (githubRepository == null) {
+    return null;
+  }
+  final badgeUrl =
+      'https://img.shields.io/github/v/tag/$githubRepository'
+      '?label=release&sort=date&filter=${package.name}-*';
+  final tagsUrl = 'https://github.com/$githubRepository/tags';
+  return '[![Latest release]($badgeUrl)]($tagsUrl)';
+}
+
+String? _githubRepositoryPath(String? repositoryUrl) {
+  final value = repositoryUrl?.trim();
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+
+  final scpLike = RegExp(
+    r'^(?:git@)?github\.com:([^/]+)/(.+)$',
+    caseSensitive: false,
+  ).firstMatch(value);
+  if (scpLike != null) {
+    return _normalizedGithubRepositoryPath(
+      owner: scpLike.group(1)!,
+      repository: scpLike.group(2)!,
+    );
+  }
+
+  final uri = Uri.tryParse(value);
+  if (uri == null || uri.host.toLowerCase() != 'github.com') {
+    return null;
+  }
+  final segments = uri.pathSegments
+      .where((segment) => segment.trim().isNotEmpty)
+      .toList(growable: false);
+  if (segments.length < 2) {
+    return null;
+  }
+  return _normalizedGithubRepositoryPath(
+    owner: segments[0],
+    repository: segments[1],
+  );
+}
+
+String? _normalizedGithubRepositoryPath({
+  required String owner,
+  required String repository,
+}) {
+  final normalizedOwner = owner.trim();
+  final normalizedRepository = repository
+      .trim()
+      .replaceFirst(RegExp(r'/+$'), '')
+      .replaceFirst(RegExp(r'\.git$', caseSensitive: false), '');
+  if (normalizedOwner.isEmpty || normalizedRepository.isEmpty) {
+    return null;
+  }
+  return '$normalizedOwner/$normalizedRepository';
 }
 
 /// Writes or updates the generated `FLUOH.md` implementation guide section.
@@ -601,6 +735,7 @@ String markdownAppendSeparator(String content) {
 
 const _implementationGuideSectionId = 'package-implementation-guide';
 const _agentsInstructionsSectionId = 'package-agents-instructions';
+const _readmeAdaptationSectionId = 'package-readme-adaptation';
 
 bool _generatedSectionOwnsFile(String? existing, {required String sectionId}) {
   if (existing == null || existing.trim().isEmpty) {
@@ -637,6 +772,32 @@ String _contentWithGeneratedSection(
   }
 
   return '$existing${markdownAppendSeparator(existing)}$block';
+}
+
+String _contentWithReadmeGeneratedSection(
+  String? existing,
+  String generated, {
+  required String sectionId,
+  required int templateVersion,
+  required String fallbackTitle,
+}) {
+  final block = _generatedSectionBlock(
+    generated,
+    sectionId: sectionId,
+    templateVersion: templateVersion,
+  );
+  if (existing == null || existing.trim().isEmpty) {
+    return '$block\n# $fallbackTitle\n';
+  }
+
+  final content = _contentWithoutGeneratedSection(
+    existing,
+    sectionId: sectionId,
+  );
+  if (content.trim().isEmpty) {
+    return '$block\n# $fallbackTitle\n';
+  }
+  return '$block${content.startsWith('\n') ? '' : '\n'}$content';
 }
 
 String _generatedSectionBlock(

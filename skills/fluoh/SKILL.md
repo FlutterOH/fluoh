@@ -269,7 +269,7 @@ When using `scripts/preflight.py`, route by the returned JSON:
   `project.selectedPackage` is the package requested by the user before running
   package commands.
 - `upgradeChecks`: handle schema and generated-doc upgrade checks before
-  implementation edits. Generated `FLUOH.md` and `AGENTS.md` sections are
+  implementation edits. Generated `README.md`, `FLUOH.md`, and `AGENTS.md` sections are
   tool-owned; do not edit inside `fluoh:generated` blocks by hand.
 - Use `project.packages[].examplePlatforms` to decide which Android, iOS, and
   macOS regression checks are relevant.
@@ -489,7 +489,7 @@ to edit, when to fix local environment, and when work can be handed back.
 
 Rules:
 
-- Read generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, and
+- Read generated `README.md`, `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, and
   `fluoh.yaml` before editing.
 - If the user asked for multiple packages, adapt one package branch per
   iteration; do not combine multiple packages into one `fluoh.yaml`.

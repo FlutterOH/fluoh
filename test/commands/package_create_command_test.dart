@@ -166,6 +166,19 @@ void main() {
         isNot(contains('feat(camera): add OHOS platform scaffold')),
       );
       expect(agentsContent, isNot(contains('## Implementation Checklist')));
+      final readme = File('${packageRepository.path}/README.md');
+      expect(readme.existsSync(), isTrue);
+      final readmeContent = readme.readAsStringSync();
+      expect(readmeContent, startsWith('<!-- fluoh:generated:start'));
+      expect(readmeContent, contains('# camera'));
+      _expectReadmeAdaptation(
+        readmeContent,
+        package: const _GuidancePackage(
+          name: 'camera',
+          version: '0.11.0',
+          path: '.',
+        ),
+      );
       final claude = File('${packageRepository.path}/CLAUDE.md');
       expect(claude.existsSync(), isTrue);
       expect(claude.readAsStringSync(), '@AGENTS.md\n');
@@ -207,6 +220,7 @@ void main() {
       expect(status.stdout.toString(), contains('A  CLAUDE.md'));
       expect(status.stdout.toString(), contains('A  FLUOH.md'));
       expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
+      expect(status.stdout.toString(), contains('M  README.md'));
       expect(status.stdout.toString(), contains('A  .gitignore'));
       expect(status.stdout.toString(), contains('A  fluoh.yaml'));
       expect(status.stdout.toString(), isNot(contains('.fvm')));
@@ -223,6 +237,7 @@ void main() {
           'CLAUDE.md',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
+          'README.md',
           '.gitignore',
           'fluoh.yaml',
         ]),
@@ -739,6 +754,7 @@ fluoh.yaml
           'CLAUDE.md',
           'FLUOH.md',
           'FLUOH_CHANGELOG.md',
+          'README.md',
           '.gitignore',
           'fluoh.yaml',
         ]),
@@ -1031,7 +1047,12 @@ Keep the public Dart API stable.
 
 Prefer the upstream release workflow.
 ''');
-    await runGit(upstream, ['add', 'AGENTS.md', 'CLAUDE.md']);
+    await File('${upstream.path}/README.md').writeAsString('''
+# camera
+
+Original upstream README body.
+''');
+    await runGit(upstream, ['add', 'AGENTS.md', 'CLAUDE.md', 'README.md']);
     await runGit(upstream, ['commit', '-m', 'Add upstream agent notes']);
     final packageRepository = Directory(
       '${environment.homeDirectory.path}/package_existing_agents',
@@ -1084,9 +1105,24 @@ Prefer the upstream release workflow.
     ).readAsStringSync();
     expect(claudeContent, startsWith('@AGENTS.md\n\n# Upstream Claude Notes'));
     expect(claudeContent, contains('Prefer the upstream release workflow.'));
+    final readmeContent = File(
+      '${packageRepository.path}/README.md',
+    ).readAsStringSync();
+    expect(readmeContent, startsWith('<!-- fluoh:generated:start'));
+    expect(readmeContent, contains('# camera'));
+    _expectReadmeAdaptation(
+      readmeContent,
+      package: const _GuidancePackage(
+        name: 'camera',
+        version: '0.11.0',
+        path: '.',
+      ),
+    );
+    expect(readmeContent, contains('Original upstream README body.'));
     final status = await runGit(packageRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('M  AGENTS.md'));
     expect(status.stdout.toString(), contains('M  CLAUDE.md'));
+    expect(status.stdout.toString(), contains('M  README.md'));
     final mainAgents = await runGit(packageRepository, [
       'show',
       'main:AGENTS.md',
@@ -1102,6 +1138,14 @@ Prefer the upstream release workflow.
     expect(
       mainClaude.stdout.toString(),
       '# Upstream Claude Notes\n\nPrefer the upstream release workflow.\n',
+    );
+    final mainReadme = await runGit(packageRepository, [
+      'show',
+      'main:README.md',
+    ]);
+    expect(
+      mainReadme.stdout.toString(),
+      '# camera\n\nOriginal upstream README body.\n',
     );
     expect(stderr, isEmpty);
   });
@@ -1724,6 +1768,10 @@ Prefer the upstream release workflow.
     ).readAsStringSync();
     _expectAgentsInstructions(agents, packages: packages);
     expect(agents, isNot(contains('Upstream branch at creation')));
+    final readme = File(
+      '${packageRepository.path}/README.md',
+    ).readAsStringSync();
+    _expectReadmeAdaptation(readme, package: packages.single);
     final changelog = File(
       '${packageRepository.path}/FLUOH_CHANGELOG.md',
     ).readAsStringSync();
@@ -1733,6 +1781,7 @@ Prefer the upstream release workflow.
     expect(status.stdout.toString(), contains('A  AGENTS.md'));
     expect(status.stdout.toString(), contains('A  FLUOH.md'));
     expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
+    expect(status.stdout.toString(), contains('M  README.md'));
     expect(
       stdout.join('\n'),
       contains('Created package branch ohos/3.35/share_plus'),
@@ -2397,9 +2446,44 @@ class _GuidancePackage {
       ? 'fluoh package release'
       : 'fluoh package release --package $name';
 
+  String get releaseCheckCommand => path == '.'
+      ? 'fluoh package check'
+      : 'fluoh package check --package $name';
+
   String get versionCommand => path == '.'
       ? 'fluoh package version'
       : 'fluoh package version --package $name';
+}
+
+void _expectReadmeAdaptation(
+  String content, {
+  required _GuidancePackage package,
+}) {
+  _expectContainsAll(content, [
+    '<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->',
+    'This section is generated by fluoh. Do not edit inside this block',
+    '## FlutterOH adaptation',
+    '[![Latest release](https://img.shields.io/github/v/tag/FlutterOH/',
+    '?label=release&sort=date&filter=${package.name}-*)](https://github.com/FlutterOH/',
+    'This branch maintains the FlutterOH adaptation for this package.',
+    'The original README continues below.',
+    '- Metadata: [fluoh.yaml](fluoh.yaml)',
+    '- Maintainer guide: [FLUOH.md](FLUOH.md)',
+    '- Release notes: [FLUOH_CHANGELOG.md](FLUOH_CHANGELOG.md)',
+    '- Validation: `${package.releaseCheckCommand}`',
+    '<!-- fluoh:generated:end id=package-readme-adaptation -->',
+  ]);
+  if (package.path == '.') {
+    expect(content, isNot(contains('- Package path:')));
+  } else {
+    expect(
+      content,
+      contains('- Package path: [${package.path}](${package.path})'),
+    );
+  }
+  expect(content, isNot(contains(package.version)));
+  expect(content, isNot(contains('3.35.8-ohos')));
+  expect(content, isNot(contains('0.1.0')));
 }
 
 void _expectImplementationGuide(
