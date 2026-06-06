@@ -795,6 +795,10 @@ No interaction required: fixture package has no device-side interaction flow.
 
 - No diagnostics remain.
 
+## Fluoh Feedback
+
+No fluoh feedback: diagnostics were actionable and no tool or Source gap was found.
+
 ## Signing
 
 - Mode: automatic debug signing
@@ -808,7 +812,7 @@ No interaction required: fixture package has no device-side interaction flow.
 ## Local State
 
 - Git status summary: clean
-- Files intentionally left uncommitted: .fluoh/ai-report-camera.md
+- Files intentionally left uncommitted: .fluoh/reports/camera/ai-report-camera.md
 - Files that must not be committed: local AI reports and device logs
 
 ## Release Decision

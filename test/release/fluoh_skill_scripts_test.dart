@@ -6,9 +6,11 @@ import 'package:test/test.dart';
 void main() {
   const preflightScript = 'skills/fluoh/scripts/preflight.py';
   const reportScript = 'skills/fluoh/scripts/new_report.py';
+  const summaryScript = 'skills/fluoh/scripts/new_summary.py';
   const checkReportScript = 'skills/fluoh/scripts/check_report.py';
   const scenarioScript = 'skills/fluoh/scripts/new_scenario.py';
   const inspectSessionScript = 'skills/fluoh/scripts/inspect_session.py';
+  const collectFeedbackScript = 'skills/fluoh/scripts/collect_feedback.py';
 
   Future<Directory> createTempRoot() {
     return Directory.systemTemp.createTemp('fluoh_skill_script_');
@@ -138,7 +140,7 @@ sdk:
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/ai-report-...md'),
+          contains('.fluoh/reports/example_app/ai-report-...md'),
           contains('Record deps, doctor, build, and run command results'),
           contains('State ready, blocked, or needs maintainer decision'),
         ]),
@@ -148,12 +150,20 @@ sdk:
         'python3 <skill-dir>/scripts/new_report.py . --scope example_app',
       );
       expect(
+        report['summaryCommand'],
+        'python3 <skill-dir>/scripts/new_summary.py . --scope example_app',
+      );
+      expect(
         report['scenarioCommand'],
         'python3 <skill-dir>/scripts/new_scenario.py . --scope example_app --app --platform <platform> --name <scenario-name>',
       );
       expect(
         report['reportCheckCommand'],
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
+      );
+      expect(
+        report['feedbackCommand'],
+        'python3 <skill-dir>/scripts/collect_feedback.py <trace-dir-or-manifest>',
       );
       expect(
         report['sessionInspectCommand'],
@@ -185,6 +195,41 @@ dependencies:
 
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 8.8.8');
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight quotes helper command scope values when needed',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(root);
+
+      await File('${root.path}/pubspec.yaml').writeAsString('''
+name: "Example App"
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+
+      final report = await runPreflight(root, fluohCommand: fluoh.path);
+      final project = report['project'] as Map<String, Object?>;
+
+      expect(project['kind'], 'app-project');
+      expect(project['name'], 'Example App');
+      expect(
+        stringList(report['deliveryChecks']),
+        contains(contains('.fluoh/reports/Example-App/ai-report-...md')),
+      );
+      expect(
+        report['reportCommand'],
+        "python3 <skill-dir>/scripts/new_report.py . --scope 'Example App'",
+      );
+      expect(
+        report['scenarioCommand'],
+        "python3 <skill-dir>/scripts/new_scenario.py . --scope 'Example App' --app --platform <platform> --name <scenario-name>",
+      );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -256,6 +301,29 @@ dependencies:
         stringList(report['notes']).single,
         contains('does not look like a Flutter app'),
       );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight accepts FLUOH_BIN for the fluoh executable',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(root);
+
+      final result = await Process.run(
+        'python3',
+        [preflightScript, root.path],
+        environment: {'FLUOH_BIN': fluoh.path},
+      );
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+
+      final report =
+          jsonDecode(result.stdout.toString()) as Map<String, Object?>;
+      final fluohResult = report['fluoh'] as Map<String, Object?>;
+      expect(fluohResult['ok'], isTrue);
+      expect(fluohResult['stdout'], 'fluoh 9.9.9');
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -334,6 +402,11 @@ dependencies:
       expect(
         report['reportCommand'],
         'python3 <skill-dir>/scripts/new_report.py ../camera_ohos '
+        '--scope camera --package camera',
+      );
+      expect(
+        report['summaryCommand'],
+        'python3 <skill-dir>/scripts/new_summary.py ../camera_ohos '
         '--scope camera --package camera',
       );
       expect(
@@ -423,7 +496,7 @@ package:
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/ai-report-camera-...md'),
+          contains('.fluoh/reports/camera/ai-report-camera-...md'),
           contains('Record verify, status, and package check results'),
           contains('Review public API compatibility'),
         ]),
@@ -431,6 +504,10 @@ package:
       expect(
         report['reportCommand'],
         'python3 <skill-dir>/scripts/new_report.py . --scope camera --package camera',
+      );
+      expect(
+        report['summaryCommand'],
+        'python3 <skill-dir>/scripts/new_summary.py . --scope camera --package camera',
       );
       expect(
         report['scenarioCommand'],
@@ -731,7 +808,9 @@ package:
       );
       expect(
         stringList(report['deliveryChecks']),
-        contains(contains('.fluoh/ai-report-share_plus-...md')),
+        contains(
+          contains('.fluoh/reports/share_plus/ai-report-share_plus-...md'),
+        ),
       );
       expect(stringList(report['notes']), isEmpty);
       expect(
@@ -882,7 +961,7 @@ package:
       );
       expect(
         stringList(selected['deliveryChecks']),
-        contains(contains('.fluoh/ai-report-<name>-...md')),
+        contains(contains('.fluoh/reports/<name>/ai-report-<name>-...md')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -976,10 +1055,29 @@ sdk:
 
       final first = await createReport();
       final second = await createReport();
+      final defaultResult = await Process.run('python3', [
+        reportScript,
+        root.path,
+        '--scope',
+        'camera plugin',
+        '--package',
+        'camera',
+      ]);
+      expect(
+        defaultResult.exitCode,
+        0,
+        reason: defaultResult.stderr.toString(),
+      );
+      final defaultReport = File(defaultResult.stdout.toString().trim());
 
       expect(first.path, isNot(second.path));
       expect(first.existsSync(), isTrue);
       expect(second.existsSync(), isTrue);
+      expect(defaultReport.existsSync(), isTrue);
+      expect(
+        defaultReport.path,
+        contains('${root.path}/.fluoh/reports/camera/ai-report-camera-plugin-'),
+      );
       expect(
         first.uri.pathSegments.last,
         startsWith('ai-report-camera-plugin-'),
@@ -992,10 +1090,63 @@ sdk:
       expect(content, contains('- Recommendation: ready'));
       expect(content, contains('## Delivery Checklist'));
       expect(content, contains('## Interaction Evidence'));
+      expect(content, contains('## Fluoh Feedback'));
       expect(content, contains('Diff reviewed'));
       expect(content, contains('OHOS build evidence recorded'));
       expect(content, contains('Functional interaction evidence recorded'));
       expect(content, contains('Release recommendation: ready'));
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'new_summary creates monorepo summary reports and never overwrites',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      await File('${root.path}/fluoh.yaml').writeAsString('''
+schema: 1
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+''');
+
+      Future<File> createSummary() async {
+        final result = await Process.run('python3', [
+          summaryScript,
+          root.path,
+          '--scope',
+          'flutter packages',
+          '--package',
+          'camera',
+          '--package',
+          'share_plus',
+        ]);
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        return File(result.stdout.toString().trim());
+      }
+
+      final first = await createSummary();
+      final second = await createSummary();
+
+      expect(first.path, isNot(second.path));
+      expect(first.existsSync(), isTrue);
+      expect(second.existsSync(), isTrue);
+      expect(
+        first.path,
+        contains(
+          '${root.path}/.fluoh/reports/flutter-packages/summary-flutter-packages-',
+        ),
+      );
+      final content = await first.readAsString();
+      expect(content, contains('# fluoh Monorepo Summary'));
+      expect(content, contains('- Scope: flutter packages'));
+      expect(content, contains('- Packages: camera, share_plus'));
+      expect(content, contains('| camera |'));
+      expect(content, contains('| share_plus |'));
+      expect(content, contains('## Package Matrix'));
+      expect(content, contains('## Fluoh Feedback'));
+      expect(content, contains('Keep the latest upstream target'));
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -1012,6 +1163,71 @@ sdk:
   version: 3.35.8-ohos-0.0.3
 ''');
       final outputRoot = Directory('${root.path}/scenarios');
+
+      final defaultScenarioResult = await Process.run('python3', [
+        scenarioScript,
+        root.path,
+        '--scope',
+        'camera',
+        '--package',
+        'camera',
+        '--platform',
+        'ohos',
+        '--name',
+        'capture permission',
+      ]);
+      expect(
+        defaultScenarioResult.exitCode,
+        0,
+        reason: defaultScenarioResult.stderr.toString(),
+      );
+      final defaultScenario = File(
+        defaultScenarioResult.stdout.toString().trim(),
+      );
+      expect(defaultScenario.existsSync(), isTrue);
+      expect(
+        defaultScenario.path,
+        endsWith('/.fluoh/scenarios/camera/ohos-capture-permission.md'),
+      );
+
+      final androidScenarioResult = await Process.run('python3', [
+        scenarioScript,
+        root.path,
+        '--scope',
+        'camera',
+        '--package',
+        'camera',
+        '--platform',
+        'android',
+        '--name',
+        'capture permission',
+      ]);
+      expect(
+        androidScenarioResult.exitCode,
+        0,
+        reason: androidScenarioResult.stderr.toString(),
+      );
+      final androidScenario = File(
+        androidScenarioResult.stdout.toString().trim(),
+      );
+      expect(androidScenario.existsSync(), isTrue);
+      expect(
+        androidScenario.path,
+        endsWith('/.fluoh/scenarios/camera/android-capture-permission.md'),
+      );
+      final androidContent = await androidScenario.readAsString();
+      expect(
+        androidContent,
+        contains(
+          '- Session file command, when supported: fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json',
+        ),
+      );
+      expect(
+        androidContent,
+        contains(
+          '- Session inspect command, when supported: python3 <skill-dir>/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 30 --expect-platform android',
+        ),
+      );
 
       Future<File> createScenario() async {
         final result = await Process.run('python3', [
@@ -1056,7 +1272,84 @@ sdk:
         content,
         contains('fluoh run --platform ohos --package camera --json'),
       );
+      expect(
+        content,
+        contains('- Session file command, when supported: not supported'),
+      );
       expect(content, contains('## Failure Routing'));
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'collect_feedback summarizes trace feedback candidates',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final traceDir = Directory('${root.path}/.fluoh/traces/camera-session');
+      await traceDir.create(recursive: true);
+      final manifest = File('${traceDir.path}/trace.json');
+      final candidate = {
+        'id': 'F001',
+        'owner': 'fluoh-cli',
+        'category': 'diagnostic-gap',
+        'severity': 'warning',
+        'diagnosticCode': 'command.failed',
+        'suggestedChange': 'Replace command.failed with a stable code.',
+      };
+      await manifest.writeAsString(
+        jsonEncode({
+          'schema': 1,
+          'kind': 'fluoh.trace',
+          'id': 'camera-session',
+          'invocations': [
+            {
+              'command': 'verify',
+              'commandLine':
+                  'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera-session',
+              'feedbackCandidates': [candidate, candidate],
+            },
+            {
+              'command': 'build',
+              'commandLine':
+                  'fluoh build --platform ohos --package camera --json --trace-dir .fluoh/traces/camera-session',
+              'feedbackCandidates': [
+                {
+                  'id': 'F002',
+                  'owner': 'fluoh-cli',
+                  'category': 'diagnostic-gap',
+                  'severity': 'warning',
+                  'diagnosticCode': 'ohos.hap_build_failed',
+                  'suggestedChange':
+                      'Add a targeted nextCommand for OHOS build failures.',
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+      final result = await Process.run('python3', [
+        collectFeedbackScript,
+        traceDir.path,
+      ]);
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      final report =
+          jsonDecode(result.stdout.toString()) as Map<String, Object?>;
+      expect(report, containsPair('schema', 1));
+      expect(report, containsPair('ok', true));
+      expect(report, containsPair('feedbackCount', 2));
+      final traces = report['traces'] as List<Object?>;
+      expect(traces.single, containsPair('invocations', 2));
+      final markdown = report['markdown'] as String;
+      expect(markdown, contains('| F001 | fluoh-cli | diagnostic-gap |'));
+      expect(markdown, contains('Replace command.failed'));
+      expect(markdown, contains('Add a targeted nextCommand'));
+      final feedback = report['feedback'] as List<Object?>;
+      expect(feedback.map((item) => (item as Map<String, Object?>)['id']), [
+        'F001',
+        'F002',
+      ]);
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -1234,9 +1527,9 @@ package:
 - Target requirement: emulator
 - Required local tools: Android emulator, Flutter VM Service
 - Observation mode: flutter-debug | semantics-tree | log-marker
-- Related command: fluoh run --platform android --package camera --session-file .fluoh/run-session-android.json --json
-- Session file command, when supported: fluoh run --platform android --package camera --session-file .fluoh/run-session-android.json --json
-- Session inspect command, when supported: python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-session-android.json --wait 30 --expect-platform android --require-vm-service
+- Related command: fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json
+- Session file command, when supported: fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json
+- Session inspect command, when supported: python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 30 --expect-platform android --require-vm-service
 
 ## Preconditions
 
@@ -1281,7 +1574,9 @@ package:
 - Release impact: ready
 ''');
 
-      final sessionFile = File('${root.path}/.fluoh/run-session-android.json');
+      final sessionFile = File(
+        '${root.path}/.fluoh/run-sessions/camera/android-session.json',
+      );
       await sessionFile.parent.create(recursive: true);
       await sessionFile.writeAsString(
         jsonEncode({
@@ -1367,8 +1662,8 @@ package:
 | `python3 skills/fluoh/scripts/preflight.py ${root.path} --package camera` | 0 | passed | package repository detected, camera selected |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, and tests passed in simulated evidence |
 | `fluoh run --platform ohos --package camera --json` | 0 | passed | HAP built, signed, installed, launched, and hilog checked |
-| `fluoh run --platform android --package camera --session-file .fluoh/run-session-android.json --json` | 0 | passed | launch detected and session file written |
-| `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-session-android.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
+| `fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
+| `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
 | `fluoh package check --package camera --json` | 0 | passed | release metadata validated |
 
 ## Delivery Checklist
@@ -1400,6 +1695,10 @@ package:
 ## Diagnostics
 
 - No unresolved diagnostic remains. Android session recommendation: ${inspectJson['recommendation']}.
+
+## Fluoh Feedback
+
+No fluoh feedback: diagnostics were actionable and no tool or Source gap was found.
 
 ## Signing
 
@@ -1515,6 +1814,17 @@ sdk:
           .replaceAll(
             '| `...` | integration_test \\| AI-assisted \\| manual | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |',
             '| camera preview | AI-assisted | OHOS | emulator-5554 | passed | tapped capture and observed success text |',
+          )
+          .replaceAll(
+            '''
+Replace this section with either `No fluoh feedback: <reason>` or concrete
+feedback rows from `collect_feedback.py`. If JSON contains `traceError`, record
+the local trace-evidence issue here.
+
+| ID | Owner | Category | Evidence | Proposed fluoh change | Status |
+| --- | --- | --- | --- | --- | --- |
+''',
+            'No fluoh feedback: diagnostics were actionable and no tool or Source gap was found.\n',
           )
           .replaceAll(
             'Reason:\n',
@@ -1641,6 +1951,128 @@ sdk:
   );
 
   test(
+    'check_report requires completed fluoh feedback evidence',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final report = File('${root.path}/report.md');
+      const defaultFeedback = '''
+Replace this section with either `No fluoh feedback: <reason>` or concrete
+feedback rows from `collect_feedback.py`. If JSON contains `traceError`, record
+the local trace-evidence issue here.
+
+| ID | Owner | Category | Evidence | Proposed fluoh change | Status |
+| --- | --- | --- | --- | --- | --- |
+''';
+      await report.writeAsString('''
+# fluoh AI Report
+
+## Summary
+
+- Complete.
+
+## Changes
+
+- Complete.
+
+## Public API / Compatibility
+
+- Public Dart API changes: none
+- Dependency constraint changes: none
+- Non-OHOS regression risk: none
+
+## Commands
+
+| Command | Exit | Result | Notes |
+| --- | --- | --- | --- |
+| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |
+| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |
+
+## Delivery Checklist
+
+- [x] Diff reviewed.
+
+## Platform Matrix
+
+| Platform | Build | Run | Integration test | Target | Evidence / blocker |
+| --- | --- | --- | --- | --- | --- |
+| OHOS | passed | skipped | absent | host | signed build evidence |
+
+## Interaction Evidence
+
+No interaction required: pure Dart package exposes no device-side flow.
+
+## Diagnostics
+
+- None.
+
+## Fluoh Feedback
+
+$defaultFeedback
+## Signing
+
+- Mode: automatic debug signing
+- Generated HAPs: camera-ohos-debug.hap
+- Hilog: none
+
+## Remaining Risks
+
+- None.
+
+## Local State
+
+- Git status summary: clean
+- Files intentionally left uncommitted: report.md
+- Files that must not be committed: none
+
+## Release Decision
+
+Release recommendation: ready
+
+Reason:
+Ready.
+''');
+
+      final missingFeedback = await Process.run('python3', [
+        checkReportScript,
+        report.path,
+      ]);
+      expect(missingFeedback.exitCode, 1);
+      final missingJson =
+          jsonDecode(missingFeedback.stdout.toString()) as Map<String, Object?>;
+      expect(
+        missingJson['errors'],
+        contains(
+          "Fluoh Feedback must include a concrete row or 'No fluoh feedback: <reason>'.",
+        ),
+      );
+
+      await report.writeAsString(
+        (await report.readAsString()).replaceFirst(defaultFeedback, '''
+| ID | Owner | Category | Evidence | Proposed fluoh change | Status |
+| --- | --- | --- | --- | --- | --- |
+| F001 | fluoh-cli | diagnostic-gap | trace-1, verify, command.failed | Replace command.failed with a stable code. | queued |
+'''),
+      );
+      final accepted = await Process.run('python3', [
+        checkReportScript,
+        report.path,
+      ]);
+      expect(accepted.exitCode, 0, reason: accepted.stdout.toString());
+      final acceptedJson =
+          jsonDecode(accepted.stdout.toString()) as Map<String, Object?>;
+      expect(acceptedJson, containsPair('ok', true));
+      expect(acceptedJson, containsPair('feedbackRows', 1));
+      expect(acceptedJson, containsPair('openFeedbackRows', 1));
+      expect(
+        acceptedJson['warnings'],
+        contains('Fluoh Feedback includes queued or open tool follow-ups.'),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
     'check_report requires a concrete no-interaction reason',
     () async {
       final root = await createTempRoot();
@@ -1687,6 +2119,10 @@ Use `No interaction required: <reason>` only when no device-side flow applies.
 ## Diagnostics
 
 - None.
+
+## Fluoh Feedback
+
+No fluoh feedback: diagnostics were actionable and no tool or Source gap was found.
 
 ## Signing
 

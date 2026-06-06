@@ -805,7 +805,7 @@ packages:
 
       expect(content, contains('url: "file:/tmp/camera#adaptation"'));
       expect(
-        parsed.package.maintenance!.reason,
+        parsed.package.maintenance!.note,
         'Use upstream: native # available',
       );
       expect(

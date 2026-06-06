@@ -8,6 +8,7 @@ import 'package_add_command.dart';
 import 'package_create_command.dart';
 import 'package_docs_command.dart';
 import 'package_list_command.dart';
+import 'package_queue_command.dart';
 import 'package_release_command.dart';
 import 'package_status_command.dart';
 import 'package_sync_command.dart';
@@ -45,6 +46,13 @@ class PackageCommand extends FluohCommand<int> {
         environment: environment,
         stdout: stdout,
         stderr: stderr,
+        output: _output,
+      ),
+    );
+    addSubcommand(
+      PackageQueueCommand(
+        environment: environment,
+        stdout: stdout,
         output: _output,
       ),
     );
@@ -141,6 +149,7 @@ const _packageCommandSections = [
   CommandUsageSection('Package repositories:', [
     'create',
     'add',
+    'queue',
     'sync',
     'status',
     'version',

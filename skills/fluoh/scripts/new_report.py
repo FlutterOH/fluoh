@@ -142,6 +142,11 @@ def unique_report_path(output_root: Path, name: str) -> Path:
     raise RuntimeError(f"Could not create a unique report path for {name}")
 
 
+def default_output_root(root: Path, scope: str, package: str) -> Path:
+    group = slug(package or scope)
+    return root / ".fluoh" / "reports" / group
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Create a .fluoh AI adaptation report.",
@@ -164,7 +169,7 @@ def main() -> int:
     parser.add_argument(
         "--output-root",
         default="",
-        help="Report directory. Defaults to <path>/.fluoh",
+        help="Report directory. Defaults to <path>/.fluoh/reports/<scope>.",
     )
     parser.add_argument(
         "--template",
@@ -189,7 +194,11 @@ def main() -> int:
     output_root = (
         Path(args.output_root).expanduser().resolve()
         if args.output_root
-        else root / ".fluoh"
+        else default_output_root(
+            root,
+            args.scope or args.package or root.name,
+            args.package,
+        )
     )
     scope = args.scope or args.package or root.name
     timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")

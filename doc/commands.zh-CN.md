@@ -22,7 +22,7 @@ AI 驱动适配是主要端到端链路。内置的 `skills/fluoh` 工作流会�
 先让 AI agent 安装 skill：
 
 ```text
-从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill。
+从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill。
 ```
 
 然后用一句话把任务交给 AI agent：
@@ -63,7 +63,8 @@ force-push、破坏性 Git 命令等需要单独批准的操作。只有用户�
 
 skill 版本跟随 `fluoh` CLI Package 版本。用 `fluoh upgrade` 更新 CLI 后，内置
 skill 文件也会更新；已复制 skill 的 AI agent 应重新运行 `fluoh skill --json`，
-再覆盖安装或重载返回的路径。AI agent 完成前会写入带交付清单的 `.fluoh/ai-report-...md`。
+再覆盖安装或重载返回的路径。AI agent 完成前会写入带交付清单的
+`.fluoh/reports/<scope>/ai-report-...md`。
 完成后 review diff、报告和只能在设备上验证的行为，再决定是否发布。
 
 ### 手动让 App 项目支持 OHOS
@@ -121,6 +122,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | 从已配置 source 列出 FlutterOH Package。 |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH Package 仓库。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中创建另一个 Package 适配分支。 |
+| `fluoh package queue <package-path>...` | `lib/src/package/commands/package_queue_command.dart` | 为 monorepo 解析只读多 Package 适配队列。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把选中的 upstream Package release 合入当前 OHOS Package 分支。 |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 Package 发布就绪状态。 |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | 更新 Package 发布版本元数据。 |
@@ -159,6 +161,12 @@ fluoh run --platform ohos --device <id>
   Dart launcher 可能在命令进程启动前输出依赖解析文本。严格机器解析优先使用
   native/Homebrew 可执行文件；Dart pub global shim 会调用 `dart pub global run`，
   只有在当前环境确认 stdout 直接以 JSON 对象开始时才把它用于 JSON 自动化。
+- `verify`、`build` 和 `run` 可以用 `--trace` 或 `--trace-dir <path>` 写入本地
+  AI diagnostic trace manifest。Trace 是本地证据包，不是 verbose stdout；和
+  `--json` 一起使用时，JSON 对象只增加包含 trace id、目录和 `trace.json` manifest
+  路径的 `trace` 引用。trace 写入失败时，workflow 结果和退出码仍以底层命令为准，
+  JSON 对象会包含 `traceError`。多条命令复用同一个 `--trace-dir` 时，会在同一个
+  session manifest 中追加多次 invocation。
 - 命令类只负责参数解析和用户可见输出；可复用行为放到
   `lib/src/sdk/`、`lib/src/deps/`、`lib/src/package/` 和 `lib/src/source/`
   等领域 helper 中。
@@ -432,10 +440,10 @@ Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 a
 生成的 agent 指令也会要求 AI 在维护者要求本地提交时，按已完成且已验证的 checkpoint
 拆分小的本地 commit。
 不传 `--package-path` 时，命令只选择 upstream 仓库根目录 Package，不表示适配 monorepo
-中的全部 Package。适配 monorepo 时，为当前要创建的 Package 分支传一个
-`--package-path <subdir>`。要在同一仓库继续适配另一个 Package，从生成仓库中运行
-`fluoh package add <package-path>`；它会基于该 Package 选中的 release/ref 创建独立
-Package 分支。默认情况下，package create/add 会选择所选 Package 最新有效 upstream release
+中的全部 Package。适配 monorepo 时，为 upstream 仓库创建一份 FlutterOH 适配仓库，不要为每个
+Package 分别建仓；为当前要创建的 Package 分支传一个 `--package-path <subdir>`。要在同一仓库继续适配
+另一个 Package，从生成仓库中运行 `fluoh package add <package-path>`；它会在保留原 monorepo 布局的同时，
+基于该 Package 选中的 release/ref 创建独立 Package 分支。默认情况下，package create/add 会选择所选 Package 最新有效 upstream release
 tag；需要指定 Package 版本时传 `--upstream-version`，只有 release tags 无法识别目标快照时才用
 `--upstream-ref`。传入显式 target 时，所选 Package path 会在该 target 上解析；即使 upstream
 default branch 已经移动或删除历史 Package path，也仍可适配该历史版本。
@@ -448,20 +456,36 @@ Package path 且遗漏 `--repository-name` 时，usage error 会根据 path 给�
 `status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括
 `--package-path`、`--upstream-version`、`--upstream-ref`、`--output`、
 `--repository-name`、`--sdk`、`--repository`、`--git-author-name`、`--git-author-email`、
-`--plan` 和 `--json`。Git 作者参数只配置新仓库
+`--org`、`--plan` 和 `--json`。Git 作者参数只配置新仓库
 本地 Git `user.name` 和 `user.email`，供后续适配 commit 使用，不写入被跟踪文件。
-`--plan` 会把 upstream clone 到临时目录，解析所选 Package、SDK、输出路径、repository
+`--org` 用于覆盖给已有 example 新增 OHOS 平台时传给 `flutter create` 的 organization；
+不传时，fluoh 会从现有 Android、iOS 或 macOS example 元数据中推断。`--plan` 会把 upstream clone 到临时目录，解析所选 Package、SDK、输出路径、repository
 URL、目标分支和 Git author，然后删除临时 clone；它不会创建目标仓库、配置 SDK link、
 写文件、stage 文件或 commit。`--json` 只支持和 `--plan` 一起使用，并输出一个机器可读
-plan 对象，供 AI setup 确认使用。
+plan 对象，供 AI setup 确认使用。plan 对象包含 `warnings[]`；AI setup 在创建仓库前必须
+检查它。例如 `package.dart_sdk_incompatible` 会报告所选 upstream Package 需要更高 Dart
+SDK，并在可用时给出当前 SDK 兼容的最新 upstream tag，作为诊断参考。默认策略是保留所选
+upstream target，把 package pubspec、example 配置和 Dart 代码适配到当前选择的 FlutterOH
+SDK，然后重新 verify。已知当前 Dart SDK 版本时，JSON warning 会包含
+`policy.suggestedEnvironmentSdkConstraint`。只有维护者明确批准旧 upstream baseline 时，才能使用
+较旧 tag。
+
+`fluoh package queue <package-path>... --json` 会在现有 FlutterOH Package 仓库中解析只读
+多 Package 队列。它会拉取 upstream refs，但保持当前分支不变，并为每个 Package 输出名称、
+路径、选中的 upstream 目标、目标 `ohos/<sdkLine>/<package>` 分支、该分支是否已存在、
+SDK/Dart 兼容性预警，以及下一条 `fluoh package add` 或 `package status` 命令。适配同一个
+upstream monorepo 的多个 Package 前，先用它排队，然后一次完成一个 Package 分支 checkpoint。
 
 `fluoh package add <package-path>` 在现有 FlutterOH Package 仓库中创建另一个 Package 分支。
 它要求工作树干净，基于同步后的 upstream 分支解析目标 Package，切到选中的 release/ref
 commit，创建 `ohos/<sdkLine>/<package>`，写入单 Package `fluoh.yaml` 和文档，在已有
 Flutter example 时准备 example，并暂存生成文件。它支持 `--upstream-version` 和
-`--upstream-ref`，选择规则和 package create 相同。如果目标 Package 分支已经存在，命令会提示
-维护者切到已有分支，用 `fluoh package status` 查看现有适配，或用 `fluoh package sync` 更新它，
-而不是创建重复适配状态。命令失败时会通过文件快照保护本地状态。
+`--upstream-ref`，选择规则和 package create 相同；也支持 `--org` 覆盖传给 `flutter create`
+的 example organization。`--plan --json` 会在不 checkout、不写项目文件、且不要求工作树干净的
+情况下解析 add 计划；计划里的 `warnings[]` 使用和 package create 相同的保留最新 upstream
+目标的 SDK 兼容性策略。如果目标 Package 分支已经存在，命令会提示维护者切到已有分支，
+用 `fluoh package status` 查看现有适配，或用 `fluoh package sync` 更新它，而不是创建重复适配状态。
+命令失败时会通过文件快照保护本地状态。
 
 `fluoh package sync` 会拉取 upstream 分支和 tags，快进 Package `upstream.git.branch` 记录的
 upstream 分支，从 `--upstream-version`、`--upstream-ref` 或最新有效 release tag 解析 Package
@@ -486,7 +510,13 @@ JSON diagnostic 会包含裁剪后的 stdout 和 stderr 尾部。
 在 Package 仓库中，如果存在顶层 Flutter example（`example/pubspec.yaml`），也会验证
 example。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支。
 `--json` 会在 `targets` 下输出每个项目或 Package 的目标身份、phase、steps、diagnostics 和
-`nextCommand`。
+`nextCommand`。使用 `--trace` 会在 `.fluoh/traces/` 下写入本地 AI diagnostic trace；
+选择到单个 Package 时默认按 `.fluoh/traces/<package>/` 分组，使用 `--trace-dir <path>`
+可以指定 trace 目录。JSON 模式仍只向 stdout 输出一个对象，并只在对象里加入本地 manifest
+的 `trace` 引用；trace 无法写入时则加入 `traceError`。当目标位于 Git 工作树中时，还会输出
+`dirtyAfterVerify` 和 `workingTreeChanges`，方便 AI 发现 `pub get` 留下的生成文件或 lockfile
+变化并在提交前复核。一个适配循环内复用同一个 `--trace-dir` 可以把多条命令追加到同一个
+session。
 
 `fluoh build --platform ohos|android|ios|macos` 构建当前 Flutter 项目或所选 Package example。iOS
 构建会自动加入 `--no-codesign`。OHOS 构建可用 `--auto-sign` 根据项目或 example 申请的权限
@@ -494,7 +524,8 @@ example。使用 `--package <name>` 可校验请求的 Package 名是否匹配�
 如果 Hvigor 签名失败但 Flutter 留下了新的 unsigned HAP，`fluoh` 会直接签这个 HAP，并在 JSON
 中报告 `signingMode: direct-sign-fallback` 和可安装 HAP 路径。JSON 失败会对当前项目和
 Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_failed`、
-`android.apk_build_failed`、`ios.build_failed` 和 `macos.build_failed`。
+`android.apk_build_failed`、`ios.build_failed` 和 `macos.build_failed`。`--trace` 和
+`--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
 
 `fluoh run --platform ohos|android|ios|macos` 会构建、安装、启动并诊断当前项目或所选 Package
 example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
@@ -514,8 +545,8 @@ Android、iOS 和 macOS 当前项目 run 也会使用同一套 Flutter device �
 run-smoke 成功只表示 App 已启动。需要点击 UI、处理权限弹窗、选择文件、调用相机、定位、
 播放媒体、deep link 或外部 App 的 Package 流程，必须有功能场景证据：优先用平台 runner 支持的
 `integration_test/`，否则用 AI 在 emulator 或真机上执行交互。没有写成 `integration_test`
-的流程，把场景记录到 `.fluoh/scenarios/<package>-<platform>-<name>.md`；AI driver 按场景操作
-目标设备或 UI 工具，并把步骤结果写入 `.fluoh/ai-report-...md`。OHOS 的 `fluoh run` 目前会构建、
+的流程，把场景记录到 `.fluoh/scenarios/<package>/<platform>-<name>.md`；AI driver 按场景操作
+目标设备或 UI 工具，并把步骤结果写入 `.fluoh/reports/<scope>/ai-report-...md`。OHOS 的 `fluoh run` 目前会构建、
 签名、安装、启动并采集 hilog，但不会自动遍历 example 页面或点击按钮；需要记录已验证的功能路径、
 预期结果、实际结果、设备 id、可用的 Flutter debug 或 VM service 输出、组件树状态、语义树或
 accessibility 输出、文本/日志证据，以及可选截图。AI 辅助验证不能依赖识图能力，也不应要求知道
@@ -530,6 +561,7 @@ AI 辅助场景文件使用内置 `skills/fluoh/references/interaction-scenario-
 
 当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed` 等平台 diagnostic；
 Package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
+`--trace` 和 `--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
 
 `fluoh package version` 更新 `fluoh.yaml` 中当前 Package 的发布元数据。
 用 `--bump patch|minor|major` 递增 FlutterOH 适配 Package 版本，用
@@ -552,7 +584,7 @@ tag。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前
 `--json` 会输出 tag、warning、认证状态和验证结果。Check 默认不要求设备或 AI report
 证据；没有提供认证报告时只输出非阻断 warning。需要 AI/CI 认证交付时，传
 `--report <path>` 或 `--certification-report <path>` 强制检查已完成的
-`.fluoh/ai-report-...md`。认证报告必须是 `ready`，完成所有交付 checklist，包含通过的
+`.fluoh/reports/<scope>/ai-report-...md`。认证报告必须是 `ready`，完成所有交付 checklist，包含通过的
 `fluoh verify` 证据，包含通过的 OHOS build 或 run 证据，并包含通过的交互证据或明确的
 `No interaction required: <reason>`。当 CI 或 AI 交接必须证明真机或模拟器上的 OHOS run 已通过，
 而不是只有 build-only 证据时，再加 `--require-ohos-run`。

@@ -1395,11 +1395,12 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
   }
 
   final currentPackage = existing.package;
-  if (currentPackage.maintenance?.status == 'frozen') {
+  final maintenance = currentPackage.maintenance;
+  if (maintenance != null && maintenance.frozen) {
     return _SourceManifestUpdate(
       manifest: existing,
       skippedFrozen: true,
-      frozenReason: currentPackage.maintenance!.reason,
+      frozenReason: maintenance.note,
     );
   }
   final release = SourceManifestRelease(

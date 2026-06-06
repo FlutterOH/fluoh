@@ -1940,8 +1940,8 @@ String _advisoryMaintenanceFingerprint(SourceManifest manifest) {
   final advisory = package.advisory;
   return [
     package.name,
-    maintenance?.status ?? '',
-    maintenance?.reason ?? '',
+    if (maintenance == null) '' else maintenance.frozen ? 'frozen' : 'active',
+    maintenance?.note ?? '',
     advisory?.message ?? '',
     if (advisory != null)
       for (final alternative in advisory.alternatives)

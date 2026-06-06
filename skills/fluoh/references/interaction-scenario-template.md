@@ -1,6 +1,6 @@
 # fluoh Interaction Scenario
 
-Use this template for `.fluoh/scenarios/<package-or-app>-<platform>-<name>.md`
+Use this template for `.fluoh/scenarios/<package-or-app>/<platform>-<name>.md`
 when a device-side functional flow cannot be fully covered by `integration_test/`.
 The goal is functional correctness, not visual appearance, unless the package
 is specifically visual.

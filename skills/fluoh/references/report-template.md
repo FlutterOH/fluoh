@@ -57,7 +57,7 @@ Use `No interaction required: <reason>` only when the package has no
 device-side interaction flow such as permission, picker, camera, location,
 media, deep link, external app, or host-specific behavior.
 Otherwise include at least one concrete row. Scenario notes should live under
-`.fluoh/scenarios/`.
+`.fluoh/scenarios/<package-or-scope>/`.
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
@@ -66,6 +66,15 @@ Otherwise include at least one concrete row. Scenario notes should live under
 ## Diagnostics
 
 - ...
+
+## Fluoh Feedback
+
+Replace this section with either `No fluoh feedback: <reason>` or concrete
+feedback rows from `collect_feedback.py`. If JSON contains `traceError`, record
+the local trace-evidence issue here.
+
+| ID | Owner | Category | Evidence | Proposed fluoh change | Status |
+| --- | --- | --- | --- | --- | --- |
 
 ## Signing
 

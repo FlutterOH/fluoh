@@ -235,6 +235,9 @@ void main() {
     final newReport = File(
       'skills/fluoh/scripts/new_report.py',
     ).readAsStringSync();
+    final newSummary = File(
+      'skills/fluoh/scripts/new_summary.py',
+    ).readAsStringSync();
     final checkReport = File(
       'skills/fluoh/scripts/check_report.py',
     ).readAsStringSync();
@@ -314,6 +317,7 @@ void main() {
     expect(skill, contains('references/interaction-scenario-template.md'));
     expect(skill, contains('scripts/preflight.py'));
     expect(skill, contains('scripts/new_report.py'));
+    expect(skill, contains('scripts/new_summary.py'));
     expect(skill, contains('scripts/check_report.py'));
     expect(skill, contains('scripts/new_scenario.py'));
     expect(skill, contains('scripts/inspect_session.py'));
@@ -349,6 +353,10 @@ void main() {
     expect(reportTemplate, contains('flutterRunSession/VM Service evidence'));
     expect(reportTemplate, contains('screenshots optional'));
 
+    expect(newSummary, contains('fluoh Monorepo Summary'));
+    expect(newSummary, contains('Package Matrix'));
+    expect(newSummary, contains('.fluoh/reports'));
+
     expect(scenarioTemplate, contains('# fluoh Interaction Scenario'));
     expect(scenarioTemplate, contains('## Preconditions'));
     expect(scenarioTemplate, contains('## Scenario'));
@@ -374,6 +382,7 @@ void main() {
       'finalCheckCommands',
       'deliveryChecks',
       'reportCommand',
+      'summaryCommand',
       'sessionInspectCommand',
       'scenarioCommand',
       'pathIsDirectory',
@@ -390,6 +399,13 @@ void main() {
       'report-template.md',
       'unique_report_path',
       'Release recommendation',
+    ]);
+    expectContainsAll(newSummary, [
+      '.fluoh',
+      'summary-',
+      'Package Matrix',
+      'Fluoh Feedback',
+      '--package',
     ]);
     expectContainsAll(newScenario, [
       '.fluoh',
@@ -422,7 +438,7 @@ void main() {
     ]);
   });
 
-  test('documents Dart and Homebrew installation paths in both languages', () {
+  test('documents public README entry points in both languages', () {
     final readme = File('README.md').readAsStringSync();
     final chineseReadme = File('README.zh-CN.md').readAsStringSync();
     final readmeHero = File(
@@ -439,36 +455,36 @@ void main() {
     expectContainsAll(readme, [
       'href="README.zh-CN.md">简体中文',
       'href="skills/fluoh/SKILL.md">Skill',
+      'href="doc/commands.md">Commands',
+      'href="doc/schema.md">Schema',
+      'href="CONTRIBUTING.md">Contributing',
       'AI%20skill-skills%2Ffluoh',
       'diagnostics-JSON',
       'Adapt Flutter apps and packages to OHOS with AI.',
       'fluoh AI adaptation prompt preview',
       '## Quick Start',
-      'dart pub global activate fluoh',
-      'brew tap FlutterOH/tap',
-      'brew install fluoh',
-      'skills/fluoh',
-      'fluoh skill --json',
-      'returned localPath',
-      'fluoh upgrade',
-      'read-only setup checks',
-      'asks for final setup confirmation',
-      'package changes',
-      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
+      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills.',
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
-      'The skill checks `fluoh --version`',
-      '.fluoh/ai-report-...md',
+      'fluoh skill --json',
+      'returned localPath',
+      'fluoh upgrade',
+      '.fluoh/reports/<scope>/ai-report-...md',
       '## Manual Fallback',
+      'dart pub global activate fluoh',
+      'brew tap FlutterOH/tap',
+      'brew install fluoh',
       'fluoh sdk use 3.35 --pub-get',
       'fluoh deps check',
       'fluoh deps fix',
       'fluoh doctor -p --platform ohos',
       'fluoh build --platform ohos --auto-sign',
-      'For package maintainers',
-      'fluoh package create <upstream-git-url>',
-      '--repository-name <flutteroh-repo-name>',
+      'For package maintainers:',
+      'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
+      'fluoh package queue',
+      'fluoh package add',
+      'ohos/<sdkLine>/<package>',
       'fluoh verify',
       'fluoh package status',
       'fluohf pub get',
@@ -497,35 +513,36 @@ void main() {
     expectContainsAll(chineseReadme, [
       'href="README.md">English',
       'href="skills/fluoh/SKILL.md">Skill',
+      'href="doc/commands.zh-CN.md">命令',
+      'href="doc/schema.zh-CN.md">Schema',
+      'href="CONTRIBUTING.zh-CN.md">贡献指南',
       'AI%20skill-skills%2Ffluoh',
       'diagnostics-JSON',
       '用 AI 将 Flutter App 和 Package 适配到 OHOS',
       'fluoh AI 适配提示预览',
       '## 快速开始',
-      'dart pub global activate fluoh',
-      'brew tap FlutterOH/tap',
-      'brew install fluoh',
-      'skills/fluoh',
-      'fluoh skill --json',
-      '返回的 localPath',
-      'fluoh upgrade',
-      '只读 setup 检查',
-      '最终 setup 确认',
-      '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill。',
+      '从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill。',
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。',
       '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',
-      'skill 会先检查 `fluoh --version`',
-      '.fluoh/ai-report-...md',
+      'fluoh skill --json',
+      '返回的 localPath',
+      'fluoh upgrade',
+      '.fluoh/reports/<scope>/ai-report-...md',
       '## 手动兜底',
+      'dart pub global activate fluoh',
+      'brew tap FlutterOH/tap',
+      'brew install fluoh',
       'fluoh sdk use 3.35 --pub-get',
       'fluoh deps check',
       'fluoh deps fix',
       'fluoh doctor -p --platform ohos',
       'fluoh build --platform ohos --auto-sign',
       'Package 维护者可以用',
-      'fluoh package create <upstream-git-url>',
-      '--repository-name <flutteroh-repo-name>',
+      'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
+      'fluoh package queue',
+      'fluoh package add',
+      'ohos/<sdkLine>/<package>',
       'fluoh verify',
       'fluoh package status',
       'fluohf pub get',
@@ -710,7 +727,7 @@ void main() {
       'paths for reports',
       'dart pub global activate fluoh',
       'fluoh upgrade',
-      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
+      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills.',
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
@@ -775,7 +792,7 @@ void main() {
       'nextCommand',
       'diagnostics',
       'fluoh doctor -p --json --strict',
-      '.fluoh/ai-report',
+      '.fluoh/reports',
       'fluoh doctor',
       'fluoh package check',
       'fluoh package release',
@@ -806,7 +823,7 @@ void main() {
       '路径',
       'dart pub global activate fluoh',
       'fluoh upgrade',
-      '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill。',
+      '从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill。',
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 按 SDK 3.35 适配为 FlutterOH Package。',
       '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',
@@ -870,7 +887,7 @@ void main() {
       'nextCommand',
       'diagnostics',
       'fluoh doctor -p --json --strict',
-      '.fluoh/ai-report',
+      '.fluoh/reports',
       'fluoh doctor',
       'fluoh package check',
       'fluoh package release',

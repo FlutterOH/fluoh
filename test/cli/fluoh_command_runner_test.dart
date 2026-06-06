@@ -67,8 +67,10 @@ void main() {
     expect(output, contains('Local path'));
     expect(output, contains('skills/fluoh'));
     expect(output, contains('Scripts preflight.py, new_report.py'));
+    expect(output, contains('new_summary.py'));
     expect(output, contains('new_scenario.py'));
     expect(output, contains('inspect_session.py'));
+    expect(output, contains('collect_feedback.py'));
     expect(output, contains('References report-template.md'));
     expect(output, contains('interaction-scenario-template.md'));
     expect(
@@ -174,8 +176,10 @@ void main() {
       containsAll([
         'preflight',
         'newReport',
+        'newSummary',
         'newScenario',
         'inspectSession',
+        'collectFeedback',
         'checkReport',
       ]),
     );
@@ -194,6 +198,12 @@ void main() {
     );
     expect(newReport['argv'], isNot(contains('--root')));
     expect(newReport['argv'], isNot(contains('--type')));
+    final newSummary = scripts['newSummary'] as Map<String, Object?>;
+    expect(newSummary['relativePath'], 'scripts/new_summary.py');
+    expect(
+      newSummary['argv'],
+      containsAllInOrder(['python3', contains('new_summary.py'), '--scope']),
+    );
     final newScenario = scripts['newScenario'] as Map<String, Object?>;
     expect(newScenario['relativePath'], 'scripts/new_scenario.py');
     expect(
@@ -222,6 +232,16 @@ void main() {
         '30',
         '--expect-platform',
         '<platform>',
+      ]),
+    );
+    final collectFeedback = scripts['collectFeedback'] as Map<String, Object?>;
+    expect(collectFeedback['relativePath'], 'scripts/collect_feedback.py');
+    expect(
+      collectFeedback['argv'],
+      containsAllInOrder([
+        'python3',
+        contains('collect_feedback.py'),
+        '<trace-dir-or-manifest>',
       ]),
     );
     final checkReport = scripts['checkReport'] as Map<String, Object?>;
@@ -308,6 +328,15 @@ dependencies:
     final reportPath = newReport.stdout.toString().trim();
     expect(await io.File(reportPath).exists(), isTrue);
 
+    final newSummary = await _runAdvertisedScript(
+      scripts,
+      'newSummary',
+      replacements: {'<workspace>': workspace.path, '<scope>': 'fixture_app'},
+    );
+    expect(newSummary.exitCode, 0, reason: newSummary.stderr.toString());
+    final summaryPath = newSummary.stdout.toString().trim();
+    expect(await io.File(summaryPath).exists(), isTrue);
+
     final newScenario = await _runAdvertisedScript(
       scripts,
       'newScenario',
@@ -365,6 +394,47 @@ dependencies:
         jsonDecode(inspectSession.stdout.toString()) as Map<String, Object?>;
     expect(sessionJson, containsPair('ok', true));
     expect(sessionJson, containsPair('recommendation', 'attach-vm-service'));
+
+    final traceDir = io.Directory('${workspace.path}/trace session');
+    await traceDir.create();
+    await io.File('${traceDir.path}/trace.json').writeAsString(
+      jsonEncode({
+        'schema': 1,
+        'kind': 'fluohTrace',
+        'id': 'trace-fixture',
+        'invocations': [
+          {
+            'command': 'verify',
+            'commandLine': 'fluoh verify --json --trace-dir trace session',
+            'feedbackCandidates': [
+              {
+                'id': 'F001',
+                'owner': 'fluoh',
+                'category': 'diagnostic-actionability',
+                'diagnosticCode': 'verify.failed',
+                'suggestedChange': 'Add a targeted verify nextCommand.',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    final collectFeedback = await _runAdvertisedScript(
+      scripts,
+      'collectFeedback',
+      replacements: {'<trace-dir-or-manifest>': traceDir.path},
+    );
+    expect(
+      collectFeedback.exitCode,
+      0,
+      reason: collectFeedback.stderr.toString(),
+    );
+    final feedbackJson =
+        jsonDecode(collectFeedback.stdout.toString()) as Map<String, Object?>;
+    expect(feedbackJson, containsPair('ok', true));
+    expect(feedbackJson, containsPair('feedbackCount', 1));
+    expect(feedbackJson['markdown'], contains('F001'));
+    expect(feedbackJson['markdown'], contains('Add a targeted verify'));
 
     final checkReport = await _runAdvertisedScript(
       scripts,
@@ -839,7 +909,8 @@ dependencies:
     expect(exitCode, 0);
     final help = stdout.join('\n');
     expect(help, contains('    --package=<name>'));
-    expect(help, contains('current package branch.'));
+    expect(help, contains('current package'));
+    expect(help, contains('branch.'));
     expect(help.split('\n').where((line) => line.length > 80), isEmpty);
     expect(stderr, isEmpty);
   });

@@ -23,10 +23,10 @@ void main() {
       '${environment.homeDirectory.path}/sources.lock.json',
     ).writeAsString('{}\n');
     await Directory(
-      '${environment.workingDirectory.path}/.fluoh',
+      '${environment.workingDirectory.path}/.fluoh/reports/test',
     ).create(recursive: true);
     await File(
-      '${environment.workingDirectory.path}/.fluoh/ai-report-test.md',
+      '${environment.workingDirectory.path}/.fluoh/reports/test/ai-report-test.md',
     ).writeAsString('report');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -60,7 +60,7 @@ void main() {
     expect(await environment.sourcesLockFile.exists(), isTrue);
     expect(
       await File(
-        '${environment.workingDirectory.path}/.fluoh/ai-report-test.md',
+        '${environment.workingDirectory.path}/.fluoh/reports/test/ai-report-test.md',
       ).exists(),
       isTrue,
     );

@@ -50,6 +50,7 @@ Future<PackageExampleSetupResult> preparePackageExample({
   required OutputWriter stderr,
   required TerminalOutput output,
   Directory? sdkDirectory,
+  String? flutterCreateOrg,
 }) async {
   final packageRoot = packageDirectory(repository, package.path);
   final example = Directory('${packageRoot.path}/example');
@@ -80,9 +81,20 @@ Future<PackageExampleSetupResult> preparePackageExample({
       output.step(
         'Adding OHOS platform to ${_relativePath(repository, example)}',
       );
+      final createOrg =
+          flutterCreateOrg ?? await _inferFlutterCreateOrg(example);
+      if (createOrg != null) {
+        output.info('Using organization $createOrg for OHOS platform');
+      }
       final result = await runSelectedFlutter(
         environment: exampleEnvironment,
-        arguments: const ['create', '--no-pub', '--platforms=ohos', '.'],
+        arguments: [
+          'create',
+          '--no-pub',
+          '--platforms=ohos',
+          if (createOrg != null) ...['--org', createOrg],
+          '.',
+        ],
         workingDirectory: example,
         stdout: stdout,
         stderr: stderr,
@@ -202,6 +214,133 @@ bool _containsSdkFlutter(Object? section, String packageName) {
   }
   final dependency = section[packageName];
   return dependency is Map<String, Object?> && dependency['sdk'] == 'flutter';
+}
+
+Future<String?> _inferFlutterCreateOrg(Directory example) async {
+  final pubspec = File('${example.path}/pubspec.yaml');
+  final projectName = await pubspec.exists()
+      ? _pubspecProjectName(await pubspec.readAsString())
+      : null;
+  final orgs = <String>{};
+  await _collectAndroidOrganizations(example, projectName, orgs);
+  await _collectAppleOrganizations(example, projectName, orgs);
+  if (orgs.isEmpty) {
+    return null;
+  }
+  final sorted = orgs.toList()
+    ..sort((a, b) {
+      final rankCompare = _organizationRank(a).compareTo(_organizationRank(b));
+      if (rankCompare != 0) {
+        return rankCompare;
+      }
+      return a.compareTo(b);
+    });
+  return sorted.first;
+}
+
+String? _pubspecProjectName(String content) {
+  final yaml = parseYamlMap(content, label: 'pubspec.yaml');
+  final name = yaml['name'];
+  return name is String && name.trim().isNotEmpty ? name.trim() : null;
+}
+
+Future<void> _collectAndroidOrganizations(
+  Directory example,
+  String? projectName,
+  Set<String> orgs,
+) async {
+  for (final path in const [
+    'android/app/build.gradle',
+    'android/app/build.gradle.kts',
+    'android/app/src/main/AndroidManifest.xml',
+  ]) {
+    final file = File('${example.path}/$path');
+    if (!await file.exists()) {
+      continue;
+    }
+    final content = await file.readAsString();
+    for (final match in RegExp(
+      r"""(?:namespace|applicationId)\s*(?:=)?\s*['"]([^'"]+)['"]""",
+    ).allMatches(content)) {
+      _addOrganization(orgs, match.group(1), projectName);
+    }
+    for (final match in RegExp(
+      r"""\bpackage\s*=\s*['"]([^'"]+)['"]""",
+    ).allMatches(content)) {
+      _addOrganization(orgs, match.group(1), projectName);
+    }
+  }
+}
+
+Future<void> _collectAppleOrganizations(
+  Directory example,
+  String? projectName,
+  Set<String> orgs,
+) async {
+  for (final path in const [
+    'ios/Runner.xcodeproj/project.pbxproj',
+    'macos/Runner.xcodeproj/project.pbxproj',
+  ]) {
+    final file = File('${example.path}/$path');
+    if (!await file.exists()) {
+      continue;
+    }
+    final content = await file.readAsString();
+    for (final match in RegExp(
+      r'PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;\s]+)',
+    ).allMatches(content)) {
+      _addOrganization(orgs, match.group(1), projectName);
+    }
+  }
+}
+
+void _addOrganization(Set<String> orgs, String? applicationId, String? name) {
+  if (applicationId == null) {
+    return;
+  }
+  final org = _organizationFromApplicationId(applicationId, name);
+  if (org != null && _isValidFlutterCreateOrg(org)) {
+    orgs.add(org);
+  }
+}
+
+String? _organizationFromApplicationId(String raw, String? projectName) {
+  final value = raw.trim().replaceAll(r'$(PRODUCT_BUNDLE_IDENTIFIER)', '');
+  final parts = value.split('.').where((part) => part.isNotEmpty).toList();
+  if (parts.length < 2) {
+    return null;
+  }
+  if (projectName != null && projectName.isNotEmpty) {
+    final normalizedName = _normalizeIdentifier(projectName);
+    final last = _normalizeIdentifier(parts.last);
+    if (last == normalizedName ||
+        last.endsWith(normalizedName) ||
+        normalizedName.endsWith(last)) {
+      final org = parts.take(parts.length - 1).join('.');
+      return org.isEmpty ? null : org;
+    }
+  }
+  return parts.length > 2 ? parts.take(parts.length - 1).join('.') : null;
+}
+
+String _normalizeIdentifier(String value) {
+  return value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toLowerCase();
+}
+
+bool _isValidFlutterCreateOrg(String value) {
+  return RegExp(
+    r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$',
+  ).hasMatch(value);
+}
+
+int _organizationRank(String value) {
+  if (value == 'dev.flutter' || value.startsWith('dev.flutter.')) {
+    return 0;
+  }
+  if (value == 'io.flutter' || value.startsWith('io.flutter.')) {
+    return 1;
+  }
+  return 2;
 }
 
 Future<void> _ensureExampleGitIgnore(Directory example) async {

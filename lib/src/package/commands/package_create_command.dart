@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:pub_semver/pub_semver.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
@@ -17,6 +16,7 @@ import '../manifest/pubspec_package.dart';
 import '../license_checker.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
+import '../package_sdk_compatibility.dart';
 import '../repository_url.dart';
 import '../upstream_package_ref.dart';
 
@@ -69,6 +69,13 @@ class PackageCreateCommand extends FluohCommand<int> {
         'sdk',
         valueHelp: 'version-or-series',
         help: 'Flutter OHOS SDK version or version series.',
+      )
+      ..addOption(
+        'org',
+        valueHelp: 'organization',
+        help:
+            'Organization passed to flutter create when adding OHOS to the '
+            'example. Omit it to infer from existing example platforms.',
       )
       ..addOption(
         'repository',
@@ -151,6 +158,7 @@ class PackageCreateCommand extends FluohCommand<int> {
     final upstreamTarget = _upstreamTargetFromOptions();
     final packageRepositoryName = _packageRepositoryNameFromOptions();
     final gitAuthor = _gitAuthorConfigFromOptions();
+    final flutterCreateOrg = _flutterCreateOrgFromOptions();
     final repositoryOption = argResults!.option('repository');
     if (!json) {
       _output.step('Resolving Flutter OHOS SDK');
@@ -174,6 +182,7 @@ class PackageCreateCommand extends FluohCommand<int> {
         repositoryOption: repositoryOption,
         upstreamTarget: upstreamTarget,
         gitAuthor: gitAuthor,
+        flutterCreateOrg: flutterCreateOrg,
         release: release,
         destination: destination,
         json: json,
@@ -323,6 +332,7 @@ class PackageCreateCommand extends FluohCommand<int> {
         stdout: _stdout,
         stderr: _stderr,
         output: _output,
+        flutterCreateOrg: flutterCreateOrg,
       );
       if (!preparedExample.prepared && preparedExample.reason != null) {
         _output.skipped(
@@ -437,6 +447,17 @@ class PackageCreateCommand extends FluohCommand<int> {
     );
   }
 
+  String? _flutterCreateOrgFromOptions() {
+    final org = argResults!.option('org')?.trim();
+    if (org == null) {
+      return null;
+    }
+    if (org.isEmpty) {
+      usageException('--org must not be empty.');
+    }
+    return org;
+  }
+
   void _ensureSinglePackagePathOption() {
     final occurrences = argResults!.arguments.where((argument) {
       return argument == '--package-path' ||
@@ -504,6 +525,7 @@ extension on PackageCreateCommand {
     required String? repositoryOption,
     required PackageUpstreamTarget upstreamTarget,
     required PackageGitAuthor? gitAuthor,
+    required String? flutterCreateOrg,
     required SdkRelease release,
     required Directory destination,
     required bool json,
@@ -536,6 +558,19 @@ extension on PackageCreateCommand {
         sdkVersion: release.tag,
         packageName: selected.package.name,
       );
+      final compatibilityWarnings = await packageSdkCompatibilityWarnings(
+        repository: scratchRepository,
+        selectedPackages: selectedPackages
+            .map(
+              (selected) => SelectedPackageForSdkCompatibility(
+                package: selected.package,
+                path: selected.path,
+                upstreamRef: selected.upstreamRef,
+              ),
+            )
+            .toList(),
+        sdkDirectory: SdkManager(environment).sdkDirectory(release.tag),
+      );
       final plan = _PackageCreatePlan(
         upstream: upstream,
         upstreamBranch: upstreamBranch,
@@ -551,6 +586,8 @@ extension on PackageCreateCommand {
         upstreamCommit: selected.upstreamCommit!,
         branch: branch,
         gitAuthor: gitAuthor,
+        flutterCreateOrg: flutterCreateOrg,
+        warnings: compatibilityWarnings,
       );
       if (json) {
         writeMachineOutput(
@@ -586,6 +623,15 @@ extension on PackageCreateCommand {
     } else {
       _output.info('Git author: not configured by this command');
     }
+    _output.info(
+      plan.flutterCreateOrg == null
+          ? 'Flutter create org: infer from example platforms'
+          : 'Flutter create org: ${plan.flutterCreateOrg}',
+    );
+    for (final warning in plan.warnings) {
+      _output.warning(warning.message);
+      _output.next(warning.nextStep);
+    }
     _output.next('Run without --plan after confirming these values');
   }
 }
@@ -606,6 +652,8 @@ class _PackageCreatePlan {
     required this.upstreamCommit,
     required this.branch,
     required this.gitAuthor,
+    required this.flutterCreateOrg,
+    required this.warnings,
   });
 
   final String upstream;
@@ -622,6 +670,8 @@ class _PackageCreatePlan {
   final String upstreamCommit;
   final String branch;
   final PackageGitAuthor? gitAuthor;
+  final String? flutterCreateOrg;
+  final List<PackageSdkCompatibilityWarning> warnings;
 
   Map<String, Object?> toJson() {
     return {
@@ -649,6 +699,8 @@ class _PackageCreatePlan {
       'gitAuthor': gitAuthor == null
           ? null
           : {'name': gitAuthor!.name, 'email': gitAuthor!.email},
+      'flutterCreateOrg': flutterCreateOrg,
+      'warnings': warnings.map((warning) => warning.toJson()).toList(),
       'willRun': [
         'git clone <upstream> <outputPath>',
         'configure origin remote',
@@ -815,79 +867,22 @@ Future<void> _warnForSelectedPackageSdkCompatibility({
   required Directory sdkDirectory,
   required TerminalOutput output,
 }) async {
-  final dartVersion = await _dartVersionForSdk(sdkDirectory);
-  if (dartVersion == null) {
-    return;
-  }
-  for (final selected in selectedPackages) {
-    final constraint = _dartSdkConstraint(selected.package);
-    if (constraint == null || constraint.allows(dartVersion)) {
-      continue;
-    }
-    final refs = await packageReleaseRefs(
-      repository: repository,
-      packageName: selected.package.name,
-      packagePath: selected.path,
-    );
-    PackageReleaseRef? compatibleRef;
-    for (final candidate in refs.reversed) {
-      final candidateConstraint = _dartSdkConstraint(candidate.package);
-      if (candidateConstraint == null ||
-          candidateConstraint.allows(dartVersion)) {
-        compatibleRef = candidate;
-        break;
-      }
-    }
-    final selectedRef = selected.upstreamRef ?? selected.package.version;
-    output.warning(
-      'Selected upstream $selectedRef for ${selected.package.name} requires '
-      'Dart ${selected.package.sdkConstraint}, but the selected Flutter OHOS '
-      'SDK provides Dart $dartVersion.',
-    );
-    if (compatibleRef != null && compatibleRef.ref != selected.upstreamRef) {
-      output.next(
-        'Latest compatible upstream tag: ${compatibleRef.ref} '
-        '(${compatibleRef.package.version}). fluoh keeps the latest selected '
-        'target; use this only if maintainers choose an older baseline.',
-      );
-    } else {
-      output.next(
-        'Keep adapting the selected upstream target, or choose another '
-        'Flutter OHOS SDK that satisfies Dart ${selected.package.sdkConstraint}.',
-      );
-    }
-  }
-}
-
-VersionConstraint? _dartSdkConstraint(PubspecPackage package) {
-  final constraint = package.sdkConstraint?.trim();
-  if (constraint == null || constraint.isEmpty) {
-    return null;
-  }
-  try {
-    return VersionConstraint.parse(constraint);
-  } on FormatException {
-    return null;
-  }
-}
-
-Future<Version?> _dartVersionForSdk(Directory sdkDirectory) async {
-  final dart = File('${sdkDirectory.path}/bin/dart');
-  if (!await dart.exists()) {
-    return null;
-  }
-  final result = await Process.run(dart.path, const ['--version']);
-  final output = '${result.stdout}\n${result.stderr}';
-  final match = RegExp(
-    r'Dart SDK version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
-  ).firstMatch(output);
-  if (match == null) {
-    return null;
-  }
-  try {
-    return Version.parse(match.group(1)!);
-  } on FormatException {
-    return null;
+  final warnings = await packageSdkCompatibilityWarnings(
+    repository: repository,
+    selectedPackages: selectedPackages
+        .map(
+          (selected) => SelectedPackageForSdkCompatibility(
+            package: selected.package,
+            path: selected.path,
+            upstreamRef: selected.upstreamRef,
+          ),
+        )
+        .toList(),
+    sdkDirectory: sdkDirectory,
+  );
+  for (final warning in warnings) {
+    output.warning(warning.message);
+    output.next(warning.nextStep);
   }
 }
 

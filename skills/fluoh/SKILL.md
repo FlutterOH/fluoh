@@ -21,21 +21,37 @@ standard library and do not replace the `fluoh --json` diagnostic contract.
   prints one JSON object with the installed `fluoh --version` result, workspace
   kind, Git state, package branch metadata, package example platforms, selected
   package, selected SDK, upgrade checks, suggested next commands, and
-  `reportCommand`. It is read-only.
+  `reportCommand` and `summaryCommand`. It is read-only. Use
+  `--fluoh-command <path>` or
+  `FLUOH_BIN=<path>` when the agent must validate a local fluoh checkout instead
+  of the `fluoh` found on `PATH`.
 - Report skeleton:
   `python3 <skill-dir>/scripts/new_report.py <project-path> --scope <scope>
   [--package <name>] [--recommendation ready|needs-maintainer-decision|blocked]`
-  creates `.fluoh/ai-report-<scope>-YYYYMMDD-HHMMSS.md` from
+  creates `.fluoh/reports/<package-or-scope>/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` from
   `references/report-template.md`. Fill the generated report with actual command
   evidence before the final response.
+- Monorepo summary skeleton:
+  `python3 <skill-dir>/scripts/new_summary.py <project-path> --scope <scope>
+  [--package <name>]...` creates
+  `.fluoh/reports/<scope>/summary-<scope>-YYYYMMDD-HHMMSS.md` with a package
+  matrix, command evidence table, repository state, Fluoh Feedback, and next
+  actions. Use it alongside per-package reports for multi-package monorepos.
 - Report check:
   `python3 <skill-dir>/scripts/check_report.py <report-path>` prints JSON and
   fails when a report is missing required sections, command evidence, delivery
-  checklist state, or still contains placeholders.
+  checklist state, concrete Fluoh Feedback content, or still contains
+  placeholders.
+- Feedback collection:
+  `python3 <skill-dir>/scripts/collect_feedback.py <trace-dir-or-manifest>`
+  prints one JSON object with trace summaries, deduplicated feedback candidates,
+  and a Markdown table fragment for the report's `Fluoh Feedback` section.
 - Scenario skeleton:
   `python3 <skill-dir>/scripts/new_scenario.py <project-path> --platform <platform>
   --name <scenario-name> [--package <name>] [--app]` creates a local
-  `.fluoh/scenarios/...md` scenario from the bundled interaction template.
+  `.fluoh/scenarios/<package-or-scope>/...md` scenario from the bundled
+  interaction template, including platform run and supported session-inspection
+  command hints.
 - Session inspector:
   `python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30
   --expect-platform <platform> [--require-vm-service]` reads a live
@@ -44,7 +60,7 @@ standard library and do not replace the `fluoh --json` diagnostic contract.
   machine-readable recommendation.
 - Interaction scenario template:
   copy `references/interaction-scenario-template.md` to
-  `.fluoh/scenarios/<package-or-app>-<platform>-<name>.md` when a UI or device
+  `.fluoh/scenarios/<package-or-app>/<platform>-<name>.md` when a UI or device
   capability flow needs device-side functional verification.
 
 ## AI-Driven Default Flow
@@ -65,7 +81,8 @@ Then:
 3. For package adaptation, resolve setup values before any mutating package
    command or implementation edit: the FlutterOH package repository name,
    `repository` URL or path, `git-author-name`, `git-author-email`, SDK line,
-   package selection, upstream target when specified, and output path.
+   package selection, upstream target when specified, output path, and any
+   explicitly required `flutter create --org` value.
    `fluoh package create` always requires `--repository-name`; for a single
    selected monorepo package, the CLI can suggest a path-based candidate when
    `--repository-name` is missing, but the agent must still pass an explicit
@@ -79,14 +96,29 @@ Then:
    Record the resolved values in progress output and the report. Prefer
    `fluoh package create <upstream> --repository-name <repository-name> --plan
    --json` to generate the final setup confirmation payload before any writes.
+   Inspect `plan.warnings[]` before creating the repository; for
+   `package.dart_sdk_incompatible`, keep the selected latest upstream target by
+   default and adapt the package to the selected FlutterOH SDK. Start by
+   adjusting `pubspec.yaml` `environment.sdk` and example config only when the
+   code can support the selected Dart version, then replace newer Dart
+   language, SDK API, or dependency usage until `fluoh verify` passes. Use
+   `policy.suggestedEnvironmentSdkConstraint` when present as the first
+   pubspec constraint candidate. Treat `latestCompatible` as informational
+   only; do not pass it with `--upstream-version` unless the maintainer
+   explicitly approves an older upstream baseline.
+   For example OHOS scaffolding, omit `--org` by default so fluoh can infer the
+   organization from existing Android, iOS, or macOS example metadata; pass
+   `--org <organization>` only when the user, upstream docs, or a previous
+   failed run identifies the required organization.
 4. After CLI setup and read-only preflight, before making project, package, or
    Source file changes, local Git configuration changes, checkpoint commits, or
    implementation edits, present a final setup confirmation and wait for explicit user approval.
    The confirmation must list the adaptation kind,
    working directory, output directory when applicable, SDK version or line,
    package name and path when applicable, FlutterOH repository URL or path, Git
-   author identity when commits may be created, the mutating commands or file
-   edits that will run, and operations that will not run without separate
+   author identity when commits may be created, explicit `--org` override when
+   one will be passed, the mutating commands or file edits that will run, and
+   operations that will not run without separate
    approval such as release, push, force-push, or destructive Git commands. You
    may skip this pause only when the user already explicitly approved the same
    resolved setup in the current task.
@@ -106,12 +138,20 @@ Then:
    latest valid release tag after fetching upstream tags. For `sync`, never
    request a lower upstream version; mark the current adaptation `broken`
    instead.
+   If a real run reports ambiguous Flutter example organization, rerun
+   create/add with the organization required by the upstream example or use the
+   fluoh-inferred default when it is printed by the command.
 7. Route to the app or package flow from preflight JSON.
-8. Run `fluoh` commands in JSON mode whenever supported, then inspect
-   `nextCommand`, `diagnostics`, and log tails before editing.
+8. Run `fluoh` commands in JSON mode whenever supported. For `verify`, `build`,
+   and `run`, also pass `--trace-dir
+   .fluoh/traces/<package-or-scope>/<session-id>` for the current adaptation
+   loop when the command supports it. Inspect `nextCommand`, `diagnostics`, trace
+   `feedbackCandidates`, `dirtyAfterVerify`, `workingTreeChanges`, and log
+   tails before editing.
 9. Make the smallest code or project-file changes needed for the next clean
    verification result.
-10. Verify and write the completion report before the final response.
+10. Run feedback collection on the trace session, then verify and write the
+    completion report before the final response.
 
 ## User Request Routing
 
@@ -185,15 +225,27 @@ Then:
    Ask for any missing or contradictory setup value. When values are complete,
    run `fluoh package create <upstream> --repository-name <repository-name>
    --plan --json` with the same resolved options and use that machine-readable
-   plan as the final setup confirmation. Wait for explicit approval before
+   plan as the final setup confirmation. Inspect `plan.warnings[]` before
+   continuing; do not ignore SDK/upstream compatibility warnings just because
+   the plan command succeeded. For SDK warnings, continue by adapting package
+   config and code to the selected FlutterOH SDK after setup is approved. Do
+   not downgrade upstream versions to clear a warning unless the maintainer
+   explicitly approves an older baseline. Wait for explicit approval before
    configuring local Git author, running mutating commands, or editing
    implementation files.
 5. Treat an omitted package path as root-package selection only; it never means
-   "all packages" for monorepos. A Package `fluoh.yaml` describes one package
-   branch. For multiple package requests, build a package queue and finish one
-   package branch checkpoint sequence before moving to the next package. Use
-   `fluoh package create` for the first package branch and `fluoh package add
-   <package-path>` for additional package branches in the same repository.
+   "all packages" for monorepos. For monorepos, preserve one FlutterOH
+   adaptation repository for the upstream repository and adapt multiple packages
+   as separate package branches in that repository. Do not create one adaptation
+   repository per package unless the maintainer explicitly asks for split
+   repositories. A Package `fluoh.yaml` describes one package branch. For
+   multiple package requests, build a read-only package queue with `fluoh
+   package queue <package-path>... --json` and finish one package branch
+   checkpoint sequence before moving to the next package. Use `fluoh package
+   create` for the first package branch and `fluoh package add <package-path>`
+   for additional package branches in the same repository. Use `fluoh package
+   add <package-path> --plan --json` when you need a final read-only plan for
+   one additional package.
    Both commands sync the upstream branch and then select the requested version
    or latest valid release tag for that package. If the package branch already
    exists, check it out and use `fluoh package status` or `fluoh package sync`.
@@ -308,17 +360,17 @@ Use this loop when adapting a package or app to a release-ready state:
 
    ```sh
    fluoh run --platform android --package <name> \
-     --session-file .fluoh/run-session-android.json --json
+     --session-file .fluoh/run-sessions/<name>/android-session.json --json
    python3 <skill-dir>/scripts/inspect_session.py \
-     .fluoh/run-session-android.json --wait 30 \
+     .fluoh/run-sessions/<name>/android-session.json --wait 30 \
      --expect-platform android --require-vm-service
    ```
 
    Use the resulting `vmServiceUri`, output log, widget/component tree,
    semantics tree, stable text, test keys, or log markers as primary evidence.
-5. Fill `.fluoh/ai-report-...md` with the exact commands, exit codes, platform
-   matrix, scenario path, interaction evidence, remaining risks, and release
-   recommendation.
+5. Fill `.fluoh/reports/<package-or-scope>/ai-report-...md` with the exact
+   commands, exit codes, platform matrix, scenario path, interaction evidence,
+   remaining risks, and release recommendation.
 6. Run `python3 <skill-dir>/scripts/check_report.py <report-path>` and do not
    claim `ready` until it passes. If it fails, either collect the missing
    evidence or mark the release decision as blocked or needing a maintainer
@@ -430,15 +482,16 @@ to edit, when to fix local environment, and when work can be handed back.
    setup.
 3. Implementation loop: after meaningful code or metadata changes, rerun
    `fluoh deps get` when dependencies or SDK metadata changed, then use
-   `fluoh verify --package <name> --json` until pub get, analysis, and existing
-   tests pass.
+   `fluoh verify --package <name> --json --trace-dir <trace-dir>` until pub
+   get, analysis, and existing tests pass.
 4. OHOS verification: use
-   `fluoh run --platform ohos --package <name> --json`, or add `--device <id>`
-   for a connected hdc target. This proves build, signing, install, launch, and
-   hilog diagnostics; it does not prove tappable example workflows by itself.
+   `fluoh run --platform ohos --package <name> --json --trace-dir <trace-dir>`,
+   or add `--device <id>` for a connected hdc target. This proves build,
+   signing, install, launch, and hilog diagnostics; it does not prove tappable
+   example workflows by itself.
    If no device is available, use
-   `fluoh build --platform ohos --package <name> --auto-sign --json` as
-   build-only evidence.
+   `fluoh build --platform ohos --package <name> --auto-sign --json --trace-dir
+   <trace-dir>` as build-only evidence.
 5. Existing-platform regression: when `example/android` exists, run
    `fluoh doctor --platform android --json --strict`, then
    `fluoh run --platform android --package <name> --json`. Do the same for iOS
@@ -447,7 +500,7 @@ to edit, when to fix local environment, and when work can be handed back.
    prompts, file pickers, camera, location, media, deep links, or external
    apps, run `integration_test/` when available. When deterministic tests do
    not exist, perform an AI-assisted functional pass on the emulator/device:
-   follow a short scenario in `.fluoh/scenarios/<package>-<platform>-<name>.md`
+   follow a short scenario in `.fluoh/scenarios/<package>/<platform>-<name>.md`
    or write the scenario before running it, interact with the app through the
    available device/browser/computer-use tools, assert results through
    Flutter debug or VM service output when available, widget/component tree
@@ -468,14 +521,15 @@ to edit, when to fix local environment, and when work can be handed back.
    interaction only as a fallback when AI automation cannot operate or observe
    the target.
 7. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
-   `stderrTail`, and saved run logs from JSON output before editing. Fix
-   `doctor` failures in local tooling, project warnings in repository
-   configuration, and verification failures in the code or example that
-   produced the diagnostic. During `fluoh package sync --continue`, keep the
-   target package pubspec version from the selected upstream target; do not
-   resolve conflicts by leaving the previous upstream version in place. If the
-   interrupted sync used a non-tag `--upstream-ref`, pass the same ref again
-   with `--continue` because fluoh cannot infer non-tag refs from `MERGE_HEAD`.
+   `stderrTail`, saved run logs, trace manifest `result`, and trace
+   `feedbackCandidates` before editing. Fix `doctor` failures in local tooling,
+   project warnings in repository configuration, and verification failures in
+   the code or example that produced the diagnostic. During
+   `fluoh package sync --continue`, keep the target package pubspec version from
+   the selected upstream target; do not resolve conflicts by leaving the
+   previous upstream version in place. If the interrupted sync used a non-tag
+   `--upstream-ref`, pass the same ref again with `--continue` because fluoh
+   cannot infer non-tag refs from `MERGE_HEAD`.
 8. Implementation checkpoint: once implementation, OHOS evidence, and applicable
    existing-platform regression checks are clean or explicitly blocked, create a
    local implementation checkpoint commit. This clean worktree is required before
@@ -488,9 +542,12 @@ to edit, when to fix local environment, and when work can be handed back.
    uncommitted before this step.
 10. Final report and release gate: rerun the final
     `fluoh verify --package <name>`, write
-    `.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` with commands,
-    results, platform matrix, interaction evidence, signing mode, logs,
-    remaining risks, and release recommendation, then run
+    `.fluoh/reports/<package-or-scope>/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md`
+    with commands, results, platform matrix, interaction evidence, diagnostics,
+    trace feedback candidates collected with `collect_feedback.py` or an
+    explicit no-feedback
+    statement, signing mode, logs, remaining risks, and release recommendation,
+    then run
     `python3 <skill-dir>/scripts/check_report.py <report-path>`. Because
     `.fluoh/` is local ignored state, the worktree should remain clean for
     `fluoh package check --package <name> --report <report-path>`. Add
@@ -616,8 +673,28 @@ For every `--json` command:
 - Follow top-level or step-level `nextCommand` when present.
 - Route by `diagnostics[].code` and inspect `stdoutTail`, `stderrTail`, and
   saved log paths before changing code.
+- For `verify`, `build`, and `run`, prefer `--trace-dir <trace-dir>` during
+  AI-driven loops. Read the local `trace.json` manifest and classify any
+  `feedbackCandidates` as fluoh CLI, Source data, AI skill, local environment,
+  upstream package, or user project follow-up before final reporting. If JSON
+  includes `traceError`, record it as a local trace-evidence issue without
+  changing the command's pass/fail interpretation. For `verify`, inspect
+  `dirtyAfterVerify` and `workingTreeChanges`; if verification generated files
+  or left the tree dirty, run `git status --short`, review the new files, and
+  record whether they are expected generated artifacts or issues to fix.
+  Prefer the preflight `feedbackCommand` or run
+  `python3 <skill-dir>/scripts/collect_feedback.py <trace-dir-or-manifest>` to
+  deduplicate trace candidates and produce the report table fragment.
 - Treat doctor/toolchain/device diagnostics as local-environment work, not code
   defects.
+- Treat `dart.sdk_constraint_unsatisfied` as a package compatibility task for
+  the selected FlutterOH SDK: keep the latest upstream package version, adjust
+  `pubspec.yaml` `environment.sdk` and example config only when the code can
+  support the selected Dart version, replace newer Dart language, SDK API, or
+  dependency usage, then rerun `fluoh verify --package <name> --json`. Use
+  `details.sdkConstraint.suggestedEnvironmentSdkConstraint` when present as the
+  first pubspec constraint candidate. Do not downgrade upstream unless
+  maintainers explicitly approve an older baseline.
 - Treat `dart.pub_get_failed`, `dart.analysis_failed`, `dart.test_failed`,
   platform build failures, install failures, launch failures, runtime crashes,
   and integration-test failures as code or project issues only after the local
@@ -625,21 +702,28 @@ For every `--json` command:
 
 ## Completion Report
 
-Before the final response, create a local report under `.fluoh/` using:
+Before the final response, create a local report under `.fluoh/reports/` using:
 
 ```text
-.fluoh/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md
+.fluoh/reports/<package-or-scope>/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md
+```
+
+For multi-package monorepos, also create a summary report under:
+
+```text
+.fluoh/reports/<scope>/summary-<scope>-YYYYMMDD-HHMMSS.md
 ```
 
 Use local time and do not commit this file. Prefer
-the preflight `reportCommand` when available, or run
+the preflight `reportCommand` and `summaryCommand` when available, or run
 `python3 <skill-dir>/scripts/new_report.py <project-path> --scope <scope>`;
 otherwise use `references/report-template.md` directly.
 Complete the report with command output summaries, exit codes, changed files,
-platform evidence, interaction evidence, remaining risks, and release
-recommendation. Mark every applicable Delivery Checklist item as done, or leave
-it unchecked and explain the blocker. A ready recommendation requires all
-applicable checklist items to be done.
+platform evidence, interaction evidence, diagnostics, Fluoh Feedback entries
+from `collect_feedback.py` or an explicit `No fluoh feedback: <reason>`
+statement, remaining risks, and release recommendation. Mark every applicable
+Delivery Checklist item as done, or leave it unchecked and explain the blocker.
+A ready recommendation requires all applicable checklist items to be done.
 If no interaction scenario applies, write `No interaction required: <reason>` in
 the report's `Interaction Evidence` section. Otherwise include at least one
 concrete interaction row; `check_report.py` enforces this before final delivery.

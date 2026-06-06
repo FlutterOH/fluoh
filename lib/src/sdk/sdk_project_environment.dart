@@ -6,6 +6,17 @@ import '../context/fluoh_environment.dart';
 import '../schema/schema.dart';
 import 'sdk_manager.dart';
 
+/// Ensures fluoh local state is ignored in [workingDirectory].
+Future<void> ensureFluohLocalStateIgnored(Directory workingDirectory) {
+  return _ensureGitIgnoreEntries(
+    workingDirectory,
+    const _GitIgnoreSection(
+      comment: 'fluoh local state',
+      entries: ['.fluoh/', 'flutter_*.log'],
+    ),
+  );
+}
+
 /// Applies SDK selection state to a Flutter project.
 class SdkProjectEnvironment {
   /// Creates a project SDK environment helper.
@@ -50,12 +61,7 @@ class SdkProjectEnvironment {
     await linkRoot.create(recursive: true);
     final link = Link('${linkRoot.path}/flutter_sdk');
     await _replaceWithLink(link, sdkDirectory);
-    await _ensureGitIgnoreEntries(
-      const _GitIgnoreSection(
-        comment: 'fluoh local state',
-        entries: ['.fluoh/', 'flutter_*.log'],
-      ),
-    );
+    await ensureFluohLocalStateIgnored(environment.workingDirectory);
     return Directory(link.path);
   }
 
@@ -111,37 +117,40 @@ class SdkProjectEnvironment {
     }
     await link.create(target.path);
   }
+}
 
-  Future<void> _ensureGitIgnoreEntries(_GitIgnoreSection section) async {
-    final gitignore = File('${environment.workingDirectory.path}/.gitignore');
-    final block = section.toBlock();
-    if (!await gitignore.exists()) {
-      await gitignore.writeAsString('$block\n');
-      return;
-    }
-
-    final content = await gitignore.readAsString();
-    final existingLines = content
-        .split(RegExp(r'\r?\n'))
-        .map((line) => line.trim())
-        .toSet();
-    final missing = [
-      for (final entry in section.entries)
-        if (!existingLines.contains(entry)) entry,
-    ];
-    if (missing.isEmpty) {
-      return;
-    }
-
-    final separator = content.isEmpty
-        ? ''
-        : content.endsWith('\n')
-        ? '\n'
-        : '\n\n';
-    await gitignore.writeAsString(
-      '$content$separator${section.copyWith(entries: missing).toBlock()}\n',
-    );
+Future<void> _ensureGitIgnoreEntries(
+  Directory workingDirectory,
+  _GitIgnoreSection section,
+) async {
+  final gitignore = File('${workingDirectory.path}/.gitignore');
+  final block = section.toBlock();
+  if (!await gitignore.exists()) {
+    await gitignore.writeAsString('$block\n');
+    return;
   }
+
+  final content = await gitignore.readAsString();
+  final existingLines = content
+      .split(RegExp(r'\r?\n'))
+      .map((line) => line.trim())
+      .toSet();
+  final missing = [
+    for (final entry in section.entries)
+      if (!existingLines.contains(entry)) entry,
+  ];
+  if (missing.isEmpty) {
+    return;
+  }
+
+  final separator = content.isEmpty
+      ? ''
+      : content.endsWith('\n')
+      ? '\n'
+      : '\n\n';
+  await gitignore.writeAsString(
+    '$content$separator${section.copyWith(entries: missing).toBlock()}\n',
+  );
 }
 
 class _GitIgnoreSection {

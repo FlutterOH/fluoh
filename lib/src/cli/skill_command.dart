@@ -54,6 +54,11 @@ const _fluohSkillScripts = {
     ],
     description: 'Create a structured AI delivery report.',
   ),
+  'newSummary': _FluohSkillScript(
+    relativePath: 'scripts/new_summary.py',
+    arguments: ['<workspace>', '--scope', '<scope>'],
+    description: 'Create a monorepo package adaptation summary report.',
+  ),
   'newScenario': _FluohSkillScript(
     relativePath: 'scripts/new_scenario.py',
     arguments: [
@@ -78,6 +83,12 @@ const _fluohSkillScripts = {
       '<platform>',
     ],
     description: 'Inspect a live Flutter debug session JSON file.',
+  ),
+  'collectFeedback': _FluohSkillScript(
+    relativePath: 'scripts/collect_feedback.py',
+    arguments: ['<trace-dir-or-manifest>'],
+    description:
+        'Collect trace feedback candidates for the Fluoh Feedback report section.',
   ),
   'checkReport': _FluohSkillScript(
     relativePath: 'scripts/check_report.py',
@@ -171,7 +182,8 @@ class SkillCommand extends FluohCommand<int> {
       _output.write('${style.label('Local path')} ${location.localPath}');
       _output.write(
         '${style.label('Scripts')} preflight.py, new_report.py, '
-        'new_scenario.py, inspect_session.py, check_report.py',
+        'new_summary.py, new_scenario.py, inspect_session.py, '
+        'collect_feedback.py, check_report.py',
       );
       _output.write(
         '${style.label('References')} report-template.md, '

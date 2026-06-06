@@ -72,6 +72,23 @@ def read_text(path: Path) -> str:
         return ""
 
 
+def slug(value: str, fallback: str) -> str:
+    raw = value.strip()
+    if is_placeholder(raw):
+        return fallback
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", raw)
+    normalized = normalized.strip("-._")
+    return normalized or fallback
+
+
+def is_placeholder(value: str) -> bool:
+    return value.startswith("<") and value.endswith(">")
+
+
+def command_arg(value: str) -> str:
+    return value if is_placeholder(value) else shlex.quote(value)
+
+
 def top_level_key(content: str, key: str) -> bool:
     return re.search(rf"^{re.escape(key)}\s*:", content, re.MULTILINE) is not None
 
@@ -516,19 +533,20 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
     project = info["project"]
     kind = project["kind"]
     if kind == "app-project":
+        scope = slug(project["name"] or "app", "app")
         return [
             "Confirm preflight upgradeChecks has no migration blocker before editing.",
-            "Create or update .fluoh/ai-report-...md before the final response.",
+            f"Create or update .fluoh/reports/{scope}/ai-report-...md before the final response.",
             "Record deps, doctor, build, and run command results with exit codes.",
             "If no OHOS target is available, record the signed build as build-only evidence and explain the missing target.",
             "Review the diff and remove unrelated local paths, generated caches, credentials, and private tokens.",
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]
     if kind == "package-repository":
-        package = project["selectedPackage"] or "<name>"
+        package = slug(project["selectedPackage"] or "<name>", "<name>")
         return [
             "Confirm preflight upgradeChecks has no schema migration blocker and generated docs are current or refreshed before editing.",
-            f"Create or update .fluoh/ai-report-{package}-...md before the final response.",
+            f"Create or update .fluoh/reports/{package}/ai-report-{package}-...md before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
             "Record relevant Android, iOS, and macOS regression checks when examples exist.",
@@ -537,12 +555,12 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]
     if kind == "flutter-package":
-        package = project["name"] or "<package-name>"
+        package = slug(project["name"] or "<package-name>", "<package-name>")
         output = flutter_package_output(project)
         return [
             "Create a FlutterOH package repository before editing OHOS implementation files.",
             f"Rerun preflight in {output} before using final check commands.",
-            f"Create or update .fluoh/ai-report-{package}-...md in the generated repository before the final response.",
+            f"Create or update .fluoh/reports/{package}/ai-report-{package}-...md in the generated repository before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
@@ -567,21 +585,50 @@ def report_command(project: dict[str, Any]) -> str:
         package = scope
         return (
             "python3 <skill-dir>/scripts/new_report.py . "
-            f"--scope {scope} --package {package}"
+            f"--scope {command_arg(scope)} --package {command_arg(package)}"
         )
     if project["kind"] == "flutter-package":
         package = project["name"] or "<package-name>"
         output = flutter_package_output(project)
         return (
-            f"python3 <skill-dir>/scripts/new_report.py {output} "
-            f"--scope {package} --package {package}"
+            f"python3 <skill-dir>/scripts/new_report.py {command_arg(output)} "
+            f"--scope {command_arg(package)} --package {command_arg(package)}"
         )
     scope = project["name"] or "app"
-    return f"python3 <skill-dir>/scripts/new_report.py . --scope {scope}"
+    return (
+        "python3 <skill-dir>/scripts/new_report.py . "
+        f"--scope {command_arg(scope)}"
+    )
+
+
+def summary_command(project: dict[str, Any]) -> str:
+    if project["kind"] == "package-repository":
+        scope = project["selectedPackage"] or "monorepo"
+        package = project["selectedPackage"] or "<name>"
+        return (
+            "python3 <skill-dir>/scripts/new_summary.py . "
+            f"--scope {command_arg(scope)} --package {command_arg(package)}"
+        )
+    if project["kind"] == "flutter-package":
+        package = project["name"] or "<package-name>"
+        output = flutter_package_output(project)
+        return (
+            f"python3 <skill-dir>/scripts/new_summary.py {command_arg(output)} "
+            f"--scope {command_arg(package)} --package {command_arg(package)}"
+        )
+    scope = project["name"] or "app"
+    return (
+        "python3 <skill-dir>/scripts/new_summary.py . "
+        f"--scope {command_arg(scope)}"
+    )
 
 
 def report_check_command() -> str:
     return "python3 <skill-dir>/scripts/check_report.py <report-path>"
+
+
+def feedback_command() -> str:
+    return "python3 <skill-dir>/scripts/collect_feedback.py <trace-dir-or-manifest>"
 
 
 def session_inspect_command() -> str:
@@ -596,21 +643,22 @@ def scenario_command(project: dict[str, Any]) -> str:
         package = project["selectedPackage"] or "<name>"
         return (
             "python3 <skill-dir>/scripts/new_scenario.py . "
-            f"--scope {package} --package {package} "
+            f"--scope {command_arg(package)} --package {command_arg(package)} "
             "--platform <platform> --name <scenario-name>"
         )
     if project["kind"] == "flutter-package":
         package = project["name"] or "<package-name>"
         output = flutter_package_output(project)
         return (
-            f"python3 <skill-dir>/scripts/new_scenario.py {output} "
-            f"--scope {package} --package {package} "
+            f"python3 <skill-dir>/scripts/new_scenario.py {command_arg(output)} "
+            f"--scope {command_arg(package)} --package {command_arg(package)} "
             "--platform <platform> --name <scenario-name>"
         )
     scope = project["name"] or "app"
     return (
         "python3 <skill-dir>/scripts/new_scenario.py . "
-        f"--scope {scope} --app --platform <platform> --name <scenario-name>"
+        f"--scope {command_arg(scope)} --app --platform <platform> "
+        "--name <scenario-name>"
     )
 
 
@@ -648,7 +696,10 @@ def main() -> int:
     parser.add_argument("path", nargs="?", default=".", help="Project directory")
     parser.add_argument(
         "--fluoh-command",
-        default=os.environ.get("FLUOH_COMMAND", "fluoh"),
+        default=os.environ.get(
+            "FLUOH_BIN",
+            os.environ.get("FLUOH_COMMAND", "fluoh"),
+        ),
         help="fluoh executable name or path",
     )
     parser.add_argument(
@@ -677,7 +728,9 @@ def main() -> int:
     info["finalCheckCommands"] = final_check_commands(info)
     info["deliveryChecks"] = delivery_checks(info)
     info["reportCommand"] = report_command(info["project"])
+    info["summaryCommand"] = summary_command(info["project"])
     info["reportCheckCommand"] = report_check_command()
+    info["feedbackCommand"] = feedback_command()
     info["sessionInspectCommand"] = session_inspect_command()
     info["scenarioCommand"] = scenario_command(info["project"])
     info["notes"] = notes(info["project"])

@@ -883,7 +883,11 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
     return const [];
   }
   final command = '${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')}';
+  final sdkConstraint = _dartSdkConstraintFailure(result);
+  final isPubGetStep = name == 'package-pub-get' || name == 'example-pub-get';
   final code = switch (name) {
+    _ when isPubGetStep && sdkConstraint != null =>
+      'dart.sdk_constraint_unsatisfied',
     'package-pub-get' || 'example-pub-get' => 'dart.pub_get_failed',
     'package-analyze' || 'example-analyze' => 'dart.analysis_failed',
     'package-test' || 'example-test' => 'dart.test_failed',
@@ -913,6 +917,8 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
     _ => 'command.failed',
   };
   final message = switch (code) {
+    'dart.sdk_constraint_unsatisfied' =>
+      'Package SDK constraint is higher than the selected Dart SDK.',
     'dart.pub_get_failed' => 'Dependency resolution failed.',
     'dart.analysis_failed' => 'Static analysis failed.',
     'dart.test_failed' => 'Tests failed.',
@@ -932,11 +938,69 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
       details: {
         'command': command,
         'exitCode': effectiveExitCode,
+        'sdkConstraint': ?sdkConstraint,
+        if (code == 'dart.sdk_constraint_unsatisfied')
+          'adaptationPolicy': _lowSdkCompatibilityPolicy(packageName),
         ..._commandOutputDetails(result),
       },
       nextCommand: _nextCommandForDiagnosticCode(code, packageName),
     ),
   ];
+}
+
+Map<String, Object?> _lowSdkCompatibilityPolicy(String packageName) {
+  return {
+    'defaultAction': 'adapt-selected-upstream-to-selected-sdk',
+    'keepSelectedUpstream': true,
+    'adjustPackageForSelectedSdk': true,
+    'upstreamDowngradeRequiresApproval': true,
+    'suggestedEdits': [
+      'Update pubspec.yaml environment.sdk only when the selected Dart SDK can support the package after code changes.',
+      'Patch package and example configuration for the selected FlutterOH SDK.',
+      'Replace Dart language, SDK API, or dependency usage that requires a newer Dart SDK.',
+      'Rerun fluoh verify --package $packageName --json after each compatibility edit.',
+    ],
+  };
+}
+
+String? _suggestedEnvironmentSdkConstraint(String dartVersion) {
+  final match = RegExp(r'^(\d+)\.(\d+)\.').firstMatch(dartVersion);
+  if (match == null) {
+    return null;
+  }
+  final major = int.tryParse(match.group(1)!);
+  final minor = int.tryParse(match.group(2)!);
+  if (major == null || minor == null) {
+    return null;
+  }
+  return '>=$major.$minor.0 <${major + 1}.0.0';
+}
+
+Map<String, Object?>? _dartSdkConstraintFailure(SelectedToolResult result) {
+  final output = result.combinedOutput;
+  final current = RegExp(
+    r'The current Dart SDK version is\s+([^\s.]+(?:\.[^\s.]+)*)\.',
+  ).firstMatch(output);
+  final required = RegExp(
+    r'requires SDK version\s+(.+?),\s+version solving failed',
+  ).firstMatch(output);
+  if (current == null || required == null) {
+    return null;
+  }
+  final suggestedFlutter = RegExp(
+    r'Try using the Flutter SDK version:\s*([^\s.]+(?:\.[^\s.]+)*)',
+  ).firstMatch(output);
+  final currentVersion = current.group(1);
+  return {
+    'currentDartVersion': currentVersion,
+    'requiredDartConstraint': required.group(1),
+    if (currentVersion != null)
+      'suggestedEnvironmentSdkConstraint': _suggestedEnvironmentSdkConstraint(
+        currentVersion,
+      ),
+    if (suggestedFlutter != null)
+      'suggestedFlutterSdkVersion': suggestedFlutter.group(1),
+  };
 }
 
 WorkflowStepResult _ohosDiagnosticStep({
@@ -974,6 +1038,7 @@ String? _nextCommandForDiagnosticCode(String code, String packageName) {
   final iosRun = 'fluoh run --platform ios --package $packageName';
   final macosRun = 'fluoh run --platform macos --package $packageName';
   return switch (code) {
+    'dart.sdk_constraint_unsatisfied' => '$baseline --json',
     'dart.pub_get_failed' => 'fluoh deps get',
     'dart.analysis_failed' ||
     'dart.test_failed' ||

@@ -255,25 +255,13 @@ class SourceManifestRelease {
 /// Maintainer-provided package maintenance state.
 class SourcePackageMaintenance {
   /// Creates package maintenance status metadata.
-  const SourcePackageMaintenance({
-    bool? frozen,
-    String? note,
-    String? status,
-    String? reason,
-  }) : frozen = frozen ?? status == 'frozen',
-       note = note ?? reason;
+  const SourcePackageMaintenance({this.frozen = false, this.note});
 
   /// Whether source sync should skip generated release updates.
   final bool frozen;
 
   /// Optional explanation for the maintenance state.
   final String? note;
-
-  /// Compatibility alias for older command code.
-  String get status => frozen ? 'frozen' : 'active';
-
-  /// Compatibility alias for older command code.
-  String? get reason => note;
 }
 
 /// Advisory shown when a package needs user or maintainer attention.

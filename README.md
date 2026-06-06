@@ -33,7 +33,7 @@
 Ask your AI agent to install the skill first:
 
 ```text
-Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.
+Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills.
 ```
 
 Then type one request for an app or a package:
@@ -44,24 +44,22 @@ Use $fluoh to adapt <upstream-git-url> for FlutterOH.
 Use $fluoh to continue adapting <package-name> for OHOS.
 ```
 
-The skill checks `fluoh --version`, installs the CLI when it is missing, runs
-read-only setup checks, asks for final setup confirmation before project or
-package changes, follows JSON diagnostics, edits the project or package,
-verifies the result, and saves `.fluoh/ai-report-...md` with a delivery
-checklist.
-It prefers `dart pub global activate fluoh`, with Homebrew as the macOS
-fallback.
+The skill checks `fluoh --version`, runs read-only setup checks, asks for final
+setup confirmation before project or package changes, follows JSON diagnostics,
+edits and verifies the target, then writes
+`.fluoh/reports/<scope>/ai-report-...md`. It prefers
+`dart pub global activate fluoh`, with Homebrew as the macOS fallback. Trace
+capture, report layout, and package repository details live in the command and
+skill docs.
 
-If you already have the CLI installed, an agent can discover the bundled local
-skill path and helper script commands with:
+If the CLI is already installed:
 
 ```text
 Run `fluoh skill --json`, install the returned localPath as a skill, then reload skills if needed.
 ```
 
-The skill version follows the `fluoh` CLI version. To update it, run
-`fluoh upgrade`, then ask the agent to run `fluoh skill --json` again and
-reinstall or reload the returned path.
+The skill version follows the `fluoh` CLI version. After `fluoh upgrade`, run
+`fluoh skill --json` again and reload the returned path.
 
 ## Manual Fallback
 
@@ -83,8 +81,8 @@ brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-The Homebrew formula installs native executables, which are preferred for
-strict `--json` automation because they do not invoke `dart pub global run`.
+Homebrew installs native executables, which are better for strict `--json`
+automation.
 
 For package maintainers:
 
@@ -94,17 +92,11 @@ fluoh verify
 fluoh package status
 ```
 
-For monorepos, pass one `--package-path <path>` to create the first package
-branch. Omitting `--package-path` selects only the repository root package; it
-never means all packages. To adapt another package in the same repository, run
-`fluoh package add <package-path>` from the generated repository; it creates a
-separate `ohos/<sdkLine>/<package>` branch for that package.
-Create, add, and sync default to the latest valid upstream release tag for the
-selected package. Use `--upstream-version <version>` for a specific package
-version; `sync` refuses versions older than the branch's current upstream
-version.
-`--repository-name` is required for every new package repository; when a single
-package path is selected, the CLI can suggest a candidate if it is omitted.
+For monorepos, keep one FlutterOH adaptation repository per upstream repository
+and create one `ohos/<sdkLine>/<package>` branch per package. Start with
+`--package-path`, then use `fluoh package queue` and `fluoh package add` for
+additional packages. See [Command reference](doc/commands.md) for version,
+report, and `--org` details.
 
 Use `fluohf` to run Flutter through the selected FlutterOH SDK:
 

@@ -19,6 +19,7 @@ REQUIRED_SECTIONS = (
     "## Platform Matrix",
     "## Interaction Evidence",
     "## Diagnostics",
+    "## Fluoh Feedback",
     "## Signing",
     "## Remaining Risks",
     "## Local State",
@@ -166,6 +167,68 @@ def interaction_row_passed(row: dict[str, str]) -> bool:
     return row["result"].lower() == "passed"
 
 
+def split_markdown_row(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return []
+    columns: list[str] = []
+    current: list[str] = []
+    escaped = False
+    for char in stripped[1:-1]:
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "|":
+            columns.append("".join(current).strip())
+            current = []
+            continue
+        current.append(char)
+    columns.append("".join(current).strip())
+    return columns
+
+
+def feedback_rows(content: str) -> list[dict[str, str]]:
+    section = section_content(content, "## Fluoh Feedback")
+    rows: list[dict[str, str]] = []
+    for line in section.splitlines():
+        columns = split_markdown_row(line)
+        if len(columns) < 6:
+            continue
+        row_id = columns[0].strip()
+        if not row_id or row_id.lower() == "id" or set(row_id) <= {"-"}:
+            continue
+        if row_id == "...":
+            continue
+        rows.append(
+            {
+                "id": row_id,
+                "owner": columns[1],
+                "category": columns[2],
+                "evidence": columns[3],
+                "change": columns[4],
+                "status": columns[5],
+                "row": line,
+            }
+        )
+    return rows
+
+
+def no_feedback_statement(content: str) -> bool:
+    section = section_content(content, "## Fluoh Feedback")
+    return (
+        re.search(
+            r"^\s*No fluoh feedback\s*:\s*\S.+$",
+            section,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        is not None
+    )
+
+
 def placeholder_hits(content: str) -> list[str]:
     hits: list[str] = []
     for pattern in PLACEHOLDER_PATTERNS:
@@ -259,6 +322,19 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     elif recommendation == "ready" and concrete_interactions and not passed_interactions:
         errors.append("Ready reports with interaction rows must include a passed row.")
 
+    feedback = feedback_rows(content)
+    if not feedback and not no_feedback_statement(content):
+        errors.append(
+            "Fluoh Feedback must include a concrete row or 'No fluoh feedback: <reason>'."
+        )
+    open_feedback = [
+        row
+        for row in feedback
+        if row["status"].strip().lower() in ("queued", "open", "todo")
+    ]
+    if open_feedback:
+        warnings.append("Fluoh Feedback includes queued or open tool follow-ups.")
+
     placeholders = placeholder_hits(content)
     if placeholders:
         errors.append("Report still contains placeholder content.")
@@ -275,6 +351,8 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         "passedOhosRun": passed_ohos_run,
         "interactionRows": len(concrete_interactions),
         "passedInteractionRows": len(passed_interactions),
+        "feedbackRows": len(feedback),
+        "openFeedbackRows": len(open_feedback),
         "checklistTotal": len(checklist),
         "checklistDone": len(checklist) - len(unchecked),
         "unchecked": unchecked,
@@ -288,7 +366,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate a fluoh AI adaptation report.",
     )
-    parser.add_argument("report", help="Path to .fluoh/ai-report-...md")
+    parser.add_argument(
+        "report",
+        help="Path to .fluoh/reports/<scope>/ai-report-...md",
+    )
     parser.add_argument(
         "--require-ohos-run",
         action="store_true",
