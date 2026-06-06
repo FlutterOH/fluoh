@@ -1,13 +1,34 @@
 name: Bug report
 description: Report a reproducible fluoh CLI problem.
-title: "fix: "
+title: "bug: "
 labels:
   - bug
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a fluoh issue. Please include enough detail for maintainers to reproduce the behavior without reading local machine state.
+        Thanks for reporting a fluoh issue. Fill in the fields that let maintainers reproduce the problem and distinguish command output from local machine state.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Choose the closest fluoh area.
+      options:
+        - sdk
+        - deps
+        - package
+        - source
+        - schema
+        - platform
+        - doctor
+        - upgrade
+        - skill
+        - release
+        - ci
+        - docs
+        - other
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
@@ -19,9 +40,35 @@ body:
   - type: input
     id: command
     attributes:
-      label: Command
-      description: The exact command that failed.
-      placeholder: fluoh sdk use 3.35
+      label: Command or workflow
+      description: Paste the exact command that failed, or describe the workflow if no single command applies.
+      placeholder: fluoh package create https://github.com/upstream/package.git --package-path packages/example
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: List the minimal steps needed to trigger the issue.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the relevant CLI output, errors, generated file snippets, or Git state.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe what should have happened instead.
     validations:
       required: true
   - type: textarea
@@ -39,25 +86,6 @@ body:
     validations:
       required: true
   - type: textarea
-    id: steps
-    attributes:
-      label: Reproduction steps
-      description: List the minimal steps needed to trigger the issue.
-      placeholder: |
-        1. Run ...
-        2. Open ...
-        3. See ...
-    validations:
-      required: true
-  - type: textarea
-    id: actual
-    attributes:
-      label: Actual behavior
-      description: Include relevant CLI output, errors, or generated file snippets.
-      render: text
-    validations:
-      required: true
-  - type: textarea
     id: json_output
     attributes:
       label: JSON output
@@ -65,7 +93,7 @@ body:
       render: json
       placeholder: |
         {
-          "schema": "...",
+          "schema": 1,
           "command": "...",
           "ok": false,
           "exitCode": 1
@@ -73,19 +101,13 @@ body:
     validations:
       required: false
   - type: textarea
-    id: expected
-    attributes:
-      label: Expected behavior
-      description: Describe what should have happened instead.
-    validations:
-      required: true
-  - type: textarea
     id: environment
     attributes:
-      label: Environment
-      description: Add any environment details that are not visible in the doctor output.
+      label: Environment details
+      description: Add details that are not visible in doctor output.
       placeholder: |
         FlutterOH SDK:
+        Dart or Flutter source:
         FLUOH_HOME override:
         Private source or mirror notes:
     validations:
@@ -98,11 +120,20 @@ body:
       placeholder: |
         Changed files before command:
         Changed files after failure:
-        FLUOH_HOME:
+        Git branch or package branch:
     validations:
       required: false
   - type: textarea
     id: context
     attributes:
       label: Additional context
-      description: Add links, screenshots, repository details, or notes about local changes if relevant.
+      description: Add links, screenshots, repository details, or notes that help explain the issue.
+    validations:
+      required: false
+  - type: checkboxes
+    id: disclosure
+    attributes:
+      label: Disclosure
+      options:
+        - label: I have removed or redacted credentials, tokens, private repository URLs, and irrelevant machine-specific paths.
+          required: true

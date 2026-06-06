@@ -7,12 +7,33 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this form for workflow improvements, new command behavior, source index changes, SDK selection rules, dependency workflows, or package automation requests.
+        Use this form for workflow improvements, new command behavior, source index changes, SDK selection rules, dependency workflows, package automation, or generated guidance.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Choose the closest fluoh area.
+      options:
+        - sdk
+        - deps
+        - package
+        - source
+        - schema
+        - platform
+        - doctor
+        - upgrade
+        - skill
+        - release
+        - ci
+        - docs
+        - other
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
-      label: Problem
-      description: What user workflow is blocked or unnecessarily hard today?
+      label: Problem or blocked workflow
+      description: What user workflow is blocked, risky, or unnecessarily hard today?
       placeholder: Describe the current workflow and why it is not enough.
     validations:
       required: true
@@ -20,32 +41,41 @@ body:
     id: proposal
     attributes:
       label: Proposed behavior
-      description: Describe the command, output, config, or file changes you expect.
+      description: Describe the command, output, config, source data, or file changes you expect.
       placeholder: fluoh should ...
     validations:
       required: true
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives considered
-      description: Mention workarounds or other designs that were considered.
   - type: input
-    id: commands
+    id: affected_commands
     attributes:
-      label: Affected commands
-      description: List the fluoh commands or domains involved.
-      placeholder: sdk, deps, package, source, doctor
+      label: Affected commands or files
+      description: List the fluoh commands, domains, or release artifacts involved.
+      placeholder: package create, package discover, source sync, doc/commands.md
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List concrete outcomes that would make the request complete.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
   - type: textarea
     id: output_contract
     attributes:
-      label: CLI and JSON output contract
+      label: CLI, JSON, and file contract
       description: Describe expected human output, `--json` fields, schema keys, and exact file or config changes when relevant.
       placeholder: |
         Human output:
         JSON fields:
         Changed files:
+    validations:
+      required: false
   - type: textarea
-    id: local_state
+    id: safety
     attributes:
       label: Safety and local state
       description: For commands that write files, clone repositories, or push tags, describe validation, local work preservation, and failure behavior.
@@ -53,9 +83,20 @@ body:
         Validation before writes:
         Failure behavior:
         Local repositories or working trees preserved:
+    validations:
+      required: false
   - type: textarea
     id: compatibility
     attributes:
       label: Compatibility and release impact
-      description: Note whether this changes existing CLI output, config files, source index rules, release artifacts, pub.dev metadata, or Homebrew packaging.
+      description: Note whether this changes existing CLI output, JSON contracts, config files, source index rules, release artifacts, pub.dev metadata, or Homebrew packaging.
       placeholder: This is backwards compatible because ...
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention workarounds, existing commands, or other designs that were considered.
+    validations:
+      required: false

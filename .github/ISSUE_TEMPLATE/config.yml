@@ -1,1 +1,8 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Command reference
+    url: https://github.com/FlutterOH/fluoh/blob/main/doc/commands.md
+    about: Check the command behavior, JSON contract, and local state rules before filing an issue.
+  - name: Contributing guide
+    url: https://github.com/FlutterOH/fluoh/blob/main/CONTRIBUTING.md
+    about: Read local development, verification, commit, release, and package workflow guidance.

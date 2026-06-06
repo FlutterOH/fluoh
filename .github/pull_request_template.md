@@ -1,14 +1,28 @@
 ## Summary
 
 - <!-- Describe the user-visible behavior or maintenance change. -->
-- Related issue:
+
+## Related issue
+
+- Closes:
+- Related:
+
+## Scope
+
+- [ ] CLI behavior
+- [ ] JSON contract
+- [ ] Pubspec, Source, or package metadata
+- [ ] SDK, platform, build, run, or doctor workflow
+- [ ] Documentation, generated guidance, or release artifacts
+- [ ] GitHub automation, publishing, or packaging
 
 ## Behavior and contracts
 
-- [ ] Command behavior, pubspec rewrites, source index rules, SDK selection, package workflows, release validation, or publishing artifacts have regression tests.
-- [ ] CLI output changes include essential output snippets when they clarify behavior.
-- [ ] `--json` command changes preserve one stdout JSON object with `schema`, `command`, `ok`, and `exitCode`, with no progress text.
-- [ ] Project or package modifying commands preserve local work on validation, network, GitHub, or push failures.
+- [ ] User-visible behavior is described with essential output snippets when useful.
+- [ ] Commands that support `--json` still emit exactly one stdout JSON object with `schema`, `command`, `ok`, and `exitCode`.
+- [ ] Project or package modifying commands validate before writes and preserve local work on validation, network, GitHub, or push failures.
+- [ ] Public Dart APIs and generated guidance have useful doc comments or documentation updates.
+- [ ] Behavior changes have focused regression tests, or the test gap is explained below.
 
 ## Verification
 
@@ -24,6 +38,6 @@
 - [ ] Version metadata stays aligned across `pubspec.yaml`, `lib/src/version.dart`, `CHANGELOG.md`, and `Formula/fluoh.rb`.
 - [ ] Documentation or release surface changes update `test/release/release_artifacts_test.dart`.
 
-## Notes
+## Reviewer notes
 
-- <!-- Add migration notes, follow-ups, or context that reviewers need. -->
+- <!-- Add migration notes, follow-ups, test gaps, or reviewer context. -->

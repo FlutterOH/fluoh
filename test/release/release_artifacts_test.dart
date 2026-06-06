@@ -28,6 +28,29 @@ void main() {
     ];
   }
 
+  YamlMap issueFormField(YamlMap template, String id) {
+    final body = template['body'] as YamlList;
+    for (final field in body) {
+      if (field is YamlMap && field['id'] == id) {
+        return field;
+      }
+    }
+    fail('Expected issue form field "$id".');
+  }
+
+  List<String> issueFormOptions(YamlMap template, String id) {
+    final field = issueFormField(template, id);
+    final attributes = field['attributes'] as YamlMap;
+    final options = attributes['options'] as YamlList;
+    return [
+      for (final option in options)
+        if (option is String)
+          option
+        else if (option is YamlMap)
+          option['label'] as String,
+    ];
+  }
+
   List<String> markdownHeadings(String markdown) {
     return RegExp(
       r'^## (.+)$',
@@ -120,6 +143,8 @@ void main() {
     expect(issueWorkflow, contains('<!-- fluoh-issue-triage -->'));
     expect(issueWorkflow, contains('needs-info:auto'));
     expect(issueWorkflow, contains('classifierText'));
+    expect(issueWorkflow, isNot(contains('firstSectionValue')));
+    expect(issueWorkflow, contains('selectedAreaLabels'));
     expect(issueWorkflow, contains('existingAreaLabels'));
     expect(issueWorkflow, contains('hasKnownArea'));
     expect(issueWorkflow, contains(r'^### ${escaped}[ \\t]*'));
@@ -132,11 +157,29 @@ void main() {
     expect(issueWorkflow, contains('area:source'));
     expect(issueWorkflow, contains('area:schema'));
     expect(issueWorkflow, contains('area:platform'));
+    expect(issueWorkflow, contains('area:upgrade'));
     expect(issueWorkflow, contains('area:skill'));
     expect(issueWorkflow, contains('area:release'));
+    expect(issueWorkflow, contains('area:other'));
     expect(issueWorkflow, contains('fluoh\\s+sdk'));
     expect(issueWorkflow, contains('fluoh\\s+package'));
     expect(issueWorkflow, contains('fluoh\\s+source'));
+    expect(issueWorkflow, contains('Affected area'));
+    expect(issueWorkflow, contains("sectionValue('Command or workflow')"));
+    expect(
+      issueWorkflow,
+      contains("sectionValue('Affected commands or files')"),
+    );
+    expect(
+      issueWorkflow,
+      contains("sectionValue('CLI, JSON, and file contract')"),
+    );
+    expect(issueWorkflow, isNot(contains("sectionValue('Command')")));
+    expect(issueWorkflow, isNot(contains("sectionValue('Affected commands')")));
+    expect(
+      issueWorkflow,
+      isNot(contains("sectionValue('CLI and JSON output contract')")),
+    );
     expect(issueWorkflow, contains('Doctor output'));
     expect(issueWorkflow, contains('Reproduction steps'));
   });
@@ -161,10 +204,45 @@ void main() {
     final bugIds = issueFormIds(bugYaml);
     final featureIds = issueFormIds(featureYaml);
     final pullRequestHeadings = markdownHeadings(pullRequestTemplate);
+    const areaOptions = [
+      'sdk',
+      'deps',
+      'package',
+      'source',
+      'schema',
+      'platform',
+      'doctor',
+      'upgrade',
+      'skill',
+      'release',
+      'ci',
+      'docs',
+      'other',
+    ];
 
     expect(bugYaml['name'], 'Bug report');
-    expect(bugIds, containsAll(['version', 'command', 'json_output']));
-    expect(bugIds, containsAll(['environment', 'local_state']));
+    expect(bugYaml['title'], 'bug: ');
+    expect(bugYaml['labels'], contains('bug'));
+    expect(
+      bugIds,
+      containsAll([
+        'area',
+        'version',
+        'command',
+        'reproduction',
+        'actual',
+        'expected',
+        'doctor',
+        'json_output',
+        'environment',
+        'local_state',
+        'context',
+        'disclosure',
+      ]),
+    );
+    expect(issueFormOptions(bugYaml, 'area'), areaOptions);
+    expect(issueFormField(bugYaml, 'area')['type'], 'dropdown');
+    expect(issueFormField(bugYaml, 'disclosure')['type'], 'checkboxes');
     expect(bugTemplate, contains('fluoh --version'));
     expect(bugTemplate, contains('fluoh 0.1.0'));
     expect(bugTemplate, contains('fluoh doctor -p'));
@@ -175,21 +253,50 @@ void main() {
     expect(bugTemplate, contains('schema'));
     expect(bugTemplate, contains('exitCode'));
     expect(bugTemplate, contains('Expected behavior'));
-    expect(bugTemplate, contains('Environment'));
+    expect(bugTemplate, contains('Environment details'));
     expect(bugTemplate, contains('Local state and changed files'));
+    expect(bugTemplate, contains('credentials'));
 
     expect(featureYaml['name'], 'Feature request');
-    expect(featureIds, containsAll(['output_contract', 'local_state']));
+    expect(featureYaml['labels'], contains('enhancement'));
+    expect(
+      featureIds,
+      containsAll([
+        'area',
+        'problem',
+        'proposal',
+        'affected_commands',
+        'acceptance',
+        'output_contract',
+        'safety',
+        'compatibility',
+        'alternatives',
+      ]),
+    );
+    expect(issueFormOptions(featureYaml, 'area'), areaOptions);
     expect(featureTemplate, contains('Problem'));
     expect(featureTemplate, contains('Proposed behavior'));
-    expect(featureTemplate, contains('CLI and JSON output contract'));
+    expect(featureTemplate, contains('Acceptance criteria'));
+    expect(featureTemplate, contains('CLI, JSON, and file contract'));
     expect(featureTemplate, contains('Safety and local state'));
     expect(featureTemplate, contains('Compatibility and release impact'));
     expect(configYaml['blank_issues_enabled'], isFalse);
+    final contactLinks = configYaml['contact_links'] as YamlList;
+    expect(contactLinks, hasLength(2));
+    expect(issueConfig, contains('Command reference'));
+    expect(issueConfig, contains('Contributing guide'));
 
-    expect(pullRequestHeadings, containsAll(['Summary', 'Verification']));
-    expect(pullRequestHeadings, contains('Behavior and contracts'));
-    expect(pullRequestHeadings, contains('Release impact'));
+    expect(pullRequestHeadings, [
+      'Summary',
+      'Related issue',
+      'Scope',
+      'Behavior and contracts',
+      'Verification',
+      'Release impact',
+      'Reviewer notes',
+    ]);
+    expect(pullRequestTemplate, contains('CLI behavior'));
+    expect(pullRequestTemplate, contains('JSON contract'));
     expect(pullRequestTemplate, contains('`dart format .`'));
     expect(pullRequestTemplate, contains('`dart analyze`'));
     expect(pullRequestTemplate, contains('`dart test`'));

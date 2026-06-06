@@ -84,6 +84,10 @@ jobs:
                 color: '6F42C1',
                 description: 'Release metadata, packaging, or publishing.',
               },
+              'area:other': {
+                color: '57606A',
+                description: 'Other or cross-cutting fluoh issue.',
+              },
             };
             const title = issue.title || '';
             const body = issue.body || '';
@@ -94,14 +98,39 @@ jobs:
               const match = new RegExp(`^### ${escaped}[ \\t]*\\r?\\n\\r?\\n([\\s\\S]*?)(?=\\r?\\n### |$)`, 'im').exec(body);
               return match ? match[1].trim() : '';
             };
+            const blankLike = (value) =>
+              value.length === 0 || value === '_No response_';
+            const selectedArea = sectionValue('Affected area').toLowerCase();
+            const selectedAreaLabels = {
+              sdk: 'area:sdk',
+              deps: 'area:deps',
+              package: 'area:package',
+              source: 'area:source',
+              schema: 'area:schema',
+              platform: 'area:platform',
+              doctor: 'area:doctor',
+              upgrade: 'area:upgrade',
+              skill: 'area:skill',
+              release: 'area:release',
+              ci: 'area:ci',
+              docs: 'area:docs',
+              other: 'area:other',
+            };
+            if (selectedAreaLabels[selectedArea]) {
+              areas.add(selectedAreaLabels[selectedArea]);
+            }
+            const failedCommand = sectionValue('Command or workflow');
+            const affectedCommands = sectionValue('Affected commands or files');
             const classifierText = [
               title,
-              sectionValue('Command'),
+              selectedArea,
+              failedCommand,
               sectionValue('Actual behavior'),
               sectionValue('Expected behavior'),
-              sectionValue('Affected commands'),
+              sectionValue('Problem or blocked workflow'),
+              affectedCommands,
               sectionValue('Proposed behavior'),
-              sectionValue('CLI and JSON output contract'),
+              sectionValue('CLI, JSON, and file contract'),
               sectionValue('Compatibility and release impact'),
             ].join('\n').toLowerCase();
             const addWhen = (label, pattern) => {
@@ -123,13 +152,11 @@ jobs:
             addWhen('area:skill', /\bskill\b|ai agent|agent skill|\$fluoh/);
             addWhen('area:release', /pub\.dev|homebrew|formula|release tag|version metadata|publishing|publish/);
 
-            const blankLike = (value) =>
-              value.length === 0 || value === '_No response_';
             const existingLabels = issue.labels.map((label) =>
               typeof label === 'string' ? label : label.name);
             const existingAreaLabels = existingLabels.filter((label) =>
               label.startsWith('area:'));
-            const isBug = existingLabels.includes('bug') || /^fix:/i.test(title);
+            const isBug = existingLabels.includes('bug') || /^bug:/i.test(title);
             const isFeature = existingLabels.includes('enhancement') || /^feat:/i.test(title);
             const missingReasons = [];
             const hasKnownArea = areas.size > 0 || existingAreaLabels.length > 0;
@@ -138,7 +165,7 @@ jobs:
               missingReasons.push('No affected command or area could be inferred.');
             }
             if (isBug) {
-              if (blankLike(sectionValue('Command'))) {
+              if (blankLike(failedCommand)) {
                 missingReasons.push('The failed command is missing.');
               }
               if (blankLike(sectionValue('Doctor output'))) {
@@ -149,7 +176,7 @@ jobs:
               }
             }
             if (isFeature &&
-                blankLike(sectionValue('Affected commands')) &&
+                blankLike(affectedCommands) &&
                 !hasKnownArea) {
               missingReasons.push('Affected commands or workflow area are missing.');
             }
