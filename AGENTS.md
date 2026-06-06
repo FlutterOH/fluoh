@@ -2,24 +2,30 @@
 
 ## Project Scope
 
-`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency implementation status, rewrites project dependency declarations, and helps maintain third-party FlutterOH package repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
+`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency implementation status, rewrites project dependency declarations, runs platform build and device workflows, and helps maintain third-party FlutterOH package repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
 
 ## Repository Layout
 
-- `bin/fluoh.dart`: executable entry point.
+- `bin/fluoh.dart`: main executable entry point.
+- `bin/fluohf.dart`: shortcut entry point for `fluoh flutter <args>`.
 - `lib/fluoh.dart`: public package API and command runner export.
-- `lib/src/cli/`: command runner wiring.
+- `lib/src/cli/`: command runner wiring, usage formatting, machine output, and bundled skill metadata.
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
 - `lib/src/schema/`: internal YAML/JSON/text schema models, validation, canonical generation, and pure rewrite rules.
-- `lib/src/source/`: FlutterOH data source registry and YAML source loading.
+- `lib/src/source/`: FlutterOH Source registry, source snapshot loading, validation, sync, and lock maintenance.
 - `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
+- `lib/src/platform/`: cross-platform target discovery and OHOS toolchain helpers.
 - `lib/src/deps/`: project dependency analysis and rewrite commands.
+- `lib/src/workflow/`: project and package `verify`, `build`, and `run` workflows.
+- `lib/src/clean/`: cleanup of tool-owned cache artifacts.
 - `lib/src/package/`: package repository create, sync, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
+- `skills/fluoh/`: bundled AI agent workflow, helper scripts, and report templates.
 - `test/`: unit, command, integration, fixture, and release artifact tests.
+- `doc/commands.md` and `doc/commands.zh-CN.md`: command design, command surface, workflow, and state ownership docs.
 - `doc/schema.md`: current schema design and ownership boundaries.
 - `Formula/`: Homebrew packaging.
-- `.github/workflows/publish.yml`: pub.dev publishing automation.
+- `.github/workflows/`: CI, issue/PR maintenance, and pub.dev publishing automation.
 
 ## Development Commands
 
@@ -60,6 +66,27 @@ write exactly one JSON object to stdout with top-level `schema`,
 `command`, `ok`, and `exitCode`, then keep command-specific fields at the top
 level. Keep human progress text off stdout/stderr while JSON mode is active.
 
+## Command Surface and State Ownership
+
+Top-level commands are wired in `lib/src/cli/fluoh_command_runner.dart`. Keep the command table in `doc/commands.md` and `doc/commands.zh-CN.md` aligned when adding, removing, renaming, or moving commands.
+
+- Fluoh commands: `skill`, `doctor`, `clean`, and `upgrade`.
+- SDK and Source commands: `sdk` and `source`.
+- Project commands: `deps`, `verify`, `build`, `run`, `flutter`, and the `fluohf` shortcut.
+- Package commands: `package` and its repository lifecycle subcommands.
+- Tool and device commands: `devices` and `emulators`.
+
+State must have one owner. Do not bypass these owners in command implementations or tests:
+
+- `$FLUOH_HOME/config.json`: Source configuration and first default Source initialization through `lib/src/source/`.
+- `$FLUOH_HOME/sources/<name>` and `$FLUOH_HOME/sources.lock.json`: Source runtime snapshots and lock generation in `lib/src/source/`.
+- `$FLUOH_HOME/sdks/<version>`: SDK install, remove, and on-demand wrapper setup in `lib/src/sdk/`.
+- `$FLUOH_HOME/cache/`: cleanable runtime artifacts produced by workflow, platform, and package commands; cleanup is owned by `fluoh clean`.
+- Project `fluoh.yaml` and `.fluoh/flutter_sdk`: SDK selection and dependency workflow configuration.
+- Project `pubspec.yaml`: dependency rewrite commands under `lib/src/deps/`.
+- FlutterOH package repository `fluoh.yaml`, generated docs, examples, and release metadata: package workflow commands under `lib/src/package/`.
+- Source root and Manifest files: `source init`, `source sync`, and Source validation commands.
+
 ## Testing Standards
 
 Use `package:test`. Name test files `*_test.dart` and write behavior-oriented test names. Prefer command tests for CLI behavior and focused domain tests for parsers or selection logic.
@@ -81,6 +108,10 @@ Documentation and generated-guidance tests should protect stable release contrac
 `README.md` is the primary public document and should stay user-facing in English. `README.zh-CN.md` is the Simplified Chinese public document. Keep installation, quick start, core workflows, and command overview aligned between them.
 
 Contributor and maintainer details belong in `CONTRIBUTING.md` and `CONTRIBUTING.zh-CN.md`, not in the public README. Keep both contribution documents aligned when changing development, verification, commit, release, or packaging rules.
+
+Command design details belong in `doc/commands.md` and `doc/commands.zh-CN.md`. Keep those files as the source of truth for command behavior, state ownership, workflow sequencing, and machine-readable output details.
+
+AI-driven adaptation workflow details belong in `skills/fluoh/SKILL.md` and its referenced helper scripts/templates. Keep README links and `fluoh skill` metadata aligned, but do not duplicate the full skill workflow in public docs or this file.
 
 `AGENTS.md` is for coding agents and maintainers working inside the repository. It should summarize current project conventions and link behavior through concrete files or commands, not duplicate long user documentation.
 
