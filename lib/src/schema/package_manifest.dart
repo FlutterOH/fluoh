@@ -289,6 +289,7 @@ PackageManifest createPackageManifest({
 PackageManifest updatePackageManifestUpstreamVersions({
   required PackageManifest manifest,
   required Map<String, String> packageVersions,
+  String? upstreamRef,
   String? upstreamCommit,
   bool clearUpstreamRef = true,
 }) {
@@ -306,6 +307,7 @@ PackageManifest updatePackageManifestUpstreamVersions({
     upstreamBranch: manifest.upstreamBranch,
     package: manifest.package.copyWith(
       upstreamVersion: version,
+      upstreamRef: upstreamRef,
       upstreamCommit: upstreamCommit,
       clearUpstreamRef: clearUpstreamRef,
     ),

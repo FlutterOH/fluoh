@@ -373,6 +373,154 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('uses explicit upstream package version for package create', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_explicit_version'),
+      version: '0.10.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.10.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.11.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.11.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.12.0',
+    );
+    await Directory(
+      '${upstream.path}/packages/camera/camera',
+    ).delete(recursive: true);
+    await runGit(upstream, ['add', '-A', 'packages/camera/camera']);
+    await runGit(upstream, ['commit', '-m', 'Remove camera package']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_explicit_version',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+          '--package-path',
+          'packages/camera/camera',
+          '--upstream-version',
+          '0.10.0',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = await readPackageManifest(packageRepository);
+    final packagePubspec = File(
+      '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
+    ).readAsStringSync();
+    final head = await runGit(packageRepository, ['rev-parse', 'HEAD']);
+    final releaseHead = await runGit(packageRepository, [
+      'rev-parse',
+      'camera-v0.10.0^{commit}',
+    ]);
+    expect(manifest.primaryPackage.upstreamVersion, '0.10.0');
+    expect(manifest.primaryPackage.upstreamRef, 'camera-v0.10.0');
+    expect(packagePubspec, contains('version: 0.10.0'));
+    expect(packagePubspec, isNot(contains('version: 0.12.0')));
+    expect(head.stdout.toString().trim(), releaseHead.stdout.toString().trim());
+    expect(stderr, isEmpty);
+  });
+
+  test('uses latest upstream package tag removed from main', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory(
+        '${environment.homeDirectory.path}/upstream_removed_latest_tag',
+      ),
+      version: '0.10.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.10.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.11.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.11.0']);
+    await Directory(
+      '${upstream.path}/packages/camera/camera',
+    ).delete(recursive: true);
+    await runGit(upstream, ['add', '-A', 'packages/camera/camera']);
+    await runGit(upstream, ['commit', '-m', 'Remove camera package']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_removed_latest_tag',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+          '--package-path',
+          'packages/camera/camera',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = await readPackageManifest(packageRepository);
+    final packagePubspec = File(
+      '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
+    ).readAsStringSync();
+    final head = await runGit(packageRepository, ['rev-parse', 'HEAD']);
+    final releaseHead = await runGit(packageRepository, [
+      'rev-parse',
+      'camera-v0.11.0^{commit}',
+    ]);
+    expect(manifest.primaryPackage.upstreamVersion, '0.11.0');
+    expect(manifest.primaryPackage.upstreamRef, 'camera-v0.11.0');
+    expect(packagePubspec, contains('version: 0.11.0'));
+    expect(head.stdout.toString().trim(), releaseHead.stdout.toString().trim());
+    expect(stderr, isEmpty);
+  });
+
   test('keeps ignored files from upstream release tags', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -1703,6 +1851,7 @@ Original upstream README body.
       name: 'share_plus',
       version: '9.0.0',
     );
+    await runGit(upstream, ['tag', 'share_plus-v9.0.0']);
     final packageRepository = Directory(
       '${environment.homeDirectory.path}/package_add_package',
     );
@@ -1734,6 +1883,17 @@ Original upstream README body.
       stderr: stderr.add,
     );
     await commitGeneratedPackageRepository(packageRepository);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/share_plus/share_plus',
+      version: '9.1.0',
+    );
+    await runGit(upstream, ['tag', 'share_plus-v9.1.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/share_plus/share_plus',
+      version: '10.0.0',
+    );
 
     final packageEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
@@ -1752,12 +1912,19 @@ Original upstream README body.
     final manifest = File(
       '${packageRepository.path}/fluoh.yaml',
     ).readAsStringSync();
+    final pubspec = File(
+      '${packageRepository.path}/packages/share_plus/share_plus/pubspec.yaml',
+    ).readAsStringSync();
     expect(manifest, contains('package:\n  name: share_plus'));
     expect(manifest, contains('path: packages/share_plus/share_plus'));
+    expect(manifest, contains('      version: 9.1.0'));
+    expect(manifest, contains('      ref: share_plus-v9.1.0'));
+    expect(pubspec, contains('version: 9.1.0'));
+    expect(pubspec, isNot(contains('version: 10.0.0')));
     const packages = [
       _GuidancePackage(
         name: 'share_plus',
-        version: '9.0.0',
+        version: '9.1.0',
         path: 'packages/share_plus/share_plus',
       ),
     ];
@@ -1775,7 +1942,7 @@ Original upstream README body.
     final changelog = File(
       '${packageRepository.path}/FLUOH_CHANGELOG.md',
     ).readAsStringSync();
-    _expectChangelogEntry(changelog, 'share_plus-9.0.0-ohos-3.35-0.1.0');
+    _expectChangelogEntry(changelog, 'share_plus-9.1.0-ohos-3.35-0.1.0');
     final status = await runGit(packageRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('A  fluoh.yaml'));
     expect(status.stdout.toString(), contains('A  AGENTS.md'));
@@ -1863,6 +2030,269 @@ Original upstream README body.
     expect(File('${example.path}/fluoh.yaml').existsSync(), isTrue);
     final status = await runGit(packageRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('A  fluoh.yaml'));
+  });
+
+  test('package add can use an explicit version removed from main', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPackageCreateSdkSource(
+      environment.homeDirectory,
+      logName: 'package_add_removed_flutter_args.log',
+    );
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_add_removed'),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspaceFlutterPackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    await runGit(upstream, ['tag', 'share_plus-v9.0.0']);
+    await Directory(
+      '${upstream.path}/packages/share_plus/share_plus',
+    ).delete(recursive: true);
+    await runGit(upstream, ['add', '-A', 'packages/share_plus/share_plus']);
+    await runGit(upstream, ['commit', '-m', 'Remove share_plus fixture']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_removed',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    stdout.clear();
+    stderr.clear();
+
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'add',
+          'packages/share_plus/share_plus',
+          '--upstream-version',
+          '9.0.0',
+        ],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = File(
+      '${packageRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    final pubspec = File(
+      '${packageRepository.path}/packages/share_plus/share_plus/pubspec.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('package:\n  name: share_plus'));
+    expect(manifest, contains('      version: 9.0.0'));
+    expect(manifest, contains('      ref: share_plus-v9.0.0'));
+    expect(pubspec, contains('version: 9.0.0'));
+  });
+
+  test('package add uses latest package tag removed from main', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPackageCreateSdkSource(
+      environment.homeDirectory,
+      logName: 'package_add_removed_latest_flutter_args.log',
+    );
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory(
+        '${environment.homeDirectory.path}/upstream_add_removed_latest',
+      ),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspaceFlutterPackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    await runGit(upstream, ['tag', 'share_plus-v9.0.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/share_plus/share_plus',
+      version: '9.1.0',
+    );
+    await runGit(upstream, ['tag', 'share_plus-v9.1.0']);
+    await Directory(
+      '${upstream.path}/packages/share_plus/share_plus',
+    ).delete(recursive: true);
+    await runGit(upstream, ['add', '-A', 'packages/share_plus/share_plus']);
+    await runGit(upstream, ['commit', '-m', 'Remove share_plus fixture']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_removed_latest',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    expect(
+      await runFluoh(
+        ['package', 'add', 'packages/share_plus/share_plus'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = File(
+      '${packageRepository.path}/fluoh.yaml',
+    ).readAsStringSync();
+    final pubspec = File(
+      '${packageRepository.path}/packages/share_plus/share_plus/pubspec.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('package:\n  name: share_plus'));
+    expect(manifest, contains('      version: 9.1.0'));
+    expect(manifest, contains('      ref: share_plus-v9.1.0'));
+    expect(pubspec, contains('version: 9.1.0'));
+  });
+
+  test('package add points existing package branches to sync', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPackageCreateSdkSource(
+      environment.homeDirectory,
+      logName: 'package_add_existing_branch_flutter_args.log',
+    );
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_add_existing'),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspaceFlutterPackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_existing',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    await runFluoh(
+      ['package', 'add', 'packages/share_plus/share_plus'],
+      environment: packageEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'add', 'packages/share_plus/share_plus'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final branch = await runGit(packageRepository, [
+      'branch',
+      '--show-current',
+    ]);
+    expect(branch.stdout.toString().trim(), 'ohos/3.35/share_plus');
+    expect(
+      stderr.join('\n'),
+      contains('Package branch ohos/3.35/share_plus already exists.'),
+    );
+    expect(stderr.join('\n'), contains('package status --package share_plus'));
+    expect(stderr.join('\n'), contains('fluoh package sync'));
   });
 
   test('package add restores the starting branch when setup fails', () async {

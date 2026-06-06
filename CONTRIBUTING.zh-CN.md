@@ -188,7 +188,7 @@ fluoh package create https://github.com/upstream/package.git \
 git commit -m "feat(package): initialize FlutterOH package"
 ```
 
-使用 `fluoh package sync` 从 `upstream` 快进同步 Package `fluoh.yaml` 记录的上游分支，把该分支合入当前 `ohos/<sdkLine>/<package>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。新的 FlutterOH 适配完成前保持 upstream package 版本不变。
+使用 `fluoh package sync` 拉取 upstream 分支和 tags，快进同步 Package `fluoh.yaml` 记录的上游分支，把选中的 Package 目标提交合入当前 `ohos/<sdkLine>/<package>` 分支，并且只刷新 `fluoh.yaml` 中的 upstream 元数据。默认目标是该 Package 最新有效 upstream release tag；适配指定且不低于当前 upstream version 的 Package 版本时传 `--upstream-version <version>`。`sync` 会拒绝 upstream 降级；这种情况应使用 `fluoh package version --status broken` 标记当前适配为 broken。新的 FlutterOH 适配完成前保持 Package release version 不变。
 
 沿用上游 package 测试和已有 example 测试作为自动化基线。`fluoh verify` 会先用已选择 SDK 为 package 执行 `pub get` 和 `analyze`：Flutter package 使用 `flutter`，非 Flutter package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行 package 自身测试。存在顶层 Flutter example（`example/pubspec.yaml`）时也会检查 example。
 

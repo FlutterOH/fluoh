@@ -99,6 +99,10 @@ branch. Omitting `--package-path` selects only the repository root package; it
 never means all packages. To adapt another package in the same repository, run
 `fluoh package add <package-path>` from the generated repository; it creates a
 separate `ohos/<sdkLine>/<package>` branch for that package.
+Create, add, and sync default to the latest valid upstream release tag for the
+selected package. Use `--upstream-version <version>` for a specific package
+version; `sync` refuses versions older than the branch's current upstream
+version.
 `--repository-name` is required for every new package repository; when a single
 package path is selected, the CLI can suggest a candidate if it is omitted.
 

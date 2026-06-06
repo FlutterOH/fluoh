@@ -65,11 +65,12 @@ Then:
 3. For package adaptation, resolve setup values before any mutating package
    command or implementation edit: the FlutterOH package repository name,
    `repository` URL or path, `git-author-name`, `git-author-email`, SDK line,
-   package selection, and output path. `fluoh package create` always requires
-   `--repository-name`; for a single selected monorepo package, the CLI can
-   suggest a path-based candidate when `--repository-name` is missing, but the
-   agent must still pass an explicit resolved name. Treat `repository`, Git
-   author identity, SDK line, package selection, and output path as AI
+   package selection, upstream target when specified, and output path.
+   `fluoh package create` always requires `--repository-name`; for a single
+   selected monorepo package, the CLI can suggest a path-based candidate when
+   `--repository-name` is missing, but the agent must still pass an explicit
+   resolved name. Treat `repository`, Git author identity, SDK line, package
+   selection, upstream target, and output path as AI
    automation setup inputs: use
    user-provided values, `fluoh.yaml`, local Git config only after the user
    explicitly agrees to reuse it, or documented defaults that do not change
@@ -80,8 +81,8 @@ Then:
    --json` to generate the final setup confirmation payload before any writes.
 4. After CLI setup and read-only preflight, before making project, package, or
    Source file changes, local Git configuration changes, checkpoint commits, or
-   implementation edits, present a final setup confirmation and wait for
-   explicit user approval. The confirmation must list the adaptation kind,
+   implementation edits, present a final setup confirmation and wait for explicit user approval.
+   The confirmation must list the adaptation kind,
    working directory, output directory when applicable, SDK version or line,
    package name and path when applicable, FlutterOH repository URL or path, Git
    author identity when commits may be created, the mutating commands or file
@@ -100,7 +101,11 @@ Then:
    the setup gate is complete. For AI-driven creation, always pass resolved
    `--repository`, `--git-author-name`, and `--git-author-email` values; these
    are optional CLI conveniences for manual users, not optional automation
-   inputs.
+   inputs. If the user names an upstream package version, pass
+   `--upstream-version <version>`; otherwise let create/add/sync choose the
+   latest valid release tag after fetching upstream tags. For `sync`, never
+   request a lower upstream version; mark the current adaptation `broken`
+   instead.
 7. Route to the app or package flow from preflight JSON.
 8. Run `fluoh` commands in JSON mode whenever supported, then inspect
    `nextCommand`, `diagnostics`, and log tails before editing.
@@ -165,13 +170,16 @@ Then:
    adaptation setup. For a new repository, derive or use `repository-name`,
    `repository`, `git-author-name`, `git-author-email`, SDK line, selected
    package path, and output path, then pass the resolved repository name as
-   `fluoh package create <upstream> --repository-name <repository-name>`. For a
-   single selected monorepo package, a missing-name CLI error can provide a
-   suggested name from the package path, but do not rely on implicit naming. For
-   AI-driven new repository creation, use the resolved repository name to form
-   or confirm the output directory, commonly `../packages/<repository-name>`
-   when the user requested a sibling `packages` directory. For an existing
-   package repository, read
+   `fluoh package create <upstream> --repository-name <repository-name>`. If
+   the user specifies an upstream package version, include
+   `--upstream-version <version>`; otherwise rely on the latest valid release
+   tag, not upstream HEAD. When syncing an existing package branch, only specify
+   the same or a newer upstream version. For a single selected monorepo package, a
+   missing-name CLI error can provide a suggested name from the package path,
+   but do not rely on implicit naming. For AI-driven new repository creation,
+   use the resolved repository name to form or confirm the output directory,
+   commonly `../packages/<repository-name>` when the user requested a sibling
+   `packages` directory. For an existing package repository, read
    `repository.git.url`
    from `fluoh.yaml` and `git config --local --get user.name` / `user.email`.
    Ask for any missing or contradictory setup value. When values are complete,
@@ -186,6 +194,9 @@ Then:
    package branch checkpoint sequence before moving to the next package. Use
    `fluoh package create` for the first package branch and `fluoh package add
    <package-path>` for additional package branches in the same repository.
+   Both commands sync the upstream branch and then select the requested version
+   or latest valid release tag for that package. If the package branch already
+   exists, check it out and use `fluoh package status` or `fluoh package sync`.
    Rerun preflight with `--package <name>` to confirm the current branch package
    before running package commands.
 6. Inspect preflight `upgradeChecks` before implementation edits:
@@ -367,11 +378,14 @@ cd <generated-repo>
 
 Before running this command, complete the AI setup gate: resolve the FlutterOH
 repository name, output path, repository URL or path recorded for the adaptation,
-local Git author name and email, SDK line, and package paths. Omitted package
-paths mean the root package only, not every package in a monorepo. Ask when any
-value is missing or contradictory. When every value is resolved, first run the
-same command with `--plan --json`; use the returned plan as the final setup
-confirmation and wait for explicit user approval before running
+local Git author name and email, SDK line, package paths, and upstream package
+version when specified. Omitted package paths mean the root package only, not
+every package in a monorepo. Omitted upstream targets resolve to the latest
+valid release tag for the selected package after fetching upstream tags, not to
+upstream HEAD when release tags exist. Ask when any value is missing or
+contradictory. When every value is resolved, first run the same command with
+`--plan --json`; use the returned plan as the final setup confirmation and wait
+for explicit user approval before running
 `fluoh package create`, `fluoh package add`, `fluoh package docs refresh`, or
 implementation edits. For multi-package requests, create a package queue and
 adapt one branch at a time; use `fluoh package add <package-path>` to create
@@ -403,9 +417,12 @@ to edit, when to fix local environment, and when work can be handed back.
    `fluoh package create <upstream> --repository-name <repository-name>` for a
    new package repository with resolved repository and Git author options, use
    `fluoh package add <package-path>` to create additional package branches,
-   and use
-   `fluoh package sync` only after a completed, committed checkpoint when
-   upstream needs to be merged.
+   and use `fluoh package sync` only after a completed, committed checkpoint
+   when an upstream package release needs to be merged. Use
+   `--upstream-version <version>` only when adapting a specific same-or-newer
+   upstream version; omitted targets resolve to the latest valid package release
+   tag. If the current upstream version is unusable, mark it `broken` with
+   `fluoh package version --status broken` instead of downgrading.
 2. Baseline gates: run `fluoh deps get`,
    `fluoh doctor -p --json --strict`, `fluoh flutter analyze`, and relevant
    existing package or example tests before adding OHOS code. Project warnings
@@ -454,7 +471,11 @@ to edit, when to fix local environment, and when work can be handed back.
    `stderrTail`, and saved run logs from JSON output before editing. Fix
    `doctor` failures in local tooling, project warnings in repository
    configuration, and verification failures in the code or example that
-   produced the diagnostic.
+   produced the diagnostic. During `fluoh package sync --continue`, keep the
+   target package pubspec version from the selected upstream target; do not
+   resolve conflicts by leaving the previous upstream version in place. If the
+   interrupted sync used a non-tag `--upstream-ref`, pass the same ref again
+   with `--continue` because fluoh cannot infer non-tag refs from `MERGE_HEAD`.
 8. Implementation checkpoint: once implementation, OHOS evidence, and applicable
    existing-platform regression checks are clean or explicitly blocked, create a
    local implementation checkpoint commit. This clean worktree is required before

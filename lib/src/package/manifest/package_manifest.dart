@@ -67,6 +67,7 @@ Future<void> writePackageManifestFile(
 Future<void> updatePackageManifestUpstream({
   required Directory destination,
   required Map<String, String> packageVersions,
+  String? upstreamRef,
   String? upstreamCommit,
   bool clearUpstreamRef = false,
 }) async {
@@ -77,6 +78,7 @@ Future<void> updatePackageManifestUpstream({
       updatePackageManifestUpstreamVersions(
         manifest: manifest,
         packageVersions: packageVersions,
+        upstreamRef: upstreamRef,
         upstreamCommit: upstreamCommit,
         clearUpstreamRef: clearUpstreamRef,
       ),

@@ -93,8 +93,11 @@ fluoh package status
 适配 monorepo 时，先传一个 `--package-path <path>` 创建第一个 Package 分支。不传
 `--package-path` 只会选择仓库根目录 Package，不表示适配全部 Package。要在同一仓库继续适配
 另一个 Package，从生成仓库中运行 `fluoh package add <package-path>`；它会为该 Package
-创建独立的 `ohos/<sdkLine>/<package>` 分支。`--repository-name` 对所有新 Package
-仓库都是必填；只选择单个 Package path 时，若遗漏该参数，CLI 会给出候选建议。
+创建独立的 `ohos/<sdkLine>/<package>` 分支。create、add 和 sync 默认选择所选 Package 最新
+有效 upstream release tag；需要指定 Package 版本时使用 `--upstream-version <version>`，但
+`sync` 会拒绝低于当前分支 upstream version 的版本。
+`--repository-name` 对所有新 Package 仓库都是必填；只选择单个 Package path 时，若遗漏该参数，
+CLI 会给出候选建议。
 
 用 `fluohf` 通过已选择的 FlutterOH SDK 运行 Flutter：
 

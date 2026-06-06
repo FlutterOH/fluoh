@@ -197,7 +197,7 @@ The command only configures local remotes. It does not create remote repositorie
 git commit -m "feat(package): initialize FlutterOH package"
 ```
 
-Use `fluoh package sync` to fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge that branch into the current `ohos/<sdkLine>/<package>` branch, and refresh only the upstream metadata in `fluoh.yaml`. Keep the upstream package version unchanged until the new FlutterOH adaptation is complete.
+Use `fluoh package sync` to fetch upstream branches and tags, fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge the selected package target into the current `ohos/<sdkLine>/<package>` branch, and refresh only the upstream metadata in `fluoh.yaml`. By default, the target is the latest valid upstream release tag for that package; pass `--upstream-version <version>` when adapting a specific same-or-newer package version. `sync` refuses upstream downgrades; mark the current adaptation `broken` with `fluoh package version --status broken` instead. Keep the package release version unchanged until the new FlutterOH adaptation is complete.
 
 Use upstream package tests and existing example tests as the automated baseline. `fluoh verify` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
 

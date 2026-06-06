@@ -121,7 +121,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | 从已配置 source 列出 FlutterOH Package。 |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH Package 仓库。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中创建另一个 Package 适配分支。 |
-| `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把 upstream 合入当前 OHOS Package 分支。 |
+| `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把选中的 upstream Package release 合入当前 OHOS Package 分支。 |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | 汇总 Package 发布就绪状态。 |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | 更新 Package 发布版本元数据。 |
 | `fluoh package docs refresh` | `lib/src/package/commands/package_docs_command.dart` | 刷新 Package 仓库生成文档。 |
@@ -434,8 +434,11 @@ Flutter OHOS SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 a
 不传 `--package-path` 时，命令只选择 upstream 仓库根目录 Package，不表示适配 monorepo
 中的全部 Package。适配 monorepo 时，为当前要创建的 Package 分支传一个
 `--package-path <subdir>`。要在同一仓库继续适配另一个 Package，从生成仓库中运行
-`fluoh package add <package-path>`；它会基于该 Package 的最新 release tag 创建独立 Package
-分支。
+`fluoh package add <package-path>`；它会基于该 Package 选中的 release/ref 创建独立
+Package 分支。默认情况下，package create/add 会选择所选 Package 最新有效 upstream release
+tag；需要指定 Package 版本时传 `--upstream-version`，只有 release tags 无法识别目标快照时才用
+`--upstream-ref`。传入显式 target 时，所选 Package path 会在该 target 上解析；即使 upstream
+default branch 已经移动或删除历史 Package path，也仍可适配该历史版本。
 命令始终要求 `--repository-name <repository-name>`。`--repository-name` 只决定未传
 `--output` 时的默认输出目录，以及省略 `--repository` 时的默认 FlutterOH origin URL。
 它不会写入 Package `fluoh.yaml`；Package 身份来自 `package.name`。只选择一个子目录
@@ -443,8 +446,9 @@ Package path 且遗漏 `--repository-name` 时，usage error 会根据 path 给�
 但命令仍要求显式传入该参数。
 生成的 `fluoh.yaml` 会在 `repository`、`upstream`、Package 路径、`version` 和
 `status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括
-`--package-path`、`--output`、`--repository-name`、`--sdk`、`--repository`、
-`--git-author-name`、`--git-author-email`、`--plan` 和 `--json`。Git 作者参数只配置新仓库
+`--package-path`、`--upstream-version`、`--upstream-ref`、`--output`、
+`--repository-name`、`--sdk`、`--repository`、`--git-author-name`、`--git-author-email`、
+`--plan` 和 `--json`。Git 作者参数只配置新仓库
 本地 Git `user.name` 和 `user.email`，供后续适配 commit 使用，不写入被跟踪文件。
 `--plan` 会把 upstream clone 到临时目录，解析所选 Package、SDK、输出路径、repository
 URL、目标分支和 Git author，然后删除临时 clone；它不会创建目标仓库、配置 SDK link、
@@ -452,18 +456,29 @@ URL、目标分支和 Git author，然后删除临时 clone；它不会创建目
 plan 对象，供 AI setup 确认使用。
 
 `fluoh package add <package-path>` 在现有 FlutterOH Package 仓库中创建另一个 Package 分支。
-它要求工作树干净，基于 upstream 分支解析目标 Package，切到该 Package 最新 release tag
+它要求工作树干净，基于同步后的 upstream 分支解析目标 Package，切到选中的 release/ref
 commit，创建 `ohos/<sdkLine>/<package>`，写入单 Package `fluoh.yaml` 和文档，在已有
-Flutter example 时准备 example，并暂存生成文件。命令失败时会通过文件快照保护本地状态。
+Flutter example 时准备 example，并暂存生成文件。它支持 `--upstream-version` 和
+`--upstream-ref`，选择规则和 package create 相同。如果目标 Package 分支已经存在，命令会提示
+维护者切到已有分支，用 `fluoh package status` 查看现有适配，或用 `fluoh package sync` 更新它，
+而不是创建重复适配状态。命令失败时会通过文件快照保护本地状态。
 
-`fluoh package sync` 会拉取 upstream，快进 Package `upstream.git.branch` 记录的 upstream
-分支，回到 `fluoh.yaml` 记录的 `repository.git.branch` 分支，先把 upstream 分支合并进来但
-不立即提交，然后更新 `fluoh.yaml` 中的 upstream 元数据并暂存；
-存在变更时提交 `Sync upstream package`。合并冲突会留给用户解决，之后
-`fluoh package sync --continue` 校验已暂存的解决结果并完成流程。`--abort` 对进行中的 sync
-执行 `git merge --abort`。`--json` 会输出完成的 sync 动作列表和提交状态。fetch 失败输出
-`sync.fetch_failed`；合并冲突输出 `sync.merge_conflict`，包含冲突文件列表和 `--continue`
-下一步命令；没有产生可解决冲突的 merge 失败输出 `sync.merge_failed`。Git 有有效输出时，
+`fluoh package sync` 会拉取 upstream 分支和 tags，快进 Package `upstream.git.branch` 记录的
+upstream 分支，从 `--upstream-version`、`--upstream-ref` 或最新有效 release tag 解析 Package
+目标提交，回到 `fluoh.yaml` 记录的 `repository.git.branch` 分支，先把选中的目标提交合并
+进来但不立即提交，然后更新 `fluoh.yaml` 中的 upstream 元数据并暂存；存在变更时提交
+`Sync upstream package`。如果没有有效 release tag 且未传显式 target，则回退到已同步的
+upstream 分支 HEAD。如果解析出的目标已经和当前分支 metadata 及 commit 一致，`sync` 会明确提示
+该 Package 分支已经适配对应 upstream version，并且不创建 commit。`sync` 会拒绝低于当前分支
+upstream version 的显式 Package 版本；这种情况应使用 `fluoh package version --status broken`
+标记当前适配为 broken，而不是降级分支。合并冲突会留给用户解决，之后
+`fluoh package sync --continue` 校验已暂存的解决结果并完成流程。如果中断的 merge 使用了自定义非
+tag ref，继续时传同一个 `--upstream-ref`；release tag 通常可以从 `MERGE_HEAD` 自动推断，
+但非 tag ref 不能。
+continue 还会在更新 `fluoh.yaml` 前校验已解决工作树中的 Package version 是否匹配选中的 upstream
+target。`--abort` 对进行中的 sync 执行 `git merge --abort`。`--json` 会输出完成的 sync 动作列表和提交状态。
+fetch 失败输出 `sync.fetch_failed`；合并冲突输出 `sync.merge_conflict`，包含冲突文件列表和
+`--continue` 下一步命令；没有产生可解决冲突的 merge 失败输出 `sync.merge_failed`。Git 有有效输出时，
 JSON diagnostic 会包含裁剪后的 stdout 和 stderr 尾部。
 
 `fluoh verify` 会为当前项目或 Package `fluoh.yaml` 中记录的当前 Package 运行自动化验证。它会先用已选择 SDK 执行 `pub get` 和 `analyze`：Flutter Package 使用

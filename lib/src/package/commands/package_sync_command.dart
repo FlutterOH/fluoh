@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:pub_semver/pub_semver.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
@@ -10,6 +12,7 @@ import '../../context/fluoh_environment.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
+import '../upstream_package_ref.dart';
 
 /// Synchronizes upstream changes into a package adaptation branch.
 class PackageSyncCommand extends FluohCommand<int> {
@@ -34,6 +37,21 @@ class PackageSyncCommand extends FluohCommand<int> {
         'json',
         negatable: false,
         help: 'Print the sync result as JSON.',
+      )
+      ..addOption(
+        'upstream-version',
+        valueHelp: 'version',
+        help:
+            'Upstream package version to merge. Must not be older than the '
+            'current package branch upstream version. Defaults to the latest '
+            'valid package release tag.',
+      )
+      ..addOption(
+        'upstream-ref',
+        valueHelp: 'ref',
+        help:
+            'Upstream Git ref to merge. Use only when release tags cannot '
+            'identify the target package version.',
       );
   }
 
@@ -58,6 +76,7 @@ class PackageSyncCommand extends FluohCommand<int> {
     final shouldContinue = argResults!.flag('continue');
     final shouldAbort = argResults!.flag('abort');
     final json = argResults!.flag('json');
+    final upstreamTarget = _upstreamTargetFromOptions(argResults!);
     final actions = <String>[];
     if (shouldContinue && shouldAbort) {
       usageException('Use only one of --continue or --abort.');
@@ -79,7 +98,12 @@ class PackageSyncCommand extends FluohCommand<int> {
       return 0;
     }
     if (shouldContinue) {
-      return _continueSync(repository, json: json, actions: actions);
+      return _continueSync(
+        repository,
+        target: upstreamTarget,
+        json: json,
+        actions: actions,
+      );
     }
 
     await ensureCleanWorkingTree(repository, 'Sync');
@@ -88,7 +112,7 @@ class PackageSyncCommand extends FluohCommand<int> {
     _ensurePackageBranch(startingBranch, manifest);
     if (json) {
       final fetch = await runGit(
-        ['fetch', 'upstream'],
+        ['fetch', '--tags', 'upstream'],
         workingDirectory: repository,
         allowFailure: true,
       );
@@ -106,29 +130,33 @@ class PackageSyncCommand extends FluohCommand<int> {
     } else {
       await _output.withProgress(
         'Fetching upstream',
-        () => runGit(['fetch', 'upstream'], workingDirectory: repository),
+        () => fetchUpstreamRefs(repository),
       );
     }
     actions.add('fetched upstream');
     final defaultBranch = manifest.upstreamBranch;
     var switchedBranches = false;
+    late final ResolvedPackageUpstreamRef resolvedTarget;
     try {
       if (!json) {
         _output.step('Checking out $defaultBranch');
       }
-      await runGit(['checkout', defaultBranch], workingDirectory: repository);
       switchedBranches = true;
-      await runGit([
-        'merge',
-        '--ff-only',
-        'upstream/$defaultBranch',
-      ], workingDirectory: repository);
+      await synchronizeUpstreamBranch(repository, branch: defaultBranch);
       actions.add('synchronized $defaultBranch from upstream/$defaultBranch');
       if (!json) {
         _output.success(
           'Synchronized $defaultBranch from upstream/$defaultBranch',
         );
       }
+      resolvedTarget = await resolvePackageUpstreamRef(
+        repository: repository,
+        packageName: manifest.package.name,
+        packagePath: manifest.package.path,
+        fallbackRef: defaultBranch,
+        target: upstreamTarget,
+      );
+      _ensureNonDowngradeSyncTarget(manifest, resolvedTarget);
     } finally {
       if (switchedBranches &&
           startingBranch.isNotEmpty &&
@@ -148,6 +176,7 @@ class PackageSyncCommand extends FluohCommand<int> {
       manifest: manifest,
       defaultBranch: defaultBranch,
       packageBranch: startingBranch,
+      upstreamTarget: resolvedTarget,
       json: json,
       actions: actions,
     );
@@ -155,6 +184,7 @@ class PackageSyncCommand extends FluohCommand<int> {
 
   Future<int> _continueSync(
     Directory repository, {
+    required PackageUpstreamTarget target,
     required bool json,
     required List<String> actions,
   }) async {
@@ -178,11 +208,28 @@ class PackageSyncCommand extends FluohCommand<int> {
     }
 
     final defaultBranch = manifest.upstreamBranch;
+    final upstreamTarget = target.isExplicit
+        ? await resolvePackageUpstreamRef(
+            repository: repository,
+            packageName: manifest.package.name,
+            packagePath: manifest.package.path,
+            fallbackRef: defaultBranch,
+            target: target,
+          )
+        : await _resolvedMergeHeadTarget(repository, manifest);
+    if (target.isExplicit) {
+      await _ensureExplicitContinueTargetMatchesMergeHead(
+        repository,
+        upstreamTarget,
+      );
+    }
+    _ensureNonDowngradeSyncTarget(manifest, upstreamTarget);
     return _updateManifestAndCommit(
       repository: repository,
       manifest: manifest,
       defaultBranch: defaultBranch,
       packageBranch: branch,
+      upstreamTarget: upstreamTarget,
       json: json,
       actions: actions,
     );
@@ -193,11 +240,40 @@ class PackageSyncCommand extends FluohCommand<int> {
     required PackageManifest manifest,
     required String defaultBranch,
     required String packageBranch,
+    required ResolvedPackageUpstreamRef upstreamTarget,
     required bool json,
     required List<String> actions,
   }) async {
+    final mergeRef = upstreamTarget.ref ?? defaultBranch;
+    if (_manifestMatchesUpstreamTarget(manifest, upstreamTarget) &&
+        await _branchContainsCommit(
+          repository,
+          branch: packageBranch,
+          commit: upstreamTarget.commit,
+        )) {
+      actions.add(
+        '$packageBranch already adapts ${upstreamTarget.package.version}',
+      );
+      if (json) {
+        _writeJson({
+          'status': 'unchanged',
+          'packageBranch': packageBranch,
+          'upstreamBranch': defaultBranch,
+          'upstreamVersion': upstreamTarget.package.version,
+          if (upstreamTarget.ref != null) 'upstreamRef': upstreamTarget.ref,
+          'actions': actions,
+          'committed': false,
+        });
+      } else {
+        _output.skipped(
+          'Package branch $packageBranch already adapts upstream '
+          '${upstreamTarget.package.version} ($mergeRef)',
+        );
+      }
+      return 0;
+    }
     final merge = await runGit(
-      ['merge', '--no-ff', '--no-commit', defaultBranch],
+      ['merge', '--no-ff', '--no-commit', upstreamTarget.commit],
       workingDirectory: repository,
       allowFailure: true,
     );
@@ -228,13 +304,13 @@ class PackageSyncCommand extends FluohCommand<int> {
       }
       if (conflictedFiles.isEmpty) {
         throw UsageException(
-          'git merge --no-ff --no-commit $defaultBranch failed:\n'
+          'git merge --no-ff --no-commit $mergeRef failed:\n'
               '${merge.stderr}',
           '',
         );
       }
       throw UsageException(
-        'git merge --no-ff --no-commit $defaultBranch failed:\n'
+        'git merge --no-ff --no-commit $mergeRef failed:\n'
             '${merge.stderr}\n'
             'Resolve conflicts, stage the resolved files, and run '
             '"fluoh package sync --continue", or run "fluoh package sync --abort".',
@@ -242,15 +318,15 @@ class PackageSyncCommand extends FluohCommand<int> {
       );
     }
     if (await _isMergeInProgress(repository)) {
-      actions.add('merged $defaultBranch into $packageBranch');
+      actions.add('merged $mergeRef into $packageBranch');
       if (!json) {
-        _output.success('Merged $defaultBranch into $packageBranch');
+        _output.success('Merged $mergeRef into $packageBranch');
       }
     } else {
-      actions.add('$packageBranch already contains $defaultBranch');
+      actions.add('$packageBranch already contains $mergeRef');
       if (!json) {
         _output.skipped(
-          'Package branch $packageBranch already contains $defaultBranch',
+          'Package branch $packageBranch already contains $mergeRef',
         );
       }
     }
@@ -260,6 +336,7 @@ class PackageSyncCommand extends FluohCommand<int> {
       manifest: manifest,
       defaultBranch: defaultBranch,
       packageBranch: packageBranch,
+      upstreamTarget: upstreamTarget,
       json: json,
       actions: actions,
     );
@@ -270,6 +347,7 @@ class PackageSyncCommand extends FluohCommand<int> {
     required PackageManifest manifest,
     required String defaultBranch,
     required String packageBranch,
+    required ResolvedPackageUpstreamRef upstreamTarget,
     required bool json,
     required List<String> actions,
   }) async {
@@ -286,12 +364,22 @@ class PackageSyncCommand extends FluohCommand<int> {
         '',
       );
     }
+    if (package.version != upstreamTarget.package.version) {
+      throw UsageException(
+        'Resolved package version ${package.version} does not match selected '
+            'upstream version ${upstreamTarget.package.version}. Re-apply the '
+            'upstream pubspec version before running '
+            '"fluoh package sync --continue".',
+        '',
+      );
+    }
     packageVersions[package.name] = package.version;
     await updatePackageManifestUpstream(
       destination: repository,
       packageVersions: packageVersions,
-      upstreamCommit: await _revParseCommit(repository, defaultBranch),
-      clearUpstreamRef: true,
+      upstreamRef: upstreamTarget.ref,
+      upstreamCommit: upstreamTarget.commit,
+      clearUpstreamRef: upstreamTarget.ref == null,
     );
     await runGit(['add', 'fluoh.yaml'], workingDirectory: repository);
     final mergeInProgress = await _isMergeInProgress(repository);
@@ -424,6 +512,139 @@ Future<String> _revParseCommit(Directory repository, String ref) async {
     '$ref^{commit}',
   ], workingDirectory: repository);
   return result.stdout.toString().trim();
+}
+
+Future<void> _ensureExplicitContinueTargetMatchesMergeHead(
+  Directory repository,
+  ResolvedPackageUpstreamRef target,
+) async {
+  final mergeHead = await _revParseCommit(repository, 'MERGE_HEAD');
+  if (mergeHead == target.commit) {
+    return;
+  }
+  final selectedRef = target.ref ?? target.commit;
+  throw UsageException(
+    'Selected upstream target $selectedRef (${target.commit}) does not match '
+        'the in-progress merge $mergeHead. Re-run '
+        '"fluoh package sync --continue" with the same upstream target used '
+        'for the interrupted sync, or abort with '
+        '"fluoh package sync --abort".',
+    '',
+  );
+}
+
+void _ensureNonDowngradeSyncTarget(
+  PackageManifest manifest,
+  ResolvedPackageUpstreamRef target,
+) {
+  final current = Version.parse(manifest.package.upstreamVersion);
+  final selected = Version.parse(target.package.version);
+  if (selected.compareTo(current) >= 0) {
+    return;
+  }
+  throw UsageException(
+    'package sync does not downgrade ${manifest.package.name} upstream '
+        'version ${manifest.package.upstreamVersion} -> '
+        '${target.package.version}. If ${manifest.package.upstreamVersion} '
+        'should not be used, mark this adaptation as broken with '
+        '"fluoh package version --status broken".',
+    '',
+  );
+}
+
+bool _manifestMatchesUpstreamTarget(
+  PackageManifest manifest,
+  ResolvedPackageUpstreamRef target,
+) {
+  return manifest.package.upstreamVersion == target.package.version &&
+      manifest.package.upstreamRef == target.ref &&
+      manifest.package.upstreamCommit == target.commit;
+}
+
+Future<bool> _branchContainsCommit(
+  Directory repository, {
+  required String branch,
+  required String commit,
+}) async {
+  final result = await runGit(
+    ['merge-base', '--is-ancestor', commit, branch],
+    workingDirectory: repository,
+    allowFailure: true,
+  );
+  return result.exitCode == 0;
+}
+
+PackageUpstreamTarget _upstreamTargetFromOptions(ArgResults argResults) {
+  final version = argResults.option('upstream-version')?.trim();
+  final ref = argResults.option('upstream-ref')?.trim();
+  final hasVersion = version != null && version.isNotEmpty;
+  final hasRef = ref != null && ref.isNotEmpty;
+  if (hasVersion && hasRef) {
+    throw UsageException(
+      'Use only one of --upstream-version or --upstream-ref.',
+      '',
+    );
+  }
+  return PackageUpstreamTarget(
+    version: hasVersion ? version : null,
+    ref: hasRef ? ref : null,
+  );
+}
+
+Future<ResolvedPackageUpstreamRef> _resolvedMergeHeadTarget(
+  Directory repository,
+  PackageManifest manifest,
+) async {
+  final mergeHead = await _revParseCommit(repository, 'MERGE_HEAD');
+  final package = await packageAtUpstreamRef(
+    repository: repository,
+    ref: mergeHead,
+    packagePath: manifest.package.path,
+  );
+  if (package == null) {
+    throw UsageException(
+      'Missing pubspec.yaml for ${manifest.package.name} at '
+          '${manifest.package.path} on MERGE_HEAD.',
+      '',
+    );
+  }
+  if (package.name != manifest.package.name) {
+    throw UsageException(
+      'Package path ${manifest.package.path} contains ${package.name}, '
+          'expected ${manifest.package.name}. Update fluoh.yaml before syncing.',
+      '',
+    );
+  }
+  final refs = await packageReleaseRefs(
+    repository: repository,
+    packageName: manifest.package.name,
+    packagePath: manifest.package.path,
+  );
+  PackageReleaseRef? matchingRef;
+  for (final ref in refs) {
+    if (ref.commit == mergeHead && ref.package.version == package.version) {
+      matchingRef = ref;
+    }
+  }
+  if (matchingRef == null) {
+    final defaultBranchHead = await _revParseCommit(
+      repository,
+      manifest.upstreamBranch,
+    );
+    if (mergeHead != defaultBranchHead) {
+      throw UsageException(
+        'Could not infer an upstream release tag for MERGE_HEAD. Re-run '
+            '"fluoh package sync --continue --upstream-ref <ref>" with the '
+            'same non-tag ref used for the interrupted sync.',
+        '',
+      );
+    }
+  }
+  return ResolvedPackageUpstreamRef(
+    package: package,
+    commit: mergeHead,
+    ref: matchingRef?.ref,
+  );
 }
 
 Map<String, Object?> _processOutputFields(ProcessResult result) {

@@ -18,6 +18,7 @@ import '../license_checker.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
 import '../repository_url.dart';
+import '../upstream_package_ref.dart';
 
 /// Initializes a FlutterOH package repository from an upstream package repo.
 class PackageCreateCommand extends FluohCommand<int> {
@@ -37,6 +38,20 @@ class PackageCreateCommand extends FluohCommand<int> {
         help:
             'Package path inside the upstream repository. Pass one path; '
             'omitting it selects only the root package.',
+      )
+      ..addOption(
+        'upstream-version',
+        valueHelp: 'version',
+        help:
+            'Upstream package version to adapt. Defaults to the latest valid '
+            'package release tag.',
+      )
+      ..addOption(
+        'upstream-ref',
+        valueHelp: 'ref',
+        help:
+            'Upstream Git ref to adapt. Use only when release tags cannot '
+            'identify the target package version.',
       )
       ..addOption(
         'output',
@@ -133,6 +148,7 @@ class PackageCreateCommand extends FluohCommand<int> {
     _ensureSinglePackagePathOption();
     final packagePath = _packagePathFromOptions();
     final packagePaths = packagePath == null ? const <String>[] : [packagePath];
+    final upstreamTarget = _upstreamTargetFromOptions();
     final packageRepositoryName = _packageRepositoryNameFromOptions();
     final gitAuthor = _gitAuthorConfigFromOptions();
     final repositoryOption = argResults!.option('repository');
@@ -156,6 +172,7 @@ class PackageCreateCommand extends FluohCommand<int> {
         packagePaths: packagePaths,
         repositoryName: packageRepositoryName,
         repositoryOption: repositoryOption,
+        upstreamTarget: upstreamTarget,
         gitAuthor: gitAuthor,
         release: release,
         destination: destination,
@@ -170,35 +187,33 @@ class PackageCreateCommand extends FluohCommand<int> {
       );
       await runGit(['clone', '--quiet', upstream, destination.path]);
 
-      var selectedPackages = await _selectPackages(
+      final implementationRepositoryName = packageRepositoryName;
+      final repositoryUrl =
+          repositoryOption ??
+          defaultPackageRepositoryUrl(implementationRepositoryName);
+      await configurePackageRemotes(destination, repositoryUrl);
+      await fetchUpstreamRefs(destination);
+      final upstreamBranch = await upstreamDefaultBranch(destination);
+      await synchronizeUpstreamBranch(destination, branch: upstreamBranch);
+
+      final selectedPackages = await _selectPackagesForTarget(
         repository: destination,
         packagePaths: packagePaths,
-      );
-      final publishedRefs = await _PublishedPackageRefResolver.load(
-        destination,
-      );
-      selectedPackages = await _resolveLatestPublishedPackageRefs(
-        repository: destination,
-        selectedPackages: selectedPackages,
-        publishedRefs: publishedRefs,
+        fallbackRef: upstreamBranch,
+        target: upstreamTarget,
       );
       final selected = selectedPackages.single;
-      final implementationRepositoryName = packageRepositoryName;
       if (selected.path != '.') {
         _output.info(
           'Selected package ${selected.package.name} at ${selected.path}',
         );
       }
-      final repositoryUrl =
-          repositoryOption ??
-          defaultPackageRepositoryUrl(implementationRepositoryName);
       final docPackages = [
         _docPackageForSelection(
           selectedPackage: selected,
           repositoryUrl: repositoryUrl,
         ),
       ];
-      await configurePackageRemotes(destination, repositoryUrl);
       if (gitAuthor != null) {
         await configurePackageGitAuthor(destination, gitAuthor);
         _output.info(
@@ -206,7 +221,6 @@ class PackageCreateCommand extends FluohCommand<int> {
         );
       }
 
-      final upstreamBranch = await upstreamDefaultBranch(destination);
       await runGit([
         'checkout',
         '--detach',
@@ -242,9 +256,9 @@ class PackageCreateCommand extends FluohCommand<int> {
         'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}',
       );
       await _warnForSelectedPackageSdkCompatibility(
+        repository: destination,
         selectedPackages: selectedPackages,
         sdkDirectory: configuredSdkDirectory,
-        publishedRefs: publishedRefs,
         output: _output,
       );
       final ideLink = await projectEnvironment.linkIdeSdk(
@@ -409,6 +423,20 @@ class PackageCreateCommand extends FluohCommand<int> {
     return packagePath;
   }
 
+  PackageUpstreamTarget _upstreamTargetFromOptions() {
+    final version = argResults!.option('upstream-version')?.trim();
+    final ref = argResults!.option('upstream-ref')?.trim();
+    final hasVersion = version != null && version.isNotEmpty;
+    final hasRef = ref != null && ref.isNotEmpty;
+    if (hasVersion && hasRef) {
+      usageException('Use only one of --upstream-version or --upstream-ref.');
+    }
+    return PackageUpstreamTarget(
+      version: hasVersion ? version : null,
+      ref: hasRef ? ref : null,
+    );
+  }
+
   void _ensureSinglePackagePathOption() {
     final occurrences = argResults!.arguments.where((argument) {
       return argument == '--package-path' ||
@@ -474,6 +502,7 @@ extension on PackageCreateCommand {
     required List<String> packagePaths,
     required String repositoryName,
     required String? repositoryOption,
+    required PackageUpstreamTarget upstreamTarget,
     required PackageGitAuthor? gitAuthor,
     required SdkRelease release,
     required Directory destination,
@@ -487,23 +516,22 @@ extension on PackageCreateCommand {
         _output.step('Inspecting upstream repository');
       }
       await runGit(['clone', '--quiet', upstream, scratchRepository.path]);
-      var selectedPackages = await _selectPackages(
-        repository: scratchRepository,
-        packagePaths: packagePaths,
-      );
-      final publishedRefs = await _PublishedPackageRefResolver.load(
-        scratchRepository,
-      );
-      selectedPackages = await _resolveLatestPublishedPackageRefs(
-        repository: scratchRepository,
-        selectedPackages: selectedPackages,
-        publishedRefs: publishedRefs,
-      );
-      final selected = selectedPackages.single;
       final repositoryUrl =
           repositoryOption ?? defaultPackageRepositoryUrl(repositoryName);
       await configurePackageRemotes(scratchRepository, repositoryUrl);
+      await fetchUpstreamRefs(scratchRepository);
       final upstreamBranch = await upstreamDefaultBranch(scratchRepository);
+      await synchronizeUpstreamBranch(
+        scratchRepository,
+        branch: upstreamBranch,
+      );
+      final selectedPackages = await _selectPackagesForTarget(
+        repository: scratchRepository,
+        packagePaths: packagePaths,
+        fallbackRef: upstreamBranch,
+        target: upstreamTarget,
+      );
+      final selected = selectedPackages.single;
       final branch = flutterOhosPackageBranchForSdk(
         sdkVersion: release.tag,
         packageName: selected.package.name,
@@ -715,251 +743,76 @@ class _SelectedPackage {
   final String? upstreamRef;
 }
 
-Future<List<_SelectedPackage>> _selectPackages({
+Future<List<_SelectedPackage>> _selectPackagesForTarget({
   required Directory repository,
   required List<String> packagePaths,
+  required String fallbackRef,
+  required PackageUpstreamTarget target,
 }) async {
   final paths = packagePaths.isEmpty ? const ['.'] : packagePaths;
   final selected = <_SelectedPackage>[];
   final seenPackages = <String>{};
   for (final path in paths) {
-    final package = await _readSelectedPackage(
+    final upstreamRef = await _resolveSelectedPackageUpstreamRef(
       repository: repository,
       packagePath: path,
+      fallbackRef: fallbackRef,
+      target: target,
     );
+    final package = upstreamRef.package;
     if (!seenPackages.add(package.name)) {
       throw UsageException(
         'Package ${package.name} was selected more than once.',
         '',
       );
     }
-    selected.add(_SelectedPackage(package: package, path: path));
+    selected.add(
+      _SelectedPackage(
+        package: upstreamRef.package,
+        path: path,
+        upstreamCommit: upstreamRef.commit,
+        upstreamRef: upstreamRef.ref,
+      ),
+    );
   }
   return selected;
 }
 
-Future<List<_SelectedPackage>> _resolveLatestPublishedPackageRefs({
+Future<ResolvedPackageUpstreamRef> _resolveSelectedPackageUpstreamRef({
   required Directory repository,
-  required List<_SelectedPackage> selectedPackages,
-  required _PublishedPackageRefResolver publishedRefs,
+  required String packagePath,
+  required String fallbackRef,
+  required PackageUpstreamTarget target,
 }) async {
-  final headCommit = await _revParseCommit(repository, 'HEAD');
-  final resolved = <_SelectedPackage>[];
-  for (final selected in selectedPackages) {
-    final releaseRef = await publishedRefs.latest(
-      packageName: selected.package.name,
-      packagePath: selected.path,
-    );
-    if (releaseRef == null) {
-      resolved.add(
-        _SelectedPackage(
-          package: selected.package,
-          path: selected.path,
-          upstreamCommit: headCommit,
-        ),
-      );
-      continue;
-    }
-
-    resolved.add(
-      _SelectedPackage(
-        package: releaseRef.package,
-        path: selected.path,
-        upstreamCommit: releaseRef.commit,
-        upstreamRef: releaseRef.ref,
-      ),
-    );
-  }
-  return resolved;
-}
-
-String? _packageVersionFromReleaseTag({
-  required String tag,
-  required String packageName,
-  required bool rootPackage,
-}) {
-  final escapedPackage = RegExp.escape(packageName);
-  final packageTagPatterns = [
-    RegExp('^$escapedPackage-v(.+)\$'),
-    RegExp('^$escapedPackage-(.+)\$'),
-  ];
-  final rootTagPatterns = rootPackage
-      ? [RegExp(r'^v(.+)$'), RegExp(r'^(.+)$')]
-      : const <RegExp>[];
-  for (final pattern in [...packageTagPatterns, ...rootTagPatterns]) {
-    final match = pattern.firstMatch(tag);
-    if (match == null) {
-      continue;
-    }
-    final version = match.group(1)!;
-    try {
-      Version.parse(version);
-      return version;
-    } on FormatException {
-      continue;
-    }
-  }
-  return null;
-}
-
-class _PublishedPackageRef {
-  const _PublishedPackageRef({
-    required this.ref,
-    required this.commit,
-    required this.version,
-    required this.package,
-  });
-
-  final String ref;
-  final String commit;
-  final Version version;
-  final PubspecPackage package;
-}
-
-class _PublishedPackageRefResolver {
-  _PublishedPackageRefResolver._({
-    required this.repository,
-    required this.tags,
-  });
-
-  final Directory repository;
-  final List<String> tags;
-  final Map<String, List<_PublishedPackageRef>> _cache = {};
-
-  static Future<_PublishedPackageRefResolver> load(Directory repository) async {
-    final tags = (await runGit([
-      'tag',
-      '--list',
-    ], workingDirectory: repository)).stdout.toString().split('\n');
-    return _PublishedPackageRefResolver._(
+  try {
+    return await resolvePackageUpstreamRefAtPath(
       repository: repository,
-      tags: tags
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toList(),
+      packagePath: packagePath,
+      fallbackRef: fallbackRef,
+      target: target,
     );
-  }
-
-  Future<_PublishedPackageRef?> latest({
-    required String packageName,
-    required String packagePath,
-  }) async {
-    final candidates = await refs(
-      packageName: packageName,
+  } on UsageException {
+    if (target.isExplicit) {
+      rethrow;
+    }
+    final package = await _readSelectedPackage(
+      repository: repository,
       packagePath: packagePath,
     );
-    return candidates.isEmpty ? null : candidates.last;
-  }
-
-  Future<_PublishedPackageRef?> latestCompatible({
-    required String packageName,
-    required String packagePath,
-    required Version dartVersion,
-  }) async {
-    final candidates = await refs(
-      packageName: packageName,
+    return resolvePackageUpstreamRef(
+      repository: repository,
+      packageName: package.name,
       packagePath: packagePath,
+      fallbackRef: fallbackRef,
+      target: target,
     );
-    for (final candidate in candidates.reversed) {
-      final constraint = _dartSdkConstraint(candidate.package);
-      if (constraint == null || constraint.allows(dartVersion)) {
-        return candidate;
-      }
-    }
-    return null;
   }
-
-  Future<List<_PublishedPackageRef>> refs({
-    required String packageName,
-    required String packagePath,
-  }) async {
-    final normalizedPath = _normalizePackagePath(packagePath);
-    final cacheKey = '$packageName\n$normalizedPath';
-    final cached = _cache[cacheKey];
-    if (cached != null) {
-      return cached;
-    }
-
-    final candidates = <_PublishedPackageRef>[];
-    for (final tag in tags) {
-      final tagVersion = _packageVersionFromReleaseTag(
-        tag: tag,
-        packageName: packageName,
-        rootPackage: normalizedPath == '.',
-      );
-      if (tagVersion == null) {
-        continue;
-      }
-      final pubspec = await _packageAtRef(
-        ref: tag,
-        packagePath: normalizedPath,
-      );
-      if (pubspec == null || pubspec.name != packageName) {
-        continue;
-      }
-      if (pubspec.version != tagVersion) {
-        continue;
-      }
-      try {
-        final commit = await _revParseCommit(repository, tag);
-        candidates.add(
-          _PublishedPackageRef(
-            ref: tag,
-            commit: commit,
-            version: Version.parse(pubspec.version),
-            package: pubspec,
-          ),
-        );
-      } on FormatException {
-        continue;
-      }
-    }
-    candidates.sort((a, b) {
-      final version = a.version.compareTo(b.version);
-      if (version != 0) {
-        return version;
-      }
-      return a.ref.compareTo(b.ref);
-    });
-    _cache[cacheKey] = candidates;
-    return candidates;
-  }
-
-  Future<PubspecPackage?> _packageAtRef({
-    required String ref,
-    required String packagePath,
-  }) async {
-    final pubspecPath = packagePath == '.'
-        ? 'pubspec.yaml'
-        : '${_normalizePackagePath(packagePath)}/pubspec.yaml';
-    final result = await runGit(
-      ['show', '$ref:$pubspecPath'],
-      workingDirectory: repository,
-      allowFailure: true,
-    );
-    if (result.exitCode != 0) {
-      return null;
-    }
-    try {
-      return PubspecPackage.fromYaml(result.stdout.toString());
-    } on FormatException {
-      return null;
-    }
-  }
-}
-
-Future<String> _revParseCommit(Directory repository, String ref) async {
-  final result = await runGit([
-    'rev-parse',
-    '$ref^{commit}',
-  ], workingDirectory: repository);
-  return result.stdout.toString().trim();
 }
 
 Future<void> _warnForSelectedPackageSdkCompatibility({
+  required Directory repository,
   required List<_SelectedPackage> selectedPackages,
   required Directory sdkDirectory,
-  required _PublishedPackageRefResolver publishedRefs,
   required TerminalOutput output,
 }) async {
   final dartVersion = await _dartVersionForSdk(sdkDirectory);
@@ -971,11 +824,20 @@ Future<void> _warnForSelectedPackageSdkCompatibility({
     if (constraint == null || constraint.allows(dartVersion)) {
       continue;
     }
-    final compatibleRef = await publishedRefs.latestCompatible(
+    final refs = await packageReleaseRefs(
+      repository: repository,
       packageName: selected.package.name,
       packagePath: selected.path,
-      dartVersion: dartVersion,
     );
+    PackageReleaseRef? compatibleRef;
+    for (final candidate in refs.reversed) {
+      final candidateConstraint = _dartSdkConstraint(candidate.package);
+      if (candidateConstraint == null ||
+          candidateConstraint.allows(dartVersion)) {
+        compatibleRef = candidate;
+        break;
+      }
+    }
     final selectedRef = selected.upstreamRef ?? selected.package.version;
     output.warning(
       'Selected upstream $selectedRef for ${selected.package.name} requires '
@@ -1096,7 +958,6 @@ Future<List<_PackageSelectionCandidate>> _packageSelectionCandidates(
   if (!await repository.exists()) {
     return candidates;
   }
-  final publishedRefs = await _PublishedPackageRefResolver.load(repository);
   final pending = <Directory>[repository];
   while (pending.isNotEmpty) {
     final directory = pending.removeLast();
@@ -1117,7 +978,8 @@ Future<List<_PackageSelectionCandidate>> _packageSelectionCandidates(
       }
       try {
         final package = await readPubspecPackage(entity.parent);
-        final latestRef = await publishedRefs.latest(
+        final refs = await packageReleaseRefs(
+          repository: repository,
           packageName: package.name,
           packagePath: path,
         );
@@ -1125,7 +987,7 @@ Future<List<_PackageSelectionCandidate>> _packageSelectionCandidates(
           _PackageSelectionCandidate(
             package: package,
             path: path,
-            latestRef: latestRef,
+            latestRef: refs.isEmpty ? null : refs.last,
           ),
         );
       } on Object {
@@ -1200,7 +1062,7 @@ class _PackageSelectionCandidate {
 
   final PubspecPackage package;
   final String path;
-  final _PublishedPackageRef? latestRef;
+  final PackageReleaseRef? latestRef;
 }
 
 const _claudeAgentsImport = '@AGENTS.md';

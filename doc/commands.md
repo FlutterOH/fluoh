@@ -136,7 +136,7 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | List FlutterOH packages from configured sources. |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Create another package adaptation branch in a FlutterOH package repository. |
-| `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge upstream into the current OHOS package branch. |
+| `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge the selected upstream package release into the current OHOS package branch. |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | Summarize package release readiness. |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | Update package release version metadata. |
 | `fluoh package docs refresh` | `lib/src/package/commands/package_docs_command.dart` | Refresh generated package repository documentation. |
@@ -538,7 +538,12 @@ package; omission never means all packages in a monorepo. For monorepos, pass
 one `--package-path <subdir>` for the package branch being created. To adapt
 another package in the same repository, run `fluoh package add <package-path>`
 from the generated repository; it creates a separate package branch from that
-package's latest release tag.
+package's selected release target. By default, package create/add use the latest
+valid upstream release tag for the selected package; pass `--upstream-version`
+for a specific package version, or `--upstream-ref` only when release tags cannot
+identify the target snapshot. When an explicit target is passed, the selected
+package path is resolved at that target, so historical package paths can still
+be adapted after upstream moves or removes them on the default branch.
 The command always requires `--repository-name <repository-name>`.
 `--repository-name` sets the default output directory when `--output` is omitted
 and the default FlutterOH origin URL when `--repository` is omitted. It is not
@@ -549,8 +554,9 @@ command still requires the explicit option.
 The generated `fluoh.yaml` includes comments beside the `repository`,
 `upstream`, package path, `version`, and `status` fields that maintainers
 commonly edit before release. It never commits. Options include
-`--package-path`, `--output`, `--repository-name`, `--sdk`, `--repository`,
-`--git-author-name`, `--git-author-email`, `--plan`, and `--json`. The Git
+`--package-path`, `--upstream-version`, `--upstream-ref`, `--output`,
+`--repository-name`, `--sdk`, `--repository`, `--git-author-name`,
+`--git-author-email`, `--plan`, and `--json`. The Git
 author options configure only the new repository's local Git `user.name` and
 `user.email` values for later adaptation commits. `--plan` clones the upstream
 repository into a temporary directory, resolves the selected package, SDK,
@@ -562,11 +568,14 @@ confirmation.
 
 `fluoh package add <package-path>` creates another package branch in an existing
 FlutterOH package repository. It requires a clean working tree, resolves the
-target package on the upstream branch, checks out that package's latest release
-tag commit, creates `ohos/<sdkLine>/<package>`, writes a single-package
-`fluoh.yaml` and docs, prepares an existing Flutter example when present, and
-stages generated files. File snapshots protect local state when the command
-fails.
+target package on the synchronized upstream branch, checks out the selected
+release target commit, creates `ohos/<sdkLine>/<package>`, writes a
+single-package `fluoh.yaml` and docs, prepares an existing Flutter example when
+present, and stages generated files. It supports `--upstream-version` and
+`--upstream-ref` with the same selection rules as package create. If the target
+package branch already exists, it points maintainers to the existing branch,
+`fluoh package status`, and `fluoh package sync` instead of creating duplicate
+adaptation state. File snapshots protect local state when the command fails.
 
 `fluoh package docs refresh` regenerates the fluoh-owned sections of
 `FLUOH.md` and `AGENTS.md` from the current Package `fluoh.yaml`. Generated
@@ -581,18 +590,31 @@ tree. Writing requires the recorded package branch and a clean working tree,
 does not stage files, and does not change `fluoh.yaml`. `--json` reports
 `changed`, `applied`, `files`, and `dryRun`.
 
-`fluoh package sync` fetches upstream, fast-forwards the upstream branch recorded
-in Package `upstream.git.branch`, returns to the `repository.git.branch` branch
-recorded in `fluoh.yaml`, merges the upstream branch without committing first,
-updates upstream metadata in `fluoh.yaml`, stages it, and
-commits `Sync upstream package` when changes are present. Merge conflicts are
-left for the user to resolve, then `fluoh package sync --continue` validates staged
-resolution and finishes. `--abort` runs `git merge --abort` for an in-progress
+`fluoh package sync` fetches upstream branches and tags, fast-forwards the
+upstream branch recorded in Package `upstream.git.branch`, resolves the package
+target from `--upstream-version`, `--upstream-ref`, or the latest valid release
+tag, returns to the `repository.git.branch` branch recorded in `fluoh.yaml`,
+merges the selected target commit without committing first, updates upstream
+metadata in `fluoh.yaml`, stages it, and commits `Sync upstream package` when
+changes are present. When no valid release tag exists and no explicit target is
+passed, it falls back to the synchronized upstream branch HEAD. If the resolved
+target already matches the current branch metadata and commit, `sync` reports
+that the package branch already adapts that upstream version and exits without a
+commit. `sync` refuses explicit package versions older than the current branch
+upstream version; mark the current adaptation `broken` with
+`fluoh package version --status broken` instead of downgrading the branch. Merge
+conflicts are left for the user to resolve, then `fluoh package sync --continue`
+validates staged resolution and finishes. If the interrupted merge used a custom
+non-tag ref, pass the same `--upstream-ref` with `--continue`; release tags can
+usually be inferred from `MERGE_HEAD`, but non-tag refs cannot. Continue also
+verifies that the resolved working-tree package version matches the selected
+upstream target before updating `fluoh.yaml`. `--abort` runs `git merge --abort` for an in-progress
 sync. `--json` prints the completed sync action list and commit status. Fetch
-failures emit `sync.fetch_failed`; merge conflicts emit `sync.merge_conflict`
-with conflicted files and the `--continue` next command; merge failures that do
-not leave resolvable conflicts emit `sync.merge_failed`. JSON diagnostics
-include trimmed stdout and stderr tails when Git produced useful output.
+failures emit `sync.fetch_failed`; merge conflicts emit
+`sync.merge_conflict` with conflicted files and the `--continue` next command;
+merge failures that do not leave resolvable conflicts emit `sync.merge_failed`.
+JSON diagnostics include trimmed stdout and stderr tails when Git produced
+useful output.
 
 `fluoh verify` runs automated verification for either the current
 project or the package recorded in Package `fluoh.yaml`. It runs selected-SDK

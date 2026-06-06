@@ -1,7 +1,7 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
-import 'package:pub_semver/pub_semver.dart';
 
 import '../../cli/argument_validation.dart';
 import '../../cli/fluoh_command_runner.dart';
@@ -12,6 +12,7 @@ import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
+import '../upstream_package_ref.dart';
 
 /// Creates another package adaptation branch in an existing repository.
 class PackageAddCommand extends FluohCommand<int> {
@@ -28,6 +29,20 @@ class PackageAddCommand extends FluohCommand<int> {
       'expected-package',
       valueHelp: 'name',
       help: 'Expected package name at <package-path>.',
+    );
+    argParser.addOption(
+      'upstream-version',
+      valueHelp: 'version',
+      help:
+          'Upstream package version to adapt. Defaults to the latest valid '
+          'package release tag.',
+    );
+    argParser.addOption(
+      'upstream-ref',
+      valueHelp: 'ref',
+      help:
+          'Upstream Git ref to adapt. Use only when release tags cannot '
+          'identify the target package version.',
     );
   }
 
@@ -67,43 +82,63 @@ class PackageAddCommand extends FluohCommand<int> {
       );
     }
     final packagePath = rest.single;
-    final selected = await _resolvePackageRef(
-      repository: repository,
-      packagePath: packagePath,
-      upstreamBranch: manifest.upstreamBranch,
-    );
+    final upstreamTarget = _upstreamTargetFromOptions(argResults!);
     final expectedPackage = argResults!.option('expected-package');
-    if (expectedPackage != null && selected.package.name != expectedPackage) {
-      usageException(
-        'Package at $packagePath is ${selected.package.name}, expected '
-        '$expectedPackage.',
-      );
-    }
-
-    final branch = flutterOhosPackageBranchForSdk(
-      sdkVersion: manifest.sdkVersion,
-      packageName: selected.package.name,
-    );
-    final existingBranch = await runGit(
-      ['rev-parse', '--verify', branch],
-      workingDirectory: repository,
-      allowFailure: true,
-    );
-    if (existingBranch.exitCode == 0) {
-      usageException('Package branch $branch already exists.');
-    }
 
     var switchedBranches = false;
-    var createdBranch = false;
+    String? createdBranch;
     try {
+      await fetchUpstreamRefs(repository);
+      switchedBranches = true;
+      await synchronizeUpstreamBranch(
+        repository,
+        branch: manifest.upstreamBranch,
+      );
+
+      final selected = await _resolvePackageRef(
+        repository: repository,
+        packagePath: packagePath,
+        upstreamBranch: manifest.upstreamBranch,
+        target: upstreamTarget,
+        expectedPackageName: expectedPackage,
+      );
+      if (expectedPackage != null && selected.package.name != expectedPackage) {
+        usageException(
+          'Package at $packagePath is ${selected.package.name}, expected '
+          '$expectedPackage.',
+        );
+      }
+
+      final branch = flutterOhosPackageBranchForSdk(
+        sdkVersion: manifest.sdkVersion,
+        packageName: selected.package.name,
+      );
+      final existingBranch = await runGit(
+        ['rev-parse', '--verify', branch],
+        workingDirectory: repository,
+        allowFailure: true,
+      );
+      if (existingBranch.exitCode == 0) {
+        final syncCommand = upstreamTarget.version != null
+            ? 'fluoh package sync --upstream-version ${upstreamTarget.version}'
+            : upstreamTarget.ref != null
+            ? 'fluoh package sync --upstream-ref ${upstreamTarget.ref}'
+            : 'fluoh package sync';
+        usageException(
+          'Package branch $branch already exists. Check it out and run '
+          '"fluoh package status --package ${selected.package.name}" to inspect '
+          'the existing adaptation, or run "$syncCommand" from that branch to '
+          'update it.',
+        );
+      }
+
       await runGit([
         'checkout',
         '--detach',
         selected.commit,
       ], workingDirectory: repository);
-      switchedBranches = true;
       await runGit(['checkout', '-b', branch], workingDirectory: repository);
-      createdBranch = true;
+      createdBranch = branch;
 
       final packageManifest = PackageManifest(
         sdkVersion: manifest.sdkVersion,
@@ -192,7 +227,7 @@ class PackageAddCommand extends FluohCommand<int> {
         await _rollbackFailedPackageAdd(
           repository: repository,
           startBranch: startBranch,
-          createdBranch: createdBranch ? branch : null,
+          createdBranch: createdBranch,
         );
       }
       rethrow;
@@ -236,144 +271,42 @@ class _ResolvedPackageRef {
   final String? ref;
 }
 
+PackageUpstreamTarget _upstreamTargetFromOptions(ArgResults argResults) {
+  final version = argResults.option('upstream-version')?.trim();
+  final ref = argResults.option('upstream-ref')?.trim();
+  final hasVersion = version != null && version.isNotEmpty;
+  final hasRef = ref != null && ref.isNotEmpty;
+  if (hasVersion && hasRef) {
+    throw UsageException(
+      'Use only one of --upstream-version or --upstream-ref.',
+      '',
+    );
+  }
+  return PackageUpstreamTarget(
+    version: hasVersion ? version : null,
+    ref: hasRef ? ref : null,
+  );
+}
+
 Future<_ResolvedPackageRef> _resolvePackageRef({
   required Directory repository,
   required String packagePath,
   required String upstreamBranch,
+  required PackageUpstreamTarget target,
+  required String? expectedPackageName,
 }) async {
-  final branchPackage = await _packageAtRef(
+  final resolved = await resolvePackageUpstreamRefAtPath(
     repository: repository,
-    ref: upstreamBranch,
     packagePath: packagePath,
+    fallbackRef: upstreamBranch,
+    target: target,
+    expectedPackageName: expectedPackageName,
   );
-  if (branchPackage == null) {
-    throw UsageException(
-      'Missing pubspec.yaml at package path $packagePath on $upstreamBranch.',
-      '',
-    );
-  }
-  final tags = (await runGit([
-    'tag',
-    '--list',
-  ], workingDirectory: repository)).stdout.toString().split('\n');
-  final candidates = <_ResolvedPackageTag>[];
-  for (final tag
-      in tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty)) {
-    final pubspec = await _packageAtRef(
-      repository: repository,
-      ref: tag,
-      packagePath: packagePath,
-    );
-    if (pubspec == null || pubspec.name != branchPackage.name) {
-      continue;
-    }
-    if (_packageVersionFromReleaseTag(tag, pubspec.name) != pubspec.version) {
-      continue;
-    }
-    try {
-      candidates.add(
-        _ResolvedPackageTag(
-          package: pubspec,
-          ref: tag,
-          commit: await _revParseCommit(repository, tag),
-          version: Version.parse(pubspec.version),
-        ),
-      );
-    } on FormatException {
-      continue;
-    }
-  }
-  candidates.sort((a, b) {
-    final version = a.version.compareTo(b.version);
-    return version == 0 ? a.ref.compareTo(b.ref) : version;
-  });
-  if (candidates.isNotEmpty) {
-    final latest = candidates.last;
-    return _ResolvedPackageRef(
-      package: latest.package,
-      ref: latest.ref,
-      commit: latest.commit,
-    );
-  }
   return _ResolvedPackageRef(
-    package: branchPackage,
-    commit: await _revParseCommit(repository, upstreamBranch),
+    package: resolved.package,
+    commit: resolved.commit,
+    ref: resolved.ref,
   );
-}
-
-class _ResolvedPackageTag {
-  const _ResolvedPackageTag({
-    required this.package,
-    required this.ref,
-    required this.commit,
-    required this.version,
-  });
-
-  final PubspecPackage package;
-  final String ref;
-  final String commit;
-  final Version version;
-}
-
-Future<PubspecPackage?> _packageAtRef({
-  required Directory repository,
-  required String ref,
-  required String packagePath,
-}) async {
-  final pubspecPath = packagePath == '.'
-      ? 'pubspec.yaml'
-      : '${_normalizePackagePath(packagePath)}/pubspec.yaml';
-  final result = await runGit(
-    ['show', '$ref:$pubspecPath'],
-    workingDirectory: repository,
-    allowFailure: true,
-  );
-  if (result.exitCode != 0) {
-    return null;
-  }
-  try {
-    return PubspecPackage.fromYaml(result.stdout.toString());
-  } on FormatException {
-    return null;
-  }
-}
-
-String? _packageVersionFromReleaseTag(String tag, String packageName) {
-  final escapedPackage = RegExp.escape(packageName);
-  for (final pattern in [
-    RegExp('^$escapedPackage-v(.+)\$'),
-    RegExp('^$escapedPackage-(.+)\$'),
-  ]) {
-    final match = pattern.firstMatch(tag);
-    if (match == null) {
-      continue;
-    }
-    final version = match.group(1)!;
-    try {
-      Version.parse(version);
-      return version;
-    } on FormatException {
-      continue;
-    }
-  }
-  return null;
-}
-
-Future<String> _revParseCommit(Directory repository, String ref) async {
-  final result = await runGit([
-    'rev-parse',
-    '$ref^{commit}',
-  ], workingDirectory: repository);
-  return result.stdout.toString().trim();
-}
-
-String _normalizePackagePath(String path) {
-  final segments = path
-      .replaceAll('\\', '/')
-      .split('/')
-      .where((segment) => segment.isNotEmpty && segment != '.')
-      .toList(growable: false);
-  return segments.isEmpty ? '.' : segments.join('/');
 }
 
 PackageRepositoryDocPackage _docPackageForManifest(
