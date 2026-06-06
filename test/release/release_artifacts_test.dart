@@ -283,6 +283,7 @@ void main() {
     expect(skill, contains('Git state changes'));
     expect(skill, contains('commit message, and local Git author identity'));
     expect(skill, contains('package queue'));
+    expect(skill, contains('package discover'));
     expect(skill, contains('Implementation checkpoint'));
     expect(skill, contains('Release metadata checkpoint'));
     expect(
@@ -482,6 +483,7 @@ void main() {
       'fluoh build --platform ohos --auto-sign',
       'For package maintainers:',
       'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
+      'fluoh package discover',
       'fluoh package queue',
       'fluoh package add',
       'ohos/<sdkLine>/<package>',
@@ -540,6 +542,7 @@ void main() {
       'fluoh build --platform ohos --auto-sign',
       'Package 维护者可以用',
       'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
+      'fluoh package discover',
       'fluoh package queue',
       'fluoh package add',
       'ohos/<sdkLine>/<package>',
@@ -758,6 +761,7 @@ void main() {
       'fluoh deps upgrade',
       'fluoh package list',
       'fluoh package create <upstream>',
+      'fluoh package discover <upstream>',
       '--repository-name',
       '--plan',
       'fluoh package add <package-path>',
@@ -853,6 +857,7 @@ void main() {
       'fluoh deps upgrade',
       'fluoh package list',
       'fluoh package create <upstream>',
+      'fluoh package discover <upstream>',
       '--repository-name',
       '--plan',
       'fluoh package add <package-path>',

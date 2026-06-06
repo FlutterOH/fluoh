@@ -135,6 +135,7 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | Command group for FlutterOH package repositories. |
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | List FlutterOH packages from configured sources. |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
+| `fluoh package discover <upstream>` | `lib/src/package/commands/package_discover_command.dart` | Discover Flutter plugin packages that may need OHOS adaptation. |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Create another package adaptation branch in a FlutterOH package repository. |
 | `fluoh package queue <package-path>...` | `lib/src/package/commands/package_queue_command.dart` | Resolve a read-only multi-package adaptation queue for a monorepo. |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge the selected upstream package release into the current OHOS package branch. |
@@ -587,6 +588,19 @@ package pubspec, example config, and Dart code to the selected FlutterOH SDK,
 then rerun verify. JSON warnings include
 `policy.suggestedEnvironmentSdkConstraint` when the selected Dart SDK version is
 known. Using an older upstream baseline requires explicit maintainer approval.
+
+`fluoh package discover <upstream> --json` clones the upstream repository into a
+temporary directory, scans non-example `pubspec.yaml` files, and reports Flutter
+plugin packages whose `flutter.plugin.platforms` do not declare `ohos`. It is
+read-only and does not create a package repository, configure remotes, checkout
+branches, or write project files. JSON output includes the filter, inspected
+pubspec count, valid Flutter plugin count, candidate package names, paths,
+versions, declared platforms, missing platforms, per-candidate `createCommand`,
+a multi-package `queueCommand`, and non-fatal `issues[]`. Use it when an AI or
+maintainer receives a monorepo upstream URL without an explicit package path and
+needs a short package selection list before running `package create`. Pass
+`--include-existing-platform` to include Flutter plugins that already declare the
+requested `--missing-platform`, which defaults to `ohos`.
 
 `fluoh package queue <package-path>... --json` resolves a read-only
 multi-package queue in an existing FlutterOH package repository. It fetches

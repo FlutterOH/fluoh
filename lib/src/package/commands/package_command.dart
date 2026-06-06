@@ -6,6 +6,7 @@ import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import 'package_add_command.dart';
 import 'package_create_command.dart';
+import 'package_discover_command.dart';
 import 'package_docs_command.dart';
 import 'package_list_command.dart';
 import 'package_queue_command.dart';
@@ -33,6 +34,7 @@ class PackageCommand extends FluohCommand<int> {
         output: _output,
       ),
     );
+    addSubcommand(PackageDiscoverCommand(stdout: stdout, output: _output));
     addSubcommand(
       PackageCreateCommand(
         environment: environment,
@@ -148,6 +150,7 @@ const _packageCommandSections = [
   CommandUsageSection('Source packages:', ['list']),
   CommandUsageSection('Package repositories:', [
     'create',
+    'discover',
     'add',
     'queue',
     'sync',

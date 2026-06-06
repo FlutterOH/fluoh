@@ -94,9 +94,10 @@ fluoh package status
 
 For monorepos, keep one FlutterOH adaptation repository per upstream repository
 and create one `ohos/<sdkLine>/<package>` branch per package. Start with
-`--package-path`, then use `fluoh package queue` and `fluoh package add` for
-additional packages. See [Command reference](doc/commands.md) for version,
-report, and `--org` details.
+`fluoh package discover <upstream-git-url> --json` when the package is not
+known, pass `--package-path` for the first selected package, then use
+`fluoh package queue` and `fluoh package add` for additional packages. See
+[Command reference](doc/commands.md) for version, report, and `--org` details.
 
 Use `fluohf` to run Flutter through the selected FlutterOH SDK:
 

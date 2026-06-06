@@ -121,6 +121,7 @@ fluoh run --platform ohos --device <id>
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | FlutterOH Package 仓库命令组。 |
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | 从已配置 source 列出 FlutterOH Package。 |
 | `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | 初始化 FlutterOH Package 仓库。 |
+| `fluoh package discover <upstream>` | `lib/src/package/commands/package_discover_command.dart` | 发现可能需要 OHOS 适配的 Flutter plugin Package。 |
 | `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | 在 FlutterOH Package 仓库中创建另一个 Package 适配分支。 |
 | `fluoh package queue <package-path>...` | `lib/src/package/commands/package_queue_command.dart` | 为 monorepo 解析只读多 Package 适配队列。 |
 | `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | 把选中的 upstream Package release 合入当前 OHOS Package 分支。 |
@@ -469,6 +470,17 @@ upstream target，把 package pubspec、example 配置和 Dart 代码适配到�
 SDK，然后重新 verify。已知当前 Dart SDK 版本时，JSON warning 会包含
 `policy.suggestedEnvironmentSdkConstraint`。只有维护者明确批准旧 upstream baseline 时，才能使用
 较旧 tag。
+
+`fluoh package discover <upstream> --json` 会把 upstream 仓库 clone 到临时目录，
+扫描非 example 的 `pubspec.yaml`，并报告 `flutter.plugin.platforms` 未声明
+`ohos` 的 Flutter plugin Package。它是只读命令，不会创建 Package 仓库、配置
+remote、checkout 分支或写入项目文件。JSON 输出包含筛选条件、已检查 pubspec
+数量、有效 Flutter plugin 数量、候选 Package 名称、路径、版本、已声明平台、缺失平台、
+每个候选的 `createCommand`、多 Package 的 `queueCommand`，以及非致命
+`issues[]`。当 AI 或维护者拿到 monorepo upstream URL 但没有明确 package path
+时，先用它列出简短候选，再运行 `package create`。传
+`--include-existing-platform` 可以把已经声明目标平台的 Flutter plugin 也列出；
+`--missing-platform` 默认是 `ohos`。
 
 `fluoh package queue <package-path>... --json` 会在现有 FlutterOH Package 仓库中解析只读
 多 Package 队列。它会拉取 upstream refs，但保持当前分支不变，并为每个 Package 输出名称、

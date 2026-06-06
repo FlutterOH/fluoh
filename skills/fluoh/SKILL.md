@@ -110,6 +110,15 @@ Then:
    organization from existing Android, iOS, or macOS example metadata; pass
    `--org <organization>` only when the user, upstream docs, or a previous
    failed run identifies the required organization.
+   When the user provides a multi-package upstream repository URL but does not
+   name a package or `--package-path`, run
+   `fluoh package discover <upstream> --json` before setup confirmation. Present
+   the discovered Flutter plugin packages missing `ohos`, including package
+   names, paths, declared platforms, and `createCommand` values, and wait for
+   the user to choose the package path. If discovery returns no candidates, ask
+   for an explicit package path or report that no Flutter plugin missing `ohos`
+   was found. Do not treat an omitted package path as authorization to adapt
+   every package in a monorepo.
 4. After CLI setup and read-only preflight, before making project, package, or
    Source file changes, local Git configuration changes, checkpoint commits, or
    implementation edits, present a final setup confirmation and wait for explicit user approval.
@@ -138,6 +147,9 @@ Then:
    latest valid release tag after fetching upstream tags. For `sync`, never
    request a lower upstream version; mark the current adaptation `broken`
    instead.
+   When a package was selected from discovery, pass the selected
+   `--package-path` to `package create` and record the discovery command and
+   selected candidate in the report.
    If a real run reports ambiguous Flutter example organization, rerun
    create/add with the organization required by the upstream example or use the
    fluoh-inferred default when it is printed by the command.
@@ -164,8 +176,11 @@ Then:
   run the CLI Setup flow, then continue.
 - "Make this app support OHOS": run preflight in the current Flutter app, then
   use the App Project Flow.
-- "Adapt this Git URL/package for FlutterOH": create or enter a package
-  repository, then use the Package Adaptation Flow.
+- "Adapt this Git URL/package for FlutterOH": when the user provides a
+  multi-package upstream URL without naming a package, run
+  `fluoh package discover <upstream> --json` and present the package choices
+  first; otherwise create or enter a package repository, then use the Package
+  Adaptation Flow.
 - "Continue/fix/check <package-name>": run preflight with
   `--package <package-name>` to confirm the requested package matches the
   current package branch.
@@ -211,7 +226,12 @@ Then:
    `repository`, `git-author-name`, `git-author-email`, SDK line, selected
    package path, and output path, then pass the resolved repository name as
    `fluoh package create <upstream> --repository-name <repository-name>`. If
-   the user specifies an upstream package version, include
+   the upstream is a possible monorepo and the user did not provide a package
+   name or path, run `fluoh package discover <upstream> --json`, present the
+   `discovery.candidates[]` names, paths, platforms, and `createCommand`
+   values, and wait for the user to choose one. If discovery finds no
+   candidates, ask for an explicit package path before treating the root package
+   as the target. If the user specifies an upstream package version, include
    `--upstream-version <version>`; otherwise rely on the latest valid release
    tag, not upstream HEAD. When syncing an existing package branch, only specify
    the same or a newer upstream version. For a single selected monorepo package, a
@@ -233,8 +253,9 @@ Then:
    explicitly approves an older baseline. Wait for explicit approval before
    configuring local Git author, running mutating commands, or editing
    implementation files.
-5. Treat an omitted package path as root-package selection only; it never means
-   "all packages" for monorepos. For monorepos, preserve one FlutterOH
+5. After discovery or an explicit user choice, treat an omitted package path as
+   root-package selection only; it never means "all packages" for monorepos.
+   For monorepos, preserve one FlutterOH
    adaptation repository for the upstream repository and adapt multiple packages
    as separate package branches in that repository. Do not create one adaptation
    repository per package unless the maintainer explicitly asks for split

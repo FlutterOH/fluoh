@@ -90,9 +90,10 @@ fluoh package status
 ```
 
 适配 monorepo 时，一个 upstream 仓库保留一份 FlutterOH 适配仓库，每个 Package 使用独立的
-`ohos/<sdkLine>/<package>` 分支。先用 `--package-path` 创建第一个分支，再用
-`fluoh package queue` 和 `fluoh package add` 追加其他 Package。版本、报告和 `--org`
-细节见 [命令参考](doc/commands.zh-CN.md)。
+`ohos/<sdkLine>/<package>` 分支。Package 不明确时先运行
+`fluoh package discover <upstream-git-url> --json`，再用 `--package-path`
+创建第一个分支，并用 `fluoh package queue` 和 `fluoh package add` 追加其他
+Package。版本、报告和 `--org` 细节见 [命令参考](doc/commands.zh-CN.md)。
 
 用 `fluohf` 通过已选择的 FlutterOH SDK 运行 Flutter：
 
