@@ -8,6 +8,7 @@
 .pub-cache/
 build/
 coverage/
+doc/api/
 
 # Local editor and OS files
 .idea/

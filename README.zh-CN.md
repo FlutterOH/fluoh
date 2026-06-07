@@ -33,7 +33,7 @@
 先让 AI agent 安装 skill：
 
 ```text
-从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill。
+从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill，如果已存在则覆盖安装。
 ```
 
 然后按 App 或 Package 场景输入一句话：

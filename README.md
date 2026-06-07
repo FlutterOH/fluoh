@@ -33,7 +33,7 @@
 Ask your AI agent to install the skill first:
 
 ```text
-Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills.
+Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills, overwriting any existing installation.
 ```
 
 Then type one request for an app or a package:
