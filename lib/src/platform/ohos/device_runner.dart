@@ -45,6 +45,7 @@ class OhosLocalEmulator {
     required this.name,
     required this.deployedRoot,
     required this.imageRoot,
+    this.apiVersion,
   });
 
   /// Emulator display name.
@@ -55,6 +56,9 @@ class OhosLocalEmulator {
 
   /// Emulator image root directory.
   final io.Directory imageRoot;
+
+  /// OpenHarmony API version when it can be inferred from DevEco metadata.
+  final int? apiVersion;
 }
 
 /// Result of starting a local OpenHarmony emulator.
@@ -323,15 +327,45 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       reason: error.toString(),
     );
   }
-  var target = _selectTarget(targets, deviceId);
-  if (target == null && startEmulator && targets.isEmpty) {
-    late OhosEmulatorStartResult startResult;
+  final requestedDevice = deviceId?.trim();
+  var target = requestedDevice != null && requestedDevice.isNotEmpty
+      ? _selectTarget(targets, requestedDevice)
+      : startEmulator
+      ? _selectRunningOhosEmulatorTarget(targets)
+      : _selectTarget(targets, null);
+  if (target == null && startEmulator && requestedDevice == null) {
+    final previousTargetIds = targets.map((target) => target.id).toSet();
+    OhosEmulatorStartResult? startResult;
     try {
       startResult = await startOhosEmulator(
         environment: environment,
         toolchain: toolchain,
         emulatorName: emulatorName,
       );
+    } on OhosDeviceException catch (error) {
+      if (_shouldFallbackToConnectedOhosTarget(
+        error: error,
+        emulatorName: emulatorName,
+        targets: targets,
+      )) {
+        target = _selectTarget(targets, null);
+      } else {
+        return OhosDeviceRunResult(
+          exitCode: 1,
+          targetId: null,
+          launchInfo: launchInfo,
+          logFile: null,
+          findings: const [],
+          diagnostics: [
+            OhosDeviceDiagnostic(
+              code: 'ohos.emulator_start_failed',
+              message: 'Could not start a local DevEco emulator',
+              details: {'error': error.toString()},
+            ),
+          ],
+          reason: error.toString(),
+        );
+      }
     } on Object catch (error) {
       return OhosDeviceRunResult(
         exitCode: 1,
@@ -343,30 +377,39 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
           OhosDeviceDiagnostic(
             code: 'ohos.emulator_start_failed',
             message: 'Could not start a local DevEco emulator',
+            details: {'error': error.toString()},
           ),
         ],
         reason: error.toString(),
       );
     }
-    output.step('Starting OHOS emulator ${startResult.emulator.name}');
-    output.detail(startResult.command.join(' '));
-    target = await waitForOhosDeviceTarget(
-      environment: environment,
-      deviceId: deviceId,
-      timeout: deviceTimeout,
-      usage: usage,
-    );
+    if (target == null && startResult != null) {
+      output.step('Starting OHOS emulator ${startResult.emulator.name}');
+      output.detail(startResult.command.join(' '));
+      target = await waitForOhosDeviceTarget(
+        environment: environment,
+        deviceId: deviceId,
+        previousTargetIds: previousTargetIds,
+        waitForNewTarget: true,
+        timeout: deviceTimeout,
+        usage: usage,
+      );
+    }
   }
   if (target == null) {
     final requested = deviceId?.trim();
+    final recommendationDetails = await _ohosTargetRecommendationDetails(
+      environment: environment,
+      connectedTargets: targets,
+    );
     final reason = requested != null && requested.isNotEmpty
         ? 'Requested OHOS device target $requested is not connected. '
               'Connected targets: '
               '${targets.isEmpty ? 'none' : targets.map((item) => item.id).join(', ')}.'
         : targets.isEmpty
         ? 'No OHOS device target is connected. Start a DevEco emulator or '
-              'connect a device, then retry. Pass --emulator to let fluoh '
-              'start a local DevEco emulator.'
+              'connect a device, then retry. Pass --auto-emulator to let '
+              'fluoh choose and start a local DevEco emulator.'
         : 'Multiple OHOS device targets are connected; pass --device with one '
               'of: ${targets.map((item) => item.id).join(', ')}.';
     return OhosDeviceRunResult(
@@ -387,6 +430,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
             if (requested != null && requested.isNotEmpty)
               'requestedDevice': requested,
             'connectedDevices': targets.map((target) => target.id).toList(),
+            ...recommendationDetails,
           },
         ),
       ],
@@ -546,6 +590,8 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
 Future<OhosDeviceTarget?> waitForOhosDeviceTarget({
   required FluohEnvironment environment,
   String? deviceId,
+  Set<String> previousTargetIds = const {},
+  bool waitForNewTarget = false,
   Duration timeout = const Duration(seconds: 90),
   String usage = '',
 }) async {
@@ -555,7 +601,13 @@ Future<OhosDeviceTarget?> waitForOhosDeviceTarget({
       environment: environment,
       usage: usage,
     );
-    final target = _selectTarget(targets, deviceId);
+    final filteredTargets = waitForNewTarget
+        ? [
+            for (final target in targets)
+              if (!previousTargetIds.contains(target.id)) target,
+          ]
+        : targets;
+    final target = _selectTarget(filteredTargets, deviceId);
     if (target != null) {
       return target;
     }
@@ -564,6 +616,40 @@ Future<OhosDeviceTarget?> waitForOhosDeviceTarget({
     }
     await Future<void>.delayed(const Duration(seconds: 2));
   }
+}
+
+bool _shouldFallbackToConnectedOhosTarget({
+  required OhosDeviceException error,
+  required String? emulatorName,
+  required List<OhosDeviceTarget> targets,
+}) {
+  final requestedEmulator = emulatorName?.trim();
+  return targets.isNotEmpty &&
+      (requestedEmulator == null || requestedEmulator.isEmpty) &&
+      _isOhosEmulatorUnavailable(error);
+}
+
+bool _isOhosEmulatorUnavailable(OhosDeviceException error) {
+  return error.message.contains('Could not locate DevEco emulator at') ||
+      error.message.contains('No local DevEco emulator is deployed');
+}
+
+OhosDeviceTarget? _selectRunningOhosEmulatorTarget(
+  List<OhosDeviceTarget> targets,
+) {
+  final candidates = [
+    for (final target in targets)
+      if (_isOhosEmulatorTarget(target)) target,
+  ]..sort((left, right) => left.id.compareTo(right.id));
+  return candidates.isEmpty ? null : candidates.first;
+}
+
+bool _isOhosEmulatorTarget(OhosDeviceTarget target) {
+  final id = target.id.toLowerCase();
+  final details = target.details?.toLowerCase() ?? '';
+  return id.startsWith('emulator-') ||
+      id.contains('emulator') ||
+      details.contains('emulator');
 }
 
 /// Starts a local OpenHarmony emulator.
@@ -586,7 +672,7 @@ Future<OhosEmulatorStartResult> startOhosEmulator({
   }
   final requested = emulatorName?.trim();
   final emulator = requested == null || requested.isEmpty
-      ? emulators.first
+      ? _defaultOhosEmulator(emulators)
       : emulators.where((candidate) => candidate.name == requested).firstOrNull;
   if (emulator == null) {
     throw OhosDeviceException(
@@ -644,11 +730,20 @@ Future<List<OhosLocalEmulator>> discoverOhosLocalEmulators({
         if (name == null || name.isEmpty) {
           continue;
         }
+        final emulatorDirectory = _emulatorDirectoryFromListItem(
+          deployedRoot: deployedRoot,
+          name: name,
+          item: item,
+        );
         emulators.add(
           OhosLocalEmulator(
             name: name,
             deployedRoot: deployedRoot,
             imageRoot: imageRoot,
+            apiVersion:
+                _apiVersionFromMap(item) ??
+                await _apiVersionFromConfig(emulatorDirectory) ??
+                _apiVersionFromName(name),
           ),
         );
       }
@@ -670,12 +765,219 @@ Future<List<OhosLocalEmulator>> discoverOhosLocalEmulators({
           name: _fileName(entity.path),
           deployedRoot: deployedRoot,
           imageRoot: imageRoot,
+          apiVersion:
+              await _apiVersionFromConfig(entity) ??
+              _apiVersionFromName(_fileName(entity.path)),
         ),
       );
     }
   }
   emulators.sort((left, right) => left.name.compareTo(right.name));
   return emulators;
+}
+
+Future<Map<String, Object?>> _ohosTargetRecommendationDetails({
+  required FluohEnvironment environment,
+  required List<OhosDeviceTarget> connectedTargets,
+}) async {
+  final devices = [
+    for (final target in connectedTargets)
+      {
+        'id': target.id,
+        if (target.details != null) 'details': target.details,
+        'runArguments': '--device ${target.id}',
+      },
+  ];
+  List<OhosLocalEmulator> emulators;
+  try {
+    emulators = await discoverOhosLocalEmulators(environment: environment);
+  } on Object catch (error) {
+    return {
+      'targetSelection': {
+        'policy': 'emulator-first',
+        'recommendation':
+            'Prefer a local DevEco emulator for repeatable automation. '
+            'Emulator discovery failed; run fluoh emulators --platform ohos '
+            '--json for details, then fall back to a connected device if '
+            'needed.',
+        if (devices.isNotEmpty) 'devices': devices,
+        'emulatorDiscoveryError': error.toString(),
+      },
+    };
+  }
+
+  if (emulators.isEmpty) {
+    return {
+      'targetSelection': {
+        'policy': 'emulator-first',
+        'recommendation': devices.isNotEmpty
+            ? 'No local DevEco emulator is available. Use a connected OHOS '
+                  'device as a fallback, or create a DevEco emulator and '
+                  'rerun with --auto-emulator.'
+            : 'No local DevEco emulator or connected OHOS device is available. '
+                  'Create a DevEco emulator and rerun with --auto-emulator.',
+        'emulators': const [],
+        if (devices.isNotEmpty) 'devices': devices,
+      },
+    };
+  }
+
+  final suggested = _suggestedOhosEmulators(emulators);
+  return {
+    'targetSelection': {
+      'policy': 'emulator-first',
+      'recommendation': suggested.length > 1
+          ? 'Prefer repeatable local DevEco emulator coverage. Run both the '
+                'lowest and highest API version emulators for compatibility; '
+                'use connected real devices only when no emulator is available.'
+          : 'Prefer the available local DevEco emulator for repeatable '
+                'automation; use connected real devices only when no emulator '
+                'is available.',
+      'emulators': emulators.map(_emulatorSuggestionJson).toList(),
+      'suggestedEmulators': suggested.map(_emulatorSuggestionJson).toList(),
+      'suggestedRunArguments': [
+        '--auto-emulator',
+        for (final emulator in suggested) '--emulator ${emulator.name}',
+      ],
+      if (devices.isNotEmpty) 'devices': devices,
+    },
+  };
+}
+
+List<OhosLocalEmulator> _suggestedOhosEmulators(
+  List<OhosLocalEmulator> emulators,
+) {
+  if (emulators.length <= 1) {
+    return emulators;
+  }
+  final withApi =
+      [
+        for (final emulator in emulators)
+          if (emulator.apiVersion != null) emulator,
+      ]..sort((left, right) {
+        final apiCompare = left.apiVersion!.compareTo(right.apiVersion!);
+        return apiCompare != 0 ? apiCompare : left.name.compareTo(right.name);
+      });
+  if (withApi.length >= 2 &&
+      withApi.first.apiVersion != withApi.last.apiVersion) {
+    return [withApi.first, withApi.last];
+  }
+  final sorted = [...emulators]
+    ..sort((left, right) => left.name.compareTo(right.name));
+  return [sorted.first, sorted.last];
+}
+
+OhosLocalEmulator _defaultOhosEmulator(List<OhosLocalEmulator> emulators) {
+  final withApi =
+      [
+        for (final emulator in emulators)
+          if (emulator.apiVersion != null) emulator,
+      ]..sort((left, right) {
+        final apiCompare = right.apiVersion!.compareTo(left.apiVersion!);
+        return apiCompare != 0 ? apiCompare : left.name.compareTo(right.name);
+      });
+  if (withApi.isNotEmpty) {
+    return withApi.first;
+  }
+  final sorted = [...emulators]
+    ..sort((left, right) => left.name.compareTo(right.name));
+  return sorted.first;
+}
+
+Map<String, Object?> _emulatorSuggestionJson(OhosLocalEmulator emulator) {
+  return {
+    'name': emulator.name,
+    if (emulator.apiVersion != null) 'apiVersion': emulator.apiVersion,
+    'runArguments': '--emulator ${emulator.name}',
+  };
+}
+
+io.Directory _emulatorDirectoryFromListItem({
+  required io.Directory deployedRoot,
+  required String name,
+  required Map<Object?, Object?> item,
+}) {
+  final rawPath = item['path']?.toString().trim();
+  if (rawPath != null && rawPath.isNotEmpty) {
+    final path = rawPath.startsWith('/')
+        ? rawPath
+        : '${deployedRoot.path}/$rawPath';
+    return io.Directory(path);
+  }
+  return io.Directory('${deployedRoot.path}/$name');
+}
+
+int? _apiVersionFromMap(Map<Object?, Object?> item) {
+  for (final key in const [
+    'apiVersion',
+    'apiLevel',
+    'api',
+    'sdkApiVersion',
+    'sdkVersion',
+    'systemApiVersion',
+    'systemVersion',
+    'version',
+  ]) {
+    final version = _firstInteger(item[key]);
+    if (version != null) {
+      return version;
+    }
+  }
+  return null;
+}
+
+Future<int?> _apiVersionFromConfig(io.Directory emulatorDirectory) async {
+  final config = io.File('${emulatorDirectory.path}/config.ini');
+  if (!await config.exists()) {
+    return null;
+  }
+  try {
+    final content = await config.readAsString();
+    for (final rawLine in const LineSplitter().convert(content)) {
+      final line = rawLine.trim();
+      if (line.isEmpty || line.startsWith('#') || !line.contains('=')) {
+        continue;
+      }
+      final separator = line.indexOf('=');
+      final key = line.substring(0, separator).trim().toLowerCase();
+      if (!const {
+        'apiversion',
+        'apilevel',
+        'api',
+        'sdkapiversion',
+        'sdkversion',
+        'systemapiversion',
+        'systemversion',
+        'version',
+      }.contains(key)) {
+        continue;
+      }
+      final version = _firstInteger(line.substring(separator + 1));
+      if (version != null) {
+        return version;
+      }
+    }
+  } on Object {
+    return null;
+  }
+  return null;
+}
+
+int? _apiVersionFromName(String name) {
+  final match = RegExp(
+    r'(?:api|openharmony|harmonyos)[-_ ]*(\d+)',
+    caseSensitive: false,
+  ).firstMatch(name);
+  return match == null ? null : int.tryParse(match.group(1)!);
+}
+
+int? _firstInteger(Object? value) {
+  final text = value?.toString();
+  if (text == null || text.trim().isEmpty) {
+    return null;
+  }
+  final match = RegExp(r'\d+').firstMatch(text);
+  return match == null ? null : int.tryParse(match.group(0)!);
 }
 
 /// Returns fatal runtime findings from an OHOS hilog capture.

@@ -120,7 +120,15 @@ class BuildCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const ['ohos', 'android', 'ios', 'macos'],
+        allowed: const [
+          'ohos',
+          'android',
+          'ios',
+          'macos',
+          'linux',
+          'web',
+          'windows',
+        ],
         mandatory: true,
         help: 'Platform to build.',
       )
@@ -219,7 +227,15 @@ class RunCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const ['ohos', 'android', 'ios', 'macos'],
+        allowed: const [
+          'ohos',
+          'android',
+          'ios',
+          'macos',
+          'linux',
+          'web',
+          'windows',
+        ],
         mandatory: true,
         help: 'Platform to run.',
       )
@@ -228,6 +244,12 @@ class RunCommand extends FluohCommand<int> {
         'emulator',
         valueHelp: 'name',
         help: 'Local emulator or simulator to start before running.',
+      )
+      ..addFlag(
+        'auto-emulator',
+        negatable: false,
+        help:
+            'Prefer a local emulator or simulator, falling back to a connected device only when none is available.',
       )
       ..addOption(
         'device-timeout',
@@ -245,7 +267,7 @@ class RunCommand extends FluohCommand<int> {
         'session-file',
         valueHelp: 'path',
         help:
-            'Write a live Flutter debug session JSON file for Android, iOS, or macOS runs.',
+            'Write a live Flutter debug session JSON file for Android, iOS, macOS, Linux, Web, or Windows runs.',
       )
       ..addFlag(
         'json',
@@ -276,15 +298,24 @@ class RunCommand extends FluohCommand<int> {
         _trimmedOption(argResults!, 'emulator') != null) {
       usageException('Use only one of --device or --emulator.');
     }
+    if (_trimmedOption(argResults!, 'device') != null &&
+        argResults!.flag('auto-emulator')) {
+      usageException('Use only one of --device or --auto-emulator.');
+    }
+    if (_trimmedOption(argResults!, 'emulator') != null &&
+        argResults!.flag('auto-emulator')) {
+      usageException('Use only one of --emulator or --auto-emulator.');
+    }
     final deviceTimeout = _durationOption('device-timeout');
     final logDuration = _durationOption('log-duration');
     final platform = _platformFromBuildOption(argResults!.option('platform'));
     final deviceId = _trimmedOption(argResults!, 'device');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
+    final autoEmulator = argResults!.flag('auto-emulator');
     final sessionFilePath = _trimmedOption(argResults!, 'session-file');
     if (sessionFilePath != null && platform == 'ohos') {
       usageException(
-        'Use --session-file only with Android, iOS, or macOS runs.',
+        'Use --session-file only with Android, iOS, macOS, Linux, Web, or Windows runs.',
       );
     }
     if (sessionFilePath != null && argResults!.flag('all')) {
@@ -304,7 +335,7 @@ class RunCommand extends FluohCommand<int> {
       autoSign: platform == 'ohos',
       runExample: true,
       deviceId: deviceId,
-      startEmulator: emulatorName != null,
+      startEmulator: autoEmulator || emulatorName != null,
       emulatorName: emulatorName,
       sessionFile: sessionFile,
     );
@@ -320,7 +351,7 @@ class RunCommand extends FluohCommand<int> {
       projectInvocation: _ProjectWorkflowInvocation.run(
         platform: platform,
         deviceId: deviceId,
-        startEmulator: emulatorName != null,
+        startEmulator: autoEmulator || emulatorName != null,
         emulatorName: emulatorName,
         sessionFile: sessionFile,
       ),
@@ -1242,6 +1273,9 @@ String _projectPlatformDiagnosticCode({
       'android' => 'android.run_failed',
       'ios' => 'ios.run_failed',
       'macos' => 'macos.run_failed',
+      'linux' => 'linux.run_failed',
+      'web' => 'web.run_failed',
+      'windows' => 'windows.run_failed',
       _ => 'command.failed',
     };
   }
@@ -1250,6 +1284,9 @@ String _projectPlatformDiagnosticCode({
     'android' => 'android.apk_build_failed',
     'ios' => 'ios.build_failed',
     'macos' => 'macos.build_failed',
+    'linux' => 'linux.build_failed',
+    'web' => 'web.build_failed',
+    'windows' => 'windows.build_failed',
     _ => 'command.failed',
   };
 }
@@ -1264,6 +1301,9 @@ String _projectPlatformDiagnosticMessage({
       'android' => 'Android run failed.',
       'ios' => 'iOS run failed.',
       'macos' => 'macOS run failed.',
+      'linux' => 'Linux run failed.',
+      'web' => 'Web run failed.',
+      'windows' => 'Windows run failed.',
       _ => 'Command failed.',
     };
   }
@@ -1272,6 +1312,9 @@ String _projectPlatformDiagnosticMessage({
     'android' => 'Android APK build failed.',
     'ios' => 'iOS build failed.',
     'macos' => 'macOS build failed.',
+    'linux' => 'Linux build failed.',
+    'web' => 'Web build failed.',
+    'windows' => 'Windows build failed.',
     _ => 'Command failed.',
   };
 }
@@ -1279,13 +1322,7 @@ String _projectPlatformDiagnosticMessage({
 String _projectPlatformNextCommand(_ProjectWorkflowInvocation invocation) {
   final platform = invocation.platform!;
   if (invocation.kind == 'run') {
-    return [
-      'fluoh run --platform $platform',
-      if (invocation.deviceId != null) '--device ${invocation.deviceId}',
-      if (invocation.emulatorName != null)
-        '--emulator ${invocation.emulatorName}',
-      '--json',
-    ].join(' ');
+    return _projectRunNextCommand(invocation);
   }
   return [
     'fluoh build --platform $platform',
@@ -1301,6 +1338,10 @@ String? _projectNextCommandForDiagnosticCode(
 ) {
   final platform = invocation.platform!;
   final runCommand = _projectPlatformNextCommand(invocation);
+  final autoEmulatorRunCommand = _projectRunNextCommand(
+    invocation,
+    startEmulator: true,
+  );
   return switch (code) {
     'ohos.hap_build_failed' ||
     'ohos.launch_timeout' ||
@@ -1317,7 +1358,19 @@ String? _projectNextCommandForDiagnosticCode(
     'macos.build_failed' ||
     'macos.launch_timeout' ||
     'macos.run_failed' ||
-    'macos.runtime_crash' => runCommand,
+    'macos.runtime_crash' ||
+    'linux.build_failed' ||
+    'linux.launch_timeout' ||
+    'linux.run_failed' ||
+    'linux.runtime_crash' ||
+    'web.build_failed' ||
+    'web.launch_timeout' ||
+    'web.run_failed' ||
+    'web.runtime_crash' ||
+    'windows.build_failed' ||
+    'windows.launch_timeout' ||
+    'windows.run_failed' ||
+    'windows.runtime_crash' => runCommand,
     'ohos.devices_failed' ||
     'ohos.emulators_failed' ||
     'ohos.emulator_missing' ||
@@ -1333,7 +1386,20 @@ String? _projectNextCommandForDiagnosticCode(
     'macos.devices_failed' ||
     'macos.emulators_failed' ||
     'macos.emulator_missing' ||
-    'macos.emulator_start_failed' => 'fluoh doctor --platform $platform --json',
+    'macos.emulator_start_failed' ||
+    'linux.devices_failed' ||
+    'linux.emulators_failed' ||
+    'linux.emulator_missing' ||
+    'linux.emulator_start_failed' ||
+    'web.devices_failed' ||
+    'web.emulators_failed' ||
+    'web.emulator_missing' ||
+    'web.emulator_start_failed' ||
+    'windows.devices_failed' ||
+    'windows.emulators_failed' ||
+    'windows.emulator_missing' ||
+    'windows.emulator_start_failed' =>
+      'fluoh doctor --platform $platform --json',
     'ohos.device_not_found' ||
     'ohos.device_ambiguous' ||
     'android.device_not_found' ||
@@ -1341,21 +1407,66 @@ String? _projectNextCommandForDiagnosticCode(
     'ios.device_not_found' ||
     'ios.device_ambiguous' ||
     'macos.device_not_found' ||
-    'macos.device_ambiguous' => 'fluoh devices --platform $platform',
+    'macos.device_ambiguous' ||
+    'linux.device_not_found' ||
+    'linux.device_ambiguous' ||
+    'web.device_not_found' ||
+    'web.device_ambiguous' ||
+    'windows.device_not_found' ||
+    'windows.device_ambiguous' => 'fluoh devices --platform $platform',
     'ohos.device_missing' ||
+    'android.device_missing' ||
+    'ios.device_missing' => autoEmulatorRunCommand,
     'ohos.emulator_not_found' ||
     'ohos.emulator_ambiguous' ||
-    'android.device_missing' ||
     'android.emulator_not_found' ||
     'android.emulator_ambiguous' ||
-    'ios.device_missing' ||
     'ios.emulator_not_found' ||
     'ios.emulator_ambiguous' ||
     'macos.device_missing' ||
     'macos.emulator_not_found' ||
-    'macos.emulator_ambiguous' => runCommand,
+    'macos.emulator_ambiguous' ||
+    'linux.device_missing' ||
+    'linux.emulator_not_found' ||
+    'linux.emulator_ambiguous' ||
+    'web.device_missing' ||
+    'web.emulator_not_found' ||
+    'web.emulator_ambiguous' ||
+    'windows.device_missing' ||
+    'windows.emulator_not_found' ||
+    'windows.emulator_ambiguous' => runCommand,
     _ => null,
   };
+}
+
+String _projectRunNextCommand(
+  _ProjectWorkflowInvocation invocation, {
+  bool? startEmulator,
+}) {
+  final platform = invocation.platform!;
+  final useDefaultWebServer =
+      platform == 'web' &&
+      invocation.deviceId == null &&
+      invocation.emulatorName == null;
+  return [
+    'fluoh run --platform $platform',
+    if (invocation.deviceId != null) '--device ${invocation.deviceId}',
+    if (useDefaultWebServer) '--device web-server',
+    if ((startEmulator ?? invocation.startEmulator) &&
+        invocation.emulatorName == null &&
+        !_isDesktopRunPlatform(platform))
+      '--auto-emulator',
+    if (invocation.emulatorName != null)
+      '--emulator ${invocation.emulatorName}',
+    '--json',
+  ].join(' ');
+}
+
+bool _isDesktopRunPlatform(String platform) {
+  return platform == 'macos' ||
+      platform == 'linux' ||
+      platform == 'web' ||
+      platform == 'windows';
 }
 
 int _lastExitCode(List<WorkflowStepResult> steps) {
@@ -1364,7 +1475,13 @@ int _lastExitCode(List<WorkflowStepResult> steps) {
 
 String _platformFromBuildOption(String? value) {
   return switch (value) {
-    'ohos' || 'android' || 'ios' || 'macos' => value!,
+    'ohos' ||
+    'android' ||
+    'ios' ||
+    'macos' ||
+    'linux' ||
+    'web' ||
+    'windows' => value!,
     _ => throw ArgumentError.value(value, 'platform', 'Unsupported platform.'),
   };
 }
@@ -1375,6 +1492,9 @@ String _buildTargetForPlatform(String platform) {
     'android' => 'apk',
     'ios' => 'ios',
     'macos' => 'macos',
+    'linux' => 'linux',
+    'web' => 'web',
+    'windows' => 'windows',
     _ => throw ArgumentError.value(
       platform,
       'platform',

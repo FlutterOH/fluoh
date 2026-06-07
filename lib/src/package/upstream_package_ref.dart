@@ -40,9 +40,23 @@ class ResolvedPackageUpstreamRef {
   final String? ref;
 }
 
-/// Fetches upstream branch and tag refs.
+/// Fetches upstream branch and tag refs from the configured `upstream` remote.
 Future<void> fetchUpstreamRefs(Directory repository) async {
   await runGit(['fetch', '--tags', 'upstream'], workingDirectory: repository);
+}
+
+/// Fetches upstream branch and tag refs from [upstreamUrl] without writing
+/// repository remote configuration.
+Future<void> fetchUpstreamRefsFromUrl(
+  Directory repository, {
+  required String upstreamUrl,
+}) async {
+  await runGit([
+    'fetch',
+    '--tags',
+    upstreamUrl,
+    '+refs/heads/*:refs/remotes/upstream/*',
+  ], workingDirectory: repository);
 }
 
 /// Fast-forwards the local upstream branch from its remote-tracking branch.
@@ -50,7 +64,21 @@ Future<void> synchronizeUpstreamBranch(
   Directory repository, {
   required String branch,
 }) async {
-  await runGit(['checkout', branch], workingDirectory: repository);
+  final local = await runGit(
+    ['show-ref', '--verify', '--quiet', 'refs/heads/$branch'],
+    workingDirectory: repository,
+    allowFailure: true,
+  );
+  if (local.exitCode == 0) {
+    await runGit(['checkout', branch], workingDirectory: repository);
+  } else {
+    await runGit([
+      'checkout',
+      '-b',
+      branch,
+      'upstream/$branch',
+    ], workingDirectory: repository);
+  }
   await runGit([
     'merge',
     '--ff-only',

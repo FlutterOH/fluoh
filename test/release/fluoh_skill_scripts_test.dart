@@ -98,6 +98,9 @@ sdk:
 ''');
       await Directory('${root.path}/ohos').create();
       await Directory('${root.path}/android').create();
+      await Directory('${root.path}/linux').create();
+      await Directory('${root.path}/web').create();
+      await Directory('${root.path}/windows').create();
 
       final report = await runPreflight(root, fluohCommand: fluoh.path);
       final project = report['project'] as Map<String, Object?>;
@@ -114,10 +117,27 @@ sdk:
       expect(project['hasPackageBranch'], isFalse);
       expect(platforms['ohos'], isTrue);
       expect(platforms['android'], isTrue);
+      expect(platforms['linux'], isTrue);
+      expect(platforms['web'], isTrue);
+      expect(platforms['windows'], isTrue);
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 9.9.9');
       expect(schema['status'], 'current');
       expect(upgradeChecks['needsMigration'], isFalse);
+      final appRegressionCommands = [
+        'fluoh doctor --platform android --json --strict',
+        'fluoh run --platform android --auto-emulator --json',
+        if (Platform.isLinux) ...[
+          'fluoh doctor --platform linux --json --strict',
+          'fluoh build --platform linux --json',
+        ],
+        'fluoh doctor --platform web --json --strict',
+        'fluoh run --platform web --device web-server --json',
+        if (Platform.isWindows) ...[
+          'fluoh doctor --platform windows --json --strict',
+          'fluoh build --platform windows --json',
+        ],
+      ];
       expect(stringList(report['suggestedCommands']), [
         'fluoh source update',
         'fluoh sdk use 3.35.8-ohos-0.0.3 --pub-get',
@@ -128,14 +148,18 @@ sdk:
         'fluoh doctor -p --platform ohos --json --strict',
         'fluoh build --platform ohos --auto-sign --json',
         'fluoh devices --platform ohos --json',
-        'fluoh run --platform ohos --device <id> --json',
+        'fluoh emulators --platform ohos --json',
+        'fluoh run --platform ohos --auto-emulator --json',
+        ...appRegressionCommands,
       ]);
       expect(stringList(report['finalCheckCommands']), [
         'git diff --check',
         'fluoh doctor -p --platform ohos --json --strict',
         'fluoh build --platform ohos --auto-sign --json',
         'fluoh devices --platform ohos --json',
-        'fluoh run --platform ohos --device <id> --json',
+        'fluoh emulators --platform ohos --json',
+        'fluoh run --platform ohos --auto-emulator --json',
+        ...appRegressionCommands,
       ]);
       expect(
         stringList(report['deliveryChecks']),
@@ -446,6 +470,9 @@ package:
       await Directory(
         '${root.path}/packages/camera/camera/example/ohos',
       ).create(recursive: true);
+      await Directory(
+        '${root.path}/packages/camera/camera/example/web',
+      ).create(recursive: true);
 
       final report = await runPreflight(root, fluohCommand: fluoh.path);
       final project = report['project'] as Map<String, Object?>;
@@ -464,6 +491,7 @@ package:
       expect(package['path'], 'packages/camera/camera');
       expect(examplePlatforms['ohos'], isTrue);
       expect(examplePlatforms['android'], isTrue);
+      expect(examplePlatforms['web'], isTrue);
       expect(
         (upgradeChecks['schema'] as Map<String, Object?>)['status'],
         'current',
@@ -480,7 +508,8 @@ package:
           'fluoh package docs refresh --dry-run',
           'fluoh package docs refresh',
           'fluoh verify --package camera --json',
-          'fluoh run --platform ohos --package camera --json',
+          'fluoh run --platform ohos --package camera --auto-emulator --json',
+          'fluoh run --platform web --package camera --device web-server --json',
           'fluoh package check --package camera --json',
         ]),
       );
@@ -681,7 +710,7 @@ Generated content.
       expect(stringList(report['suggestedCommands']).take(3).toList(), [
         'fluoh upgrade',
         'fluoh deps get',
-        'fluoh doctor -p --json --strict',
+        'fluoh doctor -p --platform ohos --json --strict',
       ]);
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -779,6 +808,15 @@ package:
       await Directory(
         '${root.path}/packages/share_plus/share_plus/example/macos',
       ).create(recursive: true);
+      await Directory(
+        '${root.path}/packages/share_plus/share_plus/example/linux',
+      ).create(recursive: true);
+      await Directory(
+        '${root.path}/packages/share_plus/share_plus/example/web',
+      ).create(recursive: true);
+      await Directory(
+        '${root.path}/packages/share_plus/share_plus/example/windows',
+      ).create(recursive: true);
 
       final report = await runPreflight(root, fluohCommand: fluoh.path);
       final project = report['project'] as Map<String, Object?>;
@@ -795,12 +833,21 @@ package:
       expect(project['selectedPackage'], 'share_plus');
       expect(sharePlusPlatforms['ios'], isTrue);
       expect(sharePlusPlatforms['macos'], isTrue);
+      expect(sharePlusPlatforms['linux'], isTrue);
+      expect(sharePlusPlatforms['web'], isTrue);
+      expect(sharePlusPlatforms['windows'], isTrue);
+      final packageSuggestedCommands = [
+        'fluoh verify --package share_plus --json',
+        'fluoh run --platform ohos --package share_plus --auto-emulator --json',
+        if (Platform.isLinux)
+          'fluoh build --platform linux --package share_plus --json',
+        'fluoh run --platform web --package share_plus --device web-server --json',
+        if (Platform.isWindows)
+          'fluoh build --platform windows --package share_plus --json',
+      ];
       expect(
         stringList(report['suggestedCommands']),
-        containsAll([
-          'fluoh verify --package share_plus --json',
-          'fluoh run --platform ohos --package share_plus --json',
-        ]),
+        containsAll(packageSuggestedCommands),
       );
       expect(
         stringList(report['finalCheckCommands']),
@@ -880,7 +927,7 @@ package:
         stringList(selected['suggestedCommands']),
         containsAll([
           'fluoh verify --package share_plus --json',
-          'fluoh run --platform ohos --package share_plus --json',
+          'fluoh run --platform ohos --package share_plus --auto-emulator --json',
           'fluoh package check --package share_plus --json',
         ]),
       );
@@ -1032,6 +1079,10 @@ schema: 1
 
 sdk:
   version: 3.35.8-ohos-0.0.3
+
+package:
+  name: camera
+  path: packages/camera/camera
 ''');
 
       Future<File> createReport() async {
@@ -1161,6 +1212,10 @@ schema: 1
 
 sdk:
   version: 3.35.8-ohos-0.0.3
+
+package:
+  name: camera
+  path: packages/camera/camera
 ''');
       final outputRoot = Directory('${root.path}/scenarios');
 
@@ -1218,14 +1273,58 @@ sdk:
       final androidContent = await androidScenario.readAsString();
       expect(
         androidContent,
+        contains('- Example path: packages/camera/camera/example'),
+      );
+      expect(
+        androidContent,
         contains(
-          '- Session file command, when supported: fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json',
+          '- Session file command, when supported: fluoh run --platform android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json',
         ),
       );
       expect(
         androidContent,
         contains(
           '- Session inspect command, when supported: python3 <skill-dir>/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 30 --expect-platform android',
+        ),
+      );
+      final webScenarioResult = await Process.run('python3', [
+        scenarioScript,
+        root.path,
+        '--scope',
+        'camera',
+        '--package',
+        'camera',
+        '--platform',
+        'web',
+        '--name',
+        'capture permission',
+      ]);
+      expect(
+        webScenarioResult.exitCode,
+        0,
+        reason: webScenarioResult.stderr.toString(),
+      );
+      final webScenario = File(webScenarioResult.stdout.toString().trim());
+      expect(webScenario.existsSync(), isTrue);
+      final webContent = await webScenario.readAsString();
+      expect(
+        webContent,
+        contains('- Example path: packages/camera/camera/example'),
+      );
+      expect(
+        webContent,
+        contains('- Target requirement: browser or web-server'),
+      );
+      expect(
+        webContent,
+        contains(
+          '- Related command: fluoh run --platform web --package camera --device web-server --json',
+        ),
+      );
+      expect(
+        webContent,
+        contains(
+          '- Session file command, when supported: fluoh run --platform web --package camera --device web-server --session-file .fluoh/run-sessions/camera/web-session.json --json',
         ),
       );
 
@@ -1270,7 +1369,13 @@ sdk:
       expect(content, contains('- Selected FlutterOH SDK: 3.35.8-ohos-0.0.3'));
       expect(
         content,
-        contains('fluoh run --platform ohos --package camera --json'),
+        contains('- Example path: packages/camera/camera/example'),
+      );
+      expect(
+        content,
+        contains(
+          'fluoh run --platform ohos --package camera --auto-emulator --json',
+        ),
       );
       expect(
         content,
@@ -1527,8 +1632,8 @@ package:
 - Target requirement: emulator
 - Required local tools: Android emulator, Flutter VM Service
 - Observation mode: flutter-debug | semantics-tree | log-marker
-- Related command: fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json
-- Session file command, when supported: fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json
+- Related command: fluoh run --platform android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json
+- Session file command, when supported: fluoh run --platform android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json
 - Session inspect command, when supported: python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 30 --expect-platform android --require-vm-service
 
 ## Preconditions
@@ -1661,8 +1766,8 @@ package:
 | --- | --- | --- | --- |
 | `python3 skills/fluoh/scripts/preflight.py ${root.path} --package camera` | 0 | passed | package repository detected, camera selected |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, and tests passed in simulated evidence |
-| `fluoh run --platform ohos --package camera --json` | 0 | passed | HAP built, signed, installed, launched, and hilog checked |
-| `fluoh run --platform android --package camera --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
+| `fluoh run --platform ohos --package camera --auto-emulator --json` | 0 | passed | HAP built, signed, installed, launched, and hilog checked |
+| `fluoh run --platform android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
 | `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
 | `fluoh package check --package camera --json` | 0 | passed | release metadata validated |
 
@@ -1672,7 +1777,7 @@ package:
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
-- [x] Android, iOS, and macOS regression checks recorded when relevant.
+- [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.
@@ -1812,6 +1917,18 @@ sdk:
             'macOS | not present | not present | n/a | n/a | no example',
           )
           .replaceAll(
+            'Linux | not present | not present | n/a | n/a | ...',
+            'Linux | not present | not present | n/a | n/a | no example',
+          )
+          .replaceAll(
+            'Web | not present | not present | n/a | n/a | ...',
+            'Web | not present | not present | n/a | n/a | no example',
+          )
+          .replaceAll(
+            'Windows | not present | not present | n/a | n/a | ...',
+            'Windows | not present | not present | n/a | n/a | no example',
+          )
+          .replaceAll(
             '| `...` | integration_test \\| AI-assisted \\| manual | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |',
             '| camera preview | AI-assisted | OHOS | emulator-5554 | passed | tapped capture and observed success text |',
           )
@@ -1848,6 +1965,32 @@ the local trace-evidence issue here.
       expect(completeJson['interactionRows'], 1);
       expect(completeJson['passedInteractionRows'], 1);
       expect(completeJson['checklistDone'], completeJson['checklistTotal']);
+
+      final maintainerDecisionReport = File(
+        '${root.path}/maintainer-decision.md',
+      );
+      await maintainerDecisionReport.writeAsString(
+        content.replaceFirst(
+          'Release recommendation: ready',
+          'Release recommendation: needs-maintainer-decision',
+        ),
+      );
+      final maintainerDecision = await Process.run('python3', [
+        checkReportScript,
+        maintainerDecisionReport.path,
+      ]);
+      expect(
+        maintainerDecision.exitCode,
+        0,
+        reason: maintainerDecision.stdout.toString(),
+      );
+      final maintainerDecisionJson =
+          jsonDecode(maintainerDecision.stdout.toString())
+              as Map<String, Object?>;
+      expect(
+        maintainerDecisionJson,
+        containsPair('recommendation', 'needs maintainer decision'),
+      );
 
       final failedEvidenceReport = File('${root.path}/failed-ready.md');
       await failedEvidenceReport.writeAsString(

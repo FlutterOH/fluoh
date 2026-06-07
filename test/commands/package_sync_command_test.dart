@@ -1340,11 +1340,18 @@ environment:
       stderr: stderr.add,
     );
     await commitGeneratedPackageRepository(packageRepository);
+    final manifest = File('${packageRepository.path}/fluoh.yaml');
+    await manifest.writeAsString(
+      (await manifest.readAsString()).replaceFirst(
+        upstream.path,
+        '${environment.homeDirectory.path}/missing_upstream',
+      ),
+    );
+    await runGit(packageRepository, ['add', 'fluoh.yaml']);
     await runGit(packageRepository, [
-      'remote',
-      'set-url',
-      'upstream',
-      '${environment.homeDirectory.path}/missing_upstream',
+      'commit',
+      '-m',
+      'Point upstream to missing repository',
     ]);
 
     stdout.clear();

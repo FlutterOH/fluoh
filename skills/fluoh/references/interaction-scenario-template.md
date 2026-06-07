@@ -9,8 +9,8 @@ is specifically visual.
 
 - Scope:
 - Package or app:
-- Platform: ohos | android | ios | macos
-- Target requirement: emulator | simulator | device | host
+- Platform: ohos | android | ios | macos | linux | web | windows
+- Target requirement: emulator | simulator | device | host | browser | web-server
 - Required local tools:
 - Observation mode: integration_test | flutter-debug | widget-tree | semantics-tree | accessibility | visible-text | log-marker | screenshot-optional
 - Related command:

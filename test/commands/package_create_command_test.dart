@@ -2617,11 +2617,15 @@ Original upstream README body.
       homeDirectory: environment.homeDirectory,
       workingDirectory: packageRepository,
     );
-    await runFluoh(
-      ['package', 'add', 'packages/share_plus/share_plus'],
-      environment: packageEnvironment,
-      stdout: stdout.add,
-      stderr: stderr.add,
+    expect(
+      await runFluoh(
+        ['package', 'add', 'packages/share_plus/share_plus'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+      reason: [...stderr, ...stdout].join('\n'),
     );
     await commitGeneratedPackageRepository(packageRepository);
     stdout.clear();
@@ -2648,6 +2652,164 @@ Original upstream README body.
     );
     expect(stderr.join('\n'), contains('package status --package share_plus'));
     expect(stderr.join('\n'), contains('fluoh package sync'));
+  });
+
+  test('package add and queue detect remote-only package branches', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createPackageCreateSdkSource(
+      environment.homeDirectory,
+      logName: 'package_add_remote_existing_branch_flutter_args.log',
+    );
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_add_remote'),
+      packagePath: 'packages/camera/camera',
+      packageName: 'camera',
+    );
+    await _addWorkspaceFlutterPackage(
+      upstream,
+      path: 'packages/share_plus/share_plus',
+      name: 'share_plus',
+      version: '9.0.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_remote_origin',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'create',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--package-path',
+        'packages/camera/camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    await runFluoh(
+      ['package', 'add', 'packages/share_plus/share_plus'],
+      environment: packageEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+
+    final clonedRepository = Directory(
+      '${environment.homeDirectory.path}/package_add_remote_clone',
+    );
+    await runGit(environment.homeDirectory, [
+      'clone',
+      '--branch',
+      'ohos/3.35/camera',
+      packageRepository.path,
+      clonedRepository.path,
+    ]);
+    final clonedEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: clonedRepository,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'queue', 'packages/share_plus/share_plus', '--json'],
+        environment: clonedEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+      reason: stderr.join('\n'),
+    );
+
+    expect(stderr, isEmpty);
+    final queuePayload = jsonDecode(stdout.single) as Map<String, Object?>;
+    final queue = queuePayload['queue'] as Map<String, Object?>;
+    final packages = queue['packages'] as List<Object?>;
+    final sharePlus = packages.single as Map<String, Object?>;
+    expect(sharePlus['branch'], 'ohos/3.35/share_plus');
+    expect(sharePlus['branchExists'], isTrue);
+    expect(
+      sharePlus['nextCommand'],
+      'git checkout ohos/3.35/share_plus && fluoh package status --package share_plus',
+    );
+    final remotesAfterQueue = await runGit(clonedRepository, ['remote']);
+    expect(remotesAfterQueue.stdout.toString().trim(), 'origin');
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'add',
+          'packages/share_plus/share_plus',
+          '--plan',
+          '--json',
+        ],
+        environment: clonedEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    final addPayload = jsonDecode(stdout.single) as Map<String, Object?>;
+    final plan = addPayload['plan'] as Map<String, Object?>;
+    final repository = plan['repository'] as Map<String, Object?>;
+    expect(repository['branchExists'], isTrue);
+    expect(
+      plan['nextCommand'],
+      'git checkout ohos/3.35/share_plus && fluoh package status --package share_plus',
+    );
+    final willRun = (plan['willRun'] as List<Object?>).join('\n');
+    expect(willRun, contains('checkout existing package branch'));
+    expect(willRun, contains('inspect package status for share_plus'));
+    expect(willRun, isNot(contains('write README.md')));
+    expect(willRun, isNot(contains('stage generated files')));
+    final remotesAfterPlan = await runGit(clonedRepository, ['remote']);
+    expect(remotesAfterPlan.stdout.toString().trim(), 'origin');
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'add', 'packages/share_plus/share_plus'],
+        environment: clonedEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final branch = await runGit(clonedRepository, ['branch', '--show-current']);
+    expect(branch.stdout.toString().trim(), 'ohos/3.35/camera');
+    expect(
+      stderr.join('\n'),
+      contains('Package branch ohos/3.35/share_plus already exists.'),
+    );
+    expect(stderr.join('\n'), contains('package status --package share_plus'));
   });
 
   test('package add restores the starting branch when setup fails', () async {
@@ -3310,6 +3472,9 @@ void _expectImplementationGuide(
     'fluoh run --platform android',
     'fluoh run --platform ios',
     'fluoh run --platform macos',
+    'fluoh build --platform linux',
+    'fluoh run --platform web',
+    'fluoh build --platform windows',
     'fluoh build --platform ohos',
     '--no-codesign',
     '--device <id>',
@@ -3357,6 +3522,9 @@ void _expectImplementationGuide(
     'macos.run_failed',
     'macos.runtime_crash',
     'macos.integration_test_failed',
+    'linux.build_failed',
+    'web.build_failed',
+    'windows.build_failed',
     'ohos.runtime_crash',
     'ohos.install_failed',
     '.fluoh/reports/',

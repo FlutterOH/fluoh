@@ -101,8 +101,8 @@ def attach_hints(session: dict[str, Any]) -> list[str]:
     output_log = session.get("outputLog")
     if isinstance(output_log, str) and output_log:
         hints.append(f"Inspect run output log: {output_log}")
-    if session.get("platform") == "macos":
-        hints.append("macOS runs can be checked through host process logs and Flutter debug state.")
+    if session.get("platform") in {"macos", "linux", "web", "windows"}:
+        hints.append("Desktop and Web runs can be checked through host process logs and Flutter debug state.")
     return hints
 
 
@@ -186,7 +186,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--expect-platform",
-        choices=("android", "ios", "macos"),
+        choices=("android", "ios", "macos", "linux", "web", "windows"),
         default="",
         help="Fail when the session platform differs",
     )

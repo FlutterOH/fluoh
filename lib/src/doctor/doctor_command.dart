@@ -31,6 +31,10 @@ const _androidToolchainBaseTitle =
     'Android toolchain - develop for Android devices';
 const _iosToolchainBaseTitle = 'Xcode - develop for iOS devices';
 const _macosToolchainBaseTitle = 'Xcode - develop for macOS desktop';
+const _linuxToolchainBaseTitle = 'Linux toolchain - develop for Linux desktop';
+const _windowsToolchainBaseTitle =
+    'Windows toolchain - develop for Windows desktop';
+const _webToolchainBaseTitle = 'Web tooling - build for browsers';
 const _appleToolchainBaseTitle = 'Xcode - develop for iOS and macOS';
 
 /// Version metadata used by `fluoh doctor`.
@@ -101,14 +105,27 @@ class DoctorCommand extends FluohCommand<int> {
       )
       ..addOption(
         'platform',
-        allowed: const ['all', 'ohos', 'android', 'ios', 'macos'],
+        allowed: const [
+          'all',
+          'ohos',
+          'android',
+          'ios',
+          'macos',
+          'linux',
+          'web',
+          'windows',
+        ],
         help: 'Platforms to check. All platforms are checked by default.',
         allowedHelp: const {
-          'all': 'Check OHOS, Android, iOS, and macOS.',
+          'all':
+              'Check OHOS, Android, Web, and platforms supported by this host.',
           'ohos': 'Check OHOS local tooling.',
           'android': 'Check Android SDK, adb, emulator, avdmanager, and Java.',
           'ios': 'Check Xcode xcrun and simctl.',
           'macos': 'Check macOS host and Xcode command line tools.',
+          'linux': 'Check Linux host and desktop build tools.',
+          'web': 'Check Flutter web build and optional browser tooling.',
+          'windows': 'Check Windows host and desktop build tools.',
         },
       );
   }
@@ -854,23 +871,27 @@ int _issueCount(List<_DoctorCheck> checks) {
 
 List<FluohPlatform> _platformsFromOption(String? value) {
   return switch (value) {
-    'all' => const [
-      FluohPlatform.ohos,
-      FluohPlatform.android,
-      FluohPlatform.ios,
-      FluohPlatform.macos,
-    ],
+    'all' => _defaultDoctorPlatforms(),
     'ohos' => const [FluohPlatform.ohos],
     'android' => const [FluohPlatform.android],
     'ios' => const [FluohPlatform.ios],
     'macos' => const [FluohPlatform.macos],
-    _ => const [
-      FluohPlatform.ohos,
-      FluohPlatform.android,
-      FluohPlatform.ios,
-      FluohPlatform.macos,
-    ],
+    'linux' => const [FluohPlatform.linux],
+    'web' => const [FluohPlatform.web],
+    'windows' => const [FluohPlatform.windows],
+    _ => _defaultDoctorPlatforms(),
   };
+}
+
+List<FluohPlatform> _defaultDoctorPlatforms() {
+  return [
+    FluohPlatform.ohos,
+    FluohPlatform.android,
+    if (Platform.isMacOS) ...[FluohPlatform.ios, FluohPlatform.macos],
+    if (Platform.isLinux) FluohPlatform.linux,
+    FluohPlatform.web,
+    if (Platform.isWindows) FluohPlatform.windows,
+  ];
 }
 
 List<String> _platformToolSummary(PlatformDoctorReport report) {
@@ -1012,16 +1033,22 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
   final title = switch (report.platform) {
     FluohPlatform.android => _androidToolchainBaseTitle,
     FluohPlatform.ios => _iosToolchainBaseTitle,
+    FluohPlatform.linux => _linuxToolchainBaseTitle,
     FluohPlatform.macos => _macosToolchainBaseTitle,
     FluohPlatform.ohos => _ohosToolchainBaseTitle,
+    FluohPlatform.web => _webToolchainBaseTitle,
+    FluohPlatform.windows => _windowsToolchainBaseTitle,
   };
   final version = switch (report.platform) {
     FluohPlatform.android =>
       _checkVersion(report, 'android.sdk') ??
           _checkVersion(report, 'android.adb'),
     FluohPlatform.ios => _checkVersion(report, 'ios.xcode'),
+    FluohPlatform.linux => _checkVersion(report, 'linux.cmake'),
     FluohPlatform.macos => _checkVersion(report, 'macos.xcode'),
     FluohPlatform.ohos => null,
+    FluohPlatform.web => _checkVersion(report, 'web.chrome'),
+    FluohPlatform.windows => _checkVersion(report, 'windows.cmake'),
   };
   if (version == null) {
     return title;
@@ -1032,8 +1059,11 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
           ? 'adb'
           : 'Android SDK version',
     FluohPlatform.ios => 'Xcode',
+    FluohPlatform.linux => 'CMake',
     FluohPlatform.macos => 'Xcode',
     FluohPlatform.ohos => '',
+    FluohPlatform.web => 'Chrome',
+    FluohPlatform.windows => 'CMake',
   };
   return '$title ($label $version)';
 }
@@ -1053,8 +1083,11 @@ String _platformToolchainTitle(FluohPlatform platform) {
   return switch (platform) {
     FluohPlatform.android => 'Android toolchain',
     FluohPlatform.ios => 'iOS toolchain',
+    FluohPlatform.linux => 'Linux toolchain',
     FluohPlatform.macos => 'macOS toolchain',
     FluohPlatform.ohos => 'OpenHarmony toolchain',
+    FluohPlatform.web => 'Web tooling',
+    FluohPlatform.windows => 'Windows toolchain',
   };
 }
 
@@ -1092,6 +1125,7 @@ String _platformToolPlainDetail(PlatformToolCheck check) {
     'ios.simctl' => _sentence(check.message),
     'macos.host' => _sentence(check.message),
     'macos.xcode' => 'Xcode found',
+    'web.build' || 'web.chrome' => _sentence(check.message),
     _ => '${check.label} found',
   };
 }
@@ -1154,8 +1188,17 @@ List<String> _platformToolDetails(PlatformDoctorReport report) {
   return switch (report.platform) {
     FluohPlatform.android => _androidToolDetails(report),
     FluohPlatform.ios => _iosToolDetails(report),
+    FluohPlatform.linux => [
+      for (final check in report.checks) _toolDetailLine(check),
+    ],
     FluohPlatform.macos => _macosToolDetails(report),
     FluohPlatform.ohos => [
+      for (final check in report.checks) _toolDetailLine(check),
+    ],
+    FluohPlatform.web => [
+      for (final check in report.checks) _toolDetailLine(check),
+    ],
+    FluohPlatform.windows => [
       for (final check in report.checks) _toolDetailLine(check),
     ],
   };
@@ -1355,8 +1398,11 @@ String _platformDisplayName(FluohPlatform platform) {
   return switch (platform) {
     FluohPlatform.android => 'Android',
     FluohPlatform.ios => 'iOS',
+    FluohPlatform.linux => 'Linux',
     FluohPlatform.macos => 'macOS',
     FluohPlatform.ohos => 'OHOS',
+    FluohPlatform.web => 'Web',
+    FluohPlatform.windows => 'Windows',
   };
 }
 

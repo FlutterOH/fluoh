@@ -17,6 +17,7 @@ class FlutterDeviceTarget {
     required this.name,
     required this.targetPlatform,
     required this.isSupported,
+    this.isEmulator = false,
   });
 
   /// Flutter device id.
@@ -31,6 +32,9 @@ class FlutterDeviceTarget {
   /// Whether Flutter reports the device as supported.
   final bool isSupported;
 
+  /// Whether Flutter reports this target as an emulator or simulator.
+  final bool isEmulator;
+
   /// Converts the device target to JSON.
   Map<String, Object?> toJson() {
     return {
@@ -38,6 +42,7 @@ class FlutterDeviceTarget {
       'name': name,
       'targetPlatform': targetPlatform,
       'isSupported': isSupported,
+      if (isEmulator) 'isEmulator': true,
     };
   }
 }
@@ -189,10 +194,22 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
     );
   }
   var devices = _devicesForPlatform(parsedDevices, platform);
-  var target = emulatorName == null ? _selectDevice(devices, deviceId) : null;
+  var target = deviceId != null
+      ? _selectDevice(devices, deviceId, platform: platform)
+      : startEmulator && emulatorName == null
+      ? _isDesktopRunPlatform(platform)
+            ? _selectDevice(devices, null, platform: platform)
+            : _selectRunningEmulatorDevice(devices)
+      : startEmulator
+      ? null
+      : _selectDevice(devices, null, platform: platform);
   FlutterEmulatorTarget? emulator;
+  FlutterExampleRunResult? autoEmulatorFailure;
 
-  if (target == null && startEmulator && deviceId == null) {
+  if (target == null &&
+      startEmulator &&
+      deviceId == null &&
+      (!_isDesktopRunPlatform(platform) || emulatorName != null)) {
     final previousDeviceIds = devices.map((device) => device.id).toSet();
     final emulatorResult = await _startFlutterEmulator(
       environment: commandEnvironment,
@@ -200,42 +217,55 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       output: output,
       platform: platform,
       emulatorName: emulatorName,
+      preferDefault: emulatorName == null,
       usage: usage,
     );
     if (!emulatorResult.passed) {
-      return emulatorResult;
-    }
-    emulator = emulatorResult.emulator;
-    final waitResult = await _waitForFlutterDevice(
-      environment: commandEnvironment,
-      workingDirectory: exampleDirectory,
-      output: output,
-      platform: platform,
-      deviceTimeout: deviceTimeout,
-      usage: usage,
-    );
-    if (!waitResult.passed) {
-      return FlutterExampleRunResult(
-        exitCode: waitResult.exitCode,
+      if (_shouldFallbackToConnectedDevice(
+            emulatorResult,
+            emulatorName: emulatorName,
+          ) &&
+          devices.isNotEmpty) {
+        autoEmulatorFailure = emulatorResult;
+        target = _selectDevice(devices, null, platform: platform);
+      } else {
+        return emulatorResult;
+      }
+    } else {
+      emulator = emulatorResult.emulator;
+      final waitResult = await _waitForFlutterDevice(
+        environment: commandEnvironment,
+        workingDirectory: exampleDirectory,
+        output: output,
         platform: platform,
-        command: waitResult.command,
+        previousDeviceIds: previousDeviceIds,
+        waitForNewDevice: true,
+        deviceTimeout: deviceTimeout,
+        usage: usage,
+      );
+      if (!waitResult.passed) {
+        return FlutterExampleRunResult(
+          exitCode: waitResult.exitCode,
+          platform: platform,
+          command: waitResult.command,
+          emulator: emulator,
+          diagnostics: waitResult.diagnostics,
+          reason: waitResult.reason,
+          details: waitResult.details,
+        );
+      }
+      devices = _devicesForPlatform(
+        parseFlutterDevices(
+          waitResult.details['devicesJson'] as String? ?? '[]',
+        ),
+        platform,
+      );
+      target = _selectStartedEmulatorDevice(
+        devices: devices,
         emulator: emulator,
-        diagnostics: waitResult.diagnostics,
-        reason: waitResult.reason,
-        details: waitResult.details,
+        previousDeviceIds: previousDeviceIds,
       );
     }
-    devices = _devicesForPlatform(
-      parseFlutterDevices(waitResult.details['devicesJson'] as String? ?? '[]'),
-      platform,
-    );
-    target = emulatorName == null
-        ? _selectDevice(devices, null)
-        : _selectStartedEmulatorDevice(
-            devices: devices,
-            emulator: emulator,
-            previousDeviceIds: previousDeviceIds,
-          );
   }
 
   if (target == null) {
@@ -247,6 +277,10 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       if (emulatorName != null && emulatorName.trim().isNotEmpty)
         'requestedEmulator': emulatorName.trim(),
       if (emulator != null) 'startedEmulator': emulator.toJson(),
+      if (autoEmulatorFailure != null)
+        'autoEmulatorFallback': _autoEmulatorFallbackDetails(
+          autoEmulatorFailure,
+        ),
     };
     if (emulatorName != null && emulatorName.trim().isNotEmpty) {
       return _failedRunResult(
@@ -276,8 +310,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
         command: 'flutter devices --machine',
         code: '$platform.device_missing',
         message: 'No Flutter device was available for the platform',
-        reason:
-            'No $platform device was available. Connect a device or rerun with --emulator <name>',
+        reason: _missingFlutterDeviceReason(platform),
         details: details,
       );
     }
@@ -309,7 +342,23 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
     sessionFile: sessionFile,
     usage: usage,
   );
-  return runResult;
+  if (autoEmulatorFailure == null) {
+    return runResult;
+  }
+  return FlutterExampleRunResult(
+    exitCode: runResult.exitCode,
+    platform: runResult.platform,
+    command: runResult.command,
+    target: runResult.target,
+    emulator: runResult.emulator,
+    outputLog: runResult.outputLog,
+    reason: runResult.reason,
+    details: {
+      ...runResult.details,
+      'autoEmulatorFallback': _autoEmulatorFallbackDetails(autoEmulatorFailure),
+    },
+    diagnostics: runResult.diagnostics,
+  );
 }
 
 /// Parses `flutter devices --machine` JSON output.
@@ -329,6 +378,7 @@ List<FlutterDeviceTarget> parseFlutterDevices(String content) {
           name: (item['name'] ?? '').toString(),
           targetPlatform: (item['targetPlatform'] ?? '').toString(),
           isSupported: item['isSupported'] != false,
+          isEmulator: item['emulator'] == true,
         ),
   ].where((device) => device.id.trim().isNotEmpty).toList();
 }
@@ -338,6 +388,9 @@ String _platformForBuildTarget(String target) {
     'apk' => 'android',
     'ios' => 'ios',
     'macos' => 'macos',
+    'linux' => 'linux',
+    'web' => 'web',
+    'windows' => 'windows',
     _ => throw ArgumentError.value(target, 'target', 'Unsupported target.'),
   };
 }
@@ -361,13 +414,17 @@ bool _matchesPlatform(String value, String platform) {
         normalized.startsWith('darwin-') ||
         normalized.contains('macos');
   }
+  if (platform == 'web') {
+    return normalized == 'web' || normalized.contains('web');
+  }
   return normalized == platform || normalized.contains(platform);
 }
 
 FlutterDeviceTarget? _selectDevice(
   List<FlutterDeviceTarget> devices,
-  String? deviceId,
-) {
+  String? deviceId, {
+  required String platform,
+}) {
   final requested = deviceId?.trim();
   if (requested != null && requested.isNotEmpty) {
     for (final device in devices) {
@@ -377,7 +434,61 @@ FlutterDeviceTarget? _selectDevice(
     }
     return null;
   }
+  if (platform == 'web') {
+    for (final device in devices) {
+      if (device.id == 'web-server') {
+        return device;
+      }
+    }
+  }
   return devices.length == 1 ? devices.single : null;
+}
+
+FlutterDeviceTarget? _selectRunningEmulatorDevice(
+  List<FlutterDeviceTarget> devices,
+) {
+  final candidates =
+      [
+        for (final device in devices)
+          if (_isRunningEmulatorDevice(device)) device,
+      ]..sort((left, right) {
+        final nameCompare = left.name.compareTo(right.name);
+        return nameCompare != 0 ? nameCompare : left.id.compareTo(right.id);
+      });
+  return candidates.isEmpty ? null : candidates.first;
+}
+
+bool _isRunningEmulatorDevice(FlutterDeviceTarget device) {
+  if (device.isEmulator) {
+    return true;
+  }
+  final id = device.id.toLowerCase();
+  final name = device.name.toLowerCase();
+  return id.startsWith('emulator-') ||
+      id.contains('simulator') ||
+      name.contains('emulator') ||
+      name.contains('simulator');
+}
+
+bool _isDesktopRunPlatform(String platform) {
+  return platform == 'macos' ||
+      platform == 'linux' ||
+      platform == 'web' ||
+      platform == 'windows';
+}
+
+String _missingFlutterDeviceReason(String platform) {
+  if (platform == 'web') {
+    return 'No web target was available. Ensure flutter devices lists Chrome, '
+        'web-server, or another supported Flutter web device.';
+  }
+  if (_isDesktopRunPlatform(platform)) {
+    return 'No $platform host target was available. Run on a matching host and '
+        'ensure flutter devices lists the desktop target.';
+  }
+  return 'No $platform device was available. Rerun with --auto-emulator so '
+      'fluoh can start a local emulator or simulator, or pass --device <id> '
+      'for a connected target.';
 }
 
 Future<FlutterExampleRunResult> _startFlutterEmulator({
@@ -386,6 +497,7 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
   required TerminalOutput output,
   required String platform,
   required String? emulatorName,
+  required bool preferDefault,
   required String usage,
 }) async {
   final fluohPlatform = _fluohPlatformForRunPlatform(platform);
@@ -403,7 +515,11 @@ Future<FlutterExampleRunResult> _startFlutterEmulator({
       details: report.toJson(),
     );
   }
-  final emulator = _selectNativeEmulator(report.targets, emulatorName);
+  final emulator = _selectNativeEmulator(
+    report.targets,
+    emulatorName,
+    preferDefault: preferDefault,
+  );
   if (emulator == null) {
     final details = {
       'platform': platform,
@@ -476,15 +592,19 @@ FluohPlatform _fluohPlatformForRunPlatform(String platform) {
   return switch (platform) {
     'android' => FluohPlatform.android,
     'ios' => FluohPlatform.ios,
+    'linux' => FluohPlatform.linux,
     'macos' => FluohPlatform.macos,
+    'web' => FluohPlatform.web,
+    'windows' => FluohPlatform.windows,
     _ => throw ArgumentError.value(platform, 'platform', 'Unsupported target.'),
   };
 }
 
 PlatformTarget? _selectNativeEmulator(
   List<PlatformTarget> emulators,
-  String? emulatorName,
-) {
+  String? emulatorName, {
+  required bool preferDefault,
+}) {
   final requested = emulatorName?.trim();
   if (requested != null && requested.isNotEmpty) {
     for (final emulator in emulators) {
@@ -493,6 +613,14 @@ PlatformTarget? _selectNativeEmulator(
       }
     }
     return null;
+  }
+  if (preferDefault && emulators.isNotEmpty) {
+    final sorted = [...emulators]
+      ..sort((left, right) {
+        final nameCompare = left.name.compareTo(right.name);
+        return nameCompare != 0 ? nameCompare : left.id.compareTo(right.id);
+      });
+    return sorted.first;
   }
   return emulators.length == 1 ? emulators.single : null;
 }
@@ -529,6 +657,8 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
   required Directory workingDirectory,
   required TerminalOutput output,
   required String platform,
+  Set<String> previousDeviceIds = const {},
+  bool waitForNewDevice = false,
   required Duration deviceTimeout,
   required String usage,
 }) async {
@@ -567,7 +697,13 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
       );
     }
     final devices = _devicesForPlatform(parsedDevices, platform);
-    if (devices.isNotEmpty) {
+    final readyDevices = waitForNewDevice
+        ? [
+            for (final device in devices)
+              if (!previousDeviceIds.contains(device.id)) device,
+          ]
+        : devices;
+    if (readyDevices.isNotEmpty) {
       return FlutterExampleRunResult(
         exitCode: 0,
         platform: platform,
@@ -589,6 +725,39 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
       if (lastResult != null) ..._commandDetails(lastResult),
     },
   );
+}
+
+bool _shouldFallbackToConnectedDevice(
+  FlutterExampleRunResult result, {
+  required String? emulatorName,
+}) {
+  final requested = emulatorName?.trim();
+  if (requested != null && requested.isNotEmpty) {
+    return false;
+  }
+  return result.diagnostics.any(
+    (diagnostic) =>
+        diagnostic.code.endsWith('.emulator_missing') ||
+        diagnostic.code.endsWith('.emulators_failed'),
+  );
+}
+
+Map<String, Object?> _autoEmulatorFallbackDetails(
+  FlutterExampleRunResult failure,
+) {
+  return {
+    'reason': failure.reason,
+    'diagnostics': failure.diagnostics
+        .map(
+          (diagnostic) => {
+            'code': diagnostic.code,
+            'message': diagnostic.message,
+            'severity': diagnostic.severity,
+            if (diagnostic.details.isNotEmpty) 'details': diagnostic.details,
+          },
+        )
+        .toList(),
+  };
 }
 
 Future<SelectedToolResult> _runFlutterTool({

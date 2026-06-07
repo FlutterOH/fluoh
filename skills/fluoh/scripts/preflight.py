@@ -14,6 +14,7 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -223,6 +224,18 @@ def append_command(checks: dict[str, Any], command: str) -> None:
         checks["commands"].append(command)
 
 
+def host_supports_regression_platform(platform: str) -> bool:
+    if platform in {"android", "web"}:
+        return True
+    if platform in {"ios", "macos"}:
+        return sys.platform == "darwin"
+    if platform == "linux":
+        return sys.platform.startswith("linux")
+    if platform == "windows":
+        return sys.platform.startswith("win")
+    return False
+
+
 def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
     if top_level_key(content, "package"):
         package: dict[str, Any] = {"name": None, "path": None}
@@ -251,6 +264,9 @@ def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
                 "android": (example_root / "android").is_dir(),
                 "ios": (example_root / "ios").is_dir(),
                 "macos": (example_root / "macos").is_dir(),
+                "linux": (example_root / "linux").is_dir(),
+                "web": (example_root / "web").is_dir(),
+                "windows": (example_root / "windows").is_dir(),
             }
             return [package]
         return []
@@ -351,6 +367,9 @@ def project_info(root: Path, requested_package: str | None = None) -> dict[str, 
             "android": (root / "android").is_dir(),
             "ios": (root / "ios").is_dir(),
             "macos": (root / "macos").is_dir(),
+            "linux": (root / "linux").is_dir(),
+            "web": (root / "web").is_dir(),
+            "windows": (root / "windows").is_dir(),
         },
     }
 
@@ -445,6 +464,113 @@ def upgrade_checks(
     return checks
 
 
+def app_platform_regression_commands(project: dict[str, Any]) -> list[str]:
+    platforms = project.get("platformDirectories", {})
+    commands: list[str] = []
+    if platforms.get("android"):
+        commands.extend(
+            [
+                "fluoh doctor --platform android --json --strict",
+                "fluoh run --platform android --auto-emulator --json",
+            ]
+        )
+    if platforms.get("ios") and host_supports_regression_platform("ios"):
+        commands.extend(
+            [
+                "fluoh doctor --platform ios --json --strict",
+                "fluoh run --platform ios --auto-emulator --json",
+            ]
+        )
+    if platforms.get("macos") and host_supports_regression_platform("macos"):
+        commands.extend(
+            [
+                "fluoh doctor --platform macos --json --strict",
+                "fluoh run --platform macos --json",
+            ]
+        )
+    if platforms.get("linux") and host_supports_regression_platform("linux"):
+        commands.extend(
+            [
+                "fluoh doctor --platform linux --json --strict",
+                "fluoh build --platform linux --json",
+            ]
+        )
+    if platforms.get("web"):
+        commands.extend(
+            [
+                "fluoh doctor --platform web --json --strict",
+                "fluoh run --platform web --device web-server --json",
+            ]
+        )
+    if platforms.get("windows") and host_supports_regression_platform("windows"):
+        commands.extend(
+            [
+                "fluoh doctor --platform windows --json --strict",
+                "fluoh build --platform windows --json",
+            ]
+        )
+    return commands
+
+
+def selected_package_entry(project: dict[str, Any]) -> dict[str, Any]:
+    selected = project.get("selectedPackage")
+    for package in project.get("packages", []):
+        if package.get("name") == selected:
+            return package
+    return {}
+
+
+def package_platform_regression_commands(
+    project: dict[str, Any], package_name: str
+) -> list[str]:
+    package = selected_package_entry(project)
+    platforms = package.get("examplePlatforms", {})
+    commands: list[str] = []
+    if platforms.get("android"):
+        commands.extend(
+            [
+                "fluoh doctor --platform android --json --strict",
+                f"fluoh run --platform android --package {package_name} --auto-emulator --json",
+            ]
+        )
+    if platforms.get("ios") and host_supports_regression_platform("ios"):
+        commands.extend(
+            [
+                "fluoh doctor --platform ios --json --strict",
+                f"fluoh run --platform ios --package {package_name} --auto-emulator --json",
+            ]
+        )
+    if platforms.get("macos") and host_supports_regression_platform("macos"):
+        commands.extend(
+            [
+                "fluoh doctor --platform macos --json --strict",
+                f"fluoh run --platform macos --package {package_name} --json",
+            ]
+        )
+    if platforms.get("linux") and host_supports_regression_platform("linux"):
+        commands.extend(
+            [
+                "fluoh doctor --platform linux --json --strict",
+                f"fluoh build --platform linux --package {package_name} --json",
+            ]
+        )
+    if platforms.get("web"):
+        commands.extend(
+            [
+                "fluoh doctor --platform web --json --strict",
+                f"fluoh run --platform web --package {package_name} --device web-server --json",
+            ]
+        )
+    if platforms.get("windows") and host_supports_regression_platform("windows"):
+        commands.extend(
+            [
+                "fluoh doctor --platform windows --json --strict",
+                f"fluoh build --platform windows --package {package_name} --json",
+            ]
+        )
+    return commands
+
+
 def suggested_commands(info: dict[str, Any]) -> list[str]:
     project = info["project"]
     kind = project["kind"]
@@ -463,17 +589,20 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh doctor -p --platform ohos --json --strict",
             "fluoh build --platform ohos --auto-sign --json",
             "fluoh devices --platform ohos --json",
-            "fluoh run --platform ohos --device <id> --json",
+            "fluoh emulators --platform ohos --json",
+            "fluoh run --platform ohos --auto-emulator --json",
+            *app_platform_regression_commands(project),
         ]
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
         return [
             *upgrade_commands,
             "fluoh deps get",
-            "fluoh doctor -p --json --strict",
+            "fluoh doctor -p --platform ohos --json --strict",
             f"fluoh verify --package {package} --json",
-            f"fluoh run --platform ohos --package {package} --json",
+            f"fluoh run --platform ohos --package {package} --auto-emulator --json",
             f"fluoh build --platform ohos --package {package} --auto-sign --json",
+            *package_platform_regression_commands(project, package),
             f"fluoh package status --package {package}",
             f"fluoh package check --package {package} --json",
         ]
@@ -491,8 +620,9 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "--sdk <sdk-version-or-line> --package-path .",
             f"cd {output}",
             f"fluoh verify --package {package} --json",
-            f"fluoh run --platform ohos --package {package} --json",
+            f"fluoh run --platform ohos --package {package} --auto-emulator --json",
             f"fluoh build --platform ohos --package {package} --auto-sign --json",
+            *package_platform_regression_commands(project, package),
             f"fluoh package status --package {package}",
             f"fluoh package check --package {package} --json",
         ]
@@ -514,13 +644,16 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
             "fluoh doctor -p --platform ohos --json --strict",
             "fluoh build --platform ohos --auto-sign --json",
             "fluoh devices --platform ohos --json",
-            "fluoh run --platform ohos --device <id> --json",
+            "fluoh emulators --platform ohos --json",
+            "fluoh run --platform ohos --auto-emulator --json",
+            *app_platform_regression_commands(project),
         ]
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
         return [
             "git diff --check",
             f"fluoh verify --package {package} --json",
+            *package_platform_regression_commands(project, package),
             f"fluoh package status --package {package}",
             f"fluoh package check --package {package} --json",
         ]
@@ -538,7 +671,8 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             "Confirm preflight upgradeChecks has no migration blocker before editing.",
             f"Create or update .fluoh/reports/{scope}/ai-report-...md before the final response.",
             "Record deps, doctor, build, and run command results with exit codes.",
-            "If no OHOS target is available, record the signed build as build-only evidence and explain the missing target.",
+            "Use --auto-emulator for OHOS run so a local emulator is tried before connected devices; record signed build-only evidence only when no local target can be started.",
+            "Run Android checks with --auto-emulator and Web server smoke runs when those platform directories exist; run iOS, macOS, Linux, and Windows checks only on matching hosts, and record exact skip reasons for unavailable hosts.",
             "Review the diff and remove unrelated local paths, generated caches, credentials, and private tokens.",
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]
@@ -548,8 +682,8 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             "Confirm preflight upgradeChecks has no schema migration blocker and generated docs are current or refreshed before editing.",
             f"Create or update .fluoh/reports/{package}/ai-report-{package}-...md before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
-            f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
-            "Record relevant Android, iOS, and macOS regression checks when examples exist.",
+            f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
+            "Record Android regression checks with --auto-emulator and Web server smoke runs when examples exist, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
             "Review the diff and remove unrelated local paths, generated caches, credentials, and private tokens.",
             "State ready, blocked, or needs maintainer decision in the final response.",
@@ -562,7 +696,8 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             f"Rerun preflight in {output} before using final check commands.",
             f"Create or update .fluoh/reports/{package}/ai-report-{package}-...md in the generated repository before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
-            f"Record OHOS build/run evidence for {package}, or explain the device/build blocker.",
+            f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
+            "Record Android regression checks with --auto-emulator and Web server smoke runs when examples exist after repository creation, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]

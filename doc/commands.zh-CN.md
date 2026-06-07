@@ -81,6 +81,8 @@ fluoh deps get
 fluoh doctor -p --platform ohos
 fluoh build --platform ohos --auto-sign
 fluoh devices --platform ohos
+fluoh emulators --platform ohos
+fluoh run --platform ohos --auto-emulator
 fluoh run --platform ohos --device <id>
 ```
 
@@ -134,8 +136,8 @@ fluoh run --platform ohos --device <id>
 | `fluoh build --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | 构建项目或 Package example。 |
 | `fluoh run --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | 构建、安装、启动并诊断 App。 |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断环境、项目、SDK 和工具状态。 |
-| `fluoh devices` | `lib/src/platform/platform_commands.dart` | 列出已连接的 OHOS、Android、iOS 和 macOS target。 |
-| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | 列出并启动本地 OHOS、Android、iOS 和 macOS emulator/simulator。 |
+| `fluoh devices` | `lib/src/platform/platform_commands.dart` | 默认列出已连接的 OHOS、Android、Web 和当前 host 支持的桌面 target。 |
+| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | 列出并启动本地 OHOS、Android 和 iOS emulator/simulator；桌面和 Web 平台不提供 emulator。 |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | 升级已安装的 `fluoh` CLI。 |
 
 ## 共享运行规则
@@ -200,9 +202,9 @@ fluoh run --platform ohos --device <id>
 
 `doctor` 是诊断命令，除非使用 `--strict`，否则打印结果后返回成功。裸
 `fluoh doctor` 检查 fluoh 安装状态、Git 和 Dart、已配置 source 快照、OpenHarmony SDK
-工具链、Android SDK 与 Java 工具链、Apple Xcode 工具链，以及当前可见的
-OHOS、Android、iOS、macOS 设备。普通输出会在每个检查完成后立即打印，避免设备发现较慢时
-命令长时间无反馈；JSON 模式会等待全部检查完成后，只输出一个机器可读对象。
+工具链、Android SDK 与 Java 工具链、Web 工具链，以及当前 host 支持的 Apple 或桌面工具链。
+普通输出会在每个检查完成后立即打印，避免设备发现较慢时命令长时间无反馈；JSON 模式会等待全部检查完成后，
+只输出一个机器可读对象。
 
 OpenHarmony toolchain 只关注 SDK 路径和版本、`hdc`、emulator 版本或缺失状态。当同时选择
 iOS 和 macOS 时，Xcode 只检查并输出一次合并的 iOS/macOS 工具链；只选择其中一个平台时保留
@@ -214,23 +216,25 @@ fallback 到 pub 时会把 verbose 参数当成 pub 自己的日志开关，可�
 `doctor` 也没有单独的 `--details` 模式；普通输出已经打印完整的人类可读检查项，机器可读详情使用
 `--json`。
 只有传入 `-p` 或 `--project` 时才会追加检查项目结构、已选择的 FlutterOH SDK
-和所选平台目录。使用 `--platform ohos|android|ios|macos` 可缩小原生工具链和项目平台检查范围。
+和所选平台目录。使用 `--platform ohos|android|ios|macos|linux|web|windows` 可缩小原生工具链和项目平台检查范围。
 
 缺失或过期状态会作为 warning 输出，不会自动修复。自动化只需要原生工具链门禁时，使用
-`fluoh doctor --json --strict`；也需要当前项目门禁时，使用
-`fluoh doctor -p --json --strict`。项目 JSON 会包含所选平台集合的
-`platformDirectories` 数据，方便自动化判断是否需要创建或跳过 OHOS、Android、iOS、macOS
+`fluoh doctor --platform ohos --json --strict` 这类平台化 strict 检查；也需要当前项目门禁时使用
+`fluoh doctor -p --platform ohos --json --strict`。项目 JSON 会包含所选平台集合的
+`platformDirectories` 数据，方便自动化判断是否需要创建或跳过 OHOS、Android、iOS、macOS、Linux、Web、Windows
 平台工程。`--json` 会输出机器可读的同一组检查结果，并在每个 check 中包含
 `id`、`group`，以及检查项需要的结构化数据。
 
 ### `fluoh devices` 和 `fluoh emulators`
 
-`fluoh devices` 列出已连接的 OHOS、Android、iOS 和 macOS 目标。它支持
-`--platform all|ohos|android|ios|macos` 和 `--json`。普通输出使用类似 Flutter 的
-`Name • id • platform • details` 行；不可用平台的 warning 会在已发现目标之后输出。
+`fluoh devices` 默认列出已连接的 OHOS、Android、Web 和当前 host 支持的目标。它支持
+`--platform all|ohos|android|ios|macos|linux|web|windows` 和 `--json`；显式传入
+Linux、Windows、iOS 或 macOS 时，即使当前 host 无法运行该平台，也会把它作为被检查目标。
+普通输出使用类似 Flutter 的 `Name • id • platform • details` 行；不可用平台的 warning 会在已发现目标之后输出。
 
-`fluoh emulators` 列出本地 OHOS、Android、iOS simulator 和 macOS emulator 目标，普通输出使用
-`Id • Name • Manufacturer • Platform` 表格。它支持同样的 `--platform` 和 `--json` 选项。
+`fluoh emulators` 列出本地 OHOS、Android 和 iOS simulator 目标，普通输出使用
+`Id • Name • Manufacturer • Platform` 表格。macOS、Linux、Web 和 Windows 是 host
+或浏览器目标，不提供本地 emulator。它支持同样的 `--platform` 和 `--json` 选项。
 `--launch <id-or-name>` 会启动本地 emulator 或 simulator，并要求只选择一个平台。
 
 ### `fluoh upgrade`
@@ -487,6 +491,9 @@ remote、checkout 分支或写入项目文件。JSON 输出包含筛选条件、
 路径、选中的 upstream 目标、目标 `ohos/<sdkLine>/<package>` 分支、该分支是否已存在、
 SDK/Dart 兼容性预警，以及下一条 `fluoh package add` 或 `package status` 命令。适配同一个
 upstream monorepo 的多个 Package 前，先用它排队，然后一次完成一个 Package 分支 checkpoint。
+跨多个已存在 Package 分支运行 verify/build/run/check 时，优先为每个 Package 分支使用新的 clone
+或独立 Git worktree，避免某个分支中被忽略的平台构建产物在切到另一个分支后变成 untracked 文件。
+不要在未获维护者明确批准时运行 `git clean` 等破坏性清理命令。
 
 `fluoh package add <package-path>` 在现有 FlutterOH Package 仓库中创建另一个 Package 分支。
 它要求工作树干净，基于同步后的 upstream 分支解析目标 Package，切到选中的 release/ref
@@ -530,28 +537,35 @@ example。使用 `--package <name>` 可校验请求的 Package 名是否匹配�
 变化并在提交前复核。一个适配循环内复用同一个 `--trace-dir` 可以把多条命令追加到同一个
 session。
 
-`fluoh build --platform ohos|android|ios|macos` 构建当前 Flutter 项目或所选 Package example。iOS
+`fluoh build --platform ohos|android|ios|macos|linux|web|windows` 构建当前 Flutter 项目或所选 Package example。iOS
 构建会自动加入 `--no-codesign`。OHOS 构建可用 `--auto-sign` 根据项目或 example 申请的权限
 生成临时本地 debug 签名 profile，为本次构建 patch `ohos/build-profile.json5`，并在构建后恢复原文件。
 如果 Hvigor 签名失败但 Flutter 留下了新的 unsigned HAP，`fluoh` 会直接签这个 HAP，并在 JSON
 中报告 `signingMode: direct-sign-fallback` 和可安装 HAP 路径。JSON 失败会对当前项目和
 Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_failed`、
-`android.apk_build_failed`、`ios.build_failed` 和 `macos.build_failed`。`--trace` 和
+`android.apk_build_failed`、`ios.build_failed`、`macos.build_failed`、`linux.build_failed`、`web.build_failed` 和
+`windows.build_failed`。`--trace` 和
 `--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
 
-`fluoh run --platform ohos|android|ios|macos` 会构建、安装、启动并诊断当前项目或所选 Package
+`fluoh run --platform ohos|android|ios|macos|linux|web|windows` 会构建、安装、启动并诊断当前项目或所选 Package
 example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
-hilog，并通过 JSON diagnostics 报告运行时 crash。Android、iOS 和 macOS Package example 会通过已选择
+hilog，并通过 JSON diagnostics 报告运行时 crash。Android、iOS、macOS、Linux、Web 和 Windows Package example 会通过已选择
 SDK 的 `flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/cache/package-runs`，并在 example
 存在 `integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。如果
 `flutter run` 输出 VM Service 或 debug service URI，`--json` 会在 run step 的
-`details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS 或 macOS run
+`details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS、macOS、Linux、Web 或 Windows run
 可以传 `--session-file <path>`，在 App 仍运行时写入实时 `flutterRunSession` JSON 文件；
 文件会更新进程 id、target、`vmServiceUri`、启动状态、最终状态和输出日志路径。AI agent 可以用
 `python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>`
 检查这个文件，等待启动、读取 VM Service URI，并决定 attach、查看日志或转入失败排查。已有目标时用
-`--device <id>`，平台提供本地 emulator/simulator 时可用 `--emulator <name>` 选择并启动。
-Android、iOS 和 macOS 当前项目 run 也会使用同一套 Flutter device 发现、平台筛选、run-smoke
+`--device <id>`，要指定本地 emulator/simulator 时用 `--emulator <name>`，要优先启动本地
+emulator/simulator 并且只在没有模拟器时回退到已连接真机，则用 `--auto-emulator`。OHOS
+自动模拟器选择会优先选择本地 DevEco 模拟器中可识别的最高 API 版本，无法识别 API 时按名称稳定
+排序选择。当 OHOS run 没有发现已连接 target 时，diagnostics 会保持不自动启动模拟器的默认行为，
+除非已传 `--auto-emulator` 或 `--emulator`；同时给出 target 选择建议：自动化证据优先使用本地
+DevEco 模拟器；只有没有模拟器时才使用已连接真机。若本地有多个 OHOS 模拟器且能识别 API 信息，
+diagnostic 会建议最低和最高 API 版本都测一遍。
+Android、iOS、macOS、Linux、Web 和 Windows 当前项目 run 也会使用同一套 Flutter device 发现、平台筛选、run-smoke
 超时和输出日志保存逻辑，但不会运行 Package example 的 integration tests。
 
 run-smoke 成功只表示 App 已启动。需要点击 UI、处理权限弹窗、选择文件、调用相机、定位、
@@ -571,7 +585,7 @@ AI 辅助场景文件使用内置 `skills/fluoh/references/interaction-scenario-
 如果没有交互流程，报告的 `Interaction Evidence` 章节必须写明
 `No interaction required: <reason>`，不能留空。
 
-当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed` 等平台 diagnostic；
+当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed`、`linux.run_failed`、`web.run_failed` 和 `windows.run_failed` 等平台 diagnostic；
 Package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
 `--trace` 和 `--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
 

@@ -88,6 +88,37 @@ Future<void> configurePackageRemotes(
   ], workingDirectory: repository);
 }
 
+/// Ensures the `upstream` remote points to [upstreamUrl].
+Future<void> ensureUpstreamRemote(
+  Directory repository,
+  String upstreamUrl,
+) async {
+  final existing = await runGit(
+    ['remote', 'get-url', 'upstream'],
+    workingDirectory: repository,
+    allowFailure: true,
+  );
+  final existingUrl = existing.stdout.toString().trim();
+  if (existing.exitCode == 0 && existingUrl == upstreamUrl) {
+    return;
+  }
+  if (existing.exitCode == 0) {
+    await runGit([
+      'remote',
+      'set-url',
+      'upstream',
+      upstreamUrl,
+    ], workingDirectory: repository);
+    return;
+  }
+  await runGit([
+    'remote',
+    'add',
+    'upstream',
+    upstreamUrl,
+  ], workingDirectory: repository);
+}
+
 /// Writes local Git author config for package adaptation commits.
 Future<void> configurePackageGitAuthor(
   Directory repository,

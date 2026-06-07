@@ -43,7 +43,12 @@ def release_recommendation(content: str) -> str | None:
     match = re.search(r"^Release recommendation:\s*(.+?)\s*$", content, re.MULTILINE)
     if not match:
         return None
-    return match.group(1).strip().lower()
+    return normalize_recommendation(match.group(1))
+
+
+def normalize_recommendation(value: str) -> str:
+    normalized = value.strip().lower().replace("-", " ").replace("_", " ")
+    return re.sub(r"\s+", " ", normalized)
 
 
 def checklist_items(content: str) -> list[dict[str, Any]]:

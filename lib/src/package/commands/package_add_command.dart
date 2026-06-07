@@ -130,17 +130,12 @@ class PackageAddCommand extends FluohCommand<int> {
     var switchedBranches = false;
     String? createdBranch;
     try {
+      await ensureUpstreamRemote(repository, manifest.upstreamUrl);
       await fetchUpstreamRefs(repository);
-      switchedBranches = true;
-      await synchronizeUpstreamBranch(
-        repository,
-        branch: manifest.upstreamBranch,
-      );
-
       final selected = await _resolvePackageRef(
         repository: repository,
         packagePath: packagePath,
-        upstreamBranch: manifest.upstreamBranch,
+        upstreamBranch: 'upstream/${manifest.upstreamBranch}',
         target: upstreamTarget,
         expectedPackageName: expectedPackage,
       );
@@ -155,12 +150,7 @@ class PackageAddCommand extends FluohCommand<int> {
         sdkVersion: manifest.sdkVersion,
         packageName: selected.package.name,
       );
-      final existingBranch = await runGit(
-        ['rev-parse', '--verify', branch],
-        workingDirectory: repository,
-        allowFailure: true,
-      );
-      if (existingBranch.exitCode == 0) {
+      if (await _branchExists(repository, branch)) {
         usageException(
           'Package branch $branch already exists. Check it out and run '
           '"fluoh package status --package ${selected.package.name}" to inspect '
@@ -168,6 +158,12 @@ class PackageAddCommand extends FluohCommand<int> {
           '"${_syncCommandFor(upstreamTarget)}" from that branch to update it.',
         );
       }
+
+      switchedBranches = true;
+      await synchronizeUpstreamBranch(
+        repository,
+        branch: manifest.upstreamBranch,
+      );
 
       await _warnForPackageAddSdkCompatibility(
         repository: repository,
@@ -298,7 +294,10 @@ extension on PackageAddCommand {
     if (!json) {
       _output.step('Resolving package add plan');
     }
-    await fetchUpstreamRefs(repository);
+    await fetchUpstreamRefsFromUrl(
+      repository,
+      upstreamUrl: manifest.upstreamUrl,
+    );
     final selected = await _resolvePackageRef(
       repository: repository,
       packagePath: packagePath,
@@ -474,14 +473,19 @@ class _PackageAddPlan {
       'nextCommand': branchExists
           ? 'git checkout $branch && fluoh package status --package $packageName'
           : addCommand,
-      'willRun': [
-        'fetch upstream refs',
-        'synchronize upstream branch $upstreamBranch',
-        'checkout $branch from selected upstream commit',
-        'write README.md, fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, and AGENTS.md',
-        'prepare example OHOS platform when an example exists',
-        'stage generated files',
-      ],
+      'willRun': branchExists
+          ? [
+              'checkout existing package branch $branch',
+              'inspect package status for $packageName',
+            ]
+          : [
+              'fetch upstream refs',
+              'synchronize upstream branch $upstreamBranch',
+              'checkout $branch from selected upstream commit',
+              'write README.md, fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, and AGENTS.md',
+              'prepare example OHOS platform when an example exists',
+              'stage generated files',
+            ],
       'willNotRunWithoutSeparateApproval': [
         'fluoh package release',
         'git push',
@@ -559,12 +563,20 @@ _packageAddSdkCompatibilityWarnings({
 }
 
 Future<bool> _branchExists(Directory repository, String branch) async {
-  final existingBranch = await runGit(
-    ['rev-parse', '--verify', branch],
+  final local = await runGit(
+    ['show-ref', '--verify', '--quiet', 'refs/heads/$branch'],
     workingDirectory: repository,
     allowFailure: true,
   );
-  return existingBranch.exitCode == 0;
+  if (local.exitCode == 0) {
+    return true;
+  }
+  final origin = await runGit(
+    ['show-ref', '--verify', '--quiet', 'refs/remotes/origin/$branch'],
+    workingDirectory: repository,
+    allowFailure: true,
+  );
+  return origin.exitCode == 0;
 }
 
 String _syncCommandFor(PackageUpstreamTarget target) {

@@ -773,7 +773,7 @@ $ohosRunRow
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
-- [x] Android, iOS, and macOS regression checks recorded when relevant.
+- [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.

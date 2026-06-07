@@ -414,11 +414,29 @@ void main() {
     expect(skill, contains('fluoh build --platform ohos --auto-sign --json'));
     expect(
       skill,
-      contains('fluoh run --platform ohos --package <name> --json'),
+      contains(
+        'fluoh run --platform ohos --package <name> --auto-emulator --json',
+      ),
     );
     expect(
       skill,
-      contains('fluoh run --platform android --package <name> --json'),
+      contains(
+        'fluoh run --platform android --package <name> --auto-emulator --json',
+      ),
+    );
+    expect(
+      skill,
+      contains('fluoh build --platform linux --package <name> --json'),
+    );
+    expect(
+      skill,
+      contains(
+        'fluoh run --platform web --package <name> --device web-server --json',
+      ),
+    );
+    expect(
+      skill,
+      contains('fluoh build --platform windows --package <name> --json'),
     );
     expect(skill, contains('JSON Diagnostics'));
     expect(skill, contains('references/report-template.md'));
@@ -877,8 +895,12 @@ void main() {
       'fluoh package docs refresh',
       'fluoh verify',
       'fluoh build --platform ohos --auto-sign --json',
+      'fluoh run --platform ohos --auto-emulator',
       'fluoh run --platform ohos --device <id>',
       'fluoh build --platform <platform>',
+      'linux.build_failed',
+      'web.build_failed',
+      'windows.build_failed',
       '--no-codesign',
       'integration_test',
       'AI-assisted interaction',
@@ -902,7 +924,7 @@ void main() {
       'fluoh emulators',
       'nextCommand',
       'diagnostics',
-      'fluoh doctor -p --json --strict',
+      'fluoh doctor -p --platform ohos --json --strict',
       '.fluoh/reports',
       'fluoh doctor',
       'fluoh package check',
@@ -973,8 +995,12 @@ void main() {
       'fluoh package docs refresh',
       'fluoh verify',
       'fluoh build --platform ohos --auto-sign --json',
+      'fluoh run --platform ohos --auto-emulator',
       'fluoh run --platform ohos --device <id>',
       'fluoh build --platform <platform>',
+      'linux.build_failed',
+      'web.build_failed',
+      'windows.build_failed',
       '--no-codesign',
       'integration_test',
       'AI driver',
@@ -998,7 +1024,7 @@ void main() {
       'fluoh emulators',
       'nextCommand',
       'diagnostics',
-      'fluoh doctor -p --json --strict',
+      'fluoh doctor -p --platform ohos --json --strict',
       '.fluoh/reports',
       'fluoh doctor',
       'fluoh package check',

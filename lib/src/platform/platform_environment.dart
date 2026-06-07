@@ -14,11 +14,20 @@ enum FluohPlatform {
   /// iOS tooling and targets.
   ios,
 
+  /// Linux desktop tooling and targets.
+  linux,
+
   /// macOS host tooling.
   macos,
 
   /// OpenHarmony tooling and targets.
   ohos,
+
+  /// Flutter web tooling and browser targets.
+  web,
+
+  /// Windows desktop tooling and targets.
+  windows,
 }
 
 /// Convenience methods for [FluohPlatform].
@@ -28,8 +37,11 @@ extension FluohPlatformName on FluohPlatform {
     return switch (this) {
       FluohPlatform.android => 'android',
       FluohPlatform.ios => 'ios',
+      FluohPlatform.linux => 'linux',
       FluohPlatform.macos => 'macos',
       FluohPlatform.ohos => 'ohos',
+      FluohPlatform.web => 'web',
+      FluohPlatform.windows => 'windows',
     };
   }
 }
@@ -269,11 +281,14 @@ Future<List<PlatformDoctorReport>> inspectPlatformEnvironment({
           environment,
           appleToolchain: appleToolchain,
         ),
+        FluohPlatform.linux => await _inspectLinux(environment),
         FluohPlatform.macos => await _inspectMacos(
           environment,
           appleToolchain: appleToolchain,
         ),
         FluohPlatform.ohos => await _inspectOhos(environment),
+        FluohPlatform.web => await _inspectWeb(environment),
+        FluohPlatform.windows => await _inspectWindows(environment),
       },
   ];
 }
@@ -288,8 +303,11 @@ Future<List<PlatformTargetReport>> listPlatformDeviceReports({
       switch (platform) {
         FluohPlatform.android => await _listAndroidDevices(environment),
         FluohPlatform.ios => await _listIosDevices(environment),
+        FluohPlatform.linux => _listLinuxDevices(environment),
         FluohPlatform.macos => await _listMacosDevices(environment),
         FluohPlatform.ohos => await _listOhosDevices(environment),
+        FluohPlatform.web => await _listWebDevices(environment),
+        FluohPlatform.windows => _listWindowsDevices(environment),
       },
   ];
 }
@@ -307,8 +325,11 @@ Future<List<PlatformTargetReport>> listPlatformEmulatorReports({
           environment,
           kind: 'emulator',
         ),
+        FluohPlatform.linux => _listDesktopEmulators(FluohPlatform.linux),
         FluohPlatform.macos => _listMacosEmulators(),
         FluohPlatform.ohos => await _listOhosEmulators(environment),
+        FluohPlatform.web => _listNoEmulators(FluohPlatform.web),
+        FluohPlatform.windows => _listDesktopEmulators(FluohPlatform.windows),
       },
   ];
 }
@@ -322,8 +343,11 @@ Future<PlatformStartResult> startPlatformEmulator({
   return switch (platform) {
     FluohPlatform.android => _startAndroidEmulator(environment, emulator),
     FluohPlatform.ios => _startIosSimulator(environment, emulator),
+    FluohPlatform.linux => _startDesktopEmulator(FluohPlatform.linux),
     FluohPlatform.macos => _startMacosEmulator(emulator),
     FluohPlatform.ohos => _startOhosEmulator(environment, emulator),
+    FluohPlatform.web => _startNoEmulator(FluohPlatform.web, emulator),
+    FluohPlatform.windows => _startDesktopEmulator(FluohPlatform.windows),
   };
 }
 
@@ -625,6 +649,190 @@ Future<PlatformDoctorReport> _inspectMacos(
   );
 }
 
+Future<PlatformDoctorReport> _inspectLinux(FluohEnvironment environment) async {
+  final env = environment.processEnvironment;
+  final clang = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_LINUX_CLANG',
+    candidates: const [],
+    fallbackName: 'clang++',
+  );
+  final cmake = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_LINUX_CMAKE',
+    candidates: const [],
+    fallbackName: 'cmake',
+  );
+  final ninja = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_LINUX_NINJA',
+    candidates: const [],
+    fallbackName: 'ninja',
+  );
+  final pkgConfig = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_LINUX_PKG_CONFIG',
+    candidates: const [],
+    fallbackName: 'pkg-config',
+  );
+  return PlatformDoctorReport(
+    platform: FluohPlatform.linux,
+    checks: [
+      PlatformToolCheck(
+        id: 'linux.host',
+        label: 'Linux host',
+        ok: io.Platform.isLinux,
+        message: io.Platform.isLinux
+            ? 'Running on Linux'
+            : 'Linux desktop builds require a Linux host',
+        version: io.Platform.isLinux
+            ? io.Platform.operatingSystemVersion.trim()
+            : null,
+      ),
+      _toolCheck(
+        id: 'linux.clang',
+        label: 'clang++',
+        executable: clang,
+        version: await _toolVersion(clang, const [
+          '--version',
+        ], environment: env),
+        missingMessage:
+            'clang++ was not found; Linux desktop builds require a C++ compiler.',
+      ),
+      _toolCheck(
+        id: 'linux.cmake',
+        label: 'CMake',
+        executable: cmake,
+        version: await _toolVersion(cmake, const [
+          '--version',
+        ], environment: env),
+        missingMessage:
+            'CMake was not found; Linux desktop builds require CMake.',
+      ),
+      _toolCheck(
+        id: 'linux.ninja',
+        label: 'Ninja',
+        executable: ninja,
+        version: await _toolVersion(ninja, const [
+          '--version',
+        ], environment: env),
+        missingMessage:
+            'Ninja was not found; Linux desktop builds require Ninja.',
+      ),
+      _toolCheck(
+        id: 'linux.pkg-config',
+        label: 'pkg-config',
+        executable: pkgConfig,
+        version: await _toolVersion(pkgConfig, const [
+          '--version',
+        ], environment: env),
+        missingMessage:
+            'pkg-config was not found; Linux plugin builds may require it.',
+      ),
+    ],
+  );
+}
+
+Future<PlatformDoctorReport> _inspectWindows(
+  FluohEnvironment environment,
+) async {
+  final env = environment.processEnvironment;
+  final cl = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_WINDOWS_CL',
+    candidates: const [],
+    fallbackName: 'cl',
+  );
+  final cmake = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_WINDOWS_CMAKE',
+    candidates: const [],
+    fallbackName: 'cmake',
+  );
+  final ninja = await _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_WINDOWS_NINJA',
+    candidates: const [],
+    fallbackName: 'ninja',
+  );
+  return PlatformDoctorReport(
+    platform: FluohPlatform.windows,
+    checks: [
+      PlatformToolCheck(
+        id: 'windows.host',
+        label: 'Windows host',
+        ok: io.Platform.isWindows,
+        message: io.Platform.isWindows
+            ? 'Running on Windows'
+            : 'Windows desktop builds require a Windows host',
+        version: io.Platform.isWindows
+            ? io.Platform.operatingSystemVersion.trim()
+            : null,
+      ),
+      _toolCheck(
+        id: 'windows.cl',
+        label: 'MSVC cl.exe',
+        executable: cl,
+        version: await _toolVersion(cl, const [], environment: env),
+        missingMessage:
+            'MSVC cl.exe was not found; install Visual Studio with Desktop development with C++.',
+      ),
+      _toolCheck(
+        id: 'windows.cmake',
+        label: 'CMake',
+        executable: cmake,
+        version: await _toolVersion(cmake, const [
+          '--version',
+        ], environment: env),
+        missingMessage:
+            'CMake was not found; Windows desktop builds require CMake.',
+      ),
+      _toolCheck(
+        id: 'windows.ninja',
+        label: 'Ninja',
+        executable: ninja,
+        version: await _toolVersion(ninja, const [
+          '--version',
+        ], environment: env),
+        missingMessage:
+            'Ninja was not found; Windows desktop builds require Ninja.',
+      ),
+    ],
+  );
+}
+
+Future<PlatformDoctorReport> _inspectWeb(FluohEnvironment environment) async {
+  final env = environment.processEnvironment;
+  final chrome = await _findWebChromeExecutable(env);
+  return PlatformDoctorReport(
+    platform: FluohPlatform.web,
+    checks: [
+      const PlatformToolCheck(
+        id: 'web.build',
+        label: 'Flutter web build',
+        ok: true,
+        message: 'Flutter web builds do not require a native host toolchain',
+      ),
+      PlatformToolCheck(
+        id: 'web.chrome',
+        label: 'Chrome',
+        ok: true,
+        message: chrome == null
+            ? 'Chrome was not found; web-server is still available for served web smoke runs.'
+            : 'Chrome was found for browser-specific smoke runs',
+        path: chrome?.path,
+        version: await _toolVersion(chrome, const [
+          '--version',
+        ], environment: env),
+        details: {
+          'requiredFor': 'browser-specific run smoke',
+          'available': chrome != null,
+        },
+      ),
+    ],
+  );
+}
+
 Future<PlatformDoctorReport> _inspectOhos(FluohEnvironment environment) async {
   final checks = <PlatformToolCheck>[];
   try {
@@ -844,6 +1052,106 @@ Future<PlatformTargetReport> _listMacosDevices(
   );
 }
 
+PlatformTargetReport _listLinuxDevices(FluohEnvironment environment) {
+  if (!io.Platform.isLinux) {
+    return const PlatformTargetReport(
+      platform: FluohPlatform.linux,
+      kind: 'device',
+      ok: false,
+      targets: [],
+      message: 'Linux desktop targets require a Linux host',
+    );
+  }
+  return PlatformTargetReport(
+    platform: FluohPlatform.linux,
+    kind: 'device',
+    ok: true,
+    targets: [_hostDesktopTarget(environment, FluohPlatform.linux, 'Linux')],
+  );
+}
+
+PlatformTargetReport _listWindowsDevices(FluohEnvironment environment) {
+  if (!io.Platform.isWindows) {
+    return const PlatformTargetReport(
+      platform: FluohPlatform.windows,
+      kind: 'device',
+      ok: false,
+      targets: [],
+      message: 'Windows desktop targets require a Windows host',
+    );
+  }
+  return PlatformTargetReport(
+    platform: FluohPlatform.windows,
+    kind: 'device',
+    ok: true,
+    targets: [
+      _hostDesktopTarget(environment, FluohPlatform.windows, 'Windows'),
+    ],
+  );
+}
+
+Future<PlatformTargetReport> _listWebDevices(
+  FluohEnvironment environment,
+) async {
+  final env = environment.processEnvironment;
+  final chrome = await _findWebChromeExecutable(env);
+  final chromeVersion = await _toolVersion(chrome, const [
+    '--version',
+  ], environment: env);
+  return PlatformTargetReport(
+    platform: FluohPlatform.web,
+    kind: 'device',
+    ok: true,
+    targets: [
+      const PlatformTarget(
+        platform: FluohPlatform.web,
+        id: 'web-server',
+        name: 'Web Server',
+        kind: 'device',
+        state: 'available',
+        details: {'runtime': 'web-server'},
+      ),
+      if (chrome != null)
+        PlatformTarget(
+          platform: FluohPlatform.web,
+          id: 'chrome',
+          name: 'Chrome',
+          kind: 'device',
+          state: 'available',
+          details: {
+            'runtime': 'chrome',
+            'path': chrome.path,
+            'version': ?chromeVersion,
+          },
+        ),
+    ],
+    message: chrome == null
+        ? 'Chrome was not found; web-server is available for build or served web checks'
+        : null,
+  );
+}
+
+PlatformTarget _hostDesktopTarget(
+  FluohEnvironment environment,
+  FluohPlatform platform,
+  String name,
+) {
+  return PlatformTarget(
+    platform: platform,
+    id: platform.cliName,
+    name: name,
+    kind: 'device',
+    state: 'available',
+    details: {
+      'runtime': ?_hostRuntimeIdentifier(),
+      if (io.Platform.operatingSystemVersion.trim() case final version
+          when version.isNotEmpty)
+        'osVersion': version,
+      'host': ?environment.processEnvironment['HOSTNAME'],
+    },
+  );
+}
+
 String? _hostRuntimeIdentifier() {
   final match = RegExp(r'on "([^"]+)"').firstMatch(io.Platform.version);
   final value = match?.group(1)?.trim();
@@ -864,6 +1172,24 @@ PlatformTargetReport _listMacosEmulators() {
     kind: 'emulator',
     ok: true,
     targets: [],
+  );
+}
+
+PlatformTargetReport _listDesktopEmulators(FluohPlatform platform) {
+  return PlatformTargetReport(
+    platform: platform,
+    kind: 'emulator',
+    ok: true,
+    targets: const [],
+  );
+}
+
+PlatformTargetReport _listNoEmulators(FluohPlatform platform) {
+  return PlatformTargetReport(
+    platform: platform,
+    kind: 'emulator',
+    ok: true,
+    targets: const [],
   );
 }
 
@@ -1006,6 +1332,8 @@ Future<PlatformTargetReport> _listOhosEmulators(
             details: {
               'deployedRoot': emulator.deployedRoot.path,
               'imageRoot': emulator.imageRoot.path,
+              if (emulator.apiVersion != null)
+                'apiVersion': emulator.apiVersion,
             },
           ),
       ],
@@ -1142,6 +1470,31 @@ PlatformStartResult _startMacosEmulator(String? requested) {
     emulator: requested ?? '',
     command: const [],
     message: 'macOS uses the local host and does not provide emulators',
+  );
+}
+
+PlatformStartResult _startDesktopEmulator(FluohPlatform platform) {
+  return PlatformStartResult(
+    platform: platform,
+    ok: false,
+    emulator: '',
+    command: const [],
+    message:
+        '${platform.cliName} uses the matching local host and does not provide emulators',
+  );
+}
+
+PlatformStartResult _startNoEmulator(
+  FluohPlatform platform,
+  String? requested,
+) {
+  return PlatformStartResult(
+    platform: platform,
+    ok: false,
+    emulator: requested ?? '',
+    command: const [],
+    message:
+        '${platform.cliName} uses Flutter web devices and does not provide emulators',
   );
 }
 
@@ -1666,6 +2019,59 @@ Future<String?> _xcodeDeveloperDirectory(Map<String, String> env) async {
   return path.isEmpty ? null : path;
 }
 
+Future<io.File?> _findWebChromeExecutable(Map<String, String> env) async {
+  for (final key in const ['FLUOH_WEB_CHROME', 'CHROME_EXECUTABLE']) {
+    final value = env[key];
+    if (_nonEmpty(value)) {
+      final file = io.File(value!.trim());
+      if (await file.exists()) {
+        return file;
+      }
+    }
+  }
+  final candidates = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    if (_nonEmpty(env['LOCALAPPDATA']))
+      '${env['LOCALAPPDATA']!.trim()}\\Google\\Chrome\\Application\\chrome.exe',
+    if (_nonEmpty(env['PROGRAMFILES']))
+      '${env['PROGRAMFILES']!.trim()}\\Google\\Chrome\\Application\\chrome.exe',
+    if (_nonEmpty(env['PROGRAMFILES(X86)']))
+      '${env['PROGRAMFILES(X86)']!.trim()}\\Google\\Chrome\\Application\\chrome.exe',
+  ];
+  for (final candidate in candidates) {
+    final file = io.File(candidate);
+    if (await file.exists()) {
+      return file;
+    }
+  }
+  final lookupCommand = io.Platform.isWindows ? 'where' : 'which';
+  for (final name in const [
+    'google-chrome',
+    'chrome',
+    'chromium',
+    'chromium-browser',
+  ]) {
+    final lookup = await _runTool(
+      lookupCommand,
+      [name],
+      environment: env,
+      timeout: const Duration(seconds: 3),
+    );
+    if (lookup.exitCode != 0) {
+      continue;
+    }
+    final path = lookup.stdout.trim().split(RegExp(r'\r\n?|\n')).firstOrNull;
+    if (!_nonEmpty(path)) {
+      continue;
+    }
+    final file = io.File(path!.trim());
+    if (await file.exists()) {
+      return file;
+    }
+  }
+  return null;
+}
+
 Future<io.File?> _findExecutable({
   required Map<String, String> environment,
   required String environmentKey,
@@ -1683,8 +2089,9 @@ Future<io.File?> _findExecutable({
       return file;
     }
   }
+  final lookupCommand = io.Platform.isWindows ? 'where' : 'which';
   final which = await _runTool(
-    'which',
+    lookupCommand,
     [fallbackName],
     environment: environment,
     timeout: const Duration(seconds: 3),
@@ -2086,7 +2493,10 @@ String platformTargetDisplayName(PlatformTarget target, {String? listingKind}) {
 
 /// Returns the platform column value for a target row.
 String platformTargetDisplayPlatform(PlatformTarget target) {
-  if (target.platform == FluohPlatform.macos) {
+  if (target.platform == FluohPlatform.linux ||
+      target.platform == FluohPlatform.macos ||
+      target.platform == FluohPlatform.web ||
+      target.platform == FluohPlatform.windows) {
     return target.details['runtime']?.toString() ?? target.platform.cliName;
   }
   return target.platform.cliName;
@@ -2098,7 +2508,10 @@ String platformTargetCategory(PlatformTarget target) {
     FluohPlatform.android ||
     FluohPlatform.ios ||
     FluohPlatform.ohos => 'mobile',
-    FluohPlatform.macos => 'desktop',
+    FluohPlatform.linux ||
+    FluohPlatform.macos ||
+    FluohPlatform.windows => 'desktop',
+    FluohPlatform.web => 'web',
   };
 }
 
@@ -2115,9 +2528,12 @@ String platformTargetSummary(PlatformTarget target) {
   return switch (target.platform) {
     FluohPlatform.android => target.state ?? '',
     FluohPlatform.ios => _iosTargetSummary(target),
+    FluohPlatform.linux => _desktopTargetSummary(target, 'Linux'),
     FluohPlatform.macos => _macosTargetSummary(target),
     FluohPlatform.ohos =>
       target.details['details']?.toString() ?? target.state ?? '',
+    FluohPlatform.web => _webTargetSummary(target),
+    FluohPlatform.windows => _desktopTargetSummary(target, 'Windows'),
   };
 }
 
@@ -2138,7 +2554,10 @@ String? platformTargetManufacturer(PlatformTarget target) {
     FluohPlatform.ios => 'Apple',
     FluohPlatform.ohos => 'Huawei',
     FluohPlatform.android => 'Google',
-    FluohPlatform.macos => null,
+    FluohPlatform.linux ||
+    FluohPlatform.macos ||
+    FluohPlatform.web ||
+    FluohPlatform.windows => null,
   };
 }
 
@@ -2162,6 +2581,24 @@ String _macosTargetSummary(PlatformTarget target) {
       ? 'macOS'
       : 'macOS ${normalizeAppleOperatingSystemVersion(osVersion)}';
   return runtime == null || runtime.isEmpty ? version : '$version $runtime';
+}
+
+String _desktopTargetSummary(PlatformTarget target, String label) {
+  final osVersion = target.details['osVersion']?.toString();
+  final runtime = target.details['runtime']?.toString();
+  final version = osVersion == null || osVersion.isEmpty
+      ? label
+      : '$label $osVersion';
+  return runtime == null || runtime.isEmpty ? version : '$version $runtime';
+}
+
+String _webTargetSummary(PlatformTarget target) {
+  final runtime = target.details['runtime']?.toString();
+  final version = target.details['version']?.toString();
+  if (runtime == null || runtime.isEmpty) {
+    return version == null || version.isEmpty ? 'web' : version;
+  }
+  return version == null || version.isEmpty ? runtime : '$runtime $version';
 }
 
 /// Whether a raw Apple device transport value represents a wireless target.

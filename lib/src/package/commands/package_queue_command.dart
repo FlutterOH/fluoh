@@ -103,7 +103,10 @@ class PackageQueueCommand extends FluohCommand<int> {
     if (!json) {
       output.step('Resolving package queue');
     }
-    await fetchUpstreamRefs(repository);
+    await fetchUpstreamRefsFromUrl(
+      repository,
+      upstreamUrl: manifest.upstreamUrl,
+    );
     final status = await runGit(
       ['status', '--porcelain'],
       workingDirectory: repository,
@@ -343,10 +346,18 @@ String _addCommandFor({
 }
 
 Future<bool> _branchExists(Directory repository, String branch) async {
-  final result = await runGit(
-    ['rev-parse', '--verify', branch],
+  final local = await runGit(
+    ['show-ref', '--verify', '--quiet', 'refs/heads/$branch'],
     workingDirectory: repository,
     allowFailure: true,
   );
-  return result.exitCode == 0;
+  if (local.exitCode == 0) {
+    return true;
+  }
+  final origin = await runGit(
+    ['show-ref', '--verify', '--quiet', 'refs/remotes/origin/$branch'],
+    workingDirectory: repository,
+    allowFailure: true,
+  );
+  return origin.exitCode == 0;
 }

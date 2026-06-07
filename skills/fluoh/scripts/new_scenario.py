@@ -40,6 +40,42 @@ def infer_sdk(root: Path) -> str:
     return ""
 
 
+def infer_package_path(root: Path, package: str) -> str:
+    content = read_text(root / "fluoh.yaml")
+    in_package = False
+    current_name = ""
+    current_path = ""
+    for line in content.splitlines():
+        if re.match(r"^package\s*:\s*(?:#.*)?$", line):
+            in_package = True
+            current_name = ""
+            current_path = ""
+            continue
+        if in_package and line and not line.startswith((" ", "\t", "#")):
+            break
+        if not in_package:
+            continue
+        name_match = re.match(r"^\s+name\s*:\s*(.+?)\s*$", line)
+        if name_match:
+            current_name = clean_scalar(name_match.group(1))
+            continue
+        path_match = re.match(r"^\s+path\s*:\s*(.+?)\s*$", line)
+        if path_match:
+            current_path = clean_scalar(path_match.group(1))
+    if current_path and (not package or not current_name or current_name == package):
+        return current_path
+    return ""
+
+
+def example_path_for(root: Path, package: str, app: bool) -> str:
+    if app:
+        return "."
+    package_path = infer_package_path(root, package)
+    if package_path:
+        return f"{package_path}/example"
+    return "example"
+
+
 def clean_scalar(value: str) -> str:
     value = value.split("#", 1)[0].strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
@@ -68,9 +104,26 @@ def run_command_for(
     session_part = f" --session-file {session_file}" if session_file else ""
     if app:
         if platform == "ohos":
-            return f"fluoh run --platform ohos --device <id>{session_part} --json"
+            return f"fluoh run --platform ohos --auto-emulator{session_part} --json"
+        if platform in {"android", "ios"}:
+            return f"fluoh run --platform {platform} --auto-emulator{session_part} --json"
+        if platform in {"macos", "linux", "windows"}:
+            return f"fluoh run --platform {platform}{session_part} --json"
+        if platform == "web":
+            return (
+                f"fluoh run --platform web --device web-server{session_part} --json"
+            )
         return f"fluoh run --platform {platform} --device <id>{session_part} --json"
     package_part = f" --package {package}" if package else " --package <name>"
+    if platform == "ohos":
+        return f"fluoh run --platform ohos{package_part} --auto-emulator{session_part} --json"
+    if platform in {"android", "ios"}:
+        return f"fluoh run --platform {platform}{package_part} --auto-emulator{session_part} --json"
+    if platform == "web":
+        return (
+            f"fluoh run --platform web{package_part} "
+            f"--device web-server{session_part} --json"
+        )
     return f"fluoh run --platform {platform}{package_part}{session_part} --json"
 
 
@@ -94,6 +147,14 @@ def session_inspect_command_for(platform: str, scope: str) -> str:
     )
 
 
+def target_requirement_for(platform: str) -> str:
+    if platform in {"macos", "linux", "windows"}:
+        return "host"
+    if platform == "web":
+        return "browser or web-server"
+    return "emulator or device"
+
+
 def build_scenario(
     template: str,
     root: Path,
@@ -108,7 +169,7 @@ def build_scenario(
         "Scope": scope,
         "Package or app": package or scope,
         "Platform": platform,
-        "Target requirement": "host" if platform == "macos" else "emulator or device",
+        "Target requirement": target_requirement_for(platform),
         "Related command": run_command_for(platform, package, app),
         "Session file command, when supported": session_command_for(
             platform,
@@ -122,7 +183,7 @@ def build_scenario(
         ),
         "Observation mode": "flutter-debug | widget-tree | log-marker",
         "Selected FlutterOH SDK": infer_sdk(root),
-        "Example path": "." if app else "example",
+        "Example path": example_path_for(root, package, app),
     }
     for label, value in fields.items():
         content = replace_field(content, label, value)
@@ -153,7 +214,7 @@ def main() -> int:
     parser.add_argument(
         "--platform",
         required=True,
-        choices=("ohos", "android", "ios", "macos"),
+        choices=("ohos", "android", "ios", "macos", "linux", "web", "windows"),
         help="Target platform for this scenario",
     )
     parser.add_argument("--name", required=True, help="Scenario name")

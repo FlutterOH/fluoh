@@ -43,7 +43,10 @@ void main() {
       environment: FluohEnvironment(
         homeDirectory: home,
         workingDirectory: project,
-        processEnvironment: {'FLUOH_DEVECO_STUDIO': devEco.path},
+        processEnvironment: {
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+          'FLUOH_OHOS_EMULATOR_DEPLOYED': '${root.path}/no_emulators',
+        },
       ),
       ohosDirectory: ohos,
       haps: [hap],
@@ -80,6 +83,146 @@ void main() {
     expect(invocations, contains('-t emulator-5554 hilog'));
   });
 
+  test('auto emulator reuses an already connected emulator target', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final home = Directory('${root.path}/home')..createSync(recursive: true);
+    final project = Directory('${root.path}/project')
+      ..createSync(recursive: true);
+    final ohos = await _writeOhosProject(project);
+    final hap = File('${project.path}/entry-default-signed.hap')
+      ..writeAsStringSync('hap');
+    final hdcLog = File('${root.path}/hdc.log');
+    final emulatorLog = File('${root.path}/emulator.log');
+    final devEco = await _writeDevEcoFixture(
+      root,
+      hdcLog: hdcLog,
+      emulatorLog: emulatorLog,
+      targets: 'real-device\nemulator-5554\n',
+    );
+
+    final result = await runOhosHapsOnDevice(
+      environment: FluohEnvironment(
+        homeDirectory: home,
+        workingDirectory: project,
+        processEnvironment: {
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+          'FLUOH_OHOS_EMULATOR_DEPLOYED': '${root.path}/no_emulators',
+        },
+      ),
+      ohosDirectory: ohos,
+      haps: [hap],
+      output: TerminalOutput(stdout: (_) {}),
+      startEmulator: true,
+      logDuration: const Duration(milliseconds: 10),
+    );
+
+    expect(result.passed, isTrue, reason: result.reason);
+    expect(result.targetId, 'emulator-5554');
+    expect(emulatorLog.existsSync(), isFalse);
+    final invocations = hdcLog.readAsStringSync();
+    expect(invocations, contains('list targets'));
+    expect(invocations, contains('-t emulator-5554 install -r ${hap.path}'));
+    expect(invocations, isNot(contains('-t real-device install')));
+  });
+
+  test(
+    'auto emulator falls back to a connected device when emulator tool is missing',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+      final home = Directory('${root.path}/home')..createSync(recursive: true);
+      final project = Directory('${root.path}/project')
+        ..createSync(recursive: true);
+      final ohos = await _writeOhosProject(project);
+      final hap = File('${project.path}/entry-default-signed.hap')
+        ..writeAsStringSync('hap');
+      final hdcLog = File('${root.path}/hdc.log');
+      final devEco = await _writeDevEcoFixture(
+        root,
+        hdcLog: hdcLog,
+        targets: 'real-device\n',
+        createEmulatorTool: false,
+      );
+
+      final result = await runOhosHapsOnDevice(
+        environment: FluohEnvironment(
+          homeDirectory: home,
+          workingDirectory: project,
+          processEnvironment: {
+            'FLUOH_DEVECO_STUDIO': devEco.path,
+            'FLUOH_OHOS_EMULATOR_DEPLOYED': '${root.path}/no_emulators',
+          },
+        ),
+        ohosDirectory: ohos,
+        haps: [hap],
+        output: TerminalOutput(stdout: (_) {}),
+        startEmulator: true,
+        logDuration: Duration.zero,
+      );
+
+      expect(result.passed, isTrue, reason: result.reason);
+      expect(result.targetId, 'real-device');
+      final invocations = hdcLog.readAsStringSync();
+      expect(invocations, contains('list targets'));
+      expect(invocations, contains('-t real-device install -r ${hap.path}'));
+    },
+  );
+
+  test(
+    'explicit OHOS emulator does not fall back to a connected device',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+      final home = Directory('${root.path}/home')..createSync(recursive: true);
+      final project = Directory('${root.path}/project')
+        ..createSync(recursive: true);
+      final ohos = await _writeOhosProject(project);
+      final hap = File('${project.path}/entry-default-signed.hap')
+        ..writeAsStringSync('hap');
+      final devEco = await _writeDevEcoFixture(
+        root,
+        hdcLog: File('${root.path}/hdc.log'),
+        targets: 'real-device\n',
+        createEmulatorTool: false,
+      );
+
+      final result = await runOhosHapsOnDevice(
+        environment: FluohEnvironment(
+          homeDirectory: home,
+          workingDirectory: project,
+          processEnvironment: {
+            'FLUOH_DEVECO_STUDIO': devEco.path,
+            'FLUOH_OHOS_EMULATOR_DEPLOYED': '${root.path}/no_emulators',
+          },
+        ),
+        ohosDirectory: ohos,
+        haps: [hap],
+        output: TerminalOutput(stdout: (_) {}),
+        startEmulator: true,
+        emulatorName: 'OHOS_API_15',
+        logDuration: Duration.zero,
+      );
+
+      expect(result.passed, isFalse);
+      expect(result.targetId, isNull);
+      expect(result.diagnostics.single.code, 'ohos.emulator_start_failed');
+      expect(result.reason, contains('Could not locate DevEco emulator'));
+    },
+  );
+
   test('reports missing device targets as a failed run result', () async {
     final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
     addTearDown(() async {
@@ -103,7 +246,10 @@ void main() {
       environment: FluohEnvironment(
         homeDirectory: home,
         workingDirectory: project,
-        processEnvironment: {'FLUOH_DEVECO_STUDIO': devEco.path},
+        processEnvironment: {
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+          'FLUOH_OHOS_EMULATOR_DEPLOYED': '${root.path}/no_emulators',
+        },
       ),
       ohosDirectory: ohos,
       haps: [hap],
@@ -119,7 +265,80 @@ void main() {
       result.diagnostics.single.details,
       containsPair('connectedDevices', isEmpty),
     );
+    final targetSelection =
+        result.diagnostics.single.details['targetSelection'] as Map;
+    expect(targetSelection, containsPair('policy', 'emulator-first'));
+    expect(targetSelection['recommendation'], contains('DevEco emulator'));
+    expect(targetSelection, containsPair('emulators', isEmpty));
   });
+
+  test(
+    'suggests lowest and highest API emulators when no device is connected',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+      final home = Directory('${root.path}/home')..createSync(recursive: true);
+      final project = Directory('${root.path}/project')
+        ..createSync(recursive: true);
+      final ohos = await _writeOhosProject(project);
+      final hap = File('${project.path}/entry-default-signed.hap')
+        ..writeAsStringSync('hap');
+      final deployed = await _writeEmulatorList(
+        root,
+        emulators: const [
+          {'name': 'OHOS_API_12', 'apiVersion': 12},
+          {'name': 'OHOS_API_10', 'apiVersion': 10},
+          {'name': 'OHOS_API_15', 'apiVersion': 15},
+        ],
+      );
+      final imageRoot = Directory('${root.path}/Huawei/Sdk')
+        ..createSync(recursive: true);
+      final devEco = await _writeDevEcoFixture(
+        root,
+        hdcLog: File('${root.path}/hdc.log'),
+        targets: '[Empty]\n',
+      );
+
+      final result = await runOhosHapsOnDevice(
+        environment: FluohEnvironment(
+          homeDirectory: home,
+          workingDirectory: project,
+          processEnvironment: {
+            'FLUOH_DEVECO_STUDIO': devEco.path,
+            'FLUOH_OHOS_EMULATOR_DEPLOYED': deployed.path,
+            'FLUOH_HARMONYOS_SDK_ROOT': imageRoot.path,
+          },
+        ),
+        ohosDirectory: ohos,
+        haps: [hap],
+        output: TerminalOutput(stdout: (_) {}),
+        logDuration: Duration.zero,
+      );
+
+      expect(result.passed, isFalse);
+      expect(result.diagnostics.single.code, 'ohos.device_missing');
+      final targetSelection =
+          result.diagnostics.single.details['targetSelection'] as Map;
+      expect(targetSelection, containsPair('policy', 'emulator-first'));
+      expect(
+        targetSelection['recommendation'],
+        contains('lowest and highest API'),
+      );
+      expect(targetSelection['suggestedRunArguments'], [
+        '--auto-emulator',
+        '--emulator OHOS_API_10',
+        '--emulator OHOS_API_15',
+      ]);
+      final suggested = targetSelection['suggestedEmulators'] as List;
+      expect(suggested, hasLength(2));
+      expect(suggested.first, containsPair('apiVersion', 10));
+      expect(suggested.last, containsPair('apiVersion', 15));
+    },
+  );
 
   test('returns diagnostics when runtime crash lines are found', () async {
     final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
@@ -343,6 +562,73 @@ void main() {
     expect(hdcLog.readAsStringSync(), contains('list targets'));
   });
 
+  test(
+    'auto-starts highest API local emulator when no device is connected',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+      final home = Directory('${root.path}/home')..createSync(recursive: true);
+      final project = Directory('${root.path}/project')
+        ..createSync(recursive: true);
+      final ohos = await _writeOhosProject(project);
+      final hap = File('${project.path}/entry-default-signed.hap')
+        ..writeAsStringSync('hap');
+      final hdcLog = File('${root.path}/hdc.log');
+      final emulatorLog = File('${root.path}/emulator.log');
+      final emulatorStarted = File('${root.path}/emulator.started');
+      final deployed = await _writeEmulatorList(
+        root,
+        emulators: const [
+          {'name': 'OHOS_API_10', 'apiVersion': 10},
+          {'name': 'OHOS_API_15', 'apiVersion': 15},
+          {'name': 'OHOS_API_12', 'apiVersion': 12},
+        ],
+      );
+      final imageRoot = Directory('${root.path}/Huawei/Sdk')
+        ..createSync(recursive: true);
+      final devEco = await _writeDevEcoFixture(
+        root,
+        hdcLog: hdcLog,
+        emulatorLog: emulatorLog,
+        emulatorStarted: emulatorStarted,
+        targets: '[Empty]\n',
+        targetsAfterEmulatorStart: 'emulator-5554\n',
+      );
+
+      final result = await runOhosHapsOnDevice(
+        environment: FluohEnvironment(
+          homeDirectory: home,
+          workingDirectory: project,
+          processEnvironment: {
+            'FLUOH_DEVECO_STUDIO': devEco.path,
+            'FLUOH_OHOS_EMULATOR_DEPLOYED': deployed.path,
+            'FLUOH_HARMONYOS_SDK_ROOT': imageRoot.path,
+          },
+        ),
+        ohosDirectory: ohos,
+        haps: [hap],
+        output: TerminalOutput(stdout: (_) {}),
+        startEmulator: true,
+        deviceTimeout: const Duration(seconds: 5),
+        logDuration: Duration.zero,
+      );
+
+      expect(result.passed, isTrue, reason: result.reason);
+      expect(
+        emulatorLog.readAsStringSync(),
+        contains('-hvd OHOS_API_15 -path ${deployed.path}'),
+      );
+      expect(
+        hdcLog.readAsStringSync(),
+        contains('-t emulator-5554 install -r'),
+      );
+    },
+  );
+
   test('classifies fatal OHOS runtime log lines', () {
     expect(
       classifyOhosRuntimeLog('''
@@ -412,6 +698,7 @@ Future<Directory> _writeDevEcoFixture(
   bool crashHilog = false,
   bool shutdownCrashHilog = false,
   int listTargetsExitCode = 0,
+  bool createEmulatorTool = true,
 }) async {
   final devEco = Directory('${root.path}/DevEco-Studio.app');
   final toolchains = Directory(
@@ -480,28 +767,51 @@ exit 1
 ''');
   await Process.run('chmod', ['+x', hdc.path]);
   await Link('${toolchains.path}/hdc').create(hdc.path);
-  final emulator = File('${root.path}/fake_emulator');
-  await emulator.writeAsString('''
+  if (createEmulatorTool) {
+    final emulator = File('${root.path}/fake_emulator');
+    await emulator.writeAsString('''
 #!/bin/sh
 printf "%s\\n" "\$*" >> "${emulatorLog?.path ?? '${root.path}/emulator.log'}"
 touch "${emulatorStarted?.path ?? '${root.path}/emulator.started'}"
 exit 0
 ''');
-  await Process.run('chmod', ['+x', emulator.path]);
-  await Link('${emulatorDirectory.path}/Emulator').create(emulator.path);
+    await Process.run('chmod', ['+x', emulator.path]);
+    await Link('${emulatorDirectory.path}/Emulator').create(emulator.path);
+  }
   return devEco;
 }
 
-Future<Directory> _writeEmulatorList(Directory root) async {
+Future<Directory> _writeEmulatorList(
+  Directory root, {
+  List<Map<String, Object?>> emulators = const [
+    {'name': 'Huawei_Phone'},
+  ],
+}) async {
   final deployed = Directory('${root.path}/deployed');
-  await Directory('${deployed.path}/Huawei_Phone').create(recursive: true);
+  final encodedItems = <String>[];
+  for (final emulator in emulators) {
+    final name = emulator['name']! as String;
+    final directory = Directory('${deployed.path}/$name')
+      ..createSync(recursive: true);
+    await File('${directory.path}/config.ini').writeAsString(
+      [
+        'name=$name',
+        if (emulator['apiVersion'] != null)
+          'apiVersion=${emulator['apiVersion']}',
+        '',
+      ].join('\n'),
+    );
+    encodedItems.add(
+      [
+        '{"name":"$name"',
+        if (emulator['apiVersion'] != null)
+          ',"apiVersion":${emulator['apiVersion']}',
+        ',"path":"${directory.path}"}',
+      ].join(),
+    );
+  }
   await File(
-    '${deployed.path}/Huawei_Phone/config.ini',
-  ).writeAsString('name=Huawei_Phone\n');
-  await File('${deployed.path}/lists.json').writeAsString('''
-[
-  {"name": "Huawei_Phone", "path": "${deployed.path}/Huawei_Phone"}
-]
-''');
+    '${deployed.path}/lists.json',
+  ).writeAsString('[${encodedItems.join(',')}]\n');
   return deployed;
 }

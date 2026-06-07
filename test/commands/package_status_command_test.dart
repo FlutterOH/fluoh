@@ -46,7 +46,7 @@ void main() {
           containsPair('code', 'evidence.ohos_run_missing'),
           containsPair(
             'nextCommand',
-            'fluoh run --platform ohos --package camera --json',
+            'fluoh run --platform ohos --package camera --auto-emulator --json',
           ),
         ),
       ),

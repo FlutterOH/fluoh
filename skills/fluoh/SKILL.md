@@ -267,6 +267,11 @@ Then:
    for additional package branches in the same repository. Use `fluoh package
    add <package-path> --plan --json` when you need a final read-only plan for
    one additional package.
+   When verifying multiple existing package branches, prefer a fresh clone or
+   separate Git worktree per package branch. Platform build tools can leave
+   ignored files that are clean on one branch but become untracked after
+   switching to another branch. Do not run destructive cleanup commands such as
+   `git clean` without explicit maintainer approval.
    Both commands sync the upstream branch and then select the requested version
    or latest valid release tag for that package. If the package branch already
    exists, check it out and use `fluoh package status` or `fluoh package sync`.
@@ -355,8 +360,8 @@ When using `scripts/preflight.py`, route by the returned JSON:
 - `upgradeChecks`: handle schema and generated-doc upgrade checks before
   implementation edits. Generated `README.md`, `FLUOH.md`, and `AGENTS.md` sections are
   tool-owned; do not edit inside `fluoh:generated` blocks by hand.
-- Use `project.packages[].examplePlatforms` to decide which Android, iOS, and
-  macOS regression checks are relevant.
+- Use `project.packages[].examplePlatforms` to decide which Android, iOS, macOS,
+  Linux, Web, and Windows regression checks are relevant.
 - Use `finalCheckCommands` and `deliveryChecks` as the final acceptance checklist.
 - Use `reportCommand` to create the local completion report skeleton.
 - Use `reportCheckCommand` after filling the report.
@@ -376,8 +381,8 @@ Use this loop when adapting a package or app to a release-ready state:
    package has an interactive flow, perform a separate AI-assisted scenario on
    the target and record functional assertions from hilog, logs, accessible
    text, semantic labels, stable status text, or other machine-readable output.
-4. For Android, iOS, and macOS, run with a live session file when an agent needs
-   to inspect the running app:
+4. For Android, iOS, macOS, Linux, Web, and Windows, run with a live session file
+   when an agent needs to inspect the running app:
 
    ```sh
    fluoh run --platform android --package <name> \
@@ -414,6 +419,8 @@ fluoh deps get
 fluoh doctor -p --platform ohos --json --strict
 fluoh build --platform ohos --auto-sign --json
 fluoh devices --platform ohos --json
+fluoh emulators --platform ohos --json
+fluoh run --platform ohos --auto-emulator --json
 fluoh run --platform ohos --device <id> --json
 ```
 
@@ -428,11 +435,14 @@ Rules:
 - If `deps check --json` reports unavailable, blocked, or SDK-mismatch
   dependencies, record them as blockers or maintainer decisions. Do not invent
   package implementations inside the app project unless asked.
-- If no OHOS target is available, keep the signed HAP build as build-only
-  evidence and record the missing target instead of forcing a run.
-- For real target runs, prefer an explicit `--device <id>` from
-  `fluoh devices --platform ohos --json`; use `--emulator <name>` only after
-  selecting from `fluoh emulators --platform ohos --json`.
+- For OHOS run evidence, prefer `--auto-emulator` so fluoh starts a local
+  DevEco emulator before falling back to connected real devices. Keep signed
+  HAP build-only evidence only when no local target can be started.
+- For explicit real target runs, use `--device <id>` from
+  `fluoh devices --platform ohos --json`. Use `--emulator <name>` only when the
+  target was selected from `fluoh emulators --platform ohos --json`; when
+  multiple OHOS emulators expose API metadata, cover both the lowest and highest
+  API versions before claiming broad compatibility.
 
 ## Package Adaptation Flow
 
@@ -472,9 +482,9 @@ Then run this loop one package at a time:
 
 ```sh
 fluoh deps get
-fluoh doctor -p --json --strict
+fluoh doctor -p --platform ohos --json --strict
 fluoh verify --package <name> --json
-fluoh run --platform ohos --package <name> --json
+fluoh run --platform ohos --package <name> --auto-emulator --json
 fluoh build --platform ohos --package <name> --auto-sign --json
 fluoh package status --package <name>
 fluoh package version --package <name> --bump patch --status compatible
@@ -497,26 +507,39 @@ to edit, when to fix local environment, and when work can be handed back.
    tag. If the current upstream version is unusable, mark it `broken` with
    `fluoh package version --status broken` instead of downgrading.
 2. Baseline gates: run `fluoh deps get`,
-   `fluoh doctor -p --json --strict`, `fluoh flutter analyze`, and relevant
-   existing package or example tests before adding OHOS code. Project warnings
-   point to repository files; environment warnings point to local tool or Source
-   setup.
+   `fluoh doctor -p --platform ohos --json --strict`,
+   `fluoh flutter analyze`, and relevant existing package or example tests
+   before adding OHOS code. Project warnings point to repository files;
+   environment warnings point to local tool or Source setup.
 3. Implementation loop: after meaningful code or metadata changes, rerun
    `fluoh deps get` when dependencies or SDK metadata changed, then use
    `fluoh verify --package <name> --json --trace-dir <trace-dir>` until pub
    get, analysis, and existing tests pass.
 4. OHOS verification: use
-   `fluoh run --platform ohos --package <name> --json --trace-dir <trace-dir>`,
-   or add `--device <id>` for a connected hdc target. This proves build,
-   signing, install, launch, and hilog diagnostics; it does not prove tappable
-   example workflows by itself.
-   If no device is available, use
+   `fluoh run --platform ohos --package <name> --auto-emulator --json
+   --trace-dir <trace-dir>`, or add `--device <id>` for a connected hdc target.
+   This proves build, signing, install, launch, and hilog diagnostics; it does
+   not prove tappable example workflows by itself. If no local target can be
+   started, use
    `fluoh build --platform ohos --package <name> --auto-sign --json --trace-dir
    <trace-dir>` as build-only evidence.
 5. Existing-platform regression: when `example/android` exists, run
    `fluoh doctor --platform android --json --strict`, then
-   `fluoh run --platform android --package <name> --json`. Do the same for iOS
-   and macOS when their example platform directories exist.
+   `fluoh run --platform android --package <name> --auto-emulator --json`. For
+   iOS, run `fluoh doctor --platform ios --json --strict`, then
+   `fluoh run --platform ios --package <name> --auto-emulator --json`. For
+   macOS, run `fluoh doctor --platform macos --json --strict`, then
+   `fluoh run --platform macos --package <name> --json` on the local host. For
+   Web examples, run `fluoh doctor --platform web --json --strict` plus
+   `fluoh run --platform web --package <name> --device web-server --json` for
+   served web smoke evidence; add
+   `fluoh build --platform web --package <name> --json` when a separate web
+   compile check is needed, and use Chrome from `fluoh devices --platform web`
+   only when browser-specific evidence is required. For Linux and Windows
+   examples, run `fluoh doctor --platform linux --json --strict` plus
+   `fluoh build --platform linux --package <name> --json`, and
+   `fluoh doctor --platform windows --json --strict` plus
+   `fluoh build --platform windows --package <name> --json` on matching hosts.
 6. Interaction verification: for workflows that need UI taps, permission
    prompts, file pickers, camera, location, media, deep links, or external
    apps, run `integration_test/` when available. When deterministic tests do
@@ -528,7 +551,7 @@ to edit, when to fix local environment, and when work can be handed back.
    state, semantics tree, integration-test output, accessibility text, visible
    status text, semantic labels, test keys, or structured log markers, and
    record step results, target id, evidence path, and blockers in the report.
-   For Android, iOS, and macOS `fluoh run --json` exposes
+   For Android, iOS, macOS, Linux, Web, and Windows `fluoh run --json` exposes
    `details.vmServiceUri` on the run step when Flutter prints a VM Service or
    debug service URI. Pass `--session-file <path>` on those runs when an AI or
    external inspector needs an attach point before final JSON is printed; fluoh
@@ -573,7 +596,7 @@ to edit, when to fix local environment, and when work can be handed back.
     `.fluoh/` is local ignored state, the worktree should remain clean for
     `fluoh package check --package <name> --report <report-path>`. Add
     `--require-ohos-run` when a connected target or emulator was available and
-    the handoff must prove a passed real OHOS launch. The certification report
+    the handoff must prove a passed OHOS launch. The certification report
     must contain passed command rows, not only failed diagnostic rows. Run
     `fluoh package release` only when the maintainer approves the fluoh release.
     Maintainers can still run `fluoh package check` without a certification
@@ -595,7 +618,8 @@ Rules:
 - Preserve upstream public Dart APIs and non-OHOS behavior unless the user
   approves a breaking change.
 - Establish a selected-SDK baseline before adding OHOS code. Fix non-OHOS
-  regressions first when Android, iOS, macOS, tests, or examples already exist.
+  regressions first when Android, iOS, macOS, Linux, Web, Windows, tests, or
+  examples already exist.
 - Implement OHOS code near the package path recorded in `fluoh.yaml`.
 - Extend package tests or examples when behavior changes. Example apps are
   functional harnesses: they should expose operations, expected results,
@@ -619,12 +643,18 @@ Rules:
   background or lifecycle behavior, error/denied-permission paths, and
   multi-step forms. Mark irrelevant classes as not applicable in the report
   rather than silently skipping them.
-- Use `fluoh run --platform ohos --package <name> --json` when a target exists.
-  Use the `build --auto-sign` command as the fallback when no target is
-  available.
+- Use `fluoh run --platform ohos --package <name> --auto-emulator --json` for
+  OHOS run evidence, or add `--device <id>` only when no emulator is available.
+  Use the `build --auto-sign` command as the fallback only when no local target
+  can be started.
 - Run existing-platform regression checks when corresponding example platform
   directories exist and local toolchains are available:
-  `fluoh run --platform android|ios|macos --package <name> --json`.
+  `fluoh run --platform android|ios --package <name> --auto-emulator --json`
+  `fluoh run --platform macos --package <name> --json`, and
+  `fluoh run --platform web --package <name> --device web-server --json`.
+  For Linux and Windows
+  examples, run `fluoh build --platform linux|windows --package <name> --json`
+  on matching hosts so those desktop projects at least compile without errors.
 - Do not run real `fluoh package release`, push, force-push, or destructive Git
   commands unless the user explicitly asks.
 

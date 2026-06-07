@@ -2,11 +2,28 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/platform/platform_commands.dart';
+import 'package:fluoh/src/platform/platform_environment.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
+  test('all expands to common and host-supported platforms', () {
+    expect(
+      platformsFromCliOption(null).map((platform) => platform.cliName).toList(),
+      _defaultHostPlatformNames(),
+    );
+    expect(
+      platformsFromCliOption(
+        'all',
+      ).map((platform) => platform.cliName).toList(),
+      _defaultHostPlatformNames(),
+    );
+    expect(platformsFromCliOption('linux'), [FluohPlatform.linux]);
+    expect(platformsFromCliOption('windows'), [FluohPlatform.windows]);
+  });
+
   test('devices lists Android targets as JSON', () async {
     final environment = await createTestEnvironment();
     final androidSdk = await _writeAndroidSdkFixture(
@@ -58,6 +75,74 @@ exit 1
           containsPair('displayPlatform', 'android'),
           containsPair('category', 'mobile'),
           containsPair('summary', 'device'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('devices lists Web targets as JSON', () async {
+    final environment = await createTestEnvironment();
+    final chrome = File('${environment.homeDirectory.path}/bin/chrome');
+    await _writeExecutable(chrome, '''
+if [ "\$1" = "--version" ]; then
+  printf "Google Chrome 120.0\\n"
+  exit 0
+fi
+exit 0
+''');
+    final commandEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_WEB_CHROME': chrome.path,
+      },
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['devices', '--platform', 'web', '--json'],
+        environment: commandEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schema', 1));
+    expect(report, containsPair('command', 'devices'));
+    expect(report, containsPair('ok', true));
+    final platforms = report['platforms'] as List<Object?>;
+    final web = platforms.single as Map<String, Object?>;
+    expect(web, containsPair('platform', 'web'));
+    final targets = web['targets'] as List<Object?>;
+    expect(
+      targets,
+      contains(
+        allOf(
+          containsPair('id', 'web-server'),
+          containsPair('name', 'Web Server'),
+          containsPair('kind', 'device'),
+          containsPair('displayName', 'Web Server (web)'),
+          containsPair('displayPlatform', 'web-server'),
+          containsPair('category', 'web'),
+          containsPair('summary', 'web-server'),
+        ),
+      ),
+    );
+    expect(
+      targets,
+      contains(
+        allOf(
+          containsPair('id', 'chrome'),
+          containsPair('name', 'Chrome'),
+          containsPair('displayName', 'Chrome (web)'),
+          containsPair('displayPlatform', 'chrome'),
+          containsPair('summary', contains('Google Chrome 120.0')),
         ),
       ),
     );
@@ -117,6 +202,36 @@ exit 1
       ),
     );
     expect(stderr, isEmpty);
+  });
+
+  test('emulators accepts host and Web platforms as JSON', () async {
+    final environment = await createTestEnvironment();
+
+    for (final platform in ['linux', 'web', 'windows']) {
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['emulators', '--platform', platform, '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'emulators'));
+      expect(report, containsPair('ok', true));
+      final platforms = report['platforms'] as List<Object?>;
+      final desktop = platforms.single as Map<String, Object?>;
+      expect(desktop, containsPair('platform', platform));
+      expect(desktop, containsPair('kind', 'emulator'));
+      expect(desktop, containsPair('ok', true));
+      expect(desktop['targets'], isEmpty);
+      expect(stderr, isEmpty);
+    }
   });
 
   test('plain target output uses Flutter-style device rows', () async {
@@ -329,25 +444,41 @@ exit 1
         stdout: stdout.add,
         stderr: stderr.add,
       ),
-      Platform.isMacOS ? 0 : 1,
+      0,
     );
 
     final output = stdout.join('\n');
     expect(output, isNot(contains('Checking for wireless devices...')));
-    expect(output, contains('Found 1 wirelessly connected device:'));
-    expect(
-      output,
-      contains('  Office iPhone (wireless) (mobile) • WIRELESS-DEVICE-UDID'),
-    );
-    expect(output, contains('iOS 17.5 21F79'));
-    expect(output, isNot(contains('XCTRACE-DUPLICATE-UDID')));
+    expect(output, contains('Web Server (web)'));
+    expect(output, contains('web-server'));
     if (Platform.isMacOS) {
-      expect(output, contains('Found 1 connected device:'));
+      expect(output, contains('Found 1 wirelessly connected device:'));
+      expect(
+        output,
+        contains('  Office iPhone (wireless) (mobile) • WIRELESS-DEVICE-UDID'),
+      );
+      expect(output, contains('iOS 17.5 21F79'));
+      expect(output, isNot(contains('XCTRACE-DUPLICATE-UDID')));
       expect(output, contains('macOS (desktop)'));
-      expect(output, contains('macOS (desktop) • macos • darwin-'));
       expect(output, matches(RegExp(r'macOS .+ darwin-')));
     } else {
-      expect(output, contains('macOS desktop targets require a macOS host'));
+      expect(output, isNot(contains('Office iPhone')));
+      expect(
+        output,
+        isNot(contains('macOS desktop targets require a macOS host')),
+      );
+    }
+    if (!Platform.isLinux) {
+      expect(
+        output,
+        isNot(contains('Linux desktop targets require a Linux host')),
+      );
+    }
+    if (!Platform.isWindows) {
+      expect(
+        output,
+        isNot(contains('Windows desktop targets require a Windows host')),
+      );
     }
     expect(stderr, isEmpty);
   });
@@ -540,3 +671,14 @@ const _devicectlDevicesJson = '''
   }
 }
 ''';
+
+List<String> _defaultHostPlatformNames() {
+  return [
+    'ohos',
+    'android',
+    if (Platform.isMacOS) ...['ios', 'macos'],
+    if (Platform.isLinux) 'linux',
+    'web',
+    if (Platform.isWindows) 'windows',
+  ];
+}

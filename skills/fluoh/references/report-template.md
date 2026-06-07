@@ -37,7 +37,7 @@
 - [ ] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
-- [ ] Android, iOS, and macOS regression checks recorded when relevant.
+- [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
@@ -50,6 +50,9 @@
 | Android | not present | not present | n/a | n/a | ... |
 | iOS | not present | not present | n/a | n/a | ... |
 | macOS | not present | not present | n/a | n/a | ... |
+| Linux | not present | not present | n/a | n/a | ... |
+| Web | not present | not present | n/a | n/a | ... |
+| Windows | not present | not present | n/a | n/a | ... |
 
 ## Interaction Evidence
 

@@ -65,16 +65,53 @@ void main() {
     expect(stdout, contains('    • FlutterOH SDK 3.35.8-ohos-0.0.3 selected'));
     expect(stdout, contains('    • Missing ohos platform directory'));
     expect(stdout, contains('    • Missing android platform directory'));
-    expect(stdout, contains('    • Missing ios platform directory'));
+    expect(stdout, contains('    • Missing web platform directory'));
+    if (Platform.isMacOS) {
+      expect(stdout, contains('    • Missing ios platform directory'));
+      expect(stdout, contains('    • Missing macos platform directory'));
+    } else {
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Missing ios platform directory')),
+      );
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Missing macos platform directory')),
+      );
+    }
+    if (Platform.isLinux) {
+      expect(stdout, contains('    • Missing linux platform directory'));
+    } else {
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Missing linux platform directory')),
+      );
+    }
+    if (Platform.isWindows) {
+      expect(stdout, contains('    • Missing windows platform directory'));
+    } else {
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Missing windows platform directory')),
+      );
+    }
     expect(stdout.join('\n'), contains('[!] Sources'));
     expect(_normalizeOutput(stdout.join('\n')), contains('fixture: file://'));
     expect(_normalizeOutput(stdout.join('\n')), contains('flutteroh: file://'));
     expect(stdout.join('\n'), contains('Android toolchain'));
-    expect(stdout.join('\n'), contains('Xcode - develop for iOS and macOS'));
-    expect(
-      stdout.join('\n'),
-      isNot(contains('Xcode - develop for macOS desktop')),
-    );
+    if (Platform.isMacOS) {
+      expect(stdout.join('\n'), contains('Xcode - develop for iOS and macOS'));
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Xcode - develop for macOS desktop')),
+      );
+    } else {
+      expect(
+        stdout.join('\n'),
+        isNot(contains('Xcode - develop for iOS and macOS')),
+      );
+    }
+    expect(stdout.join('\n'), contains('Web tooling - build for browsers'));
     expect(
       stdout.join('\n'),
       contains('[!] OpenHarmony toolchain - develop for OHOS devices'),
@@ -87,7 +124,10 @@ void main() {
       '[!] Sources',
       '[!] OpenHarmony toolchain - develop for OHOS devices',
       'Android toolchain',
-      'Xcode - develop for iOS and macOS',
+      if (Platform.isMacOS) 'Xcode - develop for iOS and macOS',
+      if (Platform.isLinux) 'Linux toolchain',
+      'Web tooling',
+      if (Platform.isWindows) 'Windows toolchain',
       '[!] Flutter project',
     ]);
     expect(stderr, isEmpty);
@@ -110,7 +150,20 @@ void main() {
     expect(result.stdout, contains('    • No FlutterOH SDK selected'));
     expect(result.stdout, contains('    • Missing ohos platform directory'));
     expect(result.stdout, contains('    • Missing android platform directory'));
-    expect(result.stdout, contains('    • Missing ios platform directory'));
+    expect(result.stdout, contains('    • Missing web platform directory'));
+    if (Platform.isMacOS) {
+      expect(result.stdout, contains('    • Missing ios platform directory'));
+      expect(result.stdout, contains('    • Missing macos platform directory'));
+    } else {
+      expect(
+        result.stdout.join('\n'),
+        isNot(contains('Missing ios platform directory')),
+      );
+      expect(
+        result.stdout.join('\n'),
+        isNot(contains('Missing macos platform directory')),
+      );
+    }
     expect(result.stderr, isEmpty);
   });
 
@@ -159,6 +212,25 @@ void main() {
     );
     expect(result.stderr, isEmpty);
   });
+
+  test(
+    'default JSON checks only common and host-supported platforms',
+    () async {
+      final environment = await createTestEnvironment();
+
+      final result = await _runDoctorCommand(
+        environment: environment,
+        versionMetadataProvider: () async =>
+            const DoctorVersionMetadata(latestVersion: packageVersion),
+        arguments: const ['doctor', '--json'],
+      );
+
+      expect(result.exitCode, 0);
+      final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+      expect(report['platforms'], _defaultHostPlatformNames());
+      expect(result.stderr, isEmpty);
+    },
+  );
 
   test('shows all available sources', () async {
     final environment = await createTestEnvironment();
@@ -1177,4 +1249,15 @@ String _normalizeOutput(String value) {
       .replaceAll(RegExp(r'(?<=[/-])\s+'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
+}
+
+List<String> _defaultHostPlatformNames() {
+  return [
+    'ohos',
+    'android',
+    if (Platform.isMacOS) ...['ios', 'macos'],
+    if (Platform.isLinux) 'linux',
+    'web',
+    if (Platform.isWindows) 'windows',
+  ];
 }

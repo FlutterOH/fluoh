@@ -94,6 +94,8 @@ fluoh deps get
 fluoh doctor -p --platform ohos
 fluoh build --platform ohos --auto-sign
 fluoh devices --platform ohos
+fluoh emulators --platform ohos
+fluoh run --platform ohos --auto-emulator
 fluoh run --platform ohos --device <id>
 ```
 
@@ -148,8 +150,8 @@ the JSON diagnostic `nextCommand` for the next local setup step.
 | `fluoh build --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | Build a project or package example. |
 | `fluoh run --platform <platform>` | `lib/src/workflow/workflow_commands.dart` | Build, install, launch, and diagnose an app. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose environment, native tools, and optional project state. |
-| `fluoh devices` | `lib/src/platform/platform_commands.dart` | List connected OHOS, Android, iOS, and macOS targets. |
-| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | List and launch local OHOS, Android, iOS, and macOS emulators or simulators. |
+| `fluoh devices` | `lib/src/platform/platform_commands.dart` | List connected OHOS, Android, Web, and host-supported desktop targets by default. |
+| `fluoh emulators` | `lib/src/platform/platform_commands.dart` | List and launch local OHOS, Android, and iOS emulators or simulators; desktop and Web platforms do not provide emulators. |
 | `fluoh upgrade` | `lib/src/upgrade/upgrade_command.dart` | Upgrade the installed `fluoh` CLI. |
 
 ## Shared Runtime Rules
@@ -231,10 +233,10 @@ Design constraints:
 `doctor` is diagnostic and returns success after printing its findings unless
 `--strict` is used. Bare `fluoh doctor` checks the fluoh installation, Git and
 Dart, configured source snapshots, OpenHarmony SDK tooling, Android SDK and
-Java tooling, Apple Xcode tooling, and currently connected OHOS, Android, iOS,
-and macOS devices. Plain output streams each check as soon as it completes, so
-long device discovery does not make the command appear idle. JSON mode waits
-for all checks and writes one machine-readable object.
+Java tooling, Web tooling, and host-supported Apple or desktop tooling. Plain
+output streams each check as soon as it completes, so long device discovery
+does not make the command appear idle. JSON mode waits for all checks and
+writes one machine-readable object.
 
 OpenHarmony toolchain output focuses on SDK path/version, `hdc`, and emulator
 version or missing state. When both iOS and macOS are selected, Xcode is checked
@@ -250,28 +252,35 @@ already prints the full human-readable checks, and machine-readable details are
 available with `--json`. When the current directory is a Flutter project, it
 also checks project shape, selected FlutterOH SDK, and the selected platform
 directories only when `-p` or `--project` is passed. Use
-`--platform ohos|android|ios|macos` to narrow native toolchain and project
+`--platform ohos|android|ios|macos|linux|web|windows` to narrow native toolchain and project
 platform checks.
 
 Missing or stale state is reported as warnings rather than immediate
-remediation. Use `fluoh doctor --json --strict` when automation needs a native
-toolchain gate, and `fluoh doctor -p --json --strict` when it also needs
-a current-project gate. Project JSON includes `platformDirectories` data for
-the selected platform set so automation can decide whether to create or skip
-OHOS, Android, or iOS platform projects. `--json` prints the same checks as
+remediation. Use platform-scoped strict checks such as
+`fluoh doctor --platform ohos --json --strict` when automation needs a native
+toolchain gate, and
+`fluoh doctor -p --platform ohos --json --strict` when it also needs a
+current-project gate. Project
+JSON includes `platformDirectories` data for the selected platform set so
+automation can decide whether to create or skip OHOS, Android, iOS, macOS,
+Linux, Web, or Windows platform projects. `--json` prints the same checks as
 machine-readable JSON and includes each check's `id`, `group`, and structured
 data when the check has it.
 
 ### `fluoh devices` and `fluoh emulators`
 
-`fluoh devices` lists connected OHOS, Android, iOS, and macOS targets. It
-accepts `--platform all|ohos|android|ios|macos` and `--json`. Plain output uses
-Flutter-style `Name • id • platform • details` rows and prints platform
-warnings after discovered targets.
+`fluoh devices` lists connected OHOS, Android, Web, and targets supported by
+the current host by default. It accepts
+`--platform all|ohos|android|ios|macos|linux|web|windows` and `--json`; passing
+Linux, Windows, iOS, or macOS explicitly turns that platform into the checked
+target even when the current host cannot run it. Plain output uses Flutter-style
+`Name • id • platform • details` rows and prints platform warnings after
+discovered targets.
 
-`fluoh emulators` lists local OHOS, Android, iOS simulator, and macOS emulator
-targets with `Id • Name • Manufacturer • Platform` rows. It accepts the same
-`--platform` and `--json` options. `--launch <id-or-name>` starts a local
+`fluoh emulators` lists local OHOS, Android, and iOS simulator targets with
+`Id • Name • Manufacturer • Platform` rows. macOS, Linux, Web, and Windows are
+host or browser targets and report no local emulators. The command accepts the
+same `--platform` and `--json` options. `--launch <id-or-name>` starts a local
 emulator or simulator and requires selecting a single platform.
 
 ### `fluoh upgrade`
@@ -609,7 +618,12 @@ path, selected upstream target, target `ohos/<sdkLine>/<package>` branch,
 whether that branch already exists, SDK/Dart compatibility warnings, and the
 next `fluoh package add` or `package status` command. Use it before adapting
 multiple packages in one upstream monorepo, then finish one package branch
-checkpoint before moving to the next.
+checkpoint before moving to the next. When running verify/build/run/check
+commands across multiple existing package branches, prefer a fresh clone or
+separate Git worktree per package branch so ignored platform build artifacts
+from one branch cannot become untracked files on the next branch. Do not run
+destructive cleanup commands such as `git clean` without explicit maintainer
+approval.
 
 `fluoh package add <package-path>` creates another package branch in an existing
 FlutterOH package repository. It requires a clean working tree, resolves the
@@ -684,7 +698,7 @@ inside a Git worktree, so agents can detect generated files or lockfile changes
 left by `pub get` before committing. Reuse one `--trace-dir` across an
 adaptation loop to accumulate command invocations in one session.
 
-`fluoh build --platform ohos|android|ios|macos` builds the current Flutter project or
+`fluoh build --platform ohos|android|ios|macos|linux|web|windows` builds the current Flutter project or
 the selected package example. iOS builds automatically add `--no-codesign`.
 OHOS builds can use `--auto-sign` to generate a temporary local debug signing
 profile from the project's or example's requested permissions, patch
@@ -693,30 +707,40 @@ the build. If Flutter leaves a fresh unsigned HAP after Hvigor signing fails,
 `fluoh` directly signs that HAP and reports `signingMode:
 direct-sign-fallback` plus the installable HAP paths. JSON failures use
 platform-specific diagnostic codes such as `ohos.hap_build_failed`,
-`android.apk_build_failed`, `ios.build_failed`, and `macos.build_failed` for
+`android.apk_build_failed`, `ios.build_failed`, `macos.build_failed`,
+`linux.build_failed`, `web.build_failed`, and `windows.build_failed` for
 both projects and package examples. `--trace` and `--trace-dir <path>` follow
 the same local AI diagnostic trace contract as `fluoh verify`.
 
-`fluoh run --platform ohos|android|ios|macos` builds, installs, launches, and
+`fluoh run --platform ohos|android|ios|macos|linux|web|windows` builds, installs, launches, and
 diagnoses the current project or selected package example. For OHOS projects
 and package examples it signs the HAP, installs it with `hdc`, starts the
 ability, captures a short hilog, and reports runtime crash patterns. For
-Android, iOS, and macOS package examples it launches through the selected SDK's
+Android, iOS, macOS, Linux, Web, and Windows package examples it launches through the selected SDK's
 `flutter run`, captures smoke output under `$FLUOH_HOME/cache/package-runs`, and runs
 `flutter test integration_test -d <device>` when the example has an
 `integration_test/` directory. When `flutter run` prints a VM Service or debug
 service URI, `--json` includes it as `details.vmServiceUri` on the run step so
 an AI agent or external tool can attach. Pass `--session-file <path>` on
-Android, iOS, or macOS runs to write a live `flutterRunSession` JSON file while
+Android, iOS, macOS, Linux, Web, or Windows runs to write a live `flutterRunSession` JSON file while
 the app is still running; the file is updated with process id, target,
 `vmServiceUri`, launch status, final status, and output log path. AI agents can
 inspect that file with
 `python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>`
 to wait for launch, find the VM Service URI, and decide whether to attach,
-inspect logs, or route a failure. Use
-`--device <id>` for an already connected target or `--emulator <name>` to
-select and start a local emulator or simulator where the platform provides one.
-Android, iOS, and macOS current-project runs use the same Flutter device
+inspect logs, or route a failure. Use `--device <id>` for an already connected
+target, `--emulator <name>` to select and start a specific local emulator or
+simulator, or `--auto-emulator` to prefer a local emulator or simulator and
+fall back to a connected device only when none is available. OHOS
+auto-emulator selection chooses the highest known local DevEco emulator API
+version, falling back to a stable name sort when API metadata is unavailable.
+When an OHOS run finds no connected target, diagnostics keep this non-mutating
+default unless `--auto-emulator` or `--emulator` was requested and add
+target-selection advice: prefer local DevEco emulator evidence for repeatable
+automation; use a connected real device only when no emulator is available.
+When multiple local OHOS emulators expose API metadata, the diagnostic suggests
+covering both the lowest and highest API versions.
+Android, iOS, macOS, Linux, Web, and Windows current-project runs use the same Flutter device
 discovery, platform filtering, run-smoke timeout, and saved output log path as
 package examples, but they do not run package example integration tests.
 Run-smoke success is only launch evidence. Package workflows that require UI
@@ -746,7 +770,8 @@ and external app callbacks, background or lifecycle behavior, multi-step forms,
 and negative/error paths. If none apply, the report must say
 `No interaction required: <reason>` instead of leaving the section empty.
 JSON failures include platform run diagnostics such as `ohos.run_failed`,
-`android.run_failed`, `ios.run_failed`, and `macos.run_failed` for
+`android.run_failed`, `ios.run_failed`, `macos.run_failed`, `linux.run_failed`,
+`web.run_failed`, and `windows.run_failed` for
 current-project runs, while package examples keep their more specific install,
 launch, runtime, and integration-test diagnostics where available. `--trace`
 and `--trace-dir <path>` follow the same local AI diagnostic trace contract as
@@ -772,8 +797,8 @@ completed `.fluoh/reports/<scope>/ai-report-...md` before passing the check. Cer
 reports must be `ready`, complete every delivery checklist item, include passed
 `fluoh verify` evidence, include passed OHOS build or run evidence, and include
 passed interaction evidence or an explicit `No interaction required: <reason>`.
-Add `--require-ohos-run` when CI or an AI handoff must prove a passed real OHOS
-run rather than build-only evidence.
+Add `--require-ohos-run` when CI or an AI handoff must prove a passed OHOS run
+rather than build-only evidence.
 
 `fluoh package release` runs the same validation and verification, then
 completes the fluoh package release by creating release tags at HEAD and

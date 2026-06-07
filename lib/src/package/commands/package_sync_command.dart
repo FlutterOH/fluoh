@@ -111,6 +111,7 @@ class PackageSyncCommand extends FluohCommand<int> {
     final startingBranch = await currentBranch(repository);
     _ensurePackageBranch(startingBranch, manifest);
     if (json) {
+      await ensureUpstreamRemote(repository, manifest.upstreamUrl);
       final fetch = await runGit(
         ['fetch', '--tags', 'upstream'],
         workingDirectory: repository,
@@ -128,10 +129,10 @@ class PackageSyncCommand extends FluohCommand<int> {
         );
       }
     } else {
-      await _output.withProgress(
-        'Fetching upstream',
-        () => fetchUpstreamRefs(repository),
-      );
+      await _output.withProgress('Fetching upstream', () async {
+        await ensureUpstreamRemote(repository, manifest.upstreamUrl);
+        await fetchUpstreamRefs(repository);
+      });
     }
     actions.add('fetched upstream');
     final defaultBranch = manifest.upstreamBranch;
