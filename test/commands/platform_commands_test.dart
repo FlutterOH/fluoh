@@ -142,7 +142,14 @@ exit 0
           containsPair('name', 'Chrome'),
           containsPair('displayName', 'Chrome (web)'),
           containsPair('displayPlatform', 'chrome'),
-          containsPair('summary', contains('Google Chrome 120.0')),
+          containsPair('summary', contains('chrome')),
+          containsPair(
+            'details',
+            allOf(
+              containsPair('runtime', 'chrome'),
+              containsPair('path', chrome.path),
+            ),
+          ),
         ),
       ),
     );
@@ -406,7 +413,7 @@ exit 1
     expect(stderr, isEmpty);
   });
 
-  test('plain device output uses consistent list rows', () async {
+  test('plain device output uses consistent list rows with warnings', () async {
     final environment = await createTestEnvironment();
     final androidSdk = await _writeAndroidSdkFixture(
       environment.homeDirectory,
@@ -432,23 +439,24 @@ exit 1
         ...environment.processEnvironment,
         'ANDROID_HOME': androidSdk.path,
         'FLUOH_XCRUN': xcrun.path,
+        'FLUOH_DEVECO_STUDIO':
+            '${environment.homeDirectory.path}/missing/DevEco-Studio.app',
       },
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
-    expect(
-      await runFluoh(
-        ['devices', '--platform', 'all'],
-        environment: commandEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
+    final exitCode = await runFluoh(
+      ['devices', '--platform', 'all'],
+      environment: commandEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
     );
+    expect(exitCode, 1, reason: [...stdout, ...stderr].join('\n'));
 
     final output = stdout.join('\n');
     expect(output, isNot(contains('Checking for wireless devices...')));
+    expect(output, contains('OHOS devices unavailable:'));
     expect(output, contains('Web Server (web)'));
     expect(output, contains('web-server'));
     if (Platform.isMacOS) {
