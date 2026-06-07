@@ -103,7 +103,15 @@ def package_row(root: Path, package: str, sdk: str) -> dict[str, str]:
     name = package.strip()
     branch = infer_branch(root, name, sdk)
     report_glob = root / ".fluoh" / "reports" / slug(name)
-    reports = sorted(report_glob.glob("ai-report-*.md")) if report_glob.is_dir() else []
+    reports = (
+        sorted(
+            report
+            for report in report_glob.glob("ai-report-*.md")
+            if re.match(r"^ai-report-\d{8}-\d{6}(?:-\d+)?\.md$", report.name)
+        )
+        if report_glob.is_dir()
+        else []
+    )
     return {
         "package": name,
         "branch": branch or "<branch>",
@@ -208,7 +216,7 @@ def main() -> int:
     )
     output_root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
-    report_path = unique_report_path(output_root, f"summary-{slug(scope)}-{timestamp}")
+    report_path = unique_report_path(output_root, f"summary-{timestamp}")
     sdk = args.sdk or infer_sdk(root)
     report_path.write_text(
         build_summary(root, scope, args.package, sdk),

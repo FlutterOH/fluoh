@@ -30,13 +30,13 @@
 
 ## Quick Start
 
-Ask your AI agent to install the skill first:
+Ask your AI agent to install the skill:
 
 ```text
 Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills, overwriting any existing installation.
 ```
 
-Then type one request for an app or a package:
+Then use one of these prompts:
 
 ```text
 Use $fluoh to install fluoh if needed and adapt this Flutter project for OHOS.
@@ -44,26 +44,19 @@ Use $fluoh to adapt <upstream-git-url> for FlutterOH.
 Use $fluoh to continue adapting <package-name> for OHOS.
 ```
 
-The skill checks `fluoh --version`, runs read-only setup checks, asks for final
-setup confirmation before project or package changes, follows JSON diagnostics,
-edits and verifies the target, then writes
-`.fluoh/reports/<scope>/ai-report-...md`. It prefers
-`dart pub global activate fluoh`, with Homebrew as the macOS fallback. Trace
-capture, report layout, and package repository details live in the command and
-skill docs.
-
-If the CLI is already installed:
+If `fluoh` is already installed:
 
 ```text
 Run `fluoh skill --json`, install the returned localPath as a skill, then reload skills if needed.
 ```
 
-The skill version follows the `fluoh` CLI version. After `fluoh upgrade`, run
-`fluoh skill --json` again and reload the returned path.
+After `fluoh upgrade`, run `fluoh skill --json` again and reload the returned
+path. Workflow details live in the [skill](skills/fluoh/SKILL.md) and
+[command reference](doc/commands.md).
 
 ## Manual Fallback
 
-When you need to install or drive the CLI yourself:
+Install the CLI and run the app flow yourself:
 
 ```sh
 dart pub global activate fluoh
@@ -74,32 +67,31 @@ fluoh doctor -p --platform ohos
 fluoh build --platform ohos --auto-sign
 ```
 
-macOS alternative:
+macOS install:
 
 ```sh
 brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-Homebrew installs native executables, which are better for strict `--json`
-automation.
-
-For package maintainers:
+Package workflow:
 
 ```sh
+fluoh package discover <upstream-git-url> --json
 fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 fluoh verify
 fluoh package status
 ```
 
-For monorepos, keep one FlutterOH adaptation repository per upstream repository
-and create one `ohos/<sdkLine>/<package>` branch per package. Start with
-`fluoh package discover <upstream-git-url> --json` when the package is not
-known, pass `--package-path` for the first selected package, then use
-`fluoh package queue` and `fluoh package add` for additional packages. See
-[Command reference](doc/commands.md) for version, report, and `--org` details.
+Add more packages from the generated repository:
 
-Use `fluohf` to run Flutter through the selected FlutterOH SDK:
+```sh
+fluoh package queue
+fluoh package add
+fluoh verify
+```
+
+Run Flutter through the selected FlutterOH SDK:
 
 ```sh
 fluohf pub get

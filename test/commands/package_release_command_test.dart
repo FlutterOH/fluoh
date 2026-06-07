@@ -729,9 +729,11 @@ Future<File> _writeCertificationReport(
   String ohosBuildResult = 'passed',
   String recommendation = 'ready',
 }) async {
-  final reportDirectory = Directory('${packageRepository.path}/.fluoh');
+  final reportDirectory = Directory(
+    '${packageRepository.path}/.fluoh/reports/camera',
+  );
   await reportDirectory.create(recursive: true);
-  final report = File('${reportDirectory.path}/ai-report-camera.md');
+  final report = File('${reportDirectory.path}/ai-report-20260602-120000.md');
   final ohosRunRow = includeOhosRun
       ? '| `fluoh run --platform ohos --package camera --json` | 0 | passed | installed, launched, and collected hilog |\n'
       : '';
@@ -812,7 +814,7 @@ No fluoh feedback: diagnostics were actionable and no tool or Source gap was fou
 ## Local State
 
 - Git status summary: clean
-- Files intentionally left uncommitted: .fluoh/reports/camera/ai-report-camera.md
+- Files intentionally left uncommitted: .fluoh/reports/camera/ai-report-20260602-120000.md
 - Files that must not be committed: local AI reports and device logs
 
 ## Release Decision

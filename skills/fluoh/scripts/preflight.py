@@ -680,7 +680,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
         package = slug(project["selectedPackage"] or "<name>", "<name>")
         return [
             "Confirm preflight upgradeChecks has no schema migration blocker and generated docs are current or refreshed before editing.",
-            f"Create or update .fluoh/reports/{package}/ai-report-{package}-...md before the final response.",
+            f"Create or update .fluoh/reports/{package}/ai-report-...md before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
             "Record Android regression checks with --auto-emulator and Web server smoke runs when examples exist, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
@@ -694,7 +694,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
         return [
             "Create a FlutterOH package repository before editing OHOS implementation files.",
             f"Rerun preflight in {output} before using final check commands.",
-            f"Create or update .fluoh/reports/{package}/ai-report-{package}-...md in the generated repository before the final response.",
+            f"Create or update .fluoh/reports/{package}/ai-report-...md in the generated repository before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
             "Record Android regression checks with --auto-emulator and Web server smoke runs when examples exist after repository creation, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",

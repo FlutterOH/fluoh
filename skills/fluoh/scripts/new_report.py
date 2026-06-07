@@ -202,7 +202,7 @@ def main() -> int:
     )
     scope = args.scope or args.package or root.name
     timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
-    report_name = f"ai-report-{slug(scope)}-{timestamp}"
+    report_name = f"ai-report-{timestamp}"
 
     output_root.mkdir(parents=True, exist_ok=True)
     report_path = unique_report_path(output_root, report_name)

@@ -28,15 +28,18 @@ standard library and do not replace the `fluoh --json` diagnostic contract.
 - Report skeleton:
   `python3 <skill-dir>/scripts/new_report.py <project-path> --scope <scope>
   [--package <name>] [--recommendation ready|needs-maintainer-decision|blocked]`
-  creates `.fluoh/reports/<package-or-scope>/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md` from
-  `references/report-template.md`. Fill the generated report with actual command
-  evidence before the final response.
+  creates
+  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md`
+  from `references/report-template.md`. `<report-group>` is the package slug
+  when `--package` is supplied and otherwise the scope slug. Fill the generated
+  report with actual command evidence before the final response.
 - Monorepo summary skeleton:
   `python3 <skill-dir>/scripts/new_summary.py <project-path> --scope <scope>
   [--package <name>]...` creates
-  `.fluoh/reports/<scope>/summary-<scope>-YYYYMMDD-HHMMSS.md` with a package
-  matrix, command evidence table, repository state, Fluoh Feedback, and next
-  actions. Use it alongside per-package reports for multi-package monorepos.
+  `.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md` with a
+  package matrix, command evidence table, repository state, Fluoh Feedback, and
+  next actions. Use it alongside per-package reports for multi-package
+  monorepos.
 - Report check:
   `python3 <skill-dir>/scripts/check_report.py <report-path>` prints JSON and
   fails when a report is missing required sections, command evidence, delivery
@@ -157,9 +160,11 @@ Then:
 8. Run `fluoh` commands in JSON mode whenever supported. For `verify`, `build`,
    and `run`, also pass `--trace-dir
    .fluoh/traces/<package-or-scope>/<session-id>` for the current adaptation
-   loop when the command supports it. Inspect `nextCommand`, `diagnostics`, trace
-   `feedbackCandidates`, `dirtyAfterVerify`, `workingTreeChanges`, and log
-   tails before editing.
+   loop when the command supports it. The manifest for that session is
+   `.fluoh/traces/<package-or-scope>/<session-id>/trace.json`; reuse the same
+   directory so command invocations accumulate. Inspect `nextCommand`,
+   `diagnostics`, trace `feedbackCandidates`, `dirtyAfterVerify`,
+   `workingTreeChanges`, and log tails before editing.
 9. Make the smallest code or project-file changes needed for the next clean
    verification result.
 10. Run feedback collection on the trace session, then verify and write the
@@ -586,7 +591,7 @@ to edit, when to fix local environment, and when work can be handed back.
    uncommitted before this step.
 10. Final report and release gate: rerun the final
     `fluoh verify --package <name>`, write
-    `.fluoh/reports/<package-or-scope>/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md`
+    `.fluoh/reports/<package-or-scope>/ai-report-YYYYMMDD-HHMMSS.md`
     with commands, results, platform matrix, interaction evidence, diagnostics,
     trace feedback candidates collected with `collect_feedback.py` or an
     explicit no-feedback
@@ -756,13 +761,18 @@ For every `--json` command:
 Before the final response, create a local report under `.fluoh/reports/` using:
 
 ```text
-.fluoh/reports/<package-or-scope>/ai-report-<package-or-scope>-YYYYMMDD-HHMMSS.md
+.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md
 ```
+
+For package work, `<report-group>` is normally the package name slug. If
+`--package` is omitted, it is the scope slug. File names do not repeat the scope
+or package slug. The helper scripts append `-2`, `-3`, and so on before `.md`
+instead of overwriting same-second outputs.
 
 For multi-package monorepos, also create a summary report under:
 
 ```text
-.fluoh/reports/<scope>/summary-<scope>-YYYYMMDD-HHMMSS.md
+.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md
 ```
 
 Use local time and do not commit this file. Prefer

@@ -197,6 +197,24 @@ the JSON diagnostic `nextCommand` for the next local setup step.
   the underlying command and the JSON object includes `traceError`. Reusing the
   same `--trace-dir` accumulates multiple command invocations under the same
   session manifest.
+- Local AI reports are ignored evidence under `.fluoh/reports/`. The skill
+  helper `new_report.py` writes
+  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md`, where
+  `<report-group>` is the package slug when `--package` is supplied and
+  otherwise the scope slug. The summary helper `new_summary.py` writes
+  `.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md`.
+  Timestamps use local 24-hour time to seconds; if a file already exists, the
+  helpers append `-2`, `-3`, and so on before `.md`.
+- Local trace manifests are ignored evidence under `.fluoh/traces/`. With
+  `--trace`, project or multi-target commands write
+  `.fluoh/traces/<trace-id>/trace.json`; a single package target writes
+  `.fluoh/traces/<package-slug>/<trace-id>/trace.json`. The generated trace id
+  is `<command-slug>-YYYYMMDD-HHMMSS-micros`. With `--trace-dir <path>`, the
+  manifest is exactly `<path>/trace.json`, relative paths are resolved from the
+  working directory, and the trace id is derived from the final directory
+  segment. AI adaptation loops should use one stable session directory such as
+  `.fluoh/traces/<package-or-scope>/<session-id>` so `verify`, `build`, and
+  `run` append to one manifest.
 - Command classes should own argument parsing and user-visible output. Reusable
   behavior belongs in domain helpers such as `lib/src/sdk/`, `lib/src/deps/`,
   `lib/src/package/`, and `lib/src/source/`.
@@ -689,10 +707,11 @@ requested package name against the current branch. `--json` reports each
 project or package under `targets`, with target identity, phase, steps,
 diagnostics, and `nextCommand`. Use `--trace` to write a local AI diagnostic
 trace under `.fluoh/traces/`, grouped by package as
-`.fluoh/traces/<package>/` when one package target is selected, or
-`--trace-dir <path>` to choose the trace directory. In JSON mode, the command
-still writes exactly one object to stdout and includes only a `trace` reference
-to the local manifest, or `traceError` when the trace could not be written.
+`.fluoh/traces/<package>/<trace-id>/trace.json` when one package target is
+selected, or `--trace-dir <path>` to choose the trace session directory whose
+manifest is `<path>/trace.json`. In JSON mode, the command still writes exactly
+one object to stdout and includes only a `trace` reference to the local
+manifest, or `traceError` when the trace could not be written.
 It also reports `dirtyAfterVerify` and `workingTreeChanges` when the target is
 inside a Git worktree, so agents can detect generated files or lockfile changes
 left by `pub get` before committing. Reuse one `--trace-dir` across an

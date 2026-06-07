@@ -170,6 +170,22 @@ fluoh run --platform ohos --device <id>
   路径的 `trace` 引用。trace 写入失败时，workflow 结果和退出码仍以底层命令为准，
   JSON 对象会包含 `traceError`。多条命令复用同一个 `--trace-dir` 时，会在同一个
   session manifest 中追加多次 invocation。
+- 本地 AI report 是 `.fluoh/reports/` 下的忽略证据。skill helper `new_report.py`
+  会写入
+  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md`；
+  `<report-group>` 在提供 `--package` 时是 package slug，否则是 scope slug。
+  summary helper `new_summary.py` 会写入
+  `.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md`。
+  时间戳使用本地 24 小时时间，精确到秒；如果同名文件已存在，helper 会在 `.md`
+  前追加 `-2`、`-3` 等后缀。
+- 本地 trace manifest 是 `.fluoh/traces/` 下的忽略证据。使用 `--trace` 时，项目或
+  多目标命令写入 `.fluoh/traces/<trace-id>/trace.json`；单个 package 目标写入
+  `.fluoh/traces/<package-slug>/<trace-id>/trace.json`。自动生成的 trace id 为
+  `<command-slug>-YYYYMMDD-HHMMSS-micros`。使用 `--trace-dir <path>` 时，manifest
+  固定为 `<path>/trace.json`，相对路径从 working directory 解析，trace id 来自目录
+  最后一段。AI 适配循环应使用一个稳定的 session 目录，例如
+  `.fluoh/traces/<package-or-scope>/<session-id>`，让 `verify`、`build`、`run`
+  追加到同一个 manifest。
 - 命令类只负责参数解析和用户可见输出；可复用行为放到
   `lib/src/sdk/`、`lib/src/deps/`、`lib/src/package/` 和 `lib/src/source/`
   等领域 helper 中。
@@ -530,8 +546,9 @@ JSON diagnostic 会包含裁剪后的 stdout 和 stderr 尾部。
 example。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支。
 `--json` 会在 `targets` 下输出每个项目或 Package 的目标身份、phase、steps、diagnostics 和
 `nextCommand`。使用 `--trace` 会在 `.fluoh/traces/` 下写入本地 AI diagnostic trace；
-选择到单个 Package 时默认按 `.fluoh/traces/<package>/` 分组，使用 `--trace-dir <path>`
-可以指定 trace 目录。JSON 模式仍只向 stdout 输出一个对象，并只在对象里加入本地 manifest
+选择到单个 Package 时默认写入 `.fluoh/traces/<package>/<trace-id>/trace.json`，
+使用 `--trace-dir <path>` 可以指定 trace session 目录，manifest 为 `<path>/trace.json`。
+JSON 模式仍只向 stdout 输出一个对象，并只在对象里加入本地 manifest
 的 `trace` 引用；trace 无法写入时则加入 `traceError`。当目标位于 Git 工作树中时，还会输出
 `dirtyAfterVerify` 和 `workingTreeChanges`，方便 AI 发现 `pub get` 留下的生成文件或 lockfile
 变化并在提交前复核。一个适配循环内复用同一个 `--trace-dir` 可以把多条命令追加到同一个

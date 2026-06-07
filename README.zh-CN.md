@@ -44,24 +44,18 @@
 使用 $fluoh，继续适配 <package-name> 到 OHOS。
 ```
 
-skill 会先检查 `fluoh --version`，运行只读 setup 检查，并在修改 App 或 Package 前请求
-最终 setup 确认；之后跟随 JSON diagnostics，修改并验证目标，最后保存
-`.fluoh/reports/<scope>/ai-report-...md`。安装 CLI 时优先使用
-`dart pub global activate fluoh`，macOS 下可退到 Homebrew。trace、报告目录和 Package
-仓库细节见命令文档和 skill 文档。
-
-如果已经安装了 CLI：
+如果已经安装了 `fluoh`：
 
 ```text
 运行 `fluoh skill --json`，把返回的 localPath 安装为 skill，必要时重载 skills。
 ```
 
-skill 版本跟随 `fluoh` CLI 版本。运行 `fluoh upgrade` 后，重新执行
-`fluoh skill --json` 并重载返回的路径。
+运行 `fluoh upgrade` 后，重新执行 `fluoh skill --json` 并重载返回的路径。
+完整流程见 [skill](skills/fluoh/SKILL.md) 和 [命令参考](doc/commands.zh-CN.md)。
 
 ## 手动兜底
 
-需要自己安装或驱动 CLI 时：
+自己安装 CLI 并运行 App 流程：
 
 ```sh
 dart pub global activate fluoh
@@ -72,30 +66,31 @@ fluoh doctor -p --platform ohos
 fluoh build --platform ohos --auto-sign
 ```
 
-macOS 也可以用 Homebrew：
+macOS 安装：
 
 ```sh
 brew tap FlutterOH/tap
 brew install fluoh
 ```
 
-Homebrew 会安装 native 可执行文件，更适合严格 `--json` 自动化。
-
-Package 维护者可以用：
+Package 流程：
 
 ```sh
+fluoh package discover <upstream-git-url> --json
 fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 fluoh verify
 fluoh package status
 ```
 
-适配 monorepo 时，一个 upstream 仓库保留一份 FlutterOH 适配仓库，每个 Package 使用独立的
-`ohos/<sdkLine>/<package>` 分支。Package 不明确时先运行
-`fluoh package discover <upstream-git-url> --json`，再用 `--package-path`
-创建第一个分支，并用 `fluoh package queue` 和 `fluoh package add` 追加其他
-Package。版本、报告和 `--org` 细节见 [命令参考](doc/commands.zh-CN.md)。
+在生成仓库中追加其他 Package：
 
-用 `fluohf` 通过已选择的 FlutterOH SDK 运行 Flutter：
+```sh
+fluoh package queue
+fluoh package add
+fluoh verify
+```
+
+通过已选择的 FlutterOH SDK 运行 Flutter：
 
 ```sh
 fluohf pub get

@@ -525,7 +525,7 @@ package:
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/reports/camera/ai-report-camera-...md'),
+          contains('.fluoh/reports/camera/ai-report-...md'),
           contains('Record verify, status, and package check results'),
           contains('Review public API compatibility'),
         ]),
@@ -855,9 +855,7 @@ package:
       );
       expect(
         stringList(report['deliveryChecks']),
-        contains(
-          contains('.fluoh/reports/share_plus/ai-report-share_plus-...md'),
-        ),
+        contains(contains('.fluoh/reports/share_plus/ai-report-...md')),
       );
       expect(stringList(report['notes']), isEmpty);
       expect(
@@ -1008,7 +1006,7 @@ package:
       );
       expect(
         stringList(selected['deliveryChecks']),
-        contains(contains('.fluoh/reports/<name>/ai-report-<name>-...md')),
+        contains(contains('.fluoh/reports/<name>/ai-report-...md')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -1127,12 +1125,13 @@ package:
       expect(defaultReport.existsSync(), isTrue);
       expect(
         defaultReport.path,
-        contains('${root.path}/.fluoh/reports/camera/ai-report-camera-plugin-'),
+        contains('${root.path}/.fluoh/reports/camera/ai-report-'),
       );
       expect(
         first.uri.pathSegments.last,
-        startsWith('ai-report-camera-plugin-'),
+        matches(RegExp(r'^ai-report-\d{8}-\d{6}(?:-\d+)?\.md$')),
       );
+      expect(first.uri.pathSegments.last, isNot(contains('camera-plugin')));
       final content = await first.readAsString();
       expect(content, contains('- Scope: camera plugin'));
       expect(content, contains('- Package: camera'));
@@ -1161,6 +1160,16 @@ schema: 1
 sdk:
   version: 3.35.8-ohos-0.0.3
 ''');
+      final cameraReportDirectory = Directory(
+        '${root.path}/.fluoh/reports/camera',
+      );
+      await cameraReportDirectory.create(recursive: true);
+      await File(
+        '${cameraReportDirectory.path}/ai-report-camera-20260525-153045.md',
+      ).writeAsString('old report name');
+      await File(
+        '${cameraReportDirectory.path}/ai-report-20260526-153045.md',
+      ).writeAsString('new report name');
 
       Future<File> createSummary() async {
         final result = await Process.run('python3', [
@@ -1185,15 +1194,22 @@ sdk:
       expect(second.existsSync(), isTrue);
       expect(
         first.path,
-        contains(
-          '${root.path}/.fluoh/reports/flutter-packages/summary-flutter-packages-',
-        ),
+        contains('${root.path}/.fluoh/reports/flutter-packages/summary-'),
+      );
+      expect(
+        first.uri.pathSegments.last,
+        matches(RegExp(r'^summary-\d{8}-\d{6}(?:-\d+)?\.md$')),
       );
       final content = await first.readAsString();
       expect(content, contains('# fluoh Monorepo Summary'));
       expect(content, contains('- Scope: flutter packages'));
       expect(content, contains('- Packages: camera, share_plus'));
       expect(content, contains('| camera |'));
+      expect(
+        content,
+        contains('.fluoh/reports/camera/ai-report-20260526-153045.md'),
+      );
+      expect(content, isNot(contains('ai-report-camera-20260525-153045.md')));
       expect(content, contains('| share_plus |'));
       expect(content, contains('## Package Matrix'));
       expect(content, contains('## Fluoh Feedback'));
