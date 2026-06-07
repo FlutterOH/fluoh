@@ -354,7 +354,6 @@ void main() {
     final inspectSession = File(
       'skills/fluoh/scripts/inspect_session.py',
     ).readAsStringSync();
-
     expect(skill, contains('name: fluoh'));
     expect(skill, contains('adapting Flutter apps'));
     expect(skill, contains('## AI-Driven Default Flow'));
@@ -371,7 +370,14 @@ void main() {
     expect(skill, contains('upgradeChecks'));
     expect(skill, contains('final acceptance gate'));
     expect(skill, contains('dart pub global activate fluoh'));
-    expect(skill, contains('brew install fluoh'));
+    expect(
+      skill,
+      contains(
+        'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      ),
+    );
+    expect(skill, contains('brew install FlutterOH/fluoh/fluoh'));
+    expect(skill, contains('Do not use `brew tap FlutterOH/tap`'));
     expect(skill, contains('fluoh --version'));
     expect(skill, contains('fluoh skill --json'));
     expect(skill, contains('--package <package-name>'));
@@ -589,7 +595,7 @@ void main() {
       'Adapt Flutter apps and packages to OHOS with AI.',
       'fluoh AI adaptation prompt preview',
       '## Quick Start',
-      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills, overwriting any existing installation.',
+      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.',
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
@@ -598,8 +604,8 @@ void main() {
       'fluoh upgrade',
       '## Manual Fallback',
       'dart pub global activate fluoh',
-      'brew tap FlutterOH/tap',
-      'brew install fluoh',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'brew install FlutterOH/fluoh/fluoh',
       'fluoh sdk use 3.35 --pub-get',
       'fluoh deps check',
       'fluoh deps fix',
@@ -634,6 +640,7 @@ void main() {
       '## Maintenance Workflows',
       '--no-init-ohos',
     ]);
+    expect(readme, isNot(contains('brew tap FlutterOH/tap')));
 
     expectContainsAll(chineseReadme, [
       'href="README.md">English',
@@ -646,7 +653,7 @@ void main() {
       '用 AI 将 Flutter App 和 Package 适配到 OHOS',
       'fluoh AI 适配提示预览',
       '## 快速开始',
-      '从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill，如果已存在则覆盖安装。',
+      '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。',
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。',
       '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',
@@ -655,8 +662,8 @@ void main() {
       'fluoh upgrade',
       '## 手动兜底',
       'dart pub global activate fluoh',
-      'brew tap FlutterOH/tap',
-      'brew install fluoh',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'brew install FlutterOH/fluoh/fluoh',
       'fluoh sdk use 3.35 --pub-get',
       'fluoh deps check',
       'fluoh deps fix',
@@ -691,6 +698,7 @@ void main() {
       '## 维护工作流',
       '--no-init-ohos',
     ]);
+    expect(chineseReadme, isNot(contains('brew tap FlutterOH/tap')));
 
     expectContainsAll(readmeHero, [
       'fluoh AI adaptation prompt',
@@ -851,7 +859,7 @@ void main() {
       'paths for reports',
       'dart pub global activate fluoh',
       'fluoh upgrade',
-      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills, overwriting any existing installation.',
+      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.',
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
@@ -952,7 +960,7 @@ void main() {
       '路径',
       'dart pub global activate fluoh',
       'fluoh upgrade',
-      '从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill，如果已存在则覆盖安装。',
+      '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。',
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 按 SDK 3.35 适配为 FlutterOH Package。',
       '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',

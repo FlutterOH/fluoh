@@ -341,7 +341,9 @@ Use this before running workflow commands:
    the machine contract.
 6. On macOS, if Dart is unavailable or the Dart pub shim emits non-JSON startup
    text before JSON diagnostics, and Homebrew is available, run
-   `brew tap FlutterOH/tap` and `brew install fluoh`.
+   `brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git` and
+   `brew install FlutterOH/fluoh/fluoh`. Do not use `brew tap FlutterOH/tap`
+   unless that official tap repository is available.
 7. If neither Dart nor Homebrew can install the CLI, ask the user to install
    Dart or provide a `fluoh` executable path.
 8. After installation, run `fluoh --version`, then continue with preflight.

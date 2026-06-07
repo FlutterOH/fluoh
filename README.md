@@ -33,7 +33,7 @@
 Ask your AI agent to install the skill:
 
 ```text
-Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills, overwriting any existing installation.
+Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.
 ```
 
 Then use one of these prompts:
@@ -70,8 +70,8 @@ fluoh build --platform ohos --auto-sign
 macOS install:
 
 ```sh
-brew tap FlutterOH/tap
-brew install fluoh
+brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git
+brew install FlutterOH/fluoh/fluoh
 ```
 
 Package workflow:

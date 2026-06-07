@@ -29,7 +29,9 @@ const fluohSkillDefaultPrompt =
     'package for OHOS.';
 
 /// Prompt for installing the bundled fluoh skill.
-const fluohSkillInstallPrompt = 'Install the fluoh skill from $fluohSkillUrl.';
+const fluohSkillInstallPrompt =
+    'Install the fluoh skill from $fluohSkillUrl, overwriting any existing '
+    'installation.';
 
 /// Prompt for updating the bundled fluoh skill.
 const fluohSkillUpgradePrompt =

@@ -22,7 +22,7 @@ AI 驱动适配是主要端到端链路。内置的 `skills/fluoh` 工作流会�
 先让 AI agent 安装 skill：
 
 ```text
-从 https://github.com/FlutterOH/fluoh/tree/main/skills 安装 fluoh skill，如果已存在则覆盖安装。
+从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。
 ```
 
 然后用一句话把任务交给 AI agent：

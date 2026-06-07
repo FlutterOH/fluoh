@@ -25,7 +25,7 @@ replacements; `doctor` owns environment and project diagnostics; and `build` or
 Start by asking the agent to install the skill:
 
 ```text
-Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills, overwriting any existing installation.
+Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.
 ```
 
 Then hand work to the agent with a short request:

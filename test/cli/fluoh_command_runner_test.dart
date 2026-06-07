@@ -77,7 +77,8 @@ void main() {
       output,
       contains(
         'Install the fluoh skill from '
-        'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
+        'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, '
+        'overwriting any existing installation.',
       ),
     );
     expect(output, contains('fluoh skill --json'));
@@ -158,7 +159,8 @@ void main() {
       containsPair(
         'installPrompt',
         'Install the fluoh skill from '
-            'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh.',
+            'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, '
+            'overwriting any existing installation.',
       ),
     );
     expect(report, containsPair('upgradeCommand', 'fluoh upgrade'));
