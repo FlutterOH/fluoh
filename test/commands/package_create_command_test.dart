@@ -373,6 +373,84 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('uses latest underscore package release tag', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_underscore_tag'),
+      version: '0.10.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.10.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.11.0',
+    );
+    await runGit(upstream, ['tag', 'camera-v0.11.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.12.0',
+    );
+    await runGit(upstream, ['tag', 'camera_v0.12.0']);
+    await bumpUpstreamPackageVersion(
+      upstream,
+      packagePath: 'packages/camera/camera',
+      version: '0.13.0',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_underscore_tag',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+          '--package-path',
+          'packages/camera/camera',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = await readPackageManifest(packageRepository);
+    final packagePubspec = File(
+      '${packageRepository.path}/packages/camera/camera/pubspec.yaml',
+    ).readAsStringSync();
+    final head = await runGit(packageRepository, ['rev-parse', 'HEAD']);
+    final releaseHead = await runGit(packageRepository, [
+      'rev-parse',
+      'camera_v0.12.0^{commit}',
+    ]);
+
+    expect(manifest.primaryPackage.upstreamVersion, '0.12.0');
+    expect(manifest.primaryPackage.upstreamRef, 'camera_v0.12.0');
+    expect(packagePubspec, contains('version: 0.12.0'));
+    expect(packagePubspec, isNot(contains('version: 0.13.0')));
+    expect(head.stdout.toString().trim(), releaseHead.stdout.toString().trim());
+    expect(stderr, isEmpty);
+  });
+
   test('uses explicit upstream package version for package create', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -696,7 +774,7 @@ packages/camera/camera/generated.txt
       [
         'package',
         'create',
-        upstream.path,
+        upstream.absolute.uri.toString(),
         '--repository-name',
         'camera',
         '--output',
@@ -1574,6 +1652,353 @@ Original upstream README body.
       contains('git push --force'),
     );
     expect(packageRepository.existsSync(), isFalse);
+  });
+
+  test(
+    'package create plan warns about newer default branch package version',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamWorkspaceRepository(
+        Directory('${environment.homeDirectory.path}/upstream_unreleased_plan'),
+        version: '0.11.0',
+      );
+      await runGit(upstream, ['tag', 'camera-v0.11.0']);
+      await bumpUpstreamPackageVersion(
+        upstream,
+        packagePath: 'packages/camera/camera',
+        version: '0.12.0',
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_unreleased_plan',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            upstream.path,
+            '--repository-name',
+            'camera',
+            '--package-path',
+            'packages/camera/camera',
+            '--output',
+            packageRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+            '--plan',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stderr, isEmpty);
+      final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+      final plan = payload['plan'] as Map<String, Object?>;
+      expect(plan['package'], {
+        'name': 'camera',
+        'path': 'packages/camera/camera',
+        'upstreamVersion': '0.11.0',
+        'releaseVersion': '0.1.0',
+        'status': 'experimental',
+      });
+      final upstreamPlan = plan['upstream'] as Map<String, Object?>;
+      expect(upstreamPlan['branch'], 'main');
+      expect(upstreamPlan['selectedRef'], 'camera-v0.11.0');
+      final warnings = (plan['warnings'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(warnings, hasLength(1));
+      expect(
+        warnings.single['code'],
+        'package.default_branch_version_unreleased',
+      );
+      expect(warnings.single['severity'], 'warning');
+      expect(warnings.single['package'], {
+        'name': 'camera',
+        'path': 'packages/camera/camera',
+      });
+      expect(warnings.single['selected'], {
+        'ref': 'camera-v0.11.0',
+        'version': '0.11.0',
+      });
+      expect(warnings.single['defaultBranch'], {
+        'branch': 'main',
+        'version': '0.12.0',
+      });
+      expect(warnings.single['policy'], {
+        'defaultAction': 'adapt-selected-release-tag',
+        'defaultBranchSnapshotRequiresApproval': true,
+      });
+      expect(
+        warnings.single['nextStep'],
+        contains(
+          'Use --upstream-ref main only if maintainers explicitly approve',
+        ),
+      );
+      expect(packageRepository.existsSync(), isFalse);
+    },
+  );
+
+  test(
+    'package create plan ignores unrelated broken tags in shallow mode',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamWorkspaceRepository(
+        Directory('${environment.homeDirectory.path}/upstream_broken_tags'),
+        version: '0.11.0',
+      );
+      await runGit(upstream, ['tag', 'camera-v0.11.0']);
+      final tagsDirectory = Directory('${upstream.path}/.git/refs/tags');
+      await tagsDirectory.create(recursive: true);
+      await File(
+        '${tagsDirectory.path}/unrelated-v999.0.0',
+      ).writeAsString('1111111111111111111111111111111111111111\n');
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_broken_tags_plan',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      final exitCode = await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--package-path',
+          'packages/camera/camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+          '--plan',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      if (exitCode != 0) {
+        fail(
+          'package create plan exited $exitCode\nstdout:\n${stdout.join('\n')}\n'
+          'stderr:\n${stderr.join('\n')}',
+        );
+      }
+
+      expect(stderr, isEmpty);
+      final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+      final plan = payload['plan'] as Map<String, Object?>;
+      final upstreamPlan = plan['upstream'] as Map<String, Object?>;
+      expect(upstreamPlan['selectedRef'], 'camera-v0.11.0');
+      expect(packageRepository.existsSync(), isFalse);
+    },
+  );
+
+  test(
+    'package create plan recommends federated implementation package',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await _createFederatedWorkspaceRepository(
+        Directory('${environment.homeDirectory.path}/upstream_federated_plan'),
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/path_provider_plan',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'create',
+            upstream.path,
+            '--repository-name',
+            'path_provider',
+            '--package-path',
+            'packages/path_provider/path_provider',
+            '--output',
+            packageRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+            '--plan',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stderr, isEmpty);
+      final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+      final plan = payload['plan'] as Map<String, Object?>;
+      expect(plan['package'], {
+        'name': 'path_provider',
+        'path': 'packages/path_provider/path_provider',
+        'upstreamVersion': '2.1.0',
+        'releaseVersion': '0.1.0',
+        'status': 'experimental',
+      });
+      final recommendation =
+          plan['implementationRecommendation'] as Map<String, Object?>;
+      expect(recommendation['kind'], 'federated_platform_package');
+      expect(
+        recommendation['reason'],
+        'federated_plugin_missing_platform_package',
+      );
+      expect(recommendation['platform'], 'ohos');
+      expect(recommendation['sourceRoute'], {
+        'packageName': 'path_provider',
+        'packagePath': 'packages/path_provider/path_provider',
+      });
+      expect(recommendation['implementationPackageName'], 'path_provider_ohos');
+      expect(
+        recommendation['implementationPackagePath'],
+        'packages/path_provider/path_provider_ohos',
+      );
+      expect(recommendation['implementationDependency'], {
+        'package': 'path_provider_ohos',
+        'path': '../path_provider_ohos',
+      });
+      expect(recommendation['existingDefaultPackages'], {
+        'android': 'path_provider_android',
+        'ios': 'path_provider_foundation',
+      });
+      final requiredEdits = recommendation['requiredEdits'] as List<Object?>;
+      expect(
+        requiredEdits,
+        contains(containsPair('defaultPackage', 'path_provider_ohos')),
+      );
+      expect(
+        requiredEdits,
+        contains(containsPair('path', '../path_provider_ohos')),
+      );
+      expect(packageRepository.existsSync(), isFalse);
+    },
+  );
+
+  test('package create writes federated implementation recommendation', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await _createFederatedWorkspaceRepository(
+      Directory('${environment.homeDirectory.path}/upstream_federated_create'),
+    );
+    await runGit(upstream, ['tag', 'path_provider-v2.1.0']);
+    await _writeFederatedPackage(
+      upstream,
+      path: 'packages/path_provider/path_provider',
+      name: 'path_provider',
+      version: '2.1.0',
+      defaultPackages: const {
+        'android': 'path_provider_android',
+        'ios': 'path_provider_foundation',
+        'ohos': 'path_provider_ohos',
+      },
+    );
+    await runGit(upstream, ['add', '.']);
+    await runGit(upstream, ['commit', '-m', 'Declare OHOS on default branch']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/path_provider_create',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'package',
+          'create',
+          upstream.path,
+          '--repository-name',
+          'path_provider',
+          '--package-path',
+          'packages/path_provider/path_provider',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final output = stdout.join('\n');
+    expect(output, contains('Create path_provider_ohos'));
+    expect(output, contains('packages/path_provider/path_provider_ohos'));
+    final guide = File('${packageRepository.path}/FLUOH.md').readAsStringSync();
+    expect(guide, contains('## Federated Implementation Route'));
+    expect(
+      guide,
+      contains(
+        'Create the OHOS implementation package `path_provider_ohos` at '
+        '`packages/path_provider/path_provider_ohos`',
+      ),
+    );
+    expect(guide, contains('Add `ohos.default_package: path_provider_ohos`'));
+    expect(
+      guide,
+      contains(
+        'Add dependency `path_provider_ohos` with relative path `../path_provider_ohos`',
+      ),
+    );
+    expect(stderr, isEmpty);
   });
 
   test('rejects package create --json without --plan', () async {
@@ -3881,6 +4306,104 @@ void main() {
   await _runProcess('git', ['add', '.'], repo);
   await _runProcess('git', ['commit', '-m', 'Initial Flutter plugin'], repo);
   return repo;
+}
+
+Future<Directory> _createFederatedWorkspaceRepository(Directory repo) async {
+  await repo.create(recursive: true);
+  await _runProcess('git', ['init', '--initial-branch=main'], repo);
+  await _runProcess('git', [
+    'config',
+    'user.email',
+    'fixture@example.com',
+  ], repo);
+  await _runProcess('git', ['config', 'user.name', 'Fixture'], repo);
+  await _writeFederatedPackage(
+    repo,
+    path: 'packages/path_provider/path_provider',
+    name: 'path_provider',
+    version: '2.1.0',
+    defaultPackages: const {
+      'android': 'path_provider_android',
+      'ios': 'path_provider_foundation',
+    },
+  );
+  await _writePlainPackage(
+    repo,
+    path: 'packages/path_provider/path_provider_android',
+    name: 'path_provider_android',
+    version: '2.1.0',
+  );
+  await _writePlainPackage(
+    repo,
+    path: 'packages/path_provider/path_provider_foundation',
+    name: 'path_provider_foundation',
+    version: '2.1.0',
+  );
+  await File('${repo.path}/README.md').writeAsString('# federated workspace\n');
+  await File('${repo.path}/LICENSE').writeAsString(_testLicenseContent);
+  await _runProcess('git', ['add', '.'], repo);
+  await _runProcess('git', [
+    'commit',
+    '-m',
+    'Initial federated workspace',
+  ], repo);
+  return repo;
+}
+
+Future<void> _writeFederatedPackage(
+  Directory repo, {
+  required String path,
+  required String name,
+  required String version,
+  required Map<String, String> defaultPackages,
+}) async {
+  final directory = Directory('${repo.path}/$path');
+  await Directory('${directory.path}/lib').create(recursive: true);
+  final platforms = defaultPackages.entries.map((entry) {
+    return '''
+      ${entry.key}:
+        default_package: ${entry.value}
+''';
+  }).join();
+  await File('${directory.path}/pubspec.yaml').writeAsString('''
+name: $name
+version: $version
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+$platforms
+''');
+  await File(
+    '${directory.path}/lib/$name.dart',
+  ).writeAsString('library $name;\n');
+}
+
+Future<void> _writePlainPackage(
+  Directory repo, {
+  required String path,
+  required String name,
+  required String version,
+}) async {
+  final directory = Directory('${repo.path}/$path');
+  await Directory('${directory.path}/lib').create(recursive: true);
+  await File('${directory.path}/pubspec.yaml').writeAsString('''
+name: $name
+version: $version
+
+environment:
+  sdk: ^3.0.0
+''');
+  await File(
+    '${directory.path}/lib/$name.dart',
+  ).writeAsString('library $name;\n');
 }
 
 const _testLicenseContent = '''

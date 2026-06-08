@@ -109,6 +109,83 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('verify reports discovered example integration tests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await Directory(
+      '${environment.workingDirectory.path}/example/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
+    ).writeAsString('void main() {}\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['verify', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    final invocations = File(
+      '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+    ).readAsStringSync();
+    expect(
+      invocations,
+      isNot(contains('$root/example::flutter test integration_test -d')),
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    expect(target.containsKey('nextCommand'), isFalse);
+    final steps = target['steps'] as List<Object?>;
+    final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-integration',
+    );
+    expect(integrationStep, containsPair('status', 'skipped'));
+    expect(
+      integrationStep,
+      containsPair('reason', 'requires a platform run target'),
+    );
+    final details = integrationStep['details'] as Map<String, Object?>;
+    expect(details, containsPair('testDirectory', 'example/integration_test'));
+    expect(
+      details['suggestedCommands'] as List<Object?>,
+      contains(
+        'fluoh run --platform ohos --package camera --auto-emulator --json',
+      ),
+    );
+    final evidence = details['interactionEvidence'] as Map<String, Object?>;
+    expect(evidence, containsPair('method', 'integration_test'));
+    expect(evidence, containsPair('status', 'available'));
+    expect(details, contains('manualAssistedFallback'));
+    expect(stderr, isEmpty);
+  });
+
   test('verify reports working tree changes left by workflow tools', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
@@ -116,9 +193,12 @@ void main() {
       environment.workingDirectory,
       flutterSideEffects: const {
         'pub get':
-            'mkdir -p ohos/flutter example/.dart_tool\n'
+            'mkdir -p ohos/flutter example/.dart_tool '
+            'ios/Flutter/ephemeral example/ios/Flutter/ephemeral\n'
             'printf "%s\\n" generated > ohos/flutter/generated_plugins.cmake\n'
-            'printf "%s\\n" "{}" > example/.dart_tool/package_config.json',
+            'printf "%s\\n" "{}" > example/.dart_tool/package_config.json\n'
+            'printf "%s\\n" helper > ios/Flutter/ephemeral/flutter_lldb_helper.py\n'
+            'printf "%s\\n" init > example/ios/Flutter/ephemeral/flutter_lldbinit',
       },
     );
     await _writePackageManifest(environment.workingDirectory);
@@ -183,6 +263,14 @@ void main() {
     expect(
       changes['generatedFiles'] as List<Object?>,
       contains('example/.dart_tool/package_config.json'),
+    );
+    expect(
+      changes['generatedFiles'] as List<Object?>,
+      contains('ios/Flutter/ephemeral/flutter_lldb_helper.py'),
+    );
+    expect(
+      changes['generatedFiles'] as List<Object?>,
+      contains('example/ios/Flutter/ephemeral/flutter_lldbinit'),
     );
     expect(changes['nextCommand'], 'git status --short');
     expect(stderr, isEmpty);
@@ -728,6 +816,245 @@ Failed to update packages.
       expect(stderr, isEmpty);
     },
   );
+
+  test(
+    'package OHOS run reports hdc connection failure from target discovery',
+    () async {
+      final environment = await createTestEnvironment();
+      final hdcLog = File('${environment.homeDirectory.path}/hdc.log');
+      final devEco = await _writeWorkflowDevEcoFixture(
+        environment.homeDirectory,
+        hdcLog: hdcLog,
+        targets: '',
+        hdcListTargetsStderr: 'Connect server failed\n',
+      );
+      final source = await _createWorkflowSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterSideEffects: const {
+          'build hap --debug':
+              'mkdir -p build/ohos/hap\nprintf "hap" > build/ohos/hap/entry-default-signed.hap',
+        },
+      );
+      final workflowEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: environment.workingDirectory,
+        processEnvironment: {
+          ...environment.processEnvironment,
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+        },
+      );
+      await _writePackageManifest(environment.workingDirectory);
+      await _writeFlutterPackage(environment.workingDirectory);
+      await _writeFlutterExample(
+        Directory('${environment.workingDirectory.path}/example'),
+      );
+      await _writeWorkflowOhosProject(
+        Directory('${environment.workingDirectory.path}/example'),
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: workflowEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          ['run', '--platform', 'ohos', '--json'],
+          environment: workflowEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        1,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('ok', false));
+      final targets = report['targets'] as List<Object?>;
+      final target = targets.single as Map<String, Object?>;
+      final steps = target['steps'] as List<Object?>;
+      final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+        (step) => step['name'] == 'example-run-ohos',
+      );
+      expect(runStep, containsPair('status', 'failed'));
+      expect(runStep, containsPair('exitCode', 1));
+      final diagnostics = runStep['diagnostics'] as List<Object?>;
+      final diagnostic = diagnostics.single as Map<String, Object?>;
+      expect(diagnostic, containsPair('code', 'ohos.hdc_connection_failed'));
+      expect(
+        diagnostic,
+        containsPair('nextCommand', 'fluoh doctor --platform ohos --json'),
+      );
+      final details = diagnostic['details'] as Map<String, Object?>;
+      expect(details, containsPair('command', 'hdc list targets'));
+      expect(details, containsPair('exitCode', 1));
+      expect(details, containsPair('rawExitCode', 0));
+      expect(details, containsPair('stderr', 'Connect server failed\n'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('package OHOS run treats hdc install stderr failure as failed', () async {
+    final environment = await createTestEnvironment();
+    final hdcLog = File('${environment.homeDirectory.path}/hdc.log');
+    final devEco = await _writeWorkflowDevEcoFixture(
+      environment.homeDirectory,
+      hdcLog: hdcLog,
+      hdcInstallExitCode: 0,
+      hdcInstallStderr: 'Connect server failed\n',
+    );
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterSideEffects: const {
+        'build hap --debug':
+            'mkdir -p build/ohos/hap\nprintf "hap" > build/ohos/hap/entry-default-signed.hap',
+      },
+    );
+    final workflowEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_DEVECO_STUDIO': devEco.path,
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await _writeWorkflowOhosProject(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: workflowEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['run', '--platform', 'ohos', '--json'],
+        environment: workflowEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
+    final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-run-ohos',
+    );
+    expect(runStep, containsPair('status', 'failed'));
+    expect(runStep, containsPair('exitCode', 1));
+    final diagnostics = runStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'ohos.hdc_connection_failed'));
+    expect(
+      diagnostic,
+      containsPair('nextCommand', 'fluoh doctor --platform ohos --json'),
+    );
+    final details = diagnostic['details'] as Map<String, Object?>;
+    expect(details['command'], contains('hdc -t emulator-5554 install -r'));
+    expect(details, containsPair('targetId', 'emulator-5554'));
+    expect(details, containsPair('exitCode', 1));
+    expect(details, containsPair('rawExitCode', 0));
+    expect(details, containsPair('stderr', 'Connect server failed\n'));
+    expect(stderr, isEmpty);
+  });
+
+  test('package OHOS run exposes structured launch evidence', () async {
+    final environment = await createTestEnvironment();
+    final hdcLog = File('${environment.homeDirectory.path}/hdc.log');
+    final devEco = await _writeWorkflowDevEcoFixture(
+      environment.homeDirectory,
+      hdcLog: hdcLog,
+      hdcInstallExitCode: 0,
+      hdcLaunchExitCode: 0,
+    );
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterSideEffects: const {
+        'build hap --debug':
+            'mkdir -p build/ohos/hap\nprintf "hap" > build/ohos/hap/entry-default-signed.hap',
+      },
+    );
+    final workflowEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_DEVECO_STUDIO': devEco.path,
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await _writeWorkflowOhosProject(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: workflowEnvironment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['run', '--platform', 'ohos', '--log-duration', '0', '--json'],
+        environment: workflowEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
+    final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-run-ohos',
+    );
+    expect(runStep, containsPair('status', 'passed'));
+    expect(runStep, containsPair('exitCode', 0));
+    final details = runStep['details'] as Map<String, Object?>;
+    expect(details, containsPair('targetId', 'emulator-5554'));
+    expect(details, isNot(contains('findings')));
+    final launchInfo = details['launchInfo'] as Map<String, Object?>;
+    expect(launchInfo, containsPair('bundleName', 'com.example.camera'));
+    expect(launchInfo, containsPair('moduleName', 'entry'));
+    expect(launchInfo, containsPair('abilityName', 'EntryAbility'));
+    expect(stderr, isEmpty);
+  });
 
   test('package OHOS run failure preserves auto emulator next command', () async {
     final environment = await createTestEnvironment();
@@ -1525,6 +1852,182 @@ Failed to update packages.
     expect(stderr, isEmpty);
   });
 
+  test('project run executes Flutter integration tests', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+        'run -d emulator-5554 --debug --no-pub':
+            'Flutter run key commands.\\nApplication running.',
+      },
+    );
+    await writeFlutterProjectFixture(environment.workingDirectory);
+    await _writeProjectSdkConfig(environment.workingDirectory);
+    await Directory(
+      '${environment.workingDirectory.path}/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/integration_test/app_test.dart',
+    ).writeAsString('void main() {}\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['run', '--platform', 'android', '--device', 'emulator-5554', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    final invocations = File(
+      '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+    ).readAsStringSync();
+    expect(
+      invocations,
+      contains('$root::flutter run -d emulator-5554 --debug --no-pub'),
+    );
+    expect(
+      invocations,
+      contains('$root::flutter test integration_test -d emulator-5554'),
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    expect(target, containsPair('phase', 'run-android'));
+    final steps = target['steps'] as List<Object?>;
+    expect(
+      steps,
+      contains(
+        allOf(
+          containsPair('name', 'project-integration-android'),
+          containsPair(
+            'command',
+            'flutter test integration_test -d emulator-5554',
+          ),
+          containsPair('status', 'passed'),
+        ),
+      ),
+    );
+    final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'project-integration-android',
+    );
+    final details = integrationStep['details'] as Map<String, Object?>;
+    final evidence = details['interactionEvidence'] as Map<String, Object?>;
+    expect(evidence, containsPair('method', 'integration_test'));
+    expect(evidence, containsPair('status', 'passed'));
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'project run integration test failure preserves device next command',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createWorkflowSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterStdout: const {
+          'devices --machine':
+              '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+          'run -d emulator-5554 --debug --no-pub':
+              'Flutter run key commands.\\nApplication running.',
+        },
+        flutterFailures: const {'test integration_test -d emulator-5554': 9},
+      );
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      await _writeProjectSdkConfig(environment.workingDirectory);
+      await Directory(
+        '${environment.workingDirectory.path}/integration_test',
+      ).create(recursive: true);
+      await File(
+        '${environment.workingDirectory.path}/integration_test/app_test.dart',
+      ).writeAsString('void main() {}\n');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'add', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          [
+            'run',
+            '--platform',
+            'android',
+            '--device',
+            'emulator-5554',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        9,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('ok', false));
+      final targets = report['targets'] as List<Object?>;
+      final target = targets.single as Map<String, Object?>;
+      expect(
+        target,
+        containsPair(
+          'nextCommand',
+          'fluoh run --platform android --device emulator-5554 --json',
+        ),
+      );
+      final steps = target['steps'] as List<Object?>;
+      final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
+        (step) => step['name'] == 'project-integration-android',
+      );
+      expect(integrationStep, containsPair('status', 'failed'));
+      expect(
+        integrationStep,
+        containsPair(
+          'nextCommand',
+          'fluoh run --platform android --device emulator-5554 --json',
+        ),
+      );
+      final diagnostics = integrationStep['diagnostics'] as List<Object?>;
+      final diagnostic = diagnostics.single as Map<String, Object?>;
+      expect(
+        diagnostic,
+        containsPair('code', 'android.integration_test_failed'),
+      );
+      expect(
+        diagnostic,
+        containsPair(
+          'nextCommand',
+          'fluoh run --platform android --device emulator-5554 --json',
+        ),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
   test('project run starts requested emulator before selecting device', () async {
     final environment = await createTestEnvironment();
     final androidSdk = await _writeAndroidSdkFixture(
@@ -2258,6 +2761,97 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('package run integration test failure preserves device next command', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+        'run -d emulator-5554 --debug --no-pub':
+            'Flutter run key commands.\\nApplication running.',
+      },
+      flutterFailures: const {'test integration_test -d emulator-5554': 9},
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await Directory(
+      '${environment.workingDirectory.path}/example/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
+    ).writeAsString('void main() {}\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'run',
+          '--platform',
+          'android',
+          '--package',
+          'camera',
+          '--device',
+          'emulator-5554',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      9,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    expect(
+      target,
+      containsPair(
+        'nextCommand',
+        'fluoh run --platform android --package camera --device emulator-5554 --json',
+      ),
+    );
+    final steps = target['steps'] as List<Object?>;
+    final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-integration-android',
+    );
+    expect(integrationStep, containsPair('status', 'failed'));
+    expect(
+      integrationStep,
+      containsPair(
+        'nextCommand',
+        'fluoh run --platform android --package camera --device emulator-5554 --json',
+      ),
+    );
+    final diagnostics = integrationStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'android.integration_test_failed'));
+    expect(
+      diagnostic,
+      containsPair(
+        'nextCommand',
+        'fluoh run --platform android --package camera --device emulator-5554 --json',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('web package run skips integration tests on web-server target', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
@@ -2520,6 +3114,84 @@ void main() {
       expect(stderr, isEmpty);
     },
   );
+
+  test('package run skips empty integration_test directory', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+        'run -d emulator-5554 --debug --no-pub':
+            'Flutter run key commands.\\nApplication running.',
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    await Directory(
+      '${environment.workingDirectory.path}/example/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/example/integration_test/README.md',
+    ).writeAsString('# Integration notes\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['run', '--platform', 'android', '--device', 'emulator-5554', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final root = await environment.workingDirectory.resolveSymbolicLinks();
+    final invocations = File(
+      '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+    ).readAsStringSync();
+    expect(
+      invocations,
+      contains('$root/example::flutter run -d emulator-5554 --debug --no-pub'),
+    );
+    expect(
+      invocations,
+      isNot(contains('$root/example::flutter test integration_test -d')),
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
+    final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-integration-android',
+    );
+    expect(integrationStep, containsPair('status', 'skipped'));
+    expect(
+      integrationStep,
+      containsPair('reason', 'no integration test files'),
+    );
+    final details = integrationStep['details'] as Map<String, Object?>;
+    final evidence = details['interactionEvidence'] as Map<String, Object?>;
+    expect(evidence, containsPair('status', 'not-present'));
+    expect(evidence, containsPair('reason', 'no integration test files'));
+    expect(stderr, isEmpty);
+  });
 
   test(
     'android emulator preset starts requested emulator instead of connected device',
@@ -3493,6 +4165,15 @@ Future<Directory> _writeWorkflowDevEcoFixture(
   Directory root, {
   required File hdcLog,
   String targets = 'emulator-5554\n',
+  int hdcListTargetsExitCode = 0,
+  String hdcListTargetsStderr = '',
+  int hdcInstallExitCode = 1,
+  String hdcInstallStdout = '',
+  String hdcInstallStderr = '',
+  int hdcLaunchExitCode = 1,
+  String hdcLaunchStdout = '',
+  String hdcLaunchStderr = '',
+  String hdcHilogStdout = '',
 }) async {
   final devEco = Directory('${root.path}/DevEco-Studio.app');
   final openHarmony = Directory(
@@ -3562,6 +4243,15 @@ import sys
 
 log_path = ${jsonEncode(hdcLog.path)}
 targets = ${jsonEncode(targets)}
+list_targets_exit_code = $hdcListTargetsExitCode
+list_targets_stderr = ${jsonEncode(hdcListTargetsStderr)}
+install_exit_code = $hdcInstallExitCode
+install_stdout = ${jsonEncode(hdcInstallStdout)}
+install_stderr = ${jsonEncode(hdcInstallStderr)}
+launch_exit_code = $hdcLaunchExitCode
+launch_stdout = ${jsonEncode(hdcLaunchStdout)}
+launch_stderr = ${jsonEncode(hdcLaunchStderr)}
+hilog_stdout = ${jsonEncode(hdcHilogStdout)}
 args = sys.argv[1:]
 
 with open(log_path, "a", encoding="utf-8") as log:
@@ -3569,6 +4259,21 @@ with open(log_path, "a", encoding="utf-8") as log:
 
 if len(args) >= 2 and args[0] == "list" and args[1] == "targets":
     sys.stdout.write(targets)
+    sys.stderr.write(list_targets_stderr)
+    raise SystemExit(list_targets_exit_code)
+
+if "install" in args:
+    sys.stdout.write(install_stdout)
+    sys.stderr.write(install_stderr)
+    raise SystemExit(install_exit_code)
+
+if "aa" in args and "start" in args:
+    sys.stdout.write(launch_stdout)
+    sys.stderr.write(launch_stderr)
+    raise SystemExit(launch_exit_code)
+
+if args and args[-1] == "hilog":
+    sys.stdout.write(hilog_stdout)
     raise SystemExit(0)
 
 raise SystemExit(1)

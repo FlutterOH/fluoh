@@ -481,7 +481,8 @@ Package path 且遗漏 `--repository-name` 时，usage error 会根据 path 给�
 本地 Git `user.name` 和 `user.email`，供后续适配 commit 使用，不写入被跟踪文件。
 `--org` 用于覆盖给已有 example 新增 OHOS 平台时传给 `flutter create` 的 organization；
 不传时，fluoh 会从现有 Android、iOS 或 macOS example 元数据中推断。`--plan` 会把 upstream clone 到临时目录，解析所选 Package、SDK、输出路径、repository
-URL、目标分支和 Git author，然后删除临时 clone；它不会创建目标仓库、配置 SDK link、
+URL、目标分支和 Git author；临时 clone 会优先使用默认分支 shallow clone 加 shallow
+tag fetch 来选择 release tag，只在需要时回退到 partial 或 full clone。解析完成后会删除临时 clone；它不会创建目标仓库、配置 SDK link、
 写文件、stage 文件或 commit。`--json` 只支持和 `--plan` 一起使用，并输出一个机器可读
 plan 对象，供 AI setup 确认使用。plan 对象包含 `warnings[]`；AI setup 在创建仓库前必须
 检查它。例如 `package.dart_sdk_incompatible` 会报告所选 upstream Package 需要更高 Dart
@@ -489,18 +490,33 @@ SDK，并在可用时给出当前 SDK 兼容的最新 upstream tag，作为诊�
 upstream target，把 package pubspec、example 配置和 Dart 代码适配到当前选择的 FlutterOH
 SDK，然后重新 verify。已知当前 Dart SDK 版本时，JSON warning 会包含
 `policy.suggestedEnvironmentSdkConstraint`。只有维护者明确批准旧 upstream baseline 时，才能使用
-较旧 tag。
+较旧 tag。`package.default_branch_version_unreleased` 表示默认分支声明的 Package
+版本不同于当前选中的最新 release tag；warning 会记录选中的 release ref/version 和默认
+分支版本。AI setup 默认继续使用选中的 release tag，只有维护者明确批准适配未发布的默认分支
+快照时，才使用 `--upstream-ref <branch>`。所选 Package 如果是带 `default_package` 声明、但没有 OHOS 平台的
+federated app-facing plugin，plan 还会包含 `implementationRecommendation`：
+Source 路由仍指向 app-facing Package，同时说明 `<package>_ohos` 实现 Package
+以及需要修改的 app-facing pubspec 条目。
 
-`fluoh package discover <upstream> --json` 会把 upstream 仓库 clone 到临时目录，
+`fluoh package discover <upstream> --json` 会把 upstream 仓库 shallow clone 到临时目录，
 扫描非 example 的 `pubspec.yaml`，并报告 `flutter.plugin.platforms` 未声明
 `ohos` 的 Flutter plugin Package。它是只读命令，不会创建 Package 仓库、配置
 remote、checkout 分支或写入项目文件。JSON 输出包含筛选条件、已检查 pubspec
-数量、有效 Flutter plugin 数量、候选 Package 名称、路径、版本、已声明平台、缺失平台、
-每个候选的 `createCommand`、多 Package 的 `queueCommand`，以及非致命
-`issues[]`。当 AI 或维护者拿到 monorepo upstream URL 但没有明确 package path
-时，先用它列出简短候选，再运行 `package create`。传
-`--include-existing-platform` 可以把已经声明目标平台的 Flutter plugin 也列出；
-`--missing-platform` 默认是 `ohos`。
+数量、有效 Flutter plugin 数量、候选和推荐数量、候选 Package 名称、路径、版本、已声明平台、缺失平台、
+federated `default_package` 声明、每个候选的 `createCommand`，当 app-facing
+plugin 应新增 `<package>_ohos` 这类平台实现 Package 时给出的
+`implementationRecommendation`、多 Package 的 `queueCommand`，以及非致命
+`issues[]`。默认 `queueCommand` 只包含推荐候选；被 app-facing Package
+的 `default_package` 引用，或属于同一 federated family（例如
+`<package>_android`）的 Android、iOS、Web、Linux、macOS、Windows
+现有实现 Package 仍会显示，但会标记为
+`covered_by_federated_app_facing_package` 并带有
+`coveredByImplementationRecommendations[]`。测试 fixture plugin 和平台辅助 plugin
+也会作为上下文保留，并带有 `test_fixture` 或
+`platform_specific_helper` 等 role，但不会进入默认队列。当 AI 或维护者拿到
+monorepo upstream URL 但没有明确 package path 时，先用它列出简短候选，再运行
+`package create`。传 `--include-existing-platform` 可以把已经声明目标平台的 Flutter plugin
+也列出；`--missing-platform` 默认是 `ohos`。
 
 `fluoh package queue <package-path>... --json` 会在现有 FlutterOH Package 仓库中解析只读
 多 Package 队列。它会拉取 upstream refs，但保持当前分支不变，并为每个 Package 输出名称、
@@ -543,7 +559,9 @@ JSON diagnostic 会包含裁剪后的 stdout 和 stderr 尾部。
 `fluoh verify` 会为当前项目或 Package `fluoh.yaml` 中记录的当前 Package 运行自动化验证。它会先用已选择 SDK 执行 `pub get` 和 `analyze`：Flutter Package 使用
 `flutter`，非 Flutter Package 使用 `dart`；如果存在 `test/**/*_test.dart`，继续运行测试。
 在 Package 仓库中，如果存在顶层 Flutter example（`example/pubspec.yaml`），也会验证
-example。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支。
+example。当发现 `integration_test/` 时，`verify` 会记录 skipped discovery step，并给出后续平台化
+`fluoh run ... --json` 命令；这只是采集设备证据的提示，不代表交互证据已通过。
+使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支。
 `--json` 会在 `targets` 下输出每个项目或 Package 的目标身份、phase、steps、diagnostics 和
 `nextCommand`。使用 `--trace` 会在 `.fluoh/traces/` 下写入本地 AI diagnostic trace；
 选择到单个 Package 时默认写入 `.fluoh/traces/<package>/<trace-id>/trace.json`，
@@ -566,9 +584,11 @@ Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_fail
 
 `fluoh run --platform ohos|android|ios|macos|linux|web|windows` 会构建、安装、启动并诊断当前项目或所选 Package
 example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
-hilog，并通过 JSON diagnostics 报告运行时 crash。Android、iOS、macOS、Linux、Web 和 Windows Package example 会通过已选择
-SDK 的 `flutter run` 启动，把 run-smoke 输出保存到 `$FLUOH_HOME/cache/package-runs`，并在 example
-存在 `integration_test/` 目录时继续运行 `flutter test integration_test -d <device>`。如果
+hilog，并通过 JSON diagnostics 报告运行时 crash 或 Flutter channel 运行时错误。Android、iOS、macOS、Linux、Web 和 Windows 当前项目与
+Package example 会通过已选择 SDK 的 `flutter run` 启动，把 run-smoke 输出保存到
+`$FLUOH_HOME/cache/package-runs`，并在存在 `integration_test/` 且有具体 target 时继续运行
+`flutter test integration_test -d <device>`。Web 的 `web-server` target 会跳过 integration tests，
+并提示改用 Chrome 等浏览器设备。如果
 `flutter run` 输出 VM Service 或 debug service URI，`--json` 会在 run step 的
 `details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS、macOS、Linux、Web 或 Windows run
 可以传 `--session-file <path>`，在 App 仍运行时写入实时 `flutterRunSession` JSON 文件；
@@ -582,13 +602,12 @@ emulator/simulator 并且只在没有模拟器时回退到已连接真机，则�
 除非已传 `--auto-emulator` 或 `--emulator`；同时给出 target 选择建议：自动化证据优先使用本地
 DevEco 模拟器；只有没有模拟器时才使用已连接真机。若本地有多个 OHOS 模拟器且能识别 API 信息，
 diagnostic 会建议最低和最高 API 版本都测一遍。
-Android、iOS、macOS、Linux、Web 和 Windows 当前项目 run 也会使用同一套 Flutter device 发现、平台筛选、run-smoke
-超时和输出日志保存逻辑，但不会运行 Package example 的 integration tests。
-
 run-smoke 成功只表示 App 已启动。需要点击 UI、处理权限弹窗、选择文件、调用相机、定位、
 播放媒体、deep link 或外部 App 的 Package 流程，必须有功能场景证据：优先用平台 runner 支持的
 `integration_test/`，否则用 AI 在 emulator 或真机上执行交互。没有写成 `integration_test`
-的流程，把场景记录到 `.fluoh/scenarios/<package>/<platform>-<name>.md`；AI driver 按场景操作
+的流程，把场景记录到 `.fluoh/scenarios/<package>/<platform>-<name>.md`；如果必须由用户在设备或模拟器上操作，
+报告中应记录为 `manual-assisted`，并且只有在 fluoh 可读取的日志、session 状态、稳定文本、语义标签、
+test key 或 App 日志标记确认结果后，才能标记为 passed。AI driver 按场景操作
 目标设备或 UI 工具，并把步骤结果写入 `.fluoh/reports/<scope>/ai-report-...md`。OHOS 的 `fluoh run` 目前会构建、
 签名、安装、启动并采集 hilog，但不会自动遍历 example 页面或点击按钮；需要记录已验证的功能路径、
 预期结果、实际结果、设备 id、可用的 Flutter debug 或 VM service 输出、组件树状态、语义树或
@@ -612,14 +631,19 @@ Package example 则在可判断时继续使用更细的安装、启动、runtime
 设置发布状态。`compatible` 会移除 status 字段，因为 compatible 是默认状态。
 `--bump` 和 `--set` 互斥。`--dry-run` 只打印计划不写入，`--json` 输出机器可读结果。
 
-`fluoh package docs refresh` 根据当前 Package `fluoh.yaml` 重新生成
-`FLUOH.md` 和 `AGENTS.md` 中 fluoh 拥有的生成段。生成段使用包含稳定 section id
-和 template version 的 `fluoh:generated` marker，因此后续模板升级只会替换被工具拥有的段落，
+`fluoh package docs refresh` 根据当前 Package `fluoh.yaml` 和当前 checkout 中的
+Package pubspec 重新生成 `FLUOH.md` 和 `AGENTS.md` 中 fluoh 拥有的生成段。
+当所选 Package 是带 `default_package` 声明、但没有 OHOS 平台的 federated
+app-facing plugin 时，refresh 会重新推导与 `package create` 相同的 `<package>_ohos`
+实现 Package 路线，因此旧的生成仓库在工具升级后也能获得当前 AI 指引。生成段使用包含稳定
+section id 和 template version 的 `fluoh:generated` marker，因此后续模板升级只会替换被工具拥有的段落，
 保留手写内容。已有非空 `FLUOH_CHANGELOG.md` 不会被整体重写；如果 changelog 缺失或为空，
 命令会根据当前 Package metadata 创建带 TODO 占位条目的初始 release heading，发布前必须替换为
 真实 release notes。`--dry-run` 只报告会变化的文件，不要求干净工作树。实际写入要求当前分支匹配
 `fluoh.yaml` 记录的 Package 分支且工作树干净，不会 stage 文件，也不会修改 `fluoh.yaml`。
-`--json` 输出 `changed`、`applied`、`files` 和 `dryRun`。
+`--allow-dirty` 会显式允许在尚未形成干净 checkpoint 前写入生成文档，例如刚执行完
+`package create` 后；它仍只写计划中的生成文档文件，且不会 stage。`--json` 输出
+`changed`、`applied`、`files`、`dryRun` 和 `allowDirty`。
 
 `fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送
@@ -639,8 +663,11 @@ tag。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前
 `fluoh package status` 读取 Package `fluoh.yaml` 并汇总发布就绪状态，不修改仓库。它会检查
 当前分支、工作树是否干净、package status、release notes、license warning、Package 测试、
 Flutter example、example OHOS 平台、example 测试，以及 tracked 文件是否包含本机 fluoh home
-路径。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前分支，`--json`
-输出机器可读结果。
+路径。对于已有 `default_package` 声明但没有 OHOS 平台的 federated app-facing plugin，
+它也会为缺失的 `<package>_ohos` 实现 Package、`ohos.default_package` 和依赖路径报告
+readiness blocker。如果已经声明了 `ohos.default_package`，status 还会校验 app-facing
+Package 是否依赖该 default package，以及实现 Package 是否存在并声明 OHOS。使用
+`--package <name>` 可校验请求的 Package 名是否匹配当前分支，`--json` 输出机器可读结果。
 
 ## 状态归属
 

@@ -295,6 +295,149 @@ Old generated agent guidance.
   });
 
   test(
+    'refresh adds federated implementation route from current checkout',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      await File('${packageRepository.path}/pubspec.yaml').writeAsString('''
+name: camera
+version: 0.11.0
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera_android: ^1.0.0
+  camera_ios: ^1.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        default_package: camera_android
+      ios:
+        default_package: camera_ios
+''');
+      await File('${packageRepository.path}/FLUOH.md').writeAsString('''
+# Local Notes
+
+<!-- fluoh:generated:start id=package-implementation-guide template=1 -->
+# Legacy Generated Guidance
+<!-- fluoh:generated:end id=package-implementation-guide -->
+''');
+      await runGit(packageRepository, ['add', 'pubspec.yaml', 'FLUOH.md']);
+      await runGit(packageRepository, [
+        'commit',
+        '-m',
+        'Add legacy federated docs',
+      ]);
+      final stdout = <String>[];
+      final stderr = <String>[];
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+
+      final result = await runFluoh(
+        ['package', 'docs', 'refresh'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(result, 0);
+      final guide = File(
+        '${packageRepository.path}/FLUOH.md',
+      ).readAsStringSync();
+      expect(guide, contains('## Federated Implementation Route'));
+      expect(
+        guide,
+        contains(
+          'Create the OHOS implementation package `camera_ohos` at `camera_ohos`',
+        ),
+      );
+      expect(guide, contains('Add `ohos.default_package: camera_ohos`'));
+      expect(
+        guide,
+        contains(
+          'Add dependency `camera_ohos` with relative path `camera_ohos`',
+        ),
+      );
+      expect(stdout, contains('Refreshed package docs'));
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('refresh can allow a dirty worktree explicitly', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final manifest = File('${packageRepository.path}/fluoh.yaml');
+    await manifest.writeAsString(
+      manifest.readAsStringSync().replaceFirst(
+        '    upstream:\n      version: 0.11.0',
+        '    upstream:\n      version: 0.11.1',
+      ),
+    );
+    await runGit(packageRepository, ['add', 'fluoh.yaml']);
+    await runGit(packageRepository, [
+      'commit',
+      '-m',
+      'Update upstream version',
+    ]);
+    await File(
+      '${packageRepository.path}/LOCAL_NOTES.md',
+    ).writeAsString('local notes\n');
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final defaultStdout = <String>[];
+    final defaultStderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'docs', 'refresh'],
+        environment: packageEnvironment,
+        stdout: defaultStdout.add,
+        stderr: defaultStderr.add,
+      ),
+      64,
+    );
+    expect(
+      [...defaultStdout, ...defaultStderr].join('\n'),
+      contains('Package docs refresh requires a clean working tree.'),
+    );
+
+    final stdout = <String>[];
+    final stderr = <String>[];
+    expect(
+      await runFluoh(
+        ['package', 'docs', 'refresh', '--allow-dirty', '--json'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('changed', true));
+    expect(report, containsPair('applied', true));
+    expect(report, containsPair('allowDirty', true));
+    expect(report['files'], contains('FLUOH.md'));
+    expect(
+      File('${packageRepository.path}/FLUOH.md').readAsStringSync(),
+      contains('- Upstream version: `0.11.1`'),
+    );
+    expect(File('${packageRepository.path}/LOCAL_NOTES.md').existsSync(), true);
+    expect(stderr, isEmpty);
+  });
+
+  test(
     'refresh updates generated docs after upstream version changes',
     () async {
       final environment = await createTestEnvironment();

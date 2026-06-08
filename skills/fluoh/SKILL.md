@@ -99,6 +99,12 @@ Then:
    Record the resolved values in progress output and the report. Prefer
    `fluoh package create <upstream> --repository-name <repository-name> --plan
    --json` to generate the final setup confirmation payload before any writes.
+   When the plan contains `implementationRecommendation`, present it in the
+   final setup confirmation and use it as the preferred federated path: keep the
+   Source route on the app-facing package, create the recommended
+   `<package>_ohos` implementation package, add the missing platform
+   `default_package` entry, and add the implementation dependency with the
+   recommended relative path.
    Inspect `plan.warnings[]` before creating the repository; for
    `package.dart_sdk_incompatible`, keep the selected latest upstream target by
    default and adapt the package to the selected FlutterOH SDK. Start by
@@ -108,7 +114,10 @@ Then:
    `policy.suggestedEnvironmentSdkConstraint` when present as the first
    pubspec constraint candidate. Treat `latestCompatible` as informational
    only; do not pass it with `--upstream-version` unless the maintainer
-   explicitly approves an older upstream baseline.
+   explicitly approves an older upstream baseline. For
+   `package.default_branch_version_unreleased`, keep the selected release tag
+   by default; pass `--upstream-ref <branch>` only when the maintainer
+   explicitly approves adapting the unreleased default-branch snapshot.
    For example OHOS scaffolding, omit `--org` by default so fluoh can infer the
    organization from existing Android, iOS, or macOS example metadata; pass
    `--org <organization>` only when the user, upstream docs, or a previous
@@ -117,11 +126,21 @@ Then:
    name a package or `--package-path`, run
    `fluoh package discover <upstream> --json` before setup confirmation. Present
    the discovered Flutter plugin packages missing `ohos`, including package
-   names, paths, declared platforms, and `createCommand` values, and wait for
-   the user to choose the package path. If discovery returns no candidates, ask
-   for an explicit package path or report that no Flutter plugin missing `ohos`
-   was found. Do not treat an omitted package path as authorization to adapt
-   every package in a monorepo.
+   names, paths, declared platforms, and `createCommand` values. When a
+   candidate contains `implementationRecommendation`, present it as the
+   preferred federated path: create the recommended platform implementation
+   package, add the missing platform `default_package` entry to the app-facing
+   package, and add the implementation dependency instead of treating the
+   app-facing package alone as the implementation target. Treat candidates with
+   `recommended: false` as context, not default adaptation choices, including
+   `covered_by_federated_app_facing_package`, `test_fixture`, and
+   `platform_specific_helper_package`; follow `recommended: true` and the
+   default `queueCommand` unless the user explicitly selects a context package.
+   Then wait for
+   the user to choose the package path or implementation recommendation. If
+   discovery returns no candidates, ask for an explicit package path or report
+   that no Flutter plugin missing `ohos` was found. Do not treat an omitted
+   package path as authorization to adapt every package in a monorepo.
 4. After CLI setup and read-only preflight, before making project, package, or
    Source file changes, local Git configuration changes, checkpoint commits, or
    implementation edits, present a final setup confirmation and wait for explicit user approval.
@@ -137,8 +156,12 @@ Then:
 5. Inspect preflight `upgradeChecks`. Stop for schema migration blockers. If
    package generated docs are stale, or preflight could not confirm them with
    dry-run, run `fluoh package docs refresh --dry-run`; then run
-   `fluoh package docs refresh` before implementation edits when the worktree is
-   clean and the task is not review-only.
+   the refresh command reported by preflight before implementation edits when
+   the task is not review-only. Prefer the normal
+   `fluoh package docs refresh` on a clean worktree; use
+   `fluoh package docs refresh --allow-dirty` only when preflight reports that
+   explicit dirty-refresh command, such as immediately after `package create`
+   has produced an uncommitted generated baseline.
 6. Create a package repository with
    `fluoh package create <upstream> --repository-name <repository-name>` only
    when the user provided an upstream Git URL, no package repository exists, and
@@ -255,9 +278,11 @@ Then:
    the plan command succeeded. For SDK warnings, continue by adapting package
    config and code to the selected FlutterOH SDK after setup is approved. Do
    not downgrade upstream versions to clear a warning unless the maintainer
-   explicitly approves an older baseline. Wait for explicit approval before
-   configuring local Git author, running mutating commands, or editing
-   implementation files.
+   explicitly approves an older baseline. For default-branch version warnings,
+   keep the selected release tag unless the maintainer explicitly approves
+   `--upstream-ref <branch>` for an unreleased snapshot. Wait for explicit
+   approval before configuring local Git author, running mutating commands, or
+   editing implementation files.
 5. After discovery or an explicit user choice, treat an omitted package path as
    root-package selection only; it never means "all packages" for monorepos.
    For monorepos, preserve one FlutterOH
@@ -294,8 +319,11 @@ Then:
      generated-doc refresh.
    - If `upgradeChecks.packageDocs.needsRefresh` is true, run
      `fluoh package docs refresh --dry-run`. In full adaptation requests,
-     run `fluoh package docs refresh` before code edits when the worktree is
-     clean; in review-only requests, report the refresh as a proposed change.
+     run the refresh command reported by preflight before code edits. Prefer
+     `fluoh package docs refresh` when the worktree is clean; use
+     `fluoh package docs refresh --allow-dirty` only when preflight suggests it
+     for a dirty generated baseline. In review-only requests, report the refresh
+     as a proposed change.
    - If `upgradeChecks.packageDocs.needsRefreshUnknown` is true, fix the
      reported dry-run failure and rerun `fluoh package docs refresh --dry-run`
      before assuming generated docs are current.
@@ -382,12 +410,18 @@ Use this loop when adapting a package or app to a release-ready state:
 
 1. Run preflight and pick exactly one package when selection is required.
 2. Run the suggested verify/build/run commands until diagnostics are clean or a
-   blocker is explicit.
+   blocker is explicit. Treat `fluoh verify` integration-test discovery steps as
+   runnable evidence prompts, not as passed interaction evidence; execute the
+   concrete platform `fluoh run ... --json` command to run `integration_test/`
+   where the platform runner supports it.
 3. For OHOS, record the `fluoh run --platform ohos ... --json` result as build,
-   signing, install, launch, hilog, and crash-diagnostic evidence. If the
-   package has an interactive flow, perform a separate AI-assisted scenario on
-   the target and record functional assertions from hilog, logs, accessible
-   text, semantic labels, stable status text, or other machine-readable output.
+   signing, install, launch, hilog, and crash-diagnostic evidence. If
+   `integration_test/` exists or the package has an interactive flow, ask the
+   user to complete the blocked device/emulator operation when fluoh cannot
+   automate it, then verify the result through hilog, logs, accessible text,
+   semantic labels, stable status text, test keys, or other machine-readable
+   output. Record this as `manual-assisted` interaction evidence, not as
+   automatic `integration_test` evidence.
 4. For Android, iOS, macOS, Linux, Web, and Windows, run with a live session file
    when an agent needs to inspect the running app:
 
@@ -399,8 +433,11 @@ Use this loop when adapting a package or app to a release-ready state:
      --expect-platform android --require-vm-service
    ```
 
-   Use the resulting `vmServiceUri`, output log, widget/component tree,
-   semantics tree, stable text, test keys, or log markers as primary evidence.
+   `fluoh run` automatically runs `flutter test integration_test -d <device>`
+   for current projects and package examples when an `integration_test/`
+   directory exists and the platform target supports it. Use the resulting
+   command row, `vmServiceUri`, output log, widget/component tree, semantics
+   tree, stable text, test keys, or log markers as primary evidence.
 5. Fill `.fluoh/reports/<package-or-scope>/ai-report-...md` with the exact
    commands, exit codes, platform matrix, scenario path, interaction evidence,
    remaining risks, and release recommendation.
@@ -518,11 +555,17 @@ to edit, when to fix local environment, and when work can be handed back.
    `fluoh flutter analyze`, and relevant existing package or example tests
    before adding OHOS code. Project warnings point to repository files;
    environment warnings point to local tool or Source setup.
-3. Implementation loop: after meaningful code or metadata changes, rerun
+3. Example parity planning: when an example exists, inspect the existing
+   Android, iOS, macOS, Linux, Web, Windows, and `integration_test/` flows
+   before editing OHOS. Treat them as the functional contract for the OHOS
+   example: keep equivalent entry points, labels, permissions, status text,
+   expected results, and failure hints unless the platform capability is truly
+   unavailable. Do not stop at adding an `ohos/` directory that only launches.
+4. Implementation loop: after meaningful code or metadata changes, rerun
    `fluoh deps get` when dependencies or SDK metadata changed, then use
    `fluoh verify --package <name> --json --trace-dir <trace-dir>` until pub
    get, analysis, and existing tests pass.
-4. OHOS verification: use
+5. OHOS verification: use
    `fluoh run --platform ohos --package <name> --auto-emulator --json
    --trace-dir <trace-dir>`, or add `--device <id>` for a connected hdc target.
    This proves build, signing, install, launch, and hilog diagnostics; it does
@@ -530,7 +573,7 @@ to edit, when to fix local environment, and when work can be handed back.
    started, use
    `fluoh build --platform ohos --package <name> --auto-sign --json --trace-dir
    <trace-dir>` as build-only evidence.
-5. Existing-platform regression: when `example/android` exists, run
+6. Existing-platform regression: when `example/android` exists, run
    `fluoh doctor --platform android --json --strict`, then
    `fluoh run --platform android --package <name> --auto-emulator --json`. For
    iOS, run `fluoh doctor --platform ios --json --strict`, then
@@ -547,7 +590,7 @@ to edit, when to fix local environment, and when work can be handed back.
    `fluoh build --platform linux --package <name> --json`, and
    `fluoh doctor --platform windows --json --strict` plus
    `fluoh build --platform windows --package <name> --json` on matching hosts.
-6. Interaction verification: for workflows that need UI taps, permission
+7. Interaction verification: for workflows that need UI taps, permission
    prompts, file pickers, camera, location, media, deep links, or external
    apps, run `integration_test/` when available. When deterministic tests do
    not exist, perform an AI-assisted functional pass on the emulator/device:
@@ -568,30 +611,36 @@ to edit, when to fix local environment, and when work can be handed back.
    inspect logs, or route a failure.
    Do not judge whether the UI looks right unless the package is specifically a
    visual package. Do not assume the AI agent can inspect screenshots;
-   screenshots and recordings are optional supporting evidence. Use manual
-   interaction only as a fallback when AI automation cannot operate or observe
-   the target.
-7. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
+   screenshots and recordings are optional supporting evidence. Use
+   manual-assisted interaction only as a fallback when AI automation cannot
+   operate or observe the target, and only mark it passed after tool-readable
+   evidence verifies the user-completed flow.
+8. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`,
    `stderrTail`, saved run logs, trace manifest `result`, and trace
    `feedbackCandidates` before editing. Fix `doctor` failures in local tooling,
    project warnings in repository configuration, and verification failures in
    the code or example that produced the diagnostic. During
-   `fluoh package sync --continue`, keep the target package pubspec version from
+   OHOS runs, treat `ohos.hdc_connection_failed`,
+   `ohos.hdc_targets_failed`, and `ohos.hdc_target_unavailable` as device-link
+   blockers: follow the diagnostic `nextCommand`, reconnect or restart hdc when
+   needed, then rerun the same `fluoh run --platform ohos ... --json` command
+   before attempting AI-assisted or manual-assisted interaction evidence.
+   For `fluoh package sync --continue`, keep the target package pubspec version from
    the selected upstream target; do not resolve conflicts by leaving the
    previous upstream version in place. If the interrupted sync used a non-tag
    `--upstream-ref`, pass the same ref again with `--continue` because fluoh
    cannot infer non-tag refs from `MERGE_HEAD`.
-8. Implementation checkpoint: once implementation, OHOS evidence, and applicable
+9. Implementation checkpoint: once implementation, OHOS evidence, and applicable
    existing-platform regression checks are clean or explicitly blocked, create a
    local implementation checkpoint commit. This clean worktree is required before
    `fluoh package version`, `fluoh package sync`, and `fluoh package check`.
-9. Release metadata checkpoint: run `fluoh package status --package <name>`,
+10. Release metadata checkpoint: run `fluoh package status --package <name>`,
    update release metadata with `fluoh package version --package <name>` when
    needed, update `FLUOH_CHANGELOG.md`, review `fluoh.yaml`, then create a local
    release metadata checkpoint commit. `fluoh package version` requires a clean
    worktree before it writes metadata, so do not leave implementation changes
    uncommitted before this step.
-10. Final report and release gate: rerun the final
+11. Final report and release gate: rerun the final
     `fluoh verify --package <name>`, write
     `.fluoh/reports/<package-or-scope>/ai-report-YYYYMMDD-HHMMSS.md`
     with commands, results, platform matrix, interaction evidence, diagnostics,
@@ -637,7 +686,7 @@ Rules:
   flow without knowing what the UI looks like.
 - Treat `fluoh run` launch success as smoke evidence. Release-ready interaction
   evidence must come from `integration_test`, AI-assisted scenario execution, or
-  an explicitly accepted manual fallback.
+  manual-assisted evidence with tool-readable verification.
 - AI-assisted scenarios must be usable without screenshot recognition. Prefer
   Flutter debug or VM service output, widget/component tree state,
   integration-test assertions, accessibility or semantics tree output, visible
@@ -754,9 +803,9 @@ For every `--json` command:
   first pubspec constraint candidate. Do not downgrade upstream unless
   maintainers explicitly approve an older baseline.
 - Treat `dart.pub_get_failed`, `dart.analysis_failed`, `dart.test_failed`,
-  platform build failures, install failures, launch failures, runtime crashes,
-  and integration-test failures as code or project issues only after the local
-  toolchain diagnostic is clean.
+  platform build failures, install failures, launch failures, runtime crashes
+  or Flutter channel runtime errors, and integration-test failures as code or
+  project issues only after the local toolchain diagnostic is clean.
 
 ## Completion Report
 

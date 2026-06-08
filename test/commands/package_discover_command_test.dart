@@ -34,6 +34,7 @@ void main() {
     expect(discovery['pubspecCount'], 4);
     expect(discovery['pluginPackageCount'], 2);
     expect(discovery['candidateCount'], 1);
+    expect(discovery['recommendedCount'], 1);
     expect(
       discovery['queueCommand'],
       'fluoh package queue packages/camera/camera --json',
@@ -51,6 +52,7 @@ void main() {
     expect(camera['version'], '0.11.0');
     expect(camera['sdkConstraint'], '^3.0.0');
     expect(camera['platforms'], ['android', 'ios']);
+    expect(camera['role'], 'flutter_plugin');
     expect(camera['missingPlatforms'], ['ohos']);
     expect(camera['recommended'], isTrue);
     expect(
@@ -69,6 +71,191 @@ void main() {
       issues.single,
       containsPair('code', 'pubspec.package_identity_missing'),
     );
+  });
+
+  test('recommends implementation package for federated app package', () async {
+    final environment = await createTestEnvironment();
+    final upstream = await _createFederatedDiscoveryRepository(
+      Directory('${environment.homeDirectory.path}/upstream_federated_plugins'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'discover', upstream.path, '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    final discovery = payload['discovery'] as Map<String, Object?>;
+    expect(discovery['candidateCount'], 4);
+    expect(discovery['recommendedCount'], 1);
+    expect(
+      discovery['queueCommand'],
+      'fluoh package queue packages/camera/camera --json',
+    );
+    final candidates = discovery['candidates'] as List<Object?>;
+    final candidateMaps = candidates.cast<Map<String, Object?>>();
+    final camera = candidateMaps.singleWhere(
+      (candidate) => candidate['name'] == 'camera',
+    );
+    expect(camera['name'], 'camera');
+    expect(camera['role'], 'app_facing_package');
+    expect(camera['platformDefaultPackages'], {
+      'android': 'camera_android',
+      'ios': 'camera_ios',
+    });
+
+    final recommendation =
+        camera['implementationRecommendation'] as Map<String, Object?>;
+    expect(recommendation['kind'], 'federated_platform_package');
+    expect(
+      recommendation['reason'],
+      'federated_plugin_missing_platform_package',
+    );
+    expect(recommendation['platform'], 'ohos');
+    expect(
+      recommendation['setupCommand'],
+      'fluoh package create ${upstream.path} --repository-name camera '
+      '--package-path packages/camera/camera',
+    );
+    expect(recommendation['sourceRoute'], {
+      'packageName': 'camera',
+      'packagePath': 'packages/camera/camera',
+    });
+    expect(recommendation['appFacingPackage'], 'camera');
+    expect(recommendation['appFacingPath'], 'packages/camera/camera');
+    expect(recommendation['implementationPackageName'], 'camera_ohos');
+    expect(
+      recommendation['implementationPackagePath'],
+      'packages/camera/camera_ohos',
+    );
+    expect(recommendation['implementationDependency'], {
+      'package': 'camera_ohos',
+      'path': '../camera_ohos',
+    });
+    expect(recommendation['existingDefaultPackages'], {
+      'android': 'camera_android',
+      'ios': 'camera_ios',
+    });
+    final requiredEdits = recommendation['requiredEdits'] as List<Object?>;
+    expect(
+      requiredEdits,
+      contains(containsPair('action', 'add_default_package')),
+    );
+    expect(
+      requiredEdits,
+      contains(containsPair('defaultPackage', 'camera_ohos')),
+    );
+    expect(requiredEdits, contains(containsPair('path', '../camera_ohos')));
+
+    final android = candidateMaps.singleWhere(
+      (candidate) => candidate['name'] == 'camera_android',
+    );
+    expect(android['role'], 'platform_specific_helper');
+    expect(android['recommended'], isFalse);
+    expect(android['reason'], 'covered_by_federated_app_facing_package');
+    expect(android['missingPlatforms'], ['ohos']);
+    final androidCoverage =
+        android['coveredByImplementationRecommendations'] as List<Object?>;
+    expect(androidCoverage.single, containsPair('kind', 'default_package'));
+    expect(androidCoverage.single, containsPair('appFacingPackage', 'camera'));
+    expect(
+      androidCoverage.single,
+      containsPair('referencedPlatforms', ['android']),
+    );
+    expect(
+      androidCoverage.single,
+      containsPair('recommendedImplementationPackage', 'camera_ohos'),
+    );
+
+    final ios = candidateMaps.singleWhere(
+      (candidate) => candidate['name'] == 'camera_ios',
+    );
+    expect(ios['recommended'], isFalse);
+    expect(ios['reason'], 'covered_by_federated_app_facing_package');
+    expect(
+      ios['coveredByImplementationRecommendations'],
+      contains(containsPair('referencedPlatforms', ['ios'])),
+    );
+
+    final windows = candidateMaps.singleWhere(
+      (candidate) => candidate['name'] == 'camera_windows',
+    );
+    expect(windows['role'], 'platform_specific_helper');
+    expect(windows['recommended'], isFalse);
+    expect(windows['reason'], 'covered_by_federated_app_facing_package');
+    final windowsCoverage =
+        windows['coveredByImplementationRecommendations'] as List<Object?>;
+    expect(
+      windowsCoverage.single,
+      containsPair('kind', 'federated_family_sibling'),
+    );
+    expect(
+      windowsCoverage.single,
+      containsPair('candidatePlatforms', ['windows']),
+    );
+    expect(
+      windowsCoverage.single,
+      containsPair('recommendedImplementationPackage', 'camera_ohos'),
+    );
+  });
+
+  test('does not recommend test fixtures or platform helper plugins', () async {
+    final environment = await createTestEnvironment();
+    final upstream = await _createDiscoveryRoleRepository(
+      Directory('${environment.homeDirectory.path}/upstream_role_plugins'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'discover', upstream.path, '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    final discovery = payload['discovery'] as Map<String, Object?>;
+    expect(discovery['candidateCount'], 3);
+    expect(discovery['recommendedCount'], 1);
+    expect(
+      discovery['queueCommand'],
+      'fluoh package queue packages/camera/camera --json',
+    );
+
+    final candidates = (discovery['candidates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final camera = candidates.singleWhere(
+      (candidate) => candidate['name'] == 'camera',
+    );
+    expect(camera['role'], 'flutter_plugin');
+    expect(camera['recommended'], isTrue);
+
+    final lifecycle = candidates.singleWhere(
+      (candidate) => candidate['name'] == 'flutter_plugin_android_lifecycle',
+    );
+    expect(lifecycle['role'], 'platform_specific_helper');
+    expect(lifecycle['recommended'], isFalse);
+    expect(lifecycle['reason'], 'platform_specific_helper_package');
+
+    final testPlugin = candidates.singleWhere(
+      (candidate) => candidate['name'] == 'test_plugin',
+    );
+    expect(testPlugin['role'], 'test_fixture');
+    expect(testPlugin['recommended'], isFalse);
+    expect(testPlugin['reason'], 'test_fixture');
   });
 
   test('can include plugin packages that already declare ohos', () async {
@@ -260,6 +447,88 @@ Future<Directory> _createBrokenDiscoveryRepository(Directory repo) async {
   return repo;
 }
 
+Future<Directory> _createFederatedDiscoveryRepository(Directory repo) async {
+  await repo.create(recursive: true);
+  await _runProcess('git', ['init', '--initial-branch=main'], repo);
+  await _runProcess('git', [
+    'config',
+    'user.email',
+    'fixture@example.com',
+  ], repo);
+  await _runProcess('git', ['config', 'user.name', 'Fixture'], repo);
+
+  await _writePackage(
+    repo,
+    path: 'packages/camera/camera',
+    name: 'camera',
+    version: '0.11.0',
+    pluginPlatforms: const ['android', 'ios'],
+    defaultPackages: const {'android': 'camera_android', 'ios': 'camera_ios'},
+  );
+  await _writePackage(
+    repo,
+    path: 'packages/camera/camera_android',
+    name: 'camera_android',
+    version: '0.11.0',
+    pluginPlatforms: const ['android'],
+  );
+  await _writePackage(
+    repo,
+    path: 'packages/camera/camera_ios',
+    name: 'camera_ios',
+    version: '0.11.0',
+    pluginPlatforms: const ['ios'],
+  );
+  await _writePackage(
+    repo,
+    path: 'packages/camera/camera_windows',
+    name: 'camera_windows',
+    version: '0.11.0',
+    pluginPlatforms: const ['windows'],
+  );
+  await File('${repo.path}/README.md').writeAsString('# federated plugins\n');
+  await _runProcess('git', ['add', '.'], repo);
+  await _runProcess('git', ['commit', '-m', 'Initial federated plugin'], repo);
+  return repo;
+}
+
+Future<Directory> _createDiscoveryRoleRepository(Directory repo) async {
+  await repo.create(recursive: true);
+  await _runProcess('git', ['init', '--initial-branch=main'], repo);
+  await _runProcess('git', [
+    'config',
+    'user.email',
+    'fixture@example.com',
+  ], repo);
+  await _runProcess('git', ['config', 'user.name', 'Fixture'], repo);
+
+  await _writePackage(
+    repo,
+    path: 'packages/camera/camera',
+    name: 'camera',
+    version: '0.11.0',
+    pluginPlatforms: const ['android', 'ios'],
+  );
+  await _writePackage(
+    repo,
+    path: 'packages/flutter_plugin_android_lifecycle',
+    name: 'flutter_plugin_android_lifecycle',
+    version: '2.0.0',
+    pluginPlatforms: const ['android'],
+  );
+  await _writePackage(
+    repo,
+    path: 'packages/pigeon/platform_tests/test_plugin',
+    name: 'test_plugin',
+    version: '1.0.0',
+    pluginPlatforms: const ['android', 'ios'],
+  );
+  await File('${repo.path}/README.md').writeAsString('# role plugins\n');
+  await _runProcess('git', ['add', '.'], repo);
+  await _runProcess('git', ['commit', '-m', 'Initial role plugins'], repo);
+  return repo;
+}
+
 Future<Directory> _createSpacedPathDiscoveryRepository(Directory repo) async {
   await repo.create(recursive: true);
   await _runProcess('git', ['init', '--initial-branch=main'], repo);
@@ -288,6 +557,7 @@ Future<void> _writePackage(
   required String name,
   required String version,
   required List<String>? pluginPlatforms,
+  Map<String, String> defaultPackages = const {},
 }) async {
   final directory = Directory('${repo.path}/$path');
   await Directory('${directory.path}/lib').create(recursive: true);
@@ -297,7 +567,7 @@ Future<void> _writePackage(
 
 flutter:
   plugin:
-${_platformsBlock(pluginPlatforms)}
+${_platformsBlock(pluginPlatforms, defaultPackages: defaultPackages)}
 ''';
   await File('${directory.path}/pubspec.yaml').writeAsString('''
 name: $name
@@ -329,12 +599,19 @@ flutter:
 ''');
 }
 
-String _platformsBlock(List<String> platforms) {
+String _platformsBlock(
+  List<String> platforms, {
+  Map<String, String> defaultPackages = const {},
+}) {
   final buffer = StringBuffer('    platforms:\n');
   for (final platform in platforms) {
-    buffer
-      ..writeln('      $platform:')
-      ..writeln('        pluginClass: ${platform}Plugin');
+    buffer.writeln('      $platform:');
+    final defaultPackage = defaultPackages[platform];
+    if (defaultPackage == null) {
+      buffer.writeln('        pluginClass: ${platform}Plugin');
+    } else {
+      buffer.writeln('        default_package: $defaultPackage');
+    }
   }
   return buffer.toString();
 }

@@ -89,7 +89,7 @@ class PackageDiscoverCommand extends FluohCommand<int> {
       if (!json) {
         output.step('Inspecting upstream repository');
       }
-      await runGit(['clone', '--quiet', upstream, scratchRepository.path]);
+      await _cloneUpstreamForDiscovery(upstream, scratchRepository);
       final discovery = await discoverPackageAdaptationCandidates(
         repository: scratchRepository,
         missingPlatform: missingPlatform,
@@ -140,6 +140,28 @@ class PackageDiscoverCommand extends FluohCommand<int> {
   }
 }
 
+Future<void> _cloneUpstreamForDiscovery(
+  String upstream,
+  Directory scratchRepository,
+) async {
+  final shallow = await runGit([
+    'clone',
+    '--quiet',
+    '--depth',
+    '1',
+    '--single-branch',
+    upstream,
+    scratchRepository.path,
+  ], allowFailure: true);
+  if (shallow.exitCode == 0) {
+    return;
+  }
+  if (await scratchRepository.exists()) {
+    await scratchRepository.delete(recursive: true);
+  }
+  await runGit(['clone', '--quiet', upstream, scratchRepository.path]);
+}
+
 String _missingPlatformFromOptions(ArgResults argResults) {
   final platform = argResults.option('missing-platform')?.trim();
   if (platform == null || platform.isEmpty) {
@@ -164,6 +186,12 @@ void _printDiscovery({
   );
   output.info('Pubspecs inspected: ${discovery.pubspecCount}');
   output.info('Valid Flutter plugins found: ${discovery.pluginPackageCount}');
+  final recommendedCandidates = discovery.recommendedCandidates(
+    missingPlatform,
+  );
+  output.info(
+    'Recommended adaptation entries: ${recommendedCandidates.length}',
+  );
   if (discovery.candidates.isEmpty) {
     output.info('No matching package candidates found.');
     _printDiscoveryIssues(output, discovery);
@@ -178,6 +206,10 @@ void _printDiscovery({
       TerminalTableColumn('Path', style: TerminalTableCellStyle.path),
       TerminalTableColumn('Version', style: TerminalTableCellStyle.muted),
       TerminalTableColumn('Platforms', style: TerminalTableCellStyle.muted),
+      TerminalTableColumn(
+        'Recommendation',
+        style: TerminalTableCellStyle.muted,
+      ),
     ],
     rows: [
       for (var i = 0; i < discovery.candidates.length; i += 1)
@@ -189,20 +221,82 @@ void _printDiscovery({
           discovery.candidates[i].platforms.isEmpty
               ? '-'
               : discovery.candidates[i].platforms.join(', '),
+          _recommendationLabel(discovery.candidates[i], missingPlatform),
         ],
     ],
   );
   output.blank();
-  output.next(
-    packageDiscoveryCreateCommand(
-      upstream: upstream,
-      candidate: discovery.candidates.first,
-    ),
-  );
-  if (discovery.candidates.length > 1) {
-    output.next(packageDiscoveryQueueCommand(discovery.candidates));
+  if (recommendedCandidates.isNotEmpty) {
+    output.next(
+      packageDiscoveryCreateCommand(
+        upstream: upstream,
+        candidate: recommendedCandidates.first,
+      ),
+    );
   }
+  if (recommendedCandidates.length > 1) {
+    output.next(packageDiscoveryQueueCommand(recommendedCandidates));
+  }
+  _printImplementationRecommendations(
+    output: output,
+    upstream: upstream,
+    missingPlatform: missingPlatform,
+    discovery: discovery,
+  );
   _printDiscoveryIssues(output, discovery);
+}
+
+String _recommendationLabel(
+  PackageDiscoveryCandidate candidate,
+  String missingPlatform,
+) {
+  if (candidate.isRecommendedFor(missingPlatform)) {
+    return 'recommended';
+  }
+  if (candidate.coveredByImplementationRecommendations.isNotEmpty) {
+    final appFacingPackages = candidate.coveredByImplementationRecommendations
+        .map((coverage) => coverage.appFacingPackage)
+        .toSet()
+        .join(', ');
+    return 'covered by $appFacingPackages';
+  }
+  final reason = candidate.defaultRecommendationExclusionReason;
+  if (reason == 'test_fixture') {
+    return 'test fixture';
+  }
+  if (reason == 'platform_specific_helper_package') {
+    return 'platform helper';
+  }
+  return 'already has $missingPlatform';
+}
+
+void _printImplementationRecommendations({
+  required TerminalOutput output,
+  required String upstream,
+  required String missingPlatform,
+  required PackageDiscovery discovery,
+}) {
+  var printed = false;
+  for (final candidate in discovery.candidates) {
+    final recommendation = candidate.implementationRecommendation(
+      missingPlatform,
+    );
+    if (recommendation == null) {
+      continue;
+    }
+    if (!printed) {
+      output.blank();
+      printed = true;
+    }
+    output.next(
+      'Start with '
+      '${packageDiscoveryCreateCommand(upstream: upstream, candidate: candidate)}, '
+      'then create ${recommendation.implementationPackageName} at '
+      '${recommendation.implementationPackagePath} and add '
+      '$missingPlatform.default_package to '
+      '${recommendation.appFacingPackage}.',
+    );
+  }
 }
 
 void _printDiscoveryIssues(TerminalOutput output, PackageDiscovery discovery) {

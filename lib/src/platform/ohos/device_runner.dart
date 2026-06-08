@@ -197,10 +197,19 @@ Future<List<OhosDeviceTarget>> listOhosDeviceTargets({
     usage: usage,
   );
   final result = await _runHdc(toolchain, const ['list', 'targets']);
+  if (_isHdcConnectionFailure(result)) {
+    throw OhosDeviceException(
+      'List OHOS device targets failed because hdc could not connect to its '
+      'server.\n${_trimOutput(result.stdout)}${_trimOutput(result.stderr)}',
+      code: 'ohos.hdc_connection_failed',
+      details: _hdcFailureDetails(command: 'hdc list targets', result: result),
+    );
+  }
   if (result.exitCode != 0) {
     throw OhosDeviceException(
       'List OHOS device targets failed with exit code ${result.exitCode}.\n'
       '${_trimOutput(result.stdout)}${_trimOutput(result.stderr)}',
+      details: _hdcFailureDetails(command: 'hdc list targets', result: result),
     );
   }
   return parseOhosDeviceTargets(result.stdout);
@@ -309,6 +318,22 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
     targets = await listOhosDeviceTargets(
       environment: environment,
       usage: usage,
+    );
+  } on OhosDeviceException catch (error) {
+    return OhosDeviceRunResult(
+      exitCode: 1,
+      targetId: null,
+      launchInfo: launchInfo,
+      logFile: null,
+      findings: const [],
+      diagnostics: [
+        OhosDeviceDiagnostic(
+          code: error.code ?? 'ohos.hdc_targets_failed',
+          message: 'Could not list OHOS device targets with hdc',
+          details: {'error': error.message, ...error.details},
+        ),
+      ],
+      reason: error.message,
     );
   } on Object catch (error) {
     return OhosDeviceRunResult(
@@ -439,27 +464,27 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
   }
 
   output.step('Installing ${haps.length} OHOS HAP file(s) on ${target.id}');
-  final install = await _runHdc(
-    toolchain,
-    _targeted(target.id, ['install', '-r', ...haps.map((file) => file.path)]),
-  );
-  if (install.exitCode != 0) {
+  final installArguments = _targeted(target.id, [
+    'install',
+    '-r',
+    ...haps.map((file) => file.path),
+  ]);
+  final install = await _runHdc(toolchain, installArguments);
+  if (_isHdcCommandFailure(install)) {
+    final effectiveExitCode = _effectiveHdcExitCode(install);
     return OhosDeviceRunResult(
-      exitCode: install.exitCode,
+      exitCode: effectiveExitCode,
       targetId: target.id,
       launchInfo: launchInfo,
       logFile: null,
       findings: const [],
       diagnostics: [
-        OhosDeviceDiagnostic(
-          code: 'ohos.install_failed',
-          message: 'OHOS HAP install failed',
-          details: {
-            'device': target.id,
-            'exitCode': install.exitCode,
-            if (install.stdout.trim().isNotEmpty) 'stdout': install.stdout,
-            if (install.stderr.trim().isNotEmpty) 'stderr': install.stderr,
-          },
+        _hdcFailureDiagnostic(
+          defaultCode: 'ohos.install_failed',
+          defaultMessage: 'OHOS HAP install failed',
+          command: 'hdc ${installArguments.join(' ')}',
+          targetId: target.id,
+          result: install,
         ),
       ],
       reason:
@@ -473,6 +498,12 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
   Future<int>? logExitCode;
   final logStreamDrains = <Future<void>>[];
   if (logDuration > Duration.zero) {
+    await _runHdcBestEffort(
+      toolchain,
+      _targeted(target.id, const ['hilog', '-r']),
+      workingDirectory: ohosDirectory.path,
+      timeout: const Duration(seconds: 2),
+    );
     logProcess = await io.Process.start(
       toolchain.hdc.path,
       _targeted(target.id, const ['hilog']),
@@ -497,20 +528,18 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
     'Launching ${launchInfo.bundleName}/${launchInfo.abilityName} on '
     '${target.id}',
   );
-  final launch = await _runHdc(
-    toolchain,
-    _targeted(target.id, [
-      'shell',
-      'aa',
-      'start',
-      '-d',
-      '0',
-      '-a',
-      launchInfo.abilityName,
-      '-b',
-      launchInfo.bundleName,
-    ]),
-  );
+  final launchArguments = _targeted(target.id, [
+    'shell',
+    'aa',
+    'start',
+    '-d',
+    '0',
+    '-a',
+    launchInfo.abilityName,
+    '-b',
+    launchInfo.bundleName,
+  ]);
+  final launch = await _runHdc(toolchain, launchArguments);
 
   if (logDuration > Duration.zero) {
     await Future<void>.delayed(logDuration);
@@ -526,24 +555,25 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
         )
       : null;
   final findings = classifyOhosRuntimeLog(logBuffer.toString());
-  if (launch.exitCode != 0) {
+  if (_isHdcCommandFailure(launch)) {
+    final effectiveExitCode = _effectiveHdcExitCode(launch);
     return OhosDeviceRunResult(
-      exitCode: launch.exitCode,
+      exitCode: effectiveExitCode,
       targetId: target.id,
       launchInfo: launchInfo,
       logFile: logFile,
       findings: findings,
       diagnostics: [
-        OhosDeviceDiagnostic(
-          code: 'ohos.launch_failed',
-          message: 'OHOS ability launch failed',
+        _hdcFailureDiagnostic(
+          defaultCode: 'ohos.launch_failed',
+          defaultMessage: 'OHOS ability launch failed',
+          command: 'hdc ${launchArguments.join(' ')}',
+          targetId: target.id,
+          result: launch,
           details: {
             'device': target.id,
             'bundleName': launchInfo.bundleName,
             'abilityName': launchInfo.abilityName,
-            'exitCode': launch.exitCode,
-            if (launch.stdout.trim().isNotEmpty) 'stdout': launch.stdout,
-            if (launch.stderr.trim().isNotEmpty) 'stderr': launch.stderr,
             if (logFile != null) 'hilog': logFile.path,
           },
         ),
@@ -563,7 +593,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
       diagnostics: [
         OhosDeviceDiagnostic(
           code: 'ohos.runtime_crash',
-          message: 'OHOS runtime crash patterns were found in hilog',
+          message: 'OHOS runtime error patterns were found in hilog',
           details: {
             'device': target.id,
             'bundleName': launchInfo.bundleName,
@@ -572,7 +602,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
           },
         ),
       ],
-      reason: 'OHOS runtime crash patterns were found in hilog',
+      reason: 'OHOS runtime error patterns were found in hilog',
     );
   }
 
@@ -648,6 +678,8 @@ bool _isOhosEmulatorTarget(OhosDeviceTarget target) {
   final id = target.id.toLowerCase();
   final details = target.details?.toLowerCase() ?? '';
   return id.startsWith('emulator-') ||
+      id.startsWith('127.0.0.1:') ||
+      id.startsWith('localhost:') ||
       id.contains('emulator') ||
       details.contains('emulator');
 }
@@ -986,7 +1018,8 @@ List<String> classifyOhosRuntimeLog(String log) {
   final seen = <String>{};
   final fatalPattern = RegExp(
     r'(FATAL EXCEPTION|Fatal signal|SIGSEGV|SIGABRT|Process crashed|'
-    r'app ?crash|CppCrash)',
+    r'app ?crash|CppCrash|MissingPluginException|No implementation found '
+    r'for method|MethodChannel#\s*-->\s*method not implemented)',
     caseSensitive: false,
   );
   for (final rawLine in const LineSplitter().convert(log)) {
@@ -1008,10 +1041,16 @@ List<String> classifyOhosRuntimeLog(String log) {
 /// Exception thrown for OHOS device and emulator failures.
 class OhosDeviceException implements Exception {
   /// Creates an OHOS device exception.
-  const OhosDeviceException(this.message);
+  const OhosDeviceException(this.message, {this.code, this.details = const {}});
 
   /// User-facing failure message.
   final String message;
+
+  /// Stable diagnostic code when the failure has a known machine meaning.
+  final String? code;
+
+  /// Additional machine-readable diagnostic details.
+  final Map<String, Object?> details;
 
   @override
   String toString() => message;
@@ -1120,6 +1159,120 @@ Future<OhosHdcResult> _runHdc(
     stdout: result.stdout.toString(),
     stderr: result.stderr.toString(),
   );
+}
+
+Future<void> _runHdcBestEffort(
+  OhosToolchain toolchain,
+  List<String> arguments, {
+  required Duration timeout,
+  String? workingDirectory,
+}) async {
+  io.Process? process;
+  final drains = <Future<void>>[];
+  try {
+    process = await io.Process.start(
+      toolchain.hdc.path,
+      arguments,
+      workingDirectory: workingDirectory,
+    );
+    drains
+      ..add(process.stdout.drain<void>())
+      ..add(process.stderr.drain<void>());
+    await process.exitCode.timeout(timeout);
+  } on TimeoutException {
+    process?.kill();
+  } on Object {
+    process?.kill();
+  } finally {
+    try {
+      await Future.wait(drains).timeout(const Duration(seconds: 1));
+    } on Object {
+      process?.kill();
+    }
+  }
+}
+
+bool _isHdcCommandFailure(OhosHdcResult result) {
+  return result.exitCode != 0 ||
+      _isHdcConnectionFailure(result) ||
+      _isHdcTargetUnavailable(result);
+}
+
+int _effectiveHdcExitCode(OhosHdcResult result) {
+  return result.exitCode == 0 && _isHdcCommandFailure(result)
+      ? 1
+      : result.exitCode;
+}
+
+bool _isHdcConnectionFailure(OhosHdcResult result) {
+  return _containsHdcOutputFragment(result, const [
+    'connect server failed',
+    'failed to connect hdc server',
+    'failed to connect to hdc server',
+    'connect hdc server failed',
+  ]);
+}
+
+bool _isHdcTargetUnavailable(OhosHdcResult result) {
+  return _containsHdcOutputFragment(result, const [
+    'not match target founded',
+    'not match target found',
+    'target offline',
+    'device offline',
+  ]);
+}
+
+bool _containsHdcOutputFragment(OhosHdcResult result, List<String> fragments) {
+  final output = '${result.stdout}\n${result.stderr}'.toLowerCase();
+  return fragments.any(output.contains);
+}
+
+OhosDeviceDiagnostic _hdcFailureDiagnostic({
+  required String defaultCode,
+  required String defaultMessage,
+  required String command,
+  required String targetId,
+  required OhosHdcResult result,
+  Map<String, Object?> details = const {},
+}) {
+  final code = _isHdcConnectionFailure(result)
+      ? 'ohos.hdc_connection_failed'
+      : _isHdcTargetUnavailable(result)
+      ? 'ohos.hdc_target_unavailable'
+      : defaultCode;
+  final message = switch (code) {
+    'ohos.hdc_connection_failed' => 'OHOS hdc connection failed',
+    'ohos.hdc_target_unavailable' => 'OHOS hdc target became unavailable',
+    _ => defaultMessage,
+  };
+  return OhosDeviceDiagnostic(
+    code: code,
+    message: message,
+    details: {
+      ...details,
+      ..._hdcFailureDetails(
+        command: command,
+        result: result,
+        targetId: targetId,
+      ),
+    },
+  );
+}
+
+Map<String, Object?> _hdcFailureDetails({
+  required String command,
+  required OhosHdcResult result,
+  String? targetId,
+}) {
+  final effectiveExitCode = _effectiveHdcExitCode(result);
+  return {
+    'command': command,
+    'targetId': ?targetId,
+    'exitCode': effectiveExitCode,
+    if (effectiveExitCode != result.exitCode) 'rawExitCode': result.exitCode,
+    if (result.stdout.trim().isNotEmpty) 'stdout': result.stdout,
+    if (result.stderr.trim().isNotEmpty) 'stderr': result.stderr,
+  };
 }
 
 Future<void> _stopLogProcess(io.Process? process, Future<int>? exitCode) async {

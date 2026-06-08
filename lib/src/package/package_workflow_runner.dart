@@ -320,6 +320,23 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     output.success('Example tests passed for ${package.name}');
   }
 
+  final exampleHasIntegrationTests = await hasIntegrationTests(example);
+  final exampleHasIntegrationTestDirectory = await hasIntegrationTestDirectory(
+    example,
+  );
+  if (buildExampleTarget == null && !runExample && exampleHasIntegrationTests) {
+    output.skipped(
+      'Discovered example integration tests for ${package.name}: run a platform target to execute them on a device',
+    );
+    steps.add(
+      _integrationDiscoveryStep(
+        name: 'example-integration',
+        path: examplePath,
+        packageName: package.name,
+      ),
+    );
+  }
+
   if (buildExampleTarget != null) {
     final buildArguments = [
       'build',
@@ -628,6 +645,17 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         if (runResult.findings.isNotEmpty)
           'findings: ${runResult.findings.join(' | ')}',
       ];
+      final runDetails = <String, Object?>{
+        if (runResult.targetId != null) 'targetId': runResult.targetId,
+        if (runResult.launchInfo != null)
+          'launchInfo': {
+            'bundleName': runResult.launchInfo!.bundleName,
+            'moduleName': runResult.launchInfo!.moduleName,
+            'abilityName': runResult.launchInfo!.abilityName,
+          },
+        if (runResult.logFile != null) 'hilog': runResult.logFile!.path,
+        if (runResult.findings.isNotEmpty) 'findings': runResult.findings,
+      };
       steps.add(
         WorkflowStepResult(
           name: 'example-run-ohos',
@@ -644,6 +672,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
           status: runResult.passed ? 'passed' : 'failed',
           exitCode: runResult.exitCode,
           reason: reasonParts.isEmpty ? null : reasonParts.join('\n'),
+          details: runDetails,
           diagnostics: runResult.diagnostics
               .map(
                 (diagnostic) => WorkflowDiagnostic(
@@ -683,6 +712,19 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         output.detail('Hilog saved to ${runResult.logFile!.path}');
       }
       output.success('Example OHOS run passed for ${package.name}');
+      if (exampleHasIntegrationTests) {
+        steps.add(
+          _ohosManualAssistedIntegrationStep(
+            name: 'example-integration-ohos',
+            path: examplePath,
+            logFile: runResult.logFile,
+            targetId: runResult.targetId,
+          ),
+        );
+        output.next(
+          'Complete the OHOS interaction manually, then verify logs or app status before marking interaction evidence passed',
+        );
+      }
     } else if (runExample) {
       final runResult = await runFlutterExampleOnDevice(
         environment: environment,
@@ -761,12 +803,8 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         'Example ${runResult.platform} run passed for ${package.name}',
       );
 
-      final integrationDirectory = Directory(
-        '${example.path}/integration_test',
-      );
       final targetId = runResult.target?.id;
-      final hasIntegrationTests = await integrationDirectory.exists();
-      if (hasIntegrationTests &&
+      if (exampleHasIntegrationTests &&
           runResult.platform == 'web' &&
           targetId == 'web-server') {
         const reason =
@@ -807,7 +845,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         output.skipped(
           'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
         );
-      } else if (hasIntegrationTests && targetId != null) {
+      } else if (exampleHasIntegrationTests && targetId != null) {
         final integrationArguments = [
           'test',
           'integration_test',
@@ -833,7 +871,22 @@ Future<WorkflowTargetResult> runPackageWorkflow({
             flutter: true,
             arguments: integrationArguments,
             result: integrationTest,
-            details: {'platform': runResult.platform, 'targetId': targetId},
+            nextCommand: _packageRunNextCommand(
+              packageName: package.name,
+              platform: runResult.platform,
+              deviceId: deviceId,
+              startEmulator: startEmulator,
+              emulatorName: emulatorName,
+            ),
+            details: {
+              'platform': runResult.platform,
+              'targetId': targetId,
+              'interactionEvidence': {
+                'method': 'integration_test',
+                'status': integrationTest.exitCode == 0 ? 'passed' : 'failed',
+                'testDirectory': '$examplePath/integration_test',
+              },
+            },
           ),
         );
         if (integrationTest.exitCode != 0) {
@@ -851,7 +904,32 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         output.success(
           'Example ${runResult.platform} integration tests passed for ${package.name}',
         );
+      } else if (exampleHasIntegrationTests) {
+        steps.add(
+          WorkflowStepResult(
+            name: 'example-integration-${runResult.platform}',
+            path: examplePath,
+            command: 'flutter test integration_test -d <device>',
+            status: 'skipped',
+            reason: 'run target did not expose a device id',
+            details: {
+              'platform': runResult.platform,
+              'interactionEvidence': {
+                'status': 'blocked',
+                'method': 'integration_test',
+                'reason': 'missing target id',
+                'testDirectory': '$examplePath/integration_test',
+              },
+            },
+          ),
+        );
+        output.skipped(
+          'Skipping ${runResult.platform} integration tests for ${package.name}: missing target id',
+        );
       } else {
+        final reason = exampleHasIntegrationTestDirectory
+            ? 'no integration test files'
+            : 'no integration_test directory';
         steps.add(
           WorkflowStepResult(
             name: 'example-integration-${runResult.platform}',
@@ -860,12 +938,18 @@ Future<WorkflowTargetResult> runPackageWorkflow({
                 ? 'flutter test integration_test -d <device>'
                 : 'flutter test integration_test -d $targetId',
             status: 'skipped',
-            reason: 'no integration_test directory',
-            details: {'platform': runResult.platform},
+            reason: reason,
+            details: {
+              'platform': runResult.platform,
+              'interactionEvidence': {
+                'status': 'not-present',
+                'reason': reason,
+              },
+            },
           ),
         );
         output.skipped(
-          'Skipping ${runResult.platform} integration tests for ${package.name}: no integration_test directory',
+          'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
         );
       }
     }
@@ -880,6 +964,75 @@ Future<WorkflowTargetResult> runPackageWorkflow({
   );
 }
 
+WorkflowStepResult _integrationDiscoveryStep({
+  required String name,
+  required String path,
+  required String packageName,
+}) {
+  final targetOption = ' --package $packageName';
+  return WorkflowStepResult(
+    name: name,
+    path: path,
+    command: 'flutter test integration_test -d <device>',
+    status: 'skipped',
+    reason: 'requires a platform run target',
+    details: {
+      'testDirectory': '$path/integration_test',
+      'interactionEvidence': {
+        'status': 'available',
+        'method': 'integration_test',
+        'execution': 'run fluoh run with a concrete platform and device',
+      },
+      'suggestedCommands': [
+        'fluoh run --platform ohos$targetOption --auto-emulator --json',
+        'fluoh run --platform android$targetOption --auto-emulator --json',
+        'fluoh run --platform ios$targetOption --auto-emulator --json',
+        'fluoh run --platform macos$targetOption --json',
+        'fluoh run --platform web$targetOption --device chrome --json',
+      ],
+      'manualAssistedFallback': {
+        'when':
+            'system UI, permissions, pickers, external apps, or OHOS runner gaps block automatic execution',
+        'requiredEvidence':
+            'record user steps plus tool-verified logs, session status, stable text, semantics, or app log markers',
+      },
+    },
+  );
+}
+
+WorkflowStepResult _ohosManualAssistedIntegrationStep({
+  required String name,
+  required String path,
+  File? logFile,
+  String? targetId,
+}) {
+  return WorkflowStepResult(
+    name: name,
+    path: path,
+    command: 'flutter test integration_test -d <ohos-device>',
+    status: 'skipped',
+    reason:
+        'OHOS integration_test automation is not available; manual-assisted interaction evidence is required.',
+    details: {
+      'testDirectory': '$path/integration_test',
+      'targetId': ?targetId,
+      'hilog': ?logFile?.path,
+      'interactionEvidence': {
+        'status': 'manual-required',
+        'method': 'manual-assisted',
+        'platform': 'ohos',
+        'requiredUserAction':
+            'complete the integration scenario on the OHOS emulator or device',
+        'verification':
+            'after user action, verify app state through hilog, stable text, semantic labels, test keys, or structured app logs',
+      },
+      'reportMethod': 'manual-assisted',
+      'reportRequirement':
+          'write an Interaction Evidence row with result passed only after tool-readable evidence confirms the user-completed flow',
+    },
+  );
+}
+
 WorkflowStepResult _commandStep({
   required String name,
   required String packageName,
@@ -889,6 +1042,7 @@ WorkflowStepResult _commandStep({
   required SelectedToolResult result,
   int? effectiveExitCode,
   Map<String, Object?> details = const {},
+  String? nextCommand,
 }) {
   final exitCode = effectiveExitCode ?? result.exitCode;
   return WorkflowStepResult(
@@ -909,6 +1063,7 @@ WorkflowStepResult _commandStep({
       result: result,
       effectiveExitCode: exitCode,
       packageName: packageName,
+      nextCommand: nextCommand,
     ),
   );
 }
@@ -920,6 +1075,7 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
   required SelectedToolResult result,
   required int effectiveExitCode,
   required String packageName,
+  String? nextCommand,
 }) {
   if (effectiveExitCode == 0) {
     return const [];
@@ -1009,7 +1165,8 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
           'adaptationPolicy': _lowSdkCompatibilityPolicy(packageName),
         ..._commandOutputDetails(result),
       },
-      nextCommand: _nextCommandForDiagnosticCode(code, packageName),
+      nextCommand:
+          nextCommand ?? _nextCommandForDiagnosticCode(code, packageName),
     ),
   ];
 }
@@ -1126,7 +1283,9 @@ String? _nextCommandForDiagnosticCode(String code, String packageName) {
     'ohos.runtime_crash' => '$ohosAutoRun --json',
     'ohos.toolchain_missing' ||
     'ohos.auto_sign_failed' ||
+    'ohos.hdc_connection_failed' ||
     'ohos.hdc_targets_failed' ||
+    'ohos.hdc_target_unavailable' ||
     'ohos.emulator_start_failed' ||
     'ohos.device_not_found' ||
     'ohos.device_ambiguous' ||
@@ -1218,6 +1377,35 @@ String? _nextCommandForDiagnosticCode(String code, String packageName) {
     'windows.device_ambiguous' => 'fluoh devices --platform windows',
     _ => null,
   };
+}
+
+String _packageRunNextCommand({
+  required String packageName,
+  required String platform,
+  required String? deviceId,
+  required bool startEmulator,
+  required String? emulatorName,
+}) {
+  final useDefaultWebServer =
+      platform == 'web' && deviceId == null && emulatorName == null;
+  return [
+    'fluoh run --platform $platform --package $packageName',
+    if (deviceId != null) '--device $deviceId',
+    if (useDefaultWebServer) '--device web-server',
+    if (startEmulator &&
+        emulatorName == null &&
+        !_isDesktopRunPlatform(platform))
+      '--auto-emulator',
+    if (emulatorName != null) '--emulator $emulatorName',
+    '--json',
+  ].join(' ');
+}
+
+bool _isDesktopRunPlatform(String platform) {
+  return platform == 'macos' ||
+      platform == 'linux' ||
+      platform == 'web' ||
+      platform == 'windows';
 }
 
 Map<String, Object?> _signingDetails(OhosDebugSigningMaterial signingMaterial) {

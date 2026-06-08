@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import shlex
 import subprocess
 import sys
@@ -64,6 +65,35 @@ def run(command: list[str], cwd: Path, timeout: int = 20) -> dict[str, Any]:
             else "",
             "stderr": f"Timed out after {timeout}s",
         }
+
+
+def fluoh_command_args(value: str) -> list[str]:
+    command = shlex.split(value)
+    if not command:
+        return ["fluoh"]
+    executable = Path(command[0]).expanduser()
+    if executable.suffix == ".dart":
+        return [dart_executable(), str(executable), *command[1:]]
+    if Path(command[0]).name in ("dart", "dart.exe") and len(command) > 1:
+        dart_entry = Path(command[1]).expanduser()
+        if dart_entry.suffix == ".dart":
+            return [dart_executable(), str(dart_entry), *command[2:]]
+    return command
+
+
+def dart_executable() -> str:
+    override = os.environ.get("FLUOH_DART_BIN", "").strip()
+    if override:
+        return str(Path(override).expanduser())
+    dart = shutil.which("dart")
+    if dart:
+        dart_path = Path(dart)
+        dart_name = "dart.exe" if os.name == "nt" else "dart"
+        flutter_cached_dart = dart_path.parent / "cache" / "dart-sdk" / "bin" / dart_name
+        if flutter_cached_dart.exists():
+            return str(flutter_cached_dart)
+        return str(dart_path)
+    return "dart"
 
 
 def read_text(path: Path) -> str:
@@ -375,7 +405,10 @@ def project_info(root: Path, requested_package: str | None = None) -> dict[str, 
 
 
 def upgrade_checks(
-    root: Path, project: dict[str, Any], fluoh_command: list[str]
+    root: Path,
+    project: dict[str, Any],
+    git: dict[str, Any],
+    fluoh_command: list[str],
 ) -> dict[str, Any]:
     fluoh_yaml = root / "fluoh.yaml"
     content = read_text(fluoh_yaml) if fluoh_yaml.exists() else ""
@@ -405,6 +438,7 @@ def upgrade_checks(
         docs = {
             "templateVersion": PACKAGE_DOC_TEMPLATE_VERSION,
             "refreshCommand": "fluoh package docs refresh",
+            "allowDirtyRefreshCommand": "fluoh package docs refresh --allow-dirty",
             "dryRunCommand": "fluoh package docs refresh --dry-run",
             "sections": [
                 {
@@ -450,12 +484,20 @@ def upgrade_checks(
                 "Generated package docs were created by a newer template; upgrade fluoh before refreshing."
             )
         elif docs["needsRefresh"]:
+            dirty = git.get("dirty") is True
+            refresh_command = (
+                docs["allowDirtyRefreshCommand"] if dirty else docs["refreshCommand"]
+            )
             checks["commands"].extend(
-                ["fluoh package docs refresh --dry-run", "fluoh package docs refresh"]
+                ["fluoh package docs refresh --dry-run", refresh_command]
             )
             checks["notes"].append(
                 "Generated package docs are missing or stale; refresh them before implementation edits."
             )
+            if dirty:
+                checks["notes"].append(
+                    "The worktree is dirty, so use the explicit --allow-dirty docs refresh mode or create a clean checkpoint first."
+                )
         if docs["needsRefreshUnknown"]:
             checks["commands"].append("fluoh package docs refresh --dry-run")
             checks["notes"].append(
@@ -846,9 +888,7 @@ def main() -> int:
     root = Path(args.path).expanduser().resolve()
     command_cwd = root if root.is_dir() else Path.cwd()
     requested_package = args.package.strip() or None
-    fluoh_command = shlex.split(args.fluoh_command)
-    if not fluoh_command:
-        fluoh_command = ["fluoh"]
+    fluoh_command = fluoh_command_args(args.fluoh_command)
     info: dict[str, Any] = {
         "schema": 1,
         "cwd": str(root),
@@ -858,7 +898,9 @@ def main() -> int:
         "project": project_info(root, requested_package=requested_package),
         "git": git_state(root),
     }
-    info["upgradeChecks"] = upgrade_checks(root, info["project"], fluoh_command)
+    info["upgradeChecks"] = upgrade_checks(
+        root, info["project"], info["git"], fluoh_command
+    )
     info["suggestedCommands"] = suggested_commands(info)
     info["finalCheckCommands"] = final_check_commands(info)
     info["deliveryChecks"] = delivery_checks(info)

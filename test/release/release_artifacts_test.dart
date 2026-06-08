@@ -406,6 +406,8 @@ void main() {
     expect(skill, contains('ignored state'));
     expect(skill, contains('skillVersion'));
     expect(skill, contains('upgradePrompt'));
+    expect(skill, contains('manual-assisted'));
+    expect(skill, contains('flutter test integration_test -d <device>'));
     expect(skill, contains('fluoh deps check --json'));
     expect(skill, contains('```sh\n# Local YAML/index validation only.'));
     expect(skill, contains('fluoh source check [path] --schema-only'));
@@ -417,6 +419,7 @@ void main() {
     expect(skill, contains('checkedManifests'));
     expect(skill, contains('releaseChecks'));
     expect(skill, contains('fluoh package docs refresh'));
+    expect(skill, contains('fluoh package docs refresh --allow-dirty'));
     expect(skill, contains('fluoh build --platform ohos --auto-sign --json'));
     expect(
       skill,
@@ -477,6 +480,7 @@ void main() {
     expect(reportTemplate, contains('## Platform Matrix'));
     expect(reportTemplate, contains('## Interaction Evidence'));
     expect(reportTemplate, contains('No interaction required: <reason>'));
+    expect(reportTemplate, contains('manual-assisted'));
     expect(reportTemplate, contains('.fluoh/scenarios/'));
     expect(
       reportTemplate,
@@ -510,6 +514,7 @@ void main() {
       'upgradeChecks',
       'PACKAGE_DOC_TEMPLATE_VERSION',
       'fluoh package docs refresh --dry-run',
+      'fluoh package docs refresh --allow-dirty',
       'suggestedCommands',
       'finalCheckCommands',
       'deliveryChecks',
@@ -937,7 +942,11 @@ void main() {
       '--strict',
       '\$FLUOH_HOME/sources.lock.json',
       'load-index API',
-      '`changed`, `applied`, `files`, and `dryRun`',
+      "current checkout's package pubspec",
+      '`<package>_ohos` implementation route',
+      '`changed`, `applied`, `files`',
+      '`dryRun`',
+      '`allowDirty`',
     ]);
     expectContainsNone(commands, [
       'fluoh source package',
@@ -1037,7 +1046,11 @@ void main() {
       '--strict',
       '\$FLUOH_HOME/sources.lock.json',
       'load-index API',
+      'Package pubspec',
+      '`<package>_ohos`',
       '`changed`、`applied`、`files`',
+      '`dryRun`',
+      '`allowDirty`',
     ]);
     expectContainsNone(chineseCommands, [
       'fluoh source package',

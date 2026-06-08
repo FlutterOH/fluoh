@@ -58,19 +58,93 @@ exit 64
     return tool;
   }
 
+  Future<File> writeFakeDartExecutable(
+    Directory root, {
+    required String scriptPath,
+    List<String> extraArgs = const [],
+  }) async {
+    final tool = File('${root.path}/dart');
+    final expected = [scriptPath, ...extraArgs, '--version'];
+    final checks = [
+      for (var i = 0; i < expected.length; i += 1)
+        '[ "\$${i + 1}" = "${expected[i]}" ]',
+      '[ "\$#" = "${expected.length}" ]',
+    ].join(' && ');
+    await tool.writeAsString('''
+#!/bin/sh
+if $checks; then
+  echo "fluoh 7.7.7"
+  exit 0
+fi
+echo "unexpected args: \$@" >&2
+exit 64
+''');
+    final chmod = await Process.run('chmod', ['+x', tool.path]);
+    expect(chmod.exitCode, 0, reason: chmod.stderr.toString());
+    return tool;
+  }
+
+  Future<File> writeFakeFlutterDartWrapper(
+    Directory root, {
+    required String scriptPath,
+  }) async {
+    final bin = Directory('${root.path}/flutter/bin');
+    final cacheBin = Directory('${bin.path}/cache/dart-sdk/bin');
+    await cacheBin.create(recursive: true);
+    final wrapper = File('${bin.path}/dart');
+    await wrapper.writeAsString('''
+#!/bin/sh
+echo "flutter wrapper should not be used" >&2
+exit 65
+''');
+    final cachedDart = File('${cacheBin.path}/dart');
+    await cachedDart.writeAsString('''
+#!/bin/sh
+if [ "\$1" = "$scriptPath" ] && [ "\$2" = "--version" ]; then
+  echo "fluoh 6.6.6"
+  exit 0
+fi
+echo "unexpected cached dart args: \$@" >&2
+exit 64
+''');
+    for (final tool in [wrapper, cachedDart]) {
+      final chmod = await Process.run('chmod', ['+x', tool.path]);
+      expect(chmod.exitCode, 0, reason: chmod.stderr.toString());
+    }
+    return wrapper;
+  }
+
   Future<Map<String, Object?>> runPreflight(
     Directory root, {
     required String fluohCommand,
     String? path,
+    Map<String, String>? environment,
   }) async {
     final result = await Process.run('python3', [
       preflightScript,
       path ?? root.path,
       '--fluoh-command',
       fluohCommand,
-    ]);
+    ], environment: environment);
     expect(result.exitCode, 0, reason: result.stderr.toString());
     return jsonDecode(result.stdout.toString()) as Map<String, Object?>;
+  }
+
+  Future<void> runProcess(
+    String executable,
+    List<String> arguments,
+    Directory workingDirectory,
+  ) async {
+    final result = await Process.run(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory.path,
+    );
+    expect(
+      result.exitCode,
+      0,
+      reason: '$executable ${arguments.join(' ')}\n${result.stderr}',
+    );
   }
 
   List<String> stringList(Object? value) {
@@ -219,6 +293,76 @@ dependencies:
 
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 8.8.8');
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight runs a local Dart fluoh entry through dart',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final localFluoh = File('${root.path}/fluoh.dart');
+      await localFluoh.writeAsString('void main() {}\n');
+      final dart = await writeFakeDartExecutable(
+        root,
+        scriptPath: localFluoh.path,
+        extraArgs: const ['--checked-entry'],
+      );
+
+      await File('${root.path}/pubspec.yaml').writeAsString('''
+name: local_cli_app
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+
+      final report = await runPreflight(
+        root,
+        fluohCommand: '${localFluoh.path} --checked-entry',
+        environment: {
+          'PATH': '${dart.parent.path}:${Platform.environment['PATH'] ?? ''}',
+        },
+      );
+      final fluohResult = report['fluoh'] as Map<String, Object?>;
+
+      expect(fluohResult['ok'], isTrue);
+      expect(fluohResult['stdout'], 'fluoh 7.7.7');
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight bypasses Flutter dart wrapper for local Dart fluoh entries',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final localFluoh = File('${root.path}/fluoh.dart');
+      await localFluoh.writeAsString('void main() {}\n');
+      final wrapper = await writeFakeFlutterDartWrapper(
+        root,
+        scriptPath: localFluoh.path,
+      );
+
+      await File('${root.path}/pubspec.yaml').writeAsString('''
+name: local_cli_app
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+
+      final report = await runPreflight(
+        root,
+        fluohCommand: 'dart ${localFluoh.path}',
+        environment: {
+          'PATH':
+              '${wrapper.parent.path}:${Platform.environment['PATH'] ?? ''}',
+        },
+      );
+      final fluohResult = report['fluoh'] as Map<String, Object?>;
+
+      expect(fluohResult['ok'], isTrue);
+      expect(fluohResult['stdout'], 'fluoh 6.6.6');
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -648,6 +792,91 @@ Generated content.
           'fluoh package docs refresh --dry-run',
           'fluoh package docs refresh',
         ]),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'preflight suggests allow-dirty docs refresh in dirty package repos',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final fluoh = await writeFakeFluoh(
+        root,
+        docsDryRunOutput: '''
+Package docs would be refreshed
+- FLUOH.md
+''',
+      );
+
+      await File('${root.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: package
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+package:
+  name: camera
+  path: .
+  release:
+    version: "0.1.0"
+    upstream:
+      version: "0.11.0"
+      commit: "1111111111111111111111111111111111111111"
+''');
+      await File('${root.path}/FLUOH.md').writeAsString('''
+<!-- fluoh:generated:start id=package-implementation-guide template=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-implementation-guide -->
+''');
+      await File('${root.path}/AGENTS.md').writeAsString('''
+<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-agents-instructions -->
+''');
+      await File('${root.path}/README.md').writeAsString('''
+<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
+Generated content.
+<!-- fluoh:generated:end id=package-readme-adaptation -->
+''');
+      await runProcess('git', ['init', '--initial-branch=main'], root);
+      await runProcess('git', [
+        'config',
+        'user.email',
+        'fixture@example.com',
+      ], root);
+      await runProcess('git', ['config', 'user.name', 'Fixture'], root);
+      await runProcess('git', ['add', '.'], root);
+      await runProcess('git', ['commit', '-m', 'Initial package repo'], root);
+      await File('${root.path}/LOCAL_NOTES.md').writeAsString('local notes\n');
+
+      final report = await runPreflight(root, fluohCommand: fluoh.path);
+      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
+      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
+
+      expect(packageDocs['needsRefresh'], isTrue);
+      expect(
+        packageDocs['allowDirtyRefreshCommand'],
+        'fluoh package docs refresh --allow-dirty',
+      );
+      expect(
+        stringList(upgradeChecks['commands']),
+        containsAll([
+          'fluoh package docs refresh --dry-run',
+          'fluoh package docs refresh --allow-dirty',
+        ]),
+      );
+      expect(
+        stringList(upgradeChecks['commands']),
+        isNot(contains('fluoh package docs refresh')),
+      );
+      expect(
+        stringList(upgradeChecks['notes']),
+        contains(
+          contains('The worktree is dirty, so use the explicit --allow-dirty'),
+        ),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -1945,8 +2174,8 @@ sdk:
             'Windows | not present | not present | n/a | n/a | no example',
           )
           .replaceAll(
-            '| `...` | integration_test \\| AI-assisted \\| manual | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |',
-            '| camera preview | AI-assisted | OHOS | emulator-5554 | passed | tapped capture and observed success text |',
+            '| `...` | integration_test \\| AI-assisted \\| manual-assisted | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |',
+            '| camera preview | manual-assisted | OHOS | emulator-5554 | passed | user tapped capture, then hilog marker camera.captureSuccess confirmed the result |',
           )
           .replaceAll(
             '''
@@ -1981,6 +2210,27 @@ the local trace-evidence issue here.
       expect(completeJson['interactionRows'], 1);
       expect(completeJson['passedInteractionRows'], 1);
       expect(completeJson['checklistDone'], completeJson['checklistTotal']);
+
+      final manualReport = File('${root.path}/manual-report.md');
+      await manualReport.writeAsString(
+        content.replaceFirst(
+          '| camera preview | manual-assisted | OHOS | emulator-5554 | passed |',
+          '| camera preview | manual | OHOS | emulator-5554 | passed |',
+        ),
+      );
+      final manualCheck = await Process.run('python3', [
+        checkReportScript,
+        manualReport.path,
+      ]);
+      expect(manualCheck.exitCode, 1);
+      final manualJson =
+          jsonDecode(manualCheck.stdout.toString()) as Map<String, Object?>;
+      expect(
+        stringList(manualJson['errors']),
+        contains(
+          "Interaction Evidence must include a concrete row or 'No interaction required: <reason>'.",
+        ),
+      );
 
       final maintainerDecisionReport = File(
         '${root.path}/maintainer-decision.md',

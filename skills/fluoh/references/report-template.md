@@ -59,12 +59,15 @@
 Use `No interaction required: <reason>` only when the package has no
 device-side interaction flow such as permission, picker, camera, location,
 media, deep link, external app, or host-specific behavior.
-Otherwise include at least one concrete row. Scenario notes should live under
-`.fluoh/scenarios/<package-or-scope>/`.
+Otherwise include at least one concrete row. Use `manual-assisted` when the
+user had to operate a device or emulator, and mark it passed only after
+tool-readable evidence such as logs, session status, stable text, semantic
+labels, or app log markers confirms the result. Scenario notes should live
+under `.fluoh/scenarios/<package-or-scope>/`.
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| `...` | integration_test \| AI-assisted \| manual | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |
+| `...` | integration_test \| AI-assisted \| manual-assisted | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |
 
 ## Diagnostics
 

@@ -153,7 +153,7 @@ def interaction_rows(content: str) -> list[dict[str, str]]:
         if len(columns) >= 6 and columns[1].lower() in (
             "integration_test",
             "ai-assisted",
-            "manual",
+            "manual-assisted",
         ):
             rows.append(
                 {

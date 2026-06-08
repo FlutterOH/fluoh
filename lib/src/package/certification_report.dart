@@ -417,7 +417,11 @@ class _InteractionRow {
       return null;
     }
     final method = columns[1].toLowerCase();
-    if (!const {'integration_test', 'ai-assisted', 'manual'}.contains(method)) {
+    if (!const {
+      'integration_test',
+      'ai-assisted',
+      'manual-assisted',
+    }.contains(method)) {
       return null;
     }
     return _InteractionRow(method: method, resultText: columns[4], row: line);

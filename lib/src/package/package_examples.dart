@@ -183,6 +183,28 @@ Future<bool> hasPackageTests(Directory directory) async {
   return false;
 }
 
+/// Returns whether [directory] contains Flutter integration tests.
+Future<bool> hasIntegrationTests(Directory directory) async {
+  final testRoot = Directory('${directory.path}/integration_test');
+  if (!await testRoot.exists()) {
+    return false;
+  }
+  await for (final entity in testRoot.list(
+    recursive: true,
+    followLinks: false,
+  )) {
+    if (entity is File && entity.path.endsWith('_test.dart')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Returns whether [directory] contains an integration_test directory.
+Future<bool> hasIntegrationTestDirectory(Directory directory) {
+  return Directory('${directory.path}/integration_test').exists();
+}
+
 /// Returns [directory] as a repository-relative path.
 String packageRelativePath(Directory repository, Directory directory) {
   return _relativePath(repository, directory);

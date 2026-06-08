@@ -7,9 +7,11 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../../schema/yaml_utils.dart' show parseYamlMap;
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
+import '../package_discovery.dart';
 import '../package_examples.dart';
 import '../release_validator.dart';
 
@@ -59,6 +61,11 @@ class PackageStatusCommand extends FluohCommand<int> {
       repository,
       environment.homeDirectory.path,
     );
+    final discovery = await discoverPackageAdaptationCandidates(
+      repository: repository,
+      missingPlatform: 'ohos',
+      includeExistingPlatform: true,
+    );
     final packageStatuses = <_PackageStatus>[];
     for (final package in packages) {
       packageStatuses.add(
@@ -66,6 +73,7 @@ class PackageStatusCommand extends FluohCommand<int> {
           repository: repository,
           manifest: manifest,
           package: package,
+          discovery: discovery,
         ),
       );
     }
@@ -117,6 +125,7 @@ class PackageStatusCommand extends FluohCommand<int> {
     required Directory repository,
     required PackageManifest manifest,
     required PackageManifestPackage package,
+    required PackageDiscovery discovery,
   }) async {
     final checks = <_PackageStatusCheck>[];
     final blockers = <_PackageReadinessBlocker>[];
@@ -238,6 +247,51 @@ class PackageStatusCommand extends FluohCommand<int> {
       );
     } else {
       checks.addAll(metadataChecks);
+    }
+
+    final implementationRecommendation =
+        _federatedOhosImplementationRecommendation(
+          discovery: discovery,
+          package: package,
+        );
+    if (implementationRecommendation != null) {
+      checks.add(
+        _PackageStatusCheck.warning(
+          'platform-structure',
+          'Federated app-facing package is missing '
+              '${implementationRecommendation.platform}.default_package: '
+              '${implementationRecommendation.implementationPackageName}',
+        ),
+      );
+      blockers.add(
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'platform.ohos_default_package_missing',
+          message:
+              'Create ${implementationRecommendation.implementationPackageName} '
+              'at ${implementationRecommendation.implementationPackagePath}, '
+              'add ${implementationRecommendation.platform}.default_package: '
+              '${implementationRecommendation.implementationPackageName}, and '
+              'add dependency path '
+              '${implementationRecommendation.implementationDependencyPath}.',
+          details: implementationRecommendation.toJson(),
+        ),
+      );
+    }
+    final defaultPackageBlocker = await _federatedOhosDefaultPackageBlocker(
+      repository: repository,
+      discovery: discovery,
+      package: package,
+    );
+    if (defaultPackageBlocker != null) {
+      checks.add(
+        _PackageStatusCheck.warning(
+          'platform-structure',
+          defaultPackageBlocker.message,
+        ),
+      );
+      blockers.add(defaultPackageBlocker);
     }
 
     final packageRoot = packageDirectory(repository, package.path);
@@ -389,6 +443,256 @@ class PackageStatusCommand extends FluohCommand<int> {
   }
 }
 
+PackageImplementationRecommendation?
+_federatedOhosImplementationRecommendation({
+  required PackageDiscovery discovery,
+  required PackageManifestPackage package,
+}) {
+  final candidate = _discoveryCandidateForPackage(
+    discovery: discovery,
+    package: package,
+  );
+  return candidate?.implementationRecommendation('ohos');
+}
+
+Future<_PackageReadinessBlocker?> _federatedOhosDefaultPackageBlocker({
+  required Directory repository,
+  required PackageDiscovery discovery,
+  required PackageManifestPackage package,
+}) async {
+  final candidate = _discoveryCandidateForPackage(
+    discovery: discovery,
+    package: package,
+  );
+  final defaultPackage = candidate?.platformDefaultPackages['ohos'];
+  if (defaultPackage == null || defaultPackage == package.name) {
+    return null;
+  }
+
+  final dependency = await _directDependencyForPackage(
+    repository: repository,
+    package: package,
+    dependencyName: defaultPackage,
+  );
+  final dependencyPresent = dependency != null;
+  final dependencyPath = dependency?.path;
+  final dependencyPackagePath = dependencyPath == null
+      ? null
+      : _dependencyPackagePath(
+          packagePath: package.path,
+          dependencyPath: dependencyPath,
+        );
+  final dependencyPathInsideRepository =
+      dependencyPath == null || dependencyPackagePath != null;
+  final implementationCandidateByName = _discoveryCandidateByName(
+    discovery: discovery,
+    name: defaultPackage,
+  );
+  final implementationCandidateAtDependencyPath = dependencyPackagePath == null
+      ? null
+      : _discoveryCandidateByNameAndPath(
+          discovery: discovery,
+          name: defaultPackage,
+          path: dependencyPackagePath,
+        );
+  final implementationPackagePresent = implementationCandidateByName != null;
+  final implementationPackageAtDependencyPathPresent =
+      implementationCandidateAtDependencyPath != null;
+  final implementationDeclaresOhos =
+      implementationCandidateByName?.declaresPlatform('ohos') ?? false;
+  final implementationAtDependencyPathDeclaresOhos =
+      implementationCandidateAtDependencyPath?.declaresPlatform('ohos') ??
+      false;
+  if (dependencyPresent &&
+      dependencyPathInsideRepository &&
+      implementationAtDependencyPathDeclaresOhos) {
+    return null;
+  }
+
+  final problems = [
+    if (!dependencyPresent)
+      'dependency $defaultPackage is missing from ${package.name}',
+    if (dependencyPresent && dependencyPath == null)
+      'dependency $defaultPackage does not declare a path from ${package.name}',
+    if (dependencyPath != null && !dependencyPathInsideRepository)
+      'dependency path $dependencyPath leaves the repository',
+    if (dependencyPackagePath != null &&
+        !implementationPackageAtDependencyPathPresent)
+      'dependency path $dependencyPath does not resolve to implementation package $defaultPackage',
+    if (!implementationPackagePresent)
+      'implementation package $defaultPackage was not found',
+    if (implementationPackageAtDependencyPathPresent &&
+        !implementationAtDependencyPathDeclaresOhos)
+      'implementation package $defaultPackage does not declare ohos',
+  ];
+  return _PackageReadinessBlocker(
+    scope: 'package',
+    packageName: package.name,
+    code: 'platform.ohos_default_package_incomplete',
+    message:
+        'OHOS default_package $defaultPackage is declared for '
+        '${package.name}, but ${problems.join(' and ')}.',
+    details: {
+      'kind': 'federated_default_package_validation',
+      'platform': 'ohos',
+      'defaultPackage': defaultPackage,
+      'dependencyPresent': dependencyPresent,
+      'dependencyPath': ?dependencyPath,
+      'dependencyResolvedPath': ?dependencyPackagePath,
+      'dependencyPathInsideRepository': dependencyPathInsideRepository,
+      'implementationPackagePresent': implementationPackagePresent,
+      'implementationPackageAtDependencyPathPresent':
+          implementationPackageAtDependencyPathPresent,
+      'implementationDeclaresOhos': implementationDeclaresOhos,
+      'implementationAtDependencyPathDeclaresOhos':
+          implementationAtDependencyPathDeclaresOhos,
+      'requiredEdits': [
+        if (!implementationPackagePresent)
+          {
+            'target': 'implementationPackage',
+            'action': 'create',
+            'package': defaultPackage,
+          },
+        if (implementationPackageAtDependencyPathPresent &&
+            !implementationAtDependencyPathDeclaresOhos)
+          {
+            'target': 'implementationPackagePubspec',
+            'action': 'add_platform',
+            'platform': 'ohos',
+          },
+        if (!dependencyPresent)
+          {
+            'target': 'appFacingPubspec',
+            'action': 'add_dependency',
+            'package': defaultPackage,
+          },
+        if (dependencyPresent &&
+            (dependencyPath == null ||
+                !dependencyPathInsideRepository ||
+                !implementationPackageAtDependencyPathPresent))
+          {
+            'target': 'appFacingPubspec',
+            'action': 'update_dependency_path',
+            'package': defaultPackage,
+          },
+      ],
+    },
+  );
+}
+
+Future<_PackageDependency?> _directDependencyForPackage({
+  required Directory repository,
+  required PackageManifestPackage package,
+  required String dependencyName,
+}) async {
+  final pubspec = File(
+    '${packageDirectory(repository, package.path).path}/pubspec.yaml',
+  );
+  try {
+    final yaml = parseYamlMap(
+      await pubspec.readAsString(),
+      label: '${package.path}/pubspec.yaml',
+    );
+    final dependencies = yaml['dependencies'];
+    if (dependencies is! Map<String, Object?> ||
+        !dependencies.containsKey(dependencyName)) {
+      return null;
+    }
+    final dependency = dependencies[dependencyName];
+    String? path;
+    if (dependency is Map<String, Object?>) {
+      final value = dependency['path'];
+      if (value is String && value.trim().isNotEmpty) {
+        path = value.trim();
+      }
+    }
+    return _PackageDependency(path: path);
+  } on FormatException {
+    return null;
+  } on IOException {
+    return null;
+  }
+}
+
+String? _dependencyPackagePath({
+  required String packagePath,
+  required String dependencyPath,
+}) {
+  final dependency = dependencyPath.replaceAll('\\', '/').trim();
+  if (dependency.isEmpty || dependency.startsWith('/')) {
+    return null;
+  }
+  final normalized = <String>[];
+  for (final segment in [
+    ..._packagePathSegments(packagePath),
+    ...dependency.split('/'),
+  ]) {
+    if (segment.isEmpty || segment == '.') {
+      continue;
+    }
+    if (segment == '..') {
+      if (normalized.isEmpty) {
+        return null;
+      }
+      normalized.removeLast();
+      continue;
+    }
+    normalized.add(segment);
+  }
+  return normalized.isEmpty ? '.' : normalized.join('/');
+}
+
+List<String> _packagePathSegments(String path) {
+  return path
+      .replaceAll('\\', '/')
+      .split('/')
+      .where((segment) => segment.isNotEmpty && segment != '.')
+      .toList(growable: false);
+}
+
+PackageDiscoveryCandidate? _discoveryCandidateForPackage({
+  required PackageDiscovery discovery,
+  required PackageManifestPackage package,
+}) {
+  for (final candidate in discovery.candidates) {
+    if (candidate.name == package.name && candidate.path == package.path) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+PackageDiscoveryCandidate? _discoveryCandidateByName({
+  required PackageDiscovery discovery,
+  required String name,
+}) {
+  for (final candidate in discovery.candidates) {
+    if (candidate.name == name) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+PackageDiscoveryCandidate? _discoveryCandidateByNameAndPath({
+  required PackageDiscovery discovery,
+  required String name,
+  required String path,
+}) {
+  for (final candidate in discovery.candidates) {
+    if (candidate.name == name && candidate.path == path) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+class _PackageDependency {
+  const _PackageDependency({this.path});
+
+  final String? path;
+}
+
 void _addGenericWarningBlockers({
   required List<_PackageReadinessBlocker> blockers,
   required List<_PackageStatusCheck> checks,
@@ -534,6 +838,7 @@ class _PackageReadinessBlocker {
     required this.message,
     this.packageName,
     this.nextCommand,
+    this.details,
   });
 
   final String scope;
@@ -541,6 +846,7 @@ class _PackageReadinessBlocker {
   final String code;
   final String message;
   final String? nextCommand;
+  final Map<String, Object?>? details;
 
   Map<String, Object?> toJson() {
     return {
@@ -549,6 +855,7 @@ class _PackageReadinessBlocker {
       'code': code,
       'message': message,
       if (nextCommand != null) 'nextCommand': nextCommand,
+      if (details != null) 'details': details,
     };
   }
 }

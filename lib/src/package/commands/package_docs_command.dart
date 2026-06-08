@@ -92,6 +92,14 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
         'json',
         negatable: false,
         help: 'Print the docs refresh result as JSON.',
+      )
+      ..addFlag(
+        'allow-dirty',
+        negatable: false,
+        help:
+            'Allow writing generated docs in a dirty worktree. '
+            'Use only for generated documentation refreshes before a clean '
+            'checkpoint is available.',
       );
   }
 
@@ -111,7 +119,10 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
 
     final repository = _environment.workingDirectory;
     final manifest = await readPackageManifest(repository);
-    final packages = packageRepositoryDocPackagesForManifest(manifest);
+    final packages = await packageRepositoryDocPackagesForCurrentCheckout(
+      repository: repository,
+      manifest: manifest,
+    );
     final updates = await _plannedUpdates(
       repository: repository,
       manifest: manifest,
@@ -120,11 +131,13 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
 
     final dryRun = argResults!.flag('dry-run');
     final json = argResults!.flag('json');
+    final allowDirty = argResults!.flag('allow-dirty');
     final files = updates.map((update) => update.path).toList();
     if (updates.isEmpty) {
       if (json) {
         _writeJson(
           dryRun: dryRun,
+          allowDirty: allowDirty,
           changed: false,
           applied: false,
           files: files,
@@ -137,7 +150,13 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
 
     if (dryRun) {
       if (json) {
-        _writeJson(dryRun: true, changed: true, applied: false, files: files);
+        _writeJson(
+          dryRun: true,
+          allowDirty: allowDirty,
+          changed: true,
+          applied: false,
+          files: files,
+        );
         return 0;
       }
       _output.info('Package docs would be refreshed');
@@ -154,7 +173,9 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
         '${manifest.branch}.',
       );
     }
-    await ensureCleanWorkingTree(repository, 'Package docs refresh');
+    if (!allowDirty) {
+      await ensureCleanWorkingTree(repository, 'Package docs refresh');
+    }
 
     final snapshot = <String, String?>{};
     for (final update in updates) {
@@ -182,7 +203,13 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
     }
 
     if (json) {
-      _writeJson(dryRun: false, changed: true, applied: true, files: files);
+      _writeJson(
+        dryRun: false,
+        allowDirty: allowDirty,
+        changed: true,
+        applied: true,
+        files: files,
+      );
       return 0;
     }
 
@@ -195,6 +222,7 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
 
   void _writeJson({
     required bool dryRun,
+    required bool allowDirty,
     required bool changed,
     required bool applied,
     required List<String> files,
@@ -206,6 +234,7 @@ class PackageDocsRefreshCommand extends FluohCommand<int> {
       exitCode: 0,
       fields: {
         'dryRun': dryRun,
+        'allowDirty': allowDirty,
         'changed': changed,
         'applied': applied,
         'files': files,

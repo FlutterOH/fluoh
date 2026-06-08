@@ -202,6 +202,49 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('check certification rejects plain manual interaction rows', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(packageRepository);
+    final content = await report.readAsString();
+    await report.writeAsString(
+      content.replaceFirst(
+        'No interaction required: fixture package has no device-side interaction flow.',
+        '''
+| Scenario | Method | Platform | Target | Result | Evidence / blocker |
+| --- | --- | --- | --- | --- | --- |
+| camera preview | manual | OHOS | emulator | passed | user confirmed preview |
+''',
+      ),
+    );
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--certification-report', report.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(result, containsPair('ok', false));
+    final error = result['error'] as Map<String, Object?>;
+    expect(
+      error['message'],
+      contains('Interaction Evidence must include a concrete row'),
+    );
+    expect(error['message'], contains('No interaction required:'));
+    expect(stderr, isEmpty);
+  });
+
   test('check certification ignores failed command rows as evidence', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);

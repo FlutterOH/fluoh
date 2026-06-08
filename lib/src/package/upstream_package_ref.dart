@@ -436,6 +436,7 @@ String? packageVersionFromReleaseTag({
   final escapedPackage = RegExp.escape(packageName);
   final packageTagPatterns = [
     RegExp('^$escapedPackage-v(.+)\$'),
+    RegExp('^${escapedPackage}_v(.+)\$'),
     RegExp('^$escapedPackage-(.+)\$'),
   ];
   final rootTagPatterns = rootPackage

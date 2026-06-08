@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package_discovery.dart';
 import 'manifest/package_manifest.dart';
 
 /// Package-specific values used when generating repository guidance documents.
@@ -10,6 +11,7 @@ class PackageRepositoryDocPackage {
     required this.version,
     required this.packagePath,
     this.repositoryUrl,
+    this.implementationRecommendation,
   });
 
   /// Package name from the upstream pubspec.
@@ -23,6 +25,10 @@ class PackageRepositoryDocPackage {
 
   /// FlutterOH package repository URL, when known.
   final String? repositoryUrl;
+
+  /// Federated implementation package recommendation, when this package is an
+  /// app-facing plugin that should gain a new platform implementation package.
+  final PackageImplementationRecommendation? implementationRecommendation;
 
   /// Recommended package verification command.
   String get verifyCommand =>
@@ -143,6 +149,50 @@ List<PackageRepositoryDocPackage> packageRepositoryDocPackagesForManifest(
       repositoryUrl: manifest.repositoryUrl,
     ),
   ];
+}
+
+/// Builds documentation package descriptors from a package manifest and the
+/// current checkout.
+Future<List<PackageRepositoryDocPackage>>
+packageRepositoryDocPackagesForCurrentCheckout({
+  required Directory repository,
+  required PackageManifest manifest,
+}) async {
+  final packages = packageRepositoryDocPackagesForManifest(manifest);
+  final discovery = await discoverPackageAdaptationCandidates(
+    repository: repository,
+    missingPlatform: 'ohos',
+  );
+  return [
+    for (final package in packages)
+      PackageRepositoryDocPackage(
+        name: package.name,
+        version: package.version,
+        packagePath: package.packagePath,
+        repositoryUrl: package.repositoryUrl,
+        implementationRecommendation:
+            _implementationRecommendationForDocPackage(
+              discovery: discovery,
+              package: package,
+              missingPlatform: 'ohos',
+            ),
+      ),
+  ];
+}
+
+PackageImplementationRecommendation?
+_implementationRecommendationForDocPackage({
+  required PackageDiscovery discovery,
+  required PackageRepositoryDocPackage package,
+  required String missingPlatform,
+}) {
+  for (final candidate in discovery.candidates) {
+    if (candidate.name == package.name &&
+        candidate.path == package.packagePath) {
+      return candidate.implementationRecommendation(missingPlatform);
+    }
+  }
+  return null;
 }
 
 /// Writes or updates the generated root `README.md` adaptation section.
@@ -406,7 +456,7 @@ List<String> _multiAdaptationCommandFlowLines() {
     '2. Baseline gates: run `fluoh deps get`, `fluoh doctor --project --json --strict`, `fluoh flutter analyze`, and existing package or example tests before adding OHOS code. Project warnings mean repository fixes; environment warnings mean local toolchain or Source fixes.',
     '3. Implementation loop: after code, dependency, SDK, or metadata changes, rerun `fluoh deps get` when needed, then `fluoh verify --package <name> --json --trace-dir <trace-dir>` until pub get, analysis, and existing tests pass.',
     '4. OHOS loop: run `fluoh run --platform ohos --package <name> --auto-emulator --json --trace-dir <trace-dir>`, or add `--device <id>` for a connected hdc target. This proves build, signing, install, launch, and hilog diagnostics; then complete required example functional interactions with AI-assisted automation when possible and record evidence. If no local target can be started, run `fluoh build --platform ohos --package <name> --auto-sign --json --trace-dir <trace-dir>` as build-only evidence and record the environment blocker.',
-    '5. Existing-platform loop: for Android, run `fluoh doctor --platform android --json --strict`, then `fluoh run --platform android --package <name> --auto-emulator --json` when `example/android` exists. For iOS, run `fluoh doctor --platform ios --json --strict`, then `fluoh run --platform ios --package <name> --auto-emulator --json` when `example/ios` exists. For macOS, run `fluoh doctor --platform macos --json --strict`, then `fluoh run --platform macos --package <name> --json` when `example/macos` exists. For Web, run `fluoh doctor --platform web --json --strict`, then `fluoh run --platform web --package <name> --device web-server --json` when `example/web` exists. For Linux and Windows, run the matching doctor command and `fluoh build --platform linux|windows --package <name> --json` when those example directories exist. Add or run `integration_test/` for tappable workflows; otherwise run an AI-assisted interaction scenario and record evidence.',
+    '5. Existing-platform loop: for Android, run `fluoh doctor --platform android --json --strict`, then `fluoh run --platform android --package <name> --auto-emulator --json` when `example/android` exists. For iOS, run `fluoh doctor --platform ios --json --strict`, then `fluoh run --platform ios --package <name> --auto-emulator --json` when `example/ios` exists. For macOS, run `fluoh doctor --platform macos --json --strict`, then `fluoh run --platform macos --package <name> --json` when `example/macos` exists. For Web, run `fluoh doctor --platform web --json --strict`, then `fluoh run --platform web --package <name> --device web-server --json` when `example/web` exists. For Linux and Windows, run the matching doctor command and `fluoh build --platform linux|windows --package <name> --json` when those example directories exist. Add or run `integration_test/` for tappable workflows; otherwise run an AI-assisted or manual-assisted interaction scenario and record tool-readable evidence.',
     '6. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`, `stderrTail`, saved logs, verify `dirtyAfterVerify`/`workingTreeChanges`, trace manifest `result`, and trace `feedbackCandidates` before editing. Fix `doctor` failures in local tooling, project warnings in repository configuration, unexpected generated-file changes, and verification failures in the package or example that produced the diagnostic.',
     '7. Implementation checkpoint: once implementation, OHOS evidence, and applicable existing-platform regression checks are clean or explicitly blocked, create a local implementation checkpoint commit. This clean worktree is required before `fluoh package version`, `fluoh package sync`, and `fluoh package check`.',
     '8. Release metadata checkpoint: run `fluoh package status --package <name>`, update release metadata with `fluoh package version --package <name>` when needed, update `FLUOH_CHANGELOG.md`, review `fluoh.yaml`, then create a local release metadata checkpoint commit. `fluoh package version` requires a clean worktree before it writes metadata.',
@@ -427,7 +477,7 @@ List<String> _singleAdaptationCommandFlowLines(
     '2. Baseline gates: run `fluoh deps get`, `fluoh doctor --project --json --strict`, `fluoh flutter analyze`, and existing package or example tests before adding OHOS code. Project warnings mean repository fixes; environment warnings mean local toolchain or Source fixes.',
     '3. Implementation loop: after code, dependency, SDK, or metadata changes, rerun `fluoh deps get` when needed, then `${package.verifyCommand} --json --trace-dir <trace-dir>` until pub get, analysis, and existing tests pass.',
     '4. OHOS loop: run `${package.ohosRunCommand} --trace-dir <trace-dir>`, or `${package.ohosDeviceRunCommand} --trace-dir <trace-dir>` for a connected hdc target. This proves build, signing, install, launch, and hilog diagnostics; then complete required example functional interactions with AI-assisted automation when possible and record evidence. If no local target can be started, run `${package.ohosBuildCommand} --trace-dir <trace-dir>` as build-only evidence and record the environment blocker.',
-    '5. Existing-platform loop: for Android, run `fluoh doctor --platform android --json --strict`, then `${package.androidEmulatorRunCommand}` when `${package.examplePath}/android` exists. For iOS, run `fluoh doctor --platform ios --json --strict`, then `${package.iosSimulatorRunCommand}` when `${package.examplePath}/ios` exists. For macOS, run `fluoh doctor --platform macos --json --strict`, then `${package.macosRunCommand}` when `${package.examplePath}/macos` exists. For Web, run `fluoh doctor --platform web --json --strict`, then `${package.webRunCommand}` when `${package.examplePath}/web` exists. For Linux and Windows, run the matching doctor command and `${package.linuxBuildCommand}` or `${package.windowsBuildCommand}` when `${package.examplePath}/linux` or `${package.examplePath}/windows` exists. Add or run `${package.examplePath}/integration_test/` for tappable workflows; otherwise run an AI-assisted interaction scenario and record evidence.',
+    '5. Existing-platform loop: for Android, run `fluoh doctor --platform android --json --strict`, then `${package.androidEmulatorRunCommand}` when `${package.examplePath}/android` exists. For iOS, run `fluoh doctor --platform ios --json --strict`, then `${package.iosSimulatorRunCommand}` when `${package.examplePath}/ios` exists. For macOS, run `fluoh doctor --platform macos --json --strict`, then `${package.macosRunCommand}` when `${package.examplePath}/macos` exists. For Web, run `fluoh doctor --platform web --json --strict`, then `${package.webRunCommand}` when `${package.examplePath}/web` exists. For Linux and Windows, run the matching doctor command and `${package.linuxBuildCommand}` or `${package.windowsBuildCommand}` when `${package.examplePath}/linux` or `${package.examplePath}/windows` exists. Add or run `${package.examplePath}/integration_test/` for tappable workflows; otherwise run an AI-assisted or manual-assisted interaction scenario and record tool-readable evidence.',
     '6. Diagnostics loop: read `nextCommand`, `diagnostics[].code`, `stdoutTail`, `stderrTail`, saved logs, verify `dirtyAfterVerify`/`workingTreeChanges`, trace manifest `result`, and trace `feedbackCandidates` before editing. Fix `doctor` failures in local tooling, project warnings in repository configuration, unexpected generated-file changes, and verification failures in the package or example that produced the diagnostic.',
     '7. Implementation checkpoint: once implementation, OHOS evidence, and applicable existing-platform regression checks are clean or explicitly blocked, create a local implementation checkpoint commit. This clean worktree is required before `${package.versionCommand}`, `fluoh package sync`, and `${package.releaseCheckCommand}`.',
     '8. Release metadata checkpoint: run `${package.statusCommand}`, update release metadata with `${package.versionCommand}` when needed, update `FLUOH_CHANGELOG.md`, review `fluoh.yaml`, then create a local release metadata checkpoint commit. `${package.versionCommand}` requires a clean worktree before it writes metadata.',
@@ -451,7 +501,7 @@ List<String> _multiPlatformVerificationLines() {
     '- Run smoke is not enough for workflows that need UI taps, permission prompts, files, camera, location, media playback, deep links, or external apps. Cover those flows with `integration_test/` where the platform runner supports it, or run an AI-assisted functional scenario and record exact steps, expected result, actual result, device or simulator id, Flutter debug/widget/semantic/log evidence, and optional screenshots.',
     '- Store scenario notes under `.fluoh/scenarios/<package>/<platform>-<name>.md` when the interaction is not already encoded as `integration_test`. The AI driver follows the scenario, operates the target with available device or UI tools, and records pass/fail evidence in the report. The scenario must be usable without screenshot recognition or UI appearance judgment by relying on Flutter debug or VM service output, widget/component tree state, semantics, stable text, command JSON, or logs.',
     '- Consider every applicable interaction class before release: permission grant and denial, file or media picker, camera or microphone capture, location and sensors, maps, media playback or recording, deep links and external app callbacks, background or lifecycle behavior, multi-step forms, and negative/error paths. If none apply, write `No interaction required: <reason>` in the report.',
-    '- OHOS `fluoh run` does not currently automate page traversal or button taps. After a successful OHOS launch, use AI-assisted interaction on the emulator or device for required example flows unless another automation has already done so.',
+    '- OHOS `fluoh run` does not currently automate page traversal or button taps. After a successful OHOS launch, use AI-assisted interaction on the emulator or device for required example flows unless another automation has already done so; when the user must operate the target, record manual-assisted evidence only after tool-readable verification confirms the result.',
     '- Release recommendation `ready` requires passing build and run or integration evidence for every existing supported platform directory. A missing local Android, Xcode, macOS/Linux/Web/Windows host or browser, device, or simulator environment is a maintainer-decision blocker, not a ready release.',
     '- Record each platform as `not present`, `passed`, `failed`, or `skipped with blocker` in the `.fluoh/reports/<package-or-scope>/ai-report-...md` platform matrix. Include command, device id or simulator id, exit result, and relevant output tail.',
     '',
@@ -475,7 +525,7 @@ List<String> _singlePlatformVerificationLines(
     '- Run smoke is not enough for workflows that need UI taps, permission prompts, files, camera, location, media playback, deep links, or external apps. Cover those flows with `${package.examplePath}/integration_test/` where the platform runner supports it, or run an AI-assisted functional scenario and record exact steps, expected result, actual result, device or simulator id, Flutter debug/widget/semantic/log evidence, and optional screenshots.',
     '- Store scenario notes under `.fluoh/scenarios/${package.name}/<platform>-<name>.md` when the interaction is not already encoded as `integration_test`. The AI driver follows the scenario, operates the target with available device or UI tools, and records pass/fail evidence in the report. The scenario must be usable without screenshot recognition or UI appearance judgment by relying on Flutter debug or VM service output, widget/component tree state, semantics, stable text, command JSON, or logs.',
     '- Consider every applicable interaction class before release: permission grant and denial, file or media picker, camera or microphone capture, location and sensors, maps, media playback or recording, deep links and external app callbacks, background or lifecycle behavior, multi-step forms, and negative/error paths. If none apply, write `No interaction required: <reason>` in the report.',
-    '- OHOS `${package.ohosRunCommand}` does not currently automate page traversal or button taps. After a successful OHOS launch, use AI-assisted interaction on the emulator or device for required example flows unless another automation has already done so.',
+    '- OHOS `${package.ohosRunCommand}` does not currently automate page traversal or button taps. After a successful OHOS launch, use AI-assisted interaction on the emulator or device for required example flows unless another automation has already done so; when the user must operate the target, record manual-assisted evidence only after tool-readable verification confirms the result.',
     '- Release recommendation `ready` requires passing build and run or integration evidence for every existing supported platform directory. A missing local Android, Xcode, macOS/Linux/Web/Windows host or browser, device, or simulator environment is a maintainer-decision blocker, not a ready release.',
     '- Record each platform as `not present`, `passed`, `failed`, or `skipped with blocker` in the `.fluoh/reports/${package.name}/ai-report-...md` platform matrix. Include command, device id or simulator id, exit result, and relevant output tail.',
     '',
@@ -526,7 +576,7 @@ List<String> _diagnosticsRoutingLines() {
     '- `ohos.no_installable_hap`: ensure the HAP build produced a signed or directly signable output.',
     '- `ohos.install_failed`: inspect install stdout/stderr; fix signing, bundle conflicts, SDK mismatch, or device state.',
     '- `ohos.launch_failed`: fix bundle name, ability name, module metadata, permissions, or startup crash.',
-    '- `ohos.runtime_crash`: open the hilog file from `details.hilog` or the step `reason`, fix the crash, and rerun.',
+    '- `ohos.runtime_crash`: open the hilog file from `details.hilog` or the step `reason`, fix the crash or Flutter channel runtime error, and rerun.',
     '- `command.failed`: read the command, stdout, and stderr, then classify the failure manually.',
     '- Do not create a broad "all permissions" signature. Let `--auto-sign` regenerate the debug signing profile from the example\'s current permission declarations.',
     '',
@@ -606,9 +656,9 @@ String packageImplementationGuideContent({
     '1. Establish a selected-SDK and native-platform baseline before adding OHOS code: run `fluoh deps get`, `fluoh flutter analyze`, `fluoh doctor --project --json --strict`, and existing package tests or example builds. Include the matching Android/iOS/macOS run command and Linux/Web/Windows build command when the example has that platform directory and the local toolchain is available, then fix non-OHOS platform regressions first.',
     '2. Implement the OHOS platform code for the current package branch.',
     '3. Use upstream package tests and existing example tests as the automated baseline before calling the package complete.',
-    '4. Keep package tests and example tests deterministic, with existing example apps for AI-assisted or manual platform verification.',
+    '4. Keep package tests and example tests deterministic, with existing example apps for AI-assisted or manual-assisted platform verification.',
     '5. Run the full automated OHOS loop for each package example: `fluoh run --platform ohos --package <name> --auto-emulator --json`. Add `--device <id>` for an already connected hdc target. Use `fluoh build --platform ohos --package <name> --auto-sign --json` as a build-only fallback only when no local target can be started. JSON `nextCommand` and `diagnostics` give the next failure category. Complete and record required OHOS example functional interactions separately because the run command does not click through pages.',
-    '6. Run existing-platform regression checks after shared or example changes when their platform directories exist: run `fluoh doctor --project --json --strict`, then use `fluoh run --platform android --package <name> --auto-emulator --json` for Android, `fluoh run --platform ios --package <name> --auto-emulator --json` for iOS, `fluoh run --platform macos --package <name> --json` for macOS, `fluoh run --platform web --package <name> --device web-server --json` for Web, and `fluoh build --platform linux|windows --package <name> --json` on matching Linux/Windows hosts. Add `--device <id>` only when no emulator or simulator is available. iOS builds use `--no-codesign`; document unavailable local Android/Xcode/macOS/Linux/Web/Windows host or browser toolchains instead of guessing. Add `integration_test/` or AI-assisted interaction evidence for flows beyond launch smoke.',
+    '6. Run existing-platform regression checks after shared or example changes when their platform directories exist: run `fluoh doctor --project --json --strict`, then use `fluoh run --platform android --package <name> --auto-emulator --json` for Android, `fluoh run --platform ios --package <name> --auto-emulator --json` for iOS, `fluoh run --platform macos --package <name> --json` for macOS, `fluoh run --platform web --package <name> --device web-server --json` for Web, and `fluoh build --platform linux|windows --package <name> --json` on matching Linux/Windows hosts. Add `--device <id>` only when no emulator or simulator is available. iOS builds use `--no-codesign`; document unavailable local Android/Xcode/macOS/Linux/Web/Windows host or browser toolchains instead of guessing. Add `integration_test/`, AI-assisted interaction evidence, or manual-assisted evidence with tool-readable verification for flows beyond launch smoke.',
     '7. Run `fluoh doctor --project --json --strict` when local native toolchains, connected targets, current project, selected SDK, fluoh installation, or source snapshot state is unclear.',
     '8. Commit the implementation checkpoint before release metadata commands; `fluoh package version --package <name>` requires a clean worktree before it writes metadata.',
     '9. Use `fluoh package version --package <name>` and update `FLUOH_CHANGELOG.md` when package version, upstream version, status, or release notes change, then commit the release metadata checkpoint.',
@@ -623,7 +673,7 @@ String packageImplementationGuideContent({
     '5. Test: add deterministic automated checks to existing package tests and example tests. Cover arguments, return shape, errors, and platform-channel names when applicable.',
     '6. Example: from each existing package example, run `fluoh sdk use <sdk-version> --pub-get` when the IDE link is missing or stale. Extend examples from their existing platforms plus OHOS, including operation, expected result, pass/fail status, and failure hint.',
     '7. Build and run OHOS: use `fluoh run --platform ohos --package <name> --auto-emulator --json` to build, auto-sign, install, launch, capture hilog, and classify failures. Then perform required example functional interactions on the emulator or device and record evidence. Fix permission, `reason`, `usedScene`, ArkTS, install, launch, runtime, or interaction diagnostics before release.',
-    '8. Check existing platforms: follow the Platform Verification Matrix. Run `fluoh run --platform android --package <name> --auto-emulator --json` when an Android example exists, `fluoh run --platform ios --package <name> --auto-emulator --json` when an iOS example exists, `fluoh run --platform macos --package <name> --json` when a macOS example exists, `fluoh run --platform web --package <name> --device web-server --json` when a Web example exists, and `fluoh build --platform linux|windows --package <name> --json` when Linux or Windows examples exist on matching hosts. Add `--device <id>` only when no emulator or simulator is available. Use `integration_test/` or AI-assisted interaction evidence for scenario coverage beyond launch smoke. Record exact skip reasons for unavailable local toolchains.',
+    '8. Check existing platforms: follow the Platform Verification Matrix. Run `fluoh run --platform android --package <name> --auto-emulator --json` when an Android example exists, `fluoh run --platform ios --package <name> --auto-emulator --json` when an iOS example exists, `fluoh run --platform macos --package <name> --json` when a macOS example exists, `fluoh run --platform web --package <name> --device web-server --json` when a Web example exists, and `fluoh build --platform linux|windows --package <name> --json` when Linux or Windows examples exist on matching hosts. Add `--device <id>` only when no emulator or simulator is available. Use `integration_test/`, AI-assisted interaction evidence, or manual-assisted evidence with tool-readable verification for scenario coverage beyond launch smoke. Record exact skip reasons for unavailable local toolchains.',
     '9. Release prep: keep `package.release.status: experimental` until that package is implemented, tested, and ready to be recommended. Run `fluoh deps get` after dependency or metadata changes, run the matching `fluoh verify --package <name>`, then commit the implementation checkpoint.',
     '10. Finish: update release metadata, update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, run final `fluoh verify --package <name>`, create the ignored `.fluoh/reports/<name>/ai-report-...md`, run `$_reportCheckCommand`, then run `fluoh package check --package <name> --report <report-path>`. Use `fluoh package release --package <name>` only after maintainer approval.',
     '',
@@ -631,7 +681,7 @@ String packageImplementationGuideContent({
     '',
     '- Public Dart APIs remain compatible with upstream unless upstream changed them.',
     '- Automated package and example tests cover the adapted behavior where practical.',
-    '- Device-only behavior and UI interaction flows have an automated `integration_test`, AI-assisted interaction evidence, an explicitly accepted manual result, or a clear remaining blocker.',
+    '- Device-only behavior and UI interaction flows have an automated `integration_test`, AI-assisted interaction evidence, manual-assisted evidence with tool-readable verification, or a clear remaining blocker.',
     '- The full OHOS run succeeds when a local emulator or device is available; otherwise the device-only blocker is documented.',
     '- Android, iOS, macOS, Linux, Web, and Windows example checks pass when those platforms exist and local toolchains are available; mobile, macOS, and Web checks include run smoke/integration evidence, and Linux and Windows at least pass desktop builds on matching hosts. Unavailable toolchains are documented with exact skipped commands and block a `ready` recommendation.',
     '- `FLUOH_CHANGELOG.md`, `fluoh.yaml`, package status, and release version are ready for `fluoh package check` and `fluoh package release`.',
@@ -674,6 +724,7 @@ String _singlePackageImplementationGuideContent({
     '- Inspect `${package.packagePath}`, `${package.examplePath}`, package tests, example tests, and pubspec constraints.',
     '- Keep assumptions close to the current diff; remove stale notes before release.',
     '',
+    ..._federatedImplementationRouteLines(package),
     ..._adaptationGuardrailLines(),
     ..._singleAdaptationCommandFlowLines(package),
     ..._singlePlatformVerificationLines(package),
@@ -683,9 +734,9 @@ String _singlePackageImplementationGuideContent({
     '1. Establish a selected-SDK and native-platform baseline before adding OHOS code: run `fluoh deps get`, `fluoh flutter analyze`, `fluoh doctor --project --json --strict`, and existing package tests or example builds. Include the matching Android/iOS/macOS run command and Linux/Web/Windows build command when the example has that platform directory and the local toolchain is available, then fix non-OHOS platform regressions first.',
     '2. Implement the OHOS platform code for `${package.name}`.',
     '3. Use upstream package tests and existing example tests as the automated baseline before calling the package complete.',
-    '4. Keep package tests and example tests deterministic, with `${package.examplePath}` for AI-assisted or manual platform verification when it exists.',
+    '4. Keep package tests and example tests deterministic. When `${package.examplePath}` exists, inspect the existing Android/iOS/macOS/Linux/Web/Windows example flows and `integration_test/` first, then make the OHOS example cover equivalent entry points, labels, permissions, status text, expected results, and failure hints unless the platform capability is unavailable.',
     '5. Run the full automated OHOS loop when an example is available: `${package.ohosRunCommand}`. Use `${package.ohosDeviceRunCommand}` for an already connected hdc target. Use `${package.ohosBuildCommand}` as a build-only fallback only when no local target can be started. JSON `nextCommand` and `diagnostics` give the next failure category. Complete and record required OHOS example functional interactions separately because the run command does not click through pages.',
-    '6. Run existing-platform regression checks after shared or example changes when their platform directories exist: run `fluoh doctor --project --json --strict`, then use `${package.androidEmulatorRunCommand}` for Android, `${package.iosSimulatorRunCommand}` for iOS, `${package.macosRunCommand}` for macOS, `${package.webRunCommand}` for Web, `${package.linuxBuildCommand}` for Linux, and `${package.windowsBuildCommand}` for Windows, or add `--device <id>` for already connected mobile targets. iOS builds use `--no-codesign`; document unavailable local Android/Xcode/macOS/Linux/Web/Windows host or browser toolchains instead of guessing. Add `${package.examplePath}/integration_test/` or AI-assisted interaction evidence for flows beyond launch smoke.',
+    '6. Run existing-platform regression checks after shared or example changes when their platform directories exist: run `fluoh doctor --project --json --strict`, then use `${package.androidEmulatorRunCommand}` for Android, `${package.iosSimulatorRunCommand}` for iOS, `${package.macosRunCommand}` for macOS, `${package.webRunCommand}` for Web, `${package.linuxBuildCommand}` for Linux, and `${package.windowsBuildCommand}` for Windows, or add `--device <id>` for already connected mobile targets. iOS builds use `--no-codesign`; document unavailable local Android/Xcode/macOS/Linux/Web/Windows host or browser toolchains instead of guessing. Add `${package.examplePath}/integration_test/`, AI-assisted interaction evidence, or manual-assisted evidence with tool-readable verification for flows beyond launch smoke.',
     '7. Run `fluoh doctor --project --json --strict` when local native toolchains, connected targets, current project, selected SDK, fluoh installation, or source snapshot state is unclear.',
     '8. Commit the implementation checkpoint before release metadata commands; `${package.versionCommand}` requires a clean worktree before it writes metadata.',
     '9. Use `${package.versionCommand}` and update `FLUOH_CHANGELOG.md` when package version, upstream version, status, or release notes change, then commit the release metadata checkpoint.',
@@ -698,9 +749,9 @@ String _singlePackageImplementationGuideContent({
     '3. Plan: inspect the upstream Dart API and platform implementations, then identify required OHOS entry points, permissions, config files, tests, example flows, and device checks.',
     '4. Implement: add OHOS code under the package path recorded in `fluoh.yaml` without changing upstream public APIs unless upstream requires it.',
     '5. Test: add deterministic automated checks to existing package tests and example tests. Cover arguments, return shape, errors, and platform-channel names when applicable.',
-    '6. Example: from `${package.examplePath}` when it exists, run `fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get` when the IDE link is missing or stale. Extend the example from its existing platforms plus OHOS, including operation, expected result, pass/fail status, and failure hint.',
+    '6. Example: from `${package.examplePath}` when it exists, run `fluoh sdk use <sdk-version-from-fluoh.yaml> --pub-get` when the IDE link is missing or stale. Use the existing Android/iOS/macOS/Linux/Web/Windows example flows and `integration_test/` as the reference, then extend the example with OHOS parity: operation, expected result, pass/fail status, permission prompts, status text, and failure hint.',
     '7. Build and run OHOS: use `${package.ohosRunCommand}` to build, auto-sign, install, launch, capture hilog, and classify failures. Then perform required example functional interactions on the emulator or device and record evidence. Fix permission, `reason`, `usedScene`, ArkTS, install, launch, runtime, or interaction diagnostics before release.',
-    '8. Check existing platforms: follow the Platform Verification Matrix. Run `${package.androidEmulatorRunCommand}` when an Android example exists, `${package.iosSimulatorRunCommand}` when an iOS example exists, `${package.macosRunCommand}` when a macOS example exists, `${package.webRunCommand}` when a Web example exists, `${package.linuxBuildCommand}` when a Linux example exists, and `${package.windowsBuildCommand}` when a Windows example exists, or add `--device <id>` for already connected mobile targets. Use `${package.examplePath}/integration_test/` or AI-assisted interaction evidence for scenario coverage beyond launch smoke. Record exact skip reasons for unavailable local toolchains.',
+    '8. Check existing platforms: follow the Platform Verification Matrix. Run `${package.androidEmulatorRunCommand}` when an Android example exists, `${package.iosSimulatorRunCommand}` when an iOS example exists, `${package.macosRunCommand}` when a macOS example exists, `${package.webRunCommand}` when a Web example exists, `${package.linuxBuildCommand}` when a Linux example exists, and `${package.windowsBuildCommand}` when a Windows example exists, or add `--device <id>` for already connected mobile targets. Use `${package.examplePath}/integration_test/`, AI-assisted interaction evidence, or manual-assisted evidence with tool-readable verification for scenario coverage beyond launch smoke. Record exact skip reasons for unavailable local toolchains.',
     '9. Release prep: keep `package.release.status: experimental` until the implementation is complete, tested, and ready to be recommended. Run `fluoh deps get` after dependency or metadata changes, run `${package.verifyCommand}`, then commit the implementation checkpoint.',
     '10. Finish: update `FLUOH_CHANGELOG.md`, commit the release metadata checkpoint, run final `${package.verifyCommand}`, create the ignored `.fluoh/reports/${package.name}/ai-report-...md`, run `$_reportCheckCommand`, then run `${package.releaseCheckCommand} --report <report-path>`. Use `${package.releaseCommand}` only after maintainer approval.',
     '',
@@ -708,7 +759,7 @@ String _singlePackageImplementationGuideContent({
     '',
     '- Public Dart APIs remain compatible with upstream unless upstream changed them.',
     '- Automated package and example tests cover the adapted behavior where practical.',
-    '- Device-only behavior and UI interaction flows have an automated `integration_test`, AI-assisted interaction evidence, an explicitly accepted manual result, or a clear remaining blocker.',
+    '- Device-only behavior and UI interaction flows have an automated `integration_test`, AI-assisted interaction evidence, manual-assisted evidence with tool-readable verification, or a clear remaining blocker.',
     '- `${package.ohosRunCommand}` succeeds when a local emulator is available; otherwise the device-only blocker is documented.',
     '- `${package.androidRunCommand}`, `${package.iosRunCommand}`, `${package.macosRunCommand}`, and `${package.webRunCommand}` run smoke checks and integration tests when those platforms exist and local toolchains are available; `${package.linuxBuildCommand}` and `${package.windowsBuildCommand}` pass when Linux or Windows examples exist on matching hosts; unavailable toolchains are documented with exact skipped commands and block a `ready` recommendation.',
     '- `FLUOH_CHANGELOG.md`, `fluoh.yaml`, package status, and release version are ready for `${package.releaseCommand}`.',
@@ -722,6 +773,31 @@ String _singlePackageImplementationGuideContent({
     '- OHOS `signingConfigs` can be used locally; commit only empty or placeholder signing settings.',
     '',
   ].join('\n');
+}
+
+List<String> _federatedImplementationRouteLines(
+  PackageRepositoryDocPackage package,
+) {
+  final recommendation = package.implementationRecommendation;
+  if (recommendation == null) {
+    return const [];
+  }
+  return [
+    '## Federated Implementation Route',
+    '',
+    '- Keep the Source route and public API on app-facing package `${recommendation.appFacingPackage}`.',
+    '- Create the OHOS implementation package `${recommendation.implementationPackageName}` at `${recommendation.implementationPackagePath}`.',
+    '- Add `${recommendation.platform}.default_package: ${recommendation.implementationPackageName}` to `${recommendation.appFacingPackage}`.',
+    '- Add dependency `${recommendation.implementationPackageName}` with relative path `${recommendation.implementationDependencyPath}`.',
+    '- Use existing default packages as parity references: ${_defaultPackageSummary(recommendation.existingDefaultPackages)}.',
+    '',
+  ];
+}
+
+String _defaultPackageSummary(Map<String, String> packages) {
+  return packages.entries
+      .map((entry) => '${entry.key} -> ${entry.value}')
+      .join(', ');
 }
 
 /// Builds the initial generated `FLUOH_CHANGELOG.md` content.

@@ -80,6 +80,7 @@ void main() {
         '-b com.example.camera',
       ),
     );
+    expect(invocations, contains('-t emulator-5554 hilog -r'));
     expect(invocations, contains('-t emulator-5554 hilog'));
   });
 
@@ -128,6 +129,52 @@ void main() {
     expect(invocations, contains('list targets'));
     expect(invocations, contains('-t emulator-5554 install -r ${hap.path}'));
     expect(invocations, isNot(contains('-t real-device install')));
+  });
+
+  test('auto emulator reuses a localhost hdc emulator target', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final home = Directory('${root.path}/home')..createSync(recursive: true);
+    final project = Directory('${root.path}/project')
+      ..createSync(recursive: true);
+    final ohos = await _writeOhosProject(project);
+    final hap = File('${project.path}/entry-default-signed.hap')
+      ..writeAsStringSync('hap');
+    final hdcLog = File('${root.path}/hdc.log');
+    final emulatorLog = File('${root.path}/emulator.log');
+    final devEco = await _writeDevEcoFixture(
+      root,
+      hdcLog: hdcLog,
+      emulatorLog: emulatorLog,
+      targets: '127.0.0.1:5555\n',
+    );
+
+    final result = await runOhosHapsOnDevice(
+      environment: FluohEnvironment(
+        homeDirectory: home,
+        workingDirectory: project,
+        processEnvironment: {
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+          'FLUOH_OHOS_EMULATOR_DEPLOYED': '${root.path}/no_emulators',
+        },
+      ),
+      ohosDirectory: ohos,
+      haps: [hap],
+      output: TerminalOutput(stdout: (_) {}),
+      startEmulator: true,
+      logDuration: const Duration(milliseconds: 10),
+    );
+
+    expect(result.passed, isTrue, reason: result.reason);
+    expect(result.targetId, '127.0.0.1:5555');
+    expect(emulatorLog.existsSync(), isFalse);
+    final invocations = hdcLog.readAsStringSync();
+    expect(invocations, contains('list targets'));
+    expect(invocations, contains('-t 127.0.0.1:5555 install -r ${hap.path}'));
   });
 
   test(
@@ -384,6 +431,53 @@ void main() {
     );
   });
 
+  test(
+    'returns diagnostics when Flutter plugin channels are not implemented',
+    () async {
+      final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+      addTearDown(() async {
+        if (await root.exists()) {
+          await root.delete(recursive: true);
+        }
+      });
+      final home = Directory('${root.path}/home')..createSync(recursive: true);
+      final project = Directory('${root.path}/project')
+        ..createSync(recursive: true);
+      final ohos = await _writeOhosProject(project);
+      final hap = File('${project.path}/entry-default-signed.hap')
+        ..writeAsStringSync('hap');
+      final devEco = await _writeDevEcoFixture(
+        root,
+        hdcLog: File('${root.path}/hdc.log'),
+        flutterMissingPluginHilog: true,
+      );
+
+      final result = await runOhosHapsOnDevice(
+        environment: FluohEnvironment(
+          homeDirectory: home,
+          workingDirectory: project,
+          processEnvironment: {'FLUOH_DEVECO_STUDIO': devEco.path},
+        ),
+        ohosDirectory: ohos,
+        haps: [hap],
+        output: TerminalOutput(stdout: (_) {}),
+        logDuration: const Duration(milliseconds: 10),
+      );
+
+      expect(result.passed, isFalse);
+      expect(
+        result.findings,
+        contains('W A000ff/Flutter: MethodChannel# --> method not implemented'),
+      );
+      expect(result.diagnostics, hasLength(1));
+      expect(result.diagnostics.single.code, 'ohos.runtime_crash');
+      expect(
+        result.diagnostics.single.details,
+        containsPair('findings', result.findings),
+      );
+    },
+  );
+
   test('drains hilog before classifying runtime crashes', () async {
     final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
     addTearDown(() async {
@@ -424,6 +518,41 @@ void main() {
       result.logFile!.readAsStringSync(),
       contains('E CppCrash Process crashed with SIGABRT'),
     );
+  });
+
+  test('does not block when clearing old hilog output hangs', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final home = Directory('${root.path}/home')..createSync(recursive: true);
+    final project = Directory('${root.path}/project')
+      ..createSync(recursive: true);
+    final ohos = await _writeOhosProject(project);
+    final hap = File('${project.path}/entry-default-signed.hap')
+      ..writeAsStringSync('hap');
+    final devEco = await _writeDevEcoFixture(
+      root,
+      hdcLog: File('${root.path}/hdc.log'),
+      hangClearHilog: true,
+    );
+
+    final result = await runOhosHapsOnDevice(
+      environment: FluohEnvironment(
+        homeDirectory: home,
+        workingDirectory: project,
+        processEnvironment: {'FLUOH_DEVECO_STUDIO': devEco.path},
+      ),
+      ohosDirectory: ohos,
+      haps: [hap],
+      output: TerminalOutput(stdout: (_) {}),
+      logDuration: const Duration(milliseconds: 10),
+    );
+
+    expect(result.passed, isTrue, reason: result.reason);
+    expect(result.logFile!.readAsStringSync(), contains('app started'));
   });
 
   test('returns diagnostics when hdc target listing fails', () async {
@@ -643,6 +772,19 @@ E app FATAL EXCEPTION: main
     );
   });
 
+  test('classifies Flutter plugin channel implementation failures', () {
+    expect(
+      classifyOhosRuntimeLog('''
+W A000ff/Flutter: MethodChannel# --> method not implemented
+E flutter: MissingPluginException(No implementation found for method getTemporaryDirectory on channel plugins.flutter.io/path_provider)
+'''),
+      [
+        'W A000ff/Flutter: MethodChannel# --> method not implemented',
+        'E flutter: MissingPluginException(No implementation found for method getTemporaryDirectory on channel plugins.flutter.io/path_provider)',
+      ],
+    );
+  });
+
   test('ignores non-fatal FlutterOH method channel startup noise', () {
     expect(
       classifyOhosRuntimeLog(
@@ -697,6 +839,8 @@ Future<Directory> _writeDevEcoFixture(
   String? targetsAfterEmulatorStart,
   bool crashHilog = false,
   bool shutdownCrashHilog = false,
+  bool flutterMissingPluginHilog = false,
+  bool hangClearHilog = false,
   int listTargetsExitCode = 0,
   bool createEmulatorTool = true,
 }) async {
@@ -748,6 +892,14 @@ if [ "\$1" = "shell" ]; then
   printf "start ability successfully\\n"
   exit 0
 fi
+if [ "\$1" = "hilog" ] && [ "\$2" = "-r" ]; then
+  if [ "${hangClearHilog ? '1' : '0'}" = "1" ]; then
+    while true; do
+      sleep 1
+    done
+  fi
+  exit 0
+fi
 if [ "\$1" = "hilog" ]; then
   if [ "${shutdownCrashHilog ? '1' : '0'}" = "1" ]; then
     trap 'printf "E CppCrash Process crashed with SIGABRT\\n"; exit 0' INT TERM
@@ -757,6 +909,11 @@ if [ "\$1" = "hilog" ]; then
   fi
   if [ "${crashHilog ? '1' : '0'}" = "1" ]; then
     printf "E CppCrash Process crashed with SIGSEGV\\n"
+    exit 0
+  fi
+  if [ "${flutterMissingPluginHilog ? '1' : '0'}" = "1" ]; then
+    printf "W A000ff/Flutter: MethodChannel# --> method not implemented\\n"
+    printf "E flutter: MissingPluginException(No implementation found for method getTemporaryDirectory on channel plugins.flutter.io/path_provider)\\n"
     exit 0
   fi
   printf "I app started\\n"

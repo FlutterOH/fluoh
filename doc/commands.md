@@ -601,11 +601,13 @@ author options configure only the new repository's local Git `user.name` and
 organization passed to `flutter create` when adding OHOS to an existing example;
 omitting it lets fluoh infer one from existing Android, iOS, or macOS example
 metadata. `--plan` clones the upstream
-repository into a temporary directory, resolves the selected package, SDK,
-output path, repository URL, target branch, and Git author, then deletes the
-temporary clone without creating the destination repository, configuring SDK
-links, writing files, staging files, or committing. `--json` is supported only
-with `--plan` and prints a single machine-readable plan object for AI setup
+repository into a temporary directory, preferring a shallow default-branch clone
+plus shallow tag fetch for release-tag selection and falling back to a partial
+or full clone only when required, resolves the selected package, SDK, output
+path, repository URL, target branch, and Git author, then deletes the temporary
+clone without creating the destination repository, configuring SDK links,
+writing files, staging files, or committing. `--json` is supported only with
+`--plan` and prints a single machine-readable plan object for AI setup
 confirmation. The plan object includes `warnings[]`; AI setup must inspect it
 before creating the repository. For example, `package.dart_sdk_incompatible`
 reports when the selected upstream package requires a newer Dart SDK and, when
@@ -615,19 +617,43 @@ package pubspec, example config, and Dart code to the selected FlutterOH SDK,
 then rerun verify. JSON warnings include
 `policy.suggestedEnvironmentSdkConstraint` when the selected Dart SDK version is
 known. Using an older upstream baseline requires explicit maintainer approval.
+`package.default_branch_version_unreleased` reports when the default branch
+declares a different package version than the selected latest release tag. The
+warning records the selected release ref/version and the default branch
+version; AI setup keeps the selected release tag by default and uses
+`--upstream-ref <branch>` only when maintainers explicitly approve adapting the
+unreleased default-branch snapshot.
+When the selected package is a federated app-facing plugin with
+`default_package` declarations and no OHOS platform, the plan also includes an
+`implementationRecommendation` that keeps the Source route on the app-facing
+package and describes the `<package>_ohos` implementation package plus required
+app-facing pubspec edits.
 
-`fluoh package discover <upstream> --json` clones the upstream repository into a
-temporary directory, scans non-example `pubspec.yaml` files, and reports Flutter
-plugin packages whose `flutter.plugin.platforms` do not declare `ohos`. It is
-read-only and does not create a package repository, configure remotes, checkout
-branches, or write project files. JSON output includes the filter, inspected
-pubspec count, valid Flutter plugin count, candidate package names, paths,
-versions, declared platforms, missing platforms, per-candidate `createCommand`,
-a multi-package `queueCommand`, and non-fatal `issues[]`. Use it when an AI or
-maintainer receives a monorepo upstream URL without an explicit package path and
-needs a short package selection list before running `package create`. Pass
-`--include-existing-platform` to include Flutter plugins that already declare the
-requested `--missing-platform`, which defaults to `ohos`.
+`fluoh package discover <upstream> --json` shallow-clones the upstream
+repository into a temporary directory, scans non-example `pubspec.yaml` files,
+and reports Flutter plugin packages whose `flutter.plugin.platforms` do not
+declare `ohos`. It is read-only and does not create a package repository,
+configure remotes, checkout branches, or write project files. JSON output
+includes the filter, inspected pubspec count, valid Flutter plugin count,
+candidate and recommended counts, candidate package names, paths, versions,
+declared platforms, federated `default_package` declarations, missing
+platforms, per-candidate `createCommand`, federated
+`implementationRecommendation` details when an app-facing plugin should grow a
+new platform implementation package such as `<package>_ohos`, a multi-package
+`queueCommand`, and non-fatal `issues[]`. The default `queueCommand` contains
+only recommended candidates; existing Android, iOS, Web, Linux, macOS, or
+Windows implementation packages referenced by an app-facing package's
+`default_package` entries, or in the same federated family such as
+`<package>_android`, remain visible but are marked
+`covered_by_federated_app_facing_package` with
+`coveredByImplementationRecommendations[]`. Test fixture plugins and
+platform-specific helper plugins remain visible as context with roles such as
+`test_fixture` or `platform_specific_helper`, but are also excluded from the
+default queue. Use it when an AI or maintainer receives a monorepo upstream URL
+without an explicit package path and needs a short package selection list before
+running `package create`. Pass
+`--include-existing-platform` to include Flutter plugins that already declare
+the requested `--missing-platform`, which defaults to `ohos`.
 
 `fluoh package queue <package-path>... --json` resolves a read-only
 multi-package queue in an existing FlutterOH package repository. It fetches
@@ -659,17 +685,25 @@ package branch already exists, it points maintainers to the existing branch,
 adaptation state. File snapshots protect local state when the command fails.
 
 `fluoh package docs refresh` regenerates the fluoh-owned sections of
-`FLUOH.md` and `AGENTS.md` from the current Package `fluoh.yaml`. Generated
-sections are identified by `fluoh:generated` markers that include a stable
-section id and template version, so future template upgrades can replace only
-the owned section while preserving hand-written content. Existing non-empty
-`FLUOH_CHANGELOG.md` content is not rewritten; when the changelog is missing or
-empty, the command creates initial release headings from current package
-metadata with TODO placeholder entries that must be replaced before release.
-`--dry-run` reports files that would change without requiring a clean working
-tree. Writing requires the recorded package branch and a clean working tree,
-does not stage files, and does not change `fluoh.yaml`. `--json` reports
-`changed`, `applied`, `files`, and `dryRun`.
+`FLUOH.md` and `AGENTS.md` from the current Package `fluoh.yaml` plus the
+current checkout's package pubspec. When the selected package is a federated
+app-facing plugin with `default_package` declarations and no OHOS platform,
+refresh re-derives the same `<package>_ohos` implementation route used by
+`package create`, so older generated repositories gain the current AI guidance
+after a tool upgrade. Generated sections are identified by `fluoh:generated`
+markers that include a stable section id and template version, so future
+template upgrades can replace only the owned section while preserving
+hand-written content. Existing non-empty `FLUOH_CHANGELOG.md` content is not
+rewritten; when the changelog is missing or empty, the command creates initial
+release headings from current package metadata with TODO placeholder entries
+that must be replaced before release. `--dry-run` reports files that would
+change without requiring a clean working tree. Writing requires the recorded
+package branch and a clean working tree, does not stage files, and does not
+change `fluoh.yaml`. `--allow-dirty` explicitly permits writing generated docs
+before a clean checkpoint is available, such as immediately after `package
+create`; it still writes only the planned generated documentation files and does
+not stage them. `--json` reports `changed`, `applied`, `files`, `dryRun`, and
+`allowDirty`.
 
 `fluoh package sync` fetches upstream branches and tags, fast-forwards the
 upstream branch recorded in Package `upstream.git.branch`, resolves the package
@@ -702,7 +736,10 @@ project or the package recorded in Package `fluoh.yaml`. It runs selected-SDK
 `pub get` and `analyze`, uses `flutter` for Flutter packages and `dart` for
 non-Flutter packages, and runs tests when `test/**/*_test.dart` exists. In a
 package repository it also verifies each top-level Flutter example when
-`example/pubspec.yaml` is present. Use `--package <name>` to validate the
+`example/pubspec.yaml` is present. When it finds `integration_test/`, it records
+a skipped discovery step with suggested platform `fluoh run ... --json`
+commands; this is a prompt to collect device evidence, not passed interaction
+evidence. Use `--package <name>` to validate the
 requested package name against the current branch. `--json` reports each
 project or package under `targets`, with target identity, phase, steps,
 diagnostics, and `nextCommand`. Use `--trace` to write a local AI diagnostic
@@ -734,11 +771,13 @@ the same local AI diagnostic trace contract as `fluoh verify`.
 `fluoh run --platform ohos|android|ios|macos|linux|web|windows` builds, installs, launches, and
 diagnoses the current project or selected package example. For OHOS projects
 and package examples it signs the HAP, installs it with `hdc`, starts the
-ability, captures a short hilog, and reports runtime crash patterns. For
-Android, iOS, macOS, Linux, Web, and Windows package examples it launches through the selected SDK's
+ability, captures a short hilog, and reports runtime crash or Flutter channel
+runtime error patterns. For Android, iOS, macOS, Linux, Web, and Windows
+current projects and package examples it launches through the selected SDK's
 `flutter run`, captures smoke output under `$FLUOH_HOME/cache/package-runs`, and runs
-`flutter test integration_test -d <device>` when the example has an
-`integration_test/` directory. When `flutter run` prints a VM Service or debug
+`flutter test integration_test -d <device>` when `integration_test/` exists and
+a concrete target is available. Web `web-server` runs skip integration tests and
+point to a browser device such as Chrome instead. When `flutter run` prints a VM Service or debug
 service URI, `--json` includes it as `details.vmServiceUri` on the run step so
 an AI agent or external tool can attach. Pass `--session-file <path>` on
 Android, iOS, macOS, Linux, Web, or Windows runs to write a live `flutterRunSession` JSON file while
@@ -759,14 +798,14 @@ target-selection advice: prefer local DevEco emulator evidence for repeatable
 automation; use a connected real device only when no emulator is available.
 When multiple local OHOS emulators expose API metadata, the diagnostic suggests
 covering both the lowest and highest API versions.
-Android, iOS, macOS, Linux, Web, and Windows current-project runs use the same Flutter device
-discovery, platform filtering, run-smoke timeout, and saved output log path as
-package examples, but they do not run package example integration tests.
-Run-smoke success is only launch evidence. Package workflows that require UI
+Run-smoke success is only launch evidence. Project or package workflows that require UI
 taps, permission prompts, files, camera, location, media playback, deep links,
 or external apps need functional scenario evidence from `integration_test/`
 where the platform runner supports it, or from AI-assisted interaction on the
-emulator or device. Store scenario notes under `.fluoh/scenarios/<package>/<platform>-<name>.md`
+emulator or device. If the user must operate the device or emulator, record the
+result as `manual-assisted` and mark it passed only after fluoh-readable
+evidence such as logs, session status, stable text, semantic labels, test keys,
+or app log markers confirms the result. Store scenario notes under `.fluoh/scenarios/<package>/<platform>-<name>.md`
 when the flow is not already encoded as `integration_test`; the AI driver
 follows that scenario, operates the target with available device or UI tools,
 and records step results in `.fluoh/reports/<scope>/ai-report-...md`. OHOS `fluoh run`
@@ -828,9 +867,14 @@ already point at HEAD. It does not publish to pub.dev.
 without mutating the repository. It checks the current branch, clean working
 tree, package status, release notes, license warnings, package tests, Flutter
 example presence, example OHOS platform, example tests, and tracked files that
-contain the local fluoh home path. Use `--package <name>` to validate the
-requested package name against the current branch, and `--json` for
-machine-readable output.
+contain the local fluoh home path. For federated app-facing plugins with
+existing `default_package` declarations but no OHOS platform, it also reports a
+readiness blocker for the missing `<package>_ohos` implementation package,
+`ohos.default_package`, and dependency route. If `ohos.default_package` is
+already declared, status also verifies that the app-facing package depends on
+that default package and that the implementation package exists and declares
+OHOS. Use `--package <name>` to validate the requested package name against the
+current branch, and `--json` for machine-readable output.
 
 ## State Ownership
 

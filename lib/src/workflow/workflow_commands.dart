@@ -698,6 +698,17 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         ),
       );
     }
+    if (await hasIntegrationTests(project)) {
+      output.skipped(
+        'Discovered project integration tests: run a platform target to execute them on a device',
+      );
+      steps.add(
+        _projectIntegrationDiscoveryStep(
+          name: 'project-integration',
+          path: '.',
+        ),
+      );
+    }
     return WorkflowTargetResult.project(
       projectName: 'current',
       exitCode: 0,
@@ -772,9 +783,29 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
             .toList(),
       ),
     );
+    if (!runResult.passed) {
+      return WorkflowTargetResult.project(
+        projectName: 'current',
+        exitCode: runResult.exitCode,
+        steps: steps,
+        phase: 'run-$platform',
+      );
+    }
+    final integrationExitCode = await _appendProjectIntegrationRunSteps(
+      environment: environment,
+      project: project,
+      platform: runResult.platform,
+      targetId: runResult.target?.id,
+      stdout: stdout,
+      stderr: stderr,
+      output: output,
+      usage: usage,
+      steps: steps,
+      nextCommand: _projectRunNextCommand(invocation),
+    );
     return WorkflowTargetResult.project(
       projectName: 'current',
-      exitCode: runResult.exitCode,
+      exitCode: integrationExitCode ?? runResult.exitCode,
       steps: steps,
       phase: 'run-$platform',
     );
@@ -1133,6 +1164,17 @@ Future<WorkflowTargetResult> _runProjectOhosWorkflow({
           .toList(),
     ),
   );
+  if (runResult.passed && await hasIntegrationTests(project)) {
+    steps.add(
+      _projectOhosManualAssistedIntegrationStep(
+        logFile: runResult.logFile,
+        targetId: runResult.targetId,
+      ),
+    );
+    output.next(
+      'Complete the OHOS interaction manually, then verify logs or app status before marking interaction evidence passed',
+    );
+  }
 
   return WorkflowTargetResult.project(
     projectName: 'current',
@@ -1153,6 +1195,214 @@ List<File> _installableHapsFromBuildResult(WorkflowTargetResult result) {
     }
   }
   return const [];
+}
+
+WorkflowStepResult _projectIntegrationDiscoveryStep({
+  required String name,
+  required String path,
+}) {
+  return WorkflowStepResult(
+    name: name,
+    path: path,
+    command: 'flutter test integration_test -d <device>',
+    status: 'skipped',
+    reason: 'requires a platform run target',
+    details: {
+      'testDirectory': 'integration_test',
+      'interactionEvidence': {
+        'status': 'available',
+        'method': 'integration_test',
+        'execution': 'run fluoh run with a concrete platform and device',
+      },
+      'suggestedCommands': [
+        'fluoh run --platform ohos --auto-emulator --json',
+        'fluoh run --platform android --auto-emulator --json',
+        'fluoh run --platform ios --auto-emulator --json',
+        'fluoh run --platform macos --json',
+        'fluoh run --platform web --device chrome --json',
+      ],
+      'manualAssistedFallback': {
+        'when':
+            'system UI, permissions, pickers, external apps, or OHOS runner gaps block automatic execution',
+        'requiredEvidence':
+            'record user steps plus tool-verified logs, session status, stable text, semantics, or app log markers',
+      },
+    },
+  );
+}
+
+Future<int?> _appendProjectIntegrationRunSteps({
+  required FluohEnvironment environment,
+  required Directory project,
+  required String platform,
+  required String? targetId,
+  required OutputWriter stdout,
+  required OutputWriter stderr,
+  required TerminalOutput output,
+  required String usage,
+  required List<WorkflowStepResult> steps,
+  required String nextCommand,
+}) async {
+  if (!await hasIntegrationTests(project)) {
+    return null;
+  }
+  if (platform == 'web' && targetId == 'web-server') {
+    const reason = 'web-server target does not run browser integration tests';
+    steps.add(
+      WorkflowStepResult(
+        name: 'project-integration-web',
+        path: '.',
+        command: 'flutter test integration_test -d <browser-device>',
+        status: 'skipped',
+        reason: reason,
+        details: {
+          'platform': platform,
+          'targetId': targetId,
+          'requiredTargetKind': 'browser',
+          'suggestedDevice': 'chrome',
+          'suggestedCommand': 'fluoh run --platform web --device chrome --json',
+        },
+      ),
+    );
+    output.skipped(
+      'Skipping web integration tests in current project: $reason',
+    );
+    return null;
+  }
+  if (targetId == null) {
+    steps.add(
+      WorkflowStepResult(
+        name: 'project-integration-$platform',
+        path: '.',
+        command: 'flutter test integration_test -d <device>',
+        status: 'skipped',
+        reason: 'run target did not expose a device id',
+        details: {
+          'platform': platform,
+          'interactionEvidence': {
+            'status': 'blocked',
+            'method': 'integration_test',
+            'reason': 'missing target id',
+          },
+        },
+      ),
+    );
+    output.skipped(
+      'Skipping $platform integration tests in current project: missing target id',
+    );
+    return null;
+  }
+  final arguments = ['test', 'integration_test', '-d', targetId];
+  output.step('Running flutter ${arguments.join(' ')} in current project');
+  final result = await runSelectedFlutterResult(
+    environment: environment,
+    arguments: arguments,
+    workingDirectory: project,
+    stdout: stdout,
+    stderr: stderr,
+    output: output,
+    usage: usage,
+  );
+  final command = 'flutter ${arguments.join(' ')}';
+  steps.add(
+    WorkflowStepResult(
+      name: 'project-integration-$platform',
+      path: '.',
+      command: command,
+      status: result.exitCode == 0 ? 'passed' : 'failed',
+      exitCode: result.exitCode,
+      details: {
+        'platform': platform,
+        'targetId': targetId,
+        'interactionEvidence': {
+          'method': 'integration_test',
+          'status': result.exitCode == 0 ? 'passed' : 'failed',
+          'testDirectory': 'integration_test',
+        },
+        ..._toolOutputDetails(result),
+      },
+      diagnostics: result.exitCode == 0
+          ? const []
+          : [
+              WorkflowDiagnostic(
+                code: _projectIntegrationDiagnosticCode(platform),
+                message:
+                    '${_platformLabel(platform)} integration tests failed.',
+                details: {
+                  'command': command,
+                  'exitCode': result.exitCode,
+                  ..._toolOutputDetails(result),
+                },
+                nextCommand: nextCommand,
+              ),
+            ],
+    ),
+  );
+  if (result.exitCode != 0) {
+    output.failure(
+      '${_platformLabel(platform)} integration tests failed in current project',
+    );
+    return result.exitCode;
+  }
+  output.success(
+    '${_platformLabel(platform)} integration tests passed in current project',
+  );
+  return null;
+}
+
+WorkflowStepResult _projectOhosManualAssistedIntegrationStep({
+  File? logFile,
+  String? targetId,
+}) {
+  return WorkflowStepResult(
+    name: 'project-integration-ohos',
+    path: '.',
+    command: 'flutter test integration_test -d <ohos-device>',
+    status: 'skipped',
+    reason:
+        'OHOS integration_test automation is not available; manual-assisted interaction evidence is required.',
+    details: {
+      'testDirectory': 'integration_test',
+      'targetId': ?targetId,
+      'hilog': ?logFile?.path,
+      'interactionEvidence': {
+        'status': 'manual-required',
+        'method': 'manual-assisted',
+        'platform': 'ohos',
+        'requiredUserAction':
+            'complete the integration scenario on the OHOS emulator or device',
+        'verification':
+            'after user action, verify app state through hilog, stable text, semantic labels, test keys, or structured app logs',
+      },
+      'reportMethod': 'manual-assisted',
+      'reportRequirement':
+          'write an Interaction Evidence row with result passed only after tool-readable evidence confirms the user-completed flow',
+    },
+  );
+}
+
+String _projectIntegrationDiagnosticCode(String platform) {
+  return switch (platform) {
+    'android' => 'android.integration_test_failed',
+    'ios' => 'ios.integration_test_failed',
+    'macos' => 'macos.integration_test_failed',
+    'linux' => 'linux.integration_test_failed',
+    'web' => 'web.integration_test_failed',
+    'windows' => 'windows.integration_test_failed',
+    _ => 'integration_test.failed',
+  };
+}
+
+String _platformLabel(String platform) {
+  return switch (platform) {
+    'ios' => 'iOS',
+    'macos' => 'macOS',
+    'ohos' => 'OHOS',
+    'web' => 'Web',
+    'linux' => 'Linux',
+    'windows' => 'Windows',
+    _ => 'Android',
+  };
 }
 
 List<String> _filePaths(List<File> files) {
@@ -1372,6 +1622,8 @@ String? _projectNextCommandForDiagnosticCode(
     'windows.run_failed' ||
     'windows.runtime_crash' => runCommand,
     'ohos.devices_failed' ||
+    'ohos.hdc_connection_failed' ||
+    'ohos.hdc_targets_failed' ||
     'ohos.emulators_failed' ||
     'ohos.emulator_missing' ||
     'ohos.emulator_start_failed' ||
@@ -1402,6 +1654,7 @@ String? _projectNextCommandForDiagnosticCode(
       'fluoh doctor --platform $platform --json',
     'ohos.device_not_found' ||
     'ohos.device_ambiguous' ||
+    'ohos.hdc_target_unavailable' ||
     'android.device_not_found' ||
     'android.device_ambiguous' ||
     'ios.device_not_found' ||
@@ -1602,6 +1855,7 @@ bool _isGeneratedWorkflowPath(String path) {
       normalized.endsWith('/GeneratedPluginRegistrant.swift') ||
       normalized.endsWith('/Generated.xcconfig') ||
       normalized.endsWith('/flutter_export_environment.sh') ||
+      normalized.contains('/Flutter/ephemeral/') ||
       normalized == '.dart_tool' ||
       normalized.startsWith('.dart_tool/') ||
       normalized.contains('/.dart_tool/');
