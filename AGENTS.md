@@ -13,10 +13,11 @@
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
 - `lib/src/schema/`: internal YAML/JSON/text schema models, validation, canonical generation, and pure rewrite rules.
 - `lib/src/source/`: FlutterOH Source registry, source snapshot loading, validation, sync, and lock maintenance.
-- `lib/src/sdk/`: SDK listing, installation, removal, and release selection.
-- `lib/src/platform/`: cross-platform target discovery and OHOS toolchain helpers.
+- `lib/src/project/`: project creation commands.
+- `lib/src/sdk/`: SDK listing, installation, removal, selection, and Flutter wrapper commands.
+- `lib/src/platform/`: cross-platform target discovery, emulator/simulator helpers, and OHOS toolchain helpers.
 - `lib/src/deps/`: project dependency analysis and rewrite commands.
-- `lib/src/workflow/`: project and package `verify`, `build`, and `run` workflows.
+- `lib/src/workflow/`: project verification/build workflows and run/test automation.
 - `lib/src/clean/`: cleanup of tool-owned cache artifacts.
 - `lib/src/package/`: package repository create, sync, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
@@ -70,11 +71,11 @@ level. Keep human progress text off stdout/stderr while JSON mode is active.
 
 Top-level commands are wired in `lib/src/cli/fluoh_command_runner.dart`. Keep the command table in `doc/commands.md` and `doc/commands.zh-CN.md` aligned when adding, removing, renaming, or moving commands.
 
-- Fluoh commands: `skill`, `doctor`, `clean`, and `upgrade`.
+- Fluoh commands: `skill`, `flutter`, `doctor`, `clean`, and `upgrade`; `fluohf` is the `flutter` shortcut.
 - SDK and Source commands: `sdk` and `source`.
-- Project commands: `deps`, `verify`, `build`, `run`, `flutter`, and the `fluohf` shortcut.
+- Project commands: `create`, `deps`, `verify`, `build`, and `run`.
 - Package commands: `package` and its repository lifecycle subcommands.
-- Tool and device commands: `devices` and `emulators`.
+- Tool and device commands: `devices`, `emulators`, and `automate`.
 
 State must have one owner. Do not bypass these owners in command implementations or tests:
 
@@ -111,7 +112,7 @@ Contributor and maintainer details belong in `CONTRIBUTING.md` and `CONTRIBUTING
 
 Command design details belong in `doc/commands.md` and `doc/commands.zh-CN.md`. Keep those files as the source of truth for command behavior, state ownership, workflow sequencing, and machine-readable output details.
 
-AI-driven adaptation workflow details belong in `skills/fluoh/SKILL.md` and its referenced helper scripts/templates. Keep README links and `fluoh skill` metadata aligned, but do not duplicate the full skill workflow in public docs or this file.
+AI-driven adaptation routing belongs in `skills/fluoh/SKILL.md`. Detailed app, package, automation, Source, report, and scenario flows belong in `skills/fluoh/references/` and the referenced helper scripts/templates. Keep README links and `fluoh skill` metadata aligned, but do not duplicate the full skill workflow in public docs or this file.
 
 `AGENTS.md` is for coding agents and maintainers working inside the repository. It should summarize current project conventions and link behavior through concrete files or commands, not duplicate long user documentation.
 

@@ -2,14 +2,14 @@
 
 [简体中文](schema.zh-CN.md)
 
-This document describes the current canonical YAML and JSON schemas used by
+This document describes the canonical YAML and JSON data shapes used by
 `fluoh`. Schema parsing and rendering live under `lib/src/schema/`; Source
 loading and cache validation live under `lib/src/source/`.
 
 ## Schema Version
 
 Every YAML schema uses `schema: 1`. Commands validate only the current
-canonical layout.
+canonical shape.
 
 `kind` is required in all `fluoh.yaml` files:
 
@@ -20,7 +20,7 @@ canonical layout.
 | `source` | Source root | Source metadata, SDK index, and Manifest routes. |
 | `manifest` | Source package Manifest | Released package adaptation records. |
 
-Ownership summary:
+State owners:
 
 | Owner | Purpose |
 | --- | --- |
@@ -297,7 +297,7 @@ schemas.
 
 ## `config.json`
 
-Tool config remains JSON because it is machine-owned runtime state:
+Tool config stays JSON because it is machine-owned runtime state:
 
 ```json
 {
@@ -334,7 +334,7 @@ Rules:
 
 `$FLUOH_HOME/sources.lock.json` is a machine-generated, local-only resolved SDK
 lock manifest plus a compact package routing index. It is derived from
-`config.json` plus every validated Source snapshot so commands can read stable
+`config.json` and every validated Source snapshot so commands can read stable
 JSON instead of reparsing Source YAML every time. Full package entries are not
 stored in the lock; package commands use the routing index to find relevant
 Manifest files, then read package metadata from the configured Source snapshots

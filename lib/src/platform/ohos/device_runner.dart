@@ -1022,9 +1022,18 @@ List<String> classifyOhosRuntimeLog(String log) {
     r'for method|MethodChannel#\s*-->\s*method not implemented)',
     caseSensitive: false,
   );
+  String? previousLine;
   for (final rawLine in const LineSplitter().convert(log)) {
     final line = rawLine.trim();
-    if (line.isEmpty || !fatalPattern.hasMatch(line)) {
+    if (line.isEmpty) {
+      continue;
+    }
+    if (_isBenignOhosMethodNotImplemented(line, previousLine)) {
+      previousLine = line;
+      continue;
+    }
+    if (!fatalPattern.hasMatch(line)) {
+      previousLine = line;
       continue;
     }
     final finding = line.length <= 500 ? line : line.substring(0, 500);
@@ -1034,8 +1043,17 @@ List<String> classifyOhosRuntimeLog(String log) {
     if (findings.length >= 20) {
       break;
     }
+    previousLine = line;
   }
   return findings;
+}
+
+bool _isBenignOhosMethodNotImplemented(String line, String? previousLine) {
+  return line.contains('MethodChannel# --> method not implemented') &&
+      (previousLine?.contains(
+            "PlatformMethodCallback --> Received 'System.initializationComplete' message.",
+          ) ??
+          false);
 }
 
 /// Exception thrown for OHOS device and emulator failures.

@@ -123,9 +123,9 @@ class PlatformToolCheck {
   }
 }
 
-/// Target listing report for devices or emulators on one platform.
+/// Devicesing report for devices or emulators on one platform.
 class PlatformTargetReport {
-  /// Creates a target listing report.
+  /// Creates a devicesing report.
   const PlatformTargetReport({
     required this.platform,
     required this.kind,
@@ -1443,15 +1443,34 @@ Future<PlatformStartResult> _startIosSimulator(
     );
   }
   final command = [xcrun.path, 'simctl', 'boot', simulator.id];
-  final result = await _runTool(xcrun.path, [
-    'simctl',
-    'boot',
-    simulator.id,
-  ], environment: environment.processEnvironment);
+  final result = await _runTool(
+    xcrun.path,
+    ['simctl', 'boot', simulator.id],
+    environment: environment.processEnvironment,
+    timeout: const Duration(minutes: 3),
+  );
   final alreadyBooted =
       result.stderr.toLowerCase().contains('booted') ||
       result.stdout.toLowerCase().contains('booted');
   final ok = result.exitCode == 0 || alreadyBooted;
+  if (ok) {
+    final bootStatus = await _runTool(
+      xcrun.path,
+      ['simctl', 'bootstatus', simulator.id, '-b'],
+      environment: environment.processEnvironment,
+      timeout: const Duration(minutes: 3),
+    );
+    if (bootStatus.exitCode != 0) {
+      return PlatformStartResult(
+        platform: FluohPlatform.ios,
+        ok: false,
+        emulator: simulator.id,
+        command: [xcrun.path, 'simctl', 'bootstatus', simulator.id, '-b'],
+        message: _commandFailureMessage('xcrun simctl bootstatus', bootStatus),
+      );
+    }
+    await _foregroundIosSimulator(environment, simulator.id);
+  }
   return PlatformStartResult(
     platform: FluohPlatform.ios,
     ok: ok,
@@ -1460,6 +1479,28 @@ Future<PlatformStartResult> _startIosSimulator(
     message: ok
         ? 'Started iOS simulator ${simulator.name}'
         : _commandFailureMessage(command.join(' '), result),
+  );
+}
+
+Future<void> _foregroundIosSimulator(
+  FluohEnvironment environment,
+  String simulatorId,
+) async {
+  final mode = environment.processEnvironment['FLUOH_IOS_FOREGROUND_SIMULATOR']
+      ?.trim()
+      .toLowerCase();
+  if (mode == '0' || mode == 'false' || mode == 'off' || mode == 'no') {
+    return;
+  }
+  final open = await _openSimulatorTool(environment.processEnvironment);
+  if (open == null) {
+    return;
+  }
+  await _runTool(
+    open.path,
+    ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', simulatorId],
+    environment: environment.processEnvironment,
+    timeout: const Duration(seconds: 15),
   );
 }
 
@@ -2002,6 +2043,31 @@ Future<io.File?> _xcrun(Map<String, String> env) {
     environmentKey: 'FLUOH_XCRUN',
     candidates: const [],
     fallbackName: 'xcrun',
+  );
+}
+
+Future<io.File?> _openSimulatorTool(Map<String, String> env) async {
+  final configured = env['FLUOH_OPEN']?.trim();
+  if (_nonEmpty(configured)) {
+    final file = io.File(configured!.trim());
+    return await file.exists() ? file : null;
+  }
+  final configuredXcrun = env['FLUOH_XCRUN']?.trim();
+  if (_nonEmpty(configuredXcrun)) {
+    return null;
+  }
+  if (!io.Platform.isMacOS) {
+    return null;
+  }
+  final systemOpen = io.File('/usr/bin/open');
+  if (await systemOpen.exists()) {
+    return systemOpen;
+  }
+  return _findExecutable(
+    environment: env,
+    environmentKey: 'FLUOH_OPEN',
+    candidates: const [],
+    fallbackName: 'open',
   );
 }
 

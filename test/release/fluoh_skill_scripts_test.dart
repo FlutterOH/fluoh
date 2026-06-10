@@ -2013,6 +2013,7 @@ package:
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, and tests passed in simulated evidence |
 | `fluoh run --platform ohos --package camera --auto-emulator --json` | 0 | passed | HAP built, signed, installed, launched, and hilog checked |
 | `fluoh run --platform android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
+| `fluoh automate --platform android --package camera --scenario ${scenario.path} --json` | 0 | passed | automation coverage gates ready |
 | `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
 | `fluoh package check --package camera --json` | 0 | passed | release metadata validated |
 
@@ -2023,6 +2024,7 @@ package:
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
+- [x] Real `fluoh automate --json` evidence recorded, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.
@@ -2035,6 +2037,23 @@ package:
 | Android | passed | passed | absent | emulator-5554 | flutterRunSession and VM Service evidence |
 | iOS | not present | not present | absent | no target | example ios directory absent |
 | macOS | not present | not present | absent | no target | example macos directory absent |
+
+## Automation Coverage
+
+- coveragePolicy.status: readyForExecution
+- readyForAutomation: true
+- qualityGateSummary: ready=8, notReady=0
+
+| Gate | Status | Evidence / blocker |
+| --- | --- | --- |
+| coverage-inventory | readyForReview | public API and interaction inventory reviewed |
+| coverage-metadata | readyForReview | scenario coverage metadata reviewed |
+| coverage-items | readyForReview | every applicable capability has a coverage row |
+| capability-inventory-coverage | readyForReview | camera permission fallback scenario covers applicable capability rows |
+| scenario-evidence-assertions | readyForReview | scenario uses VM/session/log evidence |
+| existing-test-baseline | readyForReview | package and example tests reviewed |
+| manifest-permission-coverage | readyForReview | Android camera permission fallback coverage reviewed |
+| behavior-paths | readyForReview | denied fallback path covered; positive capture remains physical-target risk |
 
 ## Interaction Evidence
 
@@ -2083,8 +2102,10 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
           jsonDecode(check.stdout.toString()) as Map<String, Object?>;
       expect(checkJson, containsPair('ok', true));
       expect(checkJson, containsPair('recommendation', 'ready'));
-      expect(checkJson, containsPair('commandRows', 6));
-      expect(checkJson, containsPair('passedCommandRows', 6));
+      expect(checkJson, containsPair('commandRows', 7));
+      expect(checkJson, containsPair('passedCommandRows', 7));
+      expect(checkJson, containsPair('automationCoverageRows', 8));
+      expect(checkJson, containsPair('readyAutomationCoverageRows', 8));
       expect(checkJson, containsPair('interactionRows', 1));
       expect(checkJson, containsPair('passedInteractionRows', 1));
       expect(checkJson['errors'], isEmpty);
@@ -2138,13 +2159,22 @@ sdk:
           .replaceAll(
             '| `...` | 0 | passed | ... |',
             '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
-                '| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |',
+                '| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |\n'
+                '| `fluoh automate --platform ohos --package camera --json` | 0 | passed | automation coverage gates ready |',
           )
           .replaceAll(
             RegExp(r'^- \.\.\.$', multiLine: true),
             '- Evidence recorded',
           )
           .replaceAll('- [ ]', '- [x]')
+          .replaceAll(
+            '- coveragePolicy.status: ...\n'
+                '- readyForAutomation: ...\n'
+                '- qualityGateSummary: ...',
+            '- coveragePolicy.status: readyForExecution\n'
+                '- readyForAutomation: true\n'
+                '- qualityGateSummary: ready=8, notReady=0',
+          )
           .replaceAll(
             'OHOS | skipped | skipped | n/a | n/a | ...',
             'OHOS | passed | passed | n/a | emulator-5554 | HAP built and launched',
@@ -2202,14 +2232,90 @@ the local trace-evidence issue here.
       final completeJson =
           jsonDecode(complete.stdout.toString()) as Map<String, Object?>;
       expect(completeJson['ok'], isTrue);
-      expect(completeJson['commandRows'], 2);
-      expect(completeJson['passedCommandRows'], 2);
+      expect(completeJson['commandRows'], 3);
+      expect(completeJson['passedCommandRows'], 3);
+      expect(completeJson['passedAutomation'], isTrue);
+      expect(
+        completeJson,
+        containsPair('coveragePolicyStatus', 'readyForExecution'),
+      );
+      expect(completeJson, containsPair('readyForAutomation', 'true'));
+      expect(
+        completeJson,
+        containsPair('qualityGateSummary', 'ready=8, notReady=0'),
+      );
+      expect(completeJson['automationCoverageRows'], 8);
+      expect(completeJson['readyAutomationCoverageRows'], 8);
       expect(completeJson['passedVerify'], isTrue);
       expect(completeJson['passedOhosBuild'], isTrue);
       expect(completeJson['passedOhosRun'], isFalse);
       expect(completeJson['interactionRows'], 1);
       expect(completeJson['passedInteractionRows'], 1);
       expect(completeJson['checklistDone'], completeJson['checklistTotal']);
+
+      final missingGateReport = File('${root.path}/missing-gate-report.md');
+      await missingGateReport.writeAsString(
+        '${content.split('\n').where((line) => !line.startsWith('| manifest-permission-coverage |')).join('\n')}\n',
+      );
+      final missingGateCheck = await Process.run('python3', [
+        checkReportScript,
+        missingGateReport.path,
+      ]);
+      expect(missingGateCheck.exitCode, 1);
+      final missingGateJson =
+          jsonDecode(missingGateCheck.stdout.toString())
+              as Map<String, Object?>;
+      expect(
+        stringList(missingGateJson['errors']),
+        contains(contains('Automation Coverage is missing required gates')),
+      );
+      expect(
+        stringList(missingGateJson['errors']).join('\n'),
+        contains('manifest-permission-coverage'),
+      );
+
+      final missingStatusReport = File('${root.path}/missing-status-report.md');
+      await missingStatusReport.writeAsString(
+        '${content.split('\n').where((line) => !line.startsWith('- coveragePolicy.status:')).join('\n')}\n',
+      );
+      final missingStatusCheck = await Process.run('python3', [
+        checkReportScript,
+        missingStatusReport.path,
+      ]);
+      expect(missingStatusCheck.exitCode, 1);
+      final missingStatusJson =
+          jsonDecode(missingStatusCheck.stdout.toString())
+              as Map<String, Object?>;
+      expect(
+        stringList(missingStatusJson['errors']),
+        contains(
+          'Automation Coverage must record coveragePolicy.status: readyForExecution for ready reports.',
+        ),
+      );
+
+      final nonzeroSummaryReport = File(
+        '${root.path}/nonzero-summary-report.md',
+      );
+      await nonzeroSummaryReport.writeAsString(
+        content.replaceFirst(
+          '- qualityGateSummary: ready=8, notReady=0',
+          '- qualityGateSummary: ready=7, notReady=1',
+        ),
+      );
+      final nonzeroSummaryCheck = await Process.run('python3', [
+        checkReportScript,
+        nonzeroSummaryReport.path,
+      ]);
+      expect(nonzeroSummaryCheck.exitCode, 1);
+      final nonzeroSummaryJson =
+          jsonDecode(nonzeroSummaryCheck.stdout.toString())
+              as Map<String, Object?>;
+      expect(
+        stringList(nonzeroSummaryJson['errors']),
+        contains(
+          'Automation Coverage must record qualityGateSummary with zero notReady gates for ready reports.',
+        ),
+      );
 
       final manualReport = File('${root.path}/manual-report.md');
       await manualReport.writeAsString(
@@ -2304,7 +2410,8 @@ the local trace-evidence issue here.
       await ordinaryEvidenceReport.writeAsString(
         content.replaceFirst(
           '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
-              '| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |',
+              '| `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |\n'
+              '| `fluoh automate --platform ohos --package camera --json` | 0 | passed | automation coverage gates ready |',
           '| `dart test` | 0 | passed | unit tests passed |',
         ),
       );
@@ -2322,6 +2429,7 @@ the local trace-evidence issue here.
         containsAll([
           'Ready reports must include passed fluoh verify evidence.',
           'Ready reports must include passed OHOS build or run evidence.',
+          'Ready reports must include passed fluoh automate --json evidence.',
         ]),
       );
     },
@@ -2396,6 +2504,7 @@ the local trace-evidence issue here.
 | --- | --- | --- | --- |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |
 | `fluoh build --platform ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |
+| `fluoh automate --platform ohos --package camera --json` | 0 | passed | automation coverage gates ready |
 
 ## Delivery Checklist
 
@@ -2406,6 +2515,23 @@ the local trace-evidence issue here.
 | Platform | Build | Run | Integration test | Target | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
 | OHOS | passed | skipped | absent | host | signed build evidence |
+
+## Automation Coverage
+
+- coveragePolicy.status: readyForExecution
+- readyForAutomation: true
+- qualityGateSummary: ready=8, notReady=0
+
+| Gate | Status | Evidence / blocker |
+| --- | --- | --- |
+| coverage-inventory | readyForReview | public API inventory reviewed |
+| coverage-metadata | readyForReview | no interaction required row is explicit |
+| coverage-items | readyForReview | every applicable capability has a coverage row |
+| capability-inventory-coverage | readyForReview | pure package capability rows covered |
+| scenario-evidence-assertions | readyForReview | no interaction scenario required |
+| existing-test-baseline | readyForReview | package tests reviewed |
+| manifest-permission-coverage | readyForReview | no selected-platform manifest runtime permissions apply |
+| behavior-paths | readyForReview | no device-side behavior path applies |
 
 ## Interaction Evidence
 
@@ -2510,6 +2636,7 @@ Ready.
 | --- | --- | --- | --- |
 | `fluoh verify --package pure_dart --json` | 0 | passed | no device APIs |
 | `fluoh build --platform ohos --package pure_dart --auto-sign --json` | 0 | passed | signed example HAP produced |
+| `fluoh automate --platform ohos --package pure_dart --json` | 0 | passed | automation coverage gates ready |
 
 ## Delivery Checklist
 
@@ -2520,6 +2647,23 @@ Ready.
 | Platform | Build | Run | Integration test | Target | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
 | OHOS | passed | skipped | absent | host | pure Dart package |
+
+## Automation Coverage
+
+- coveragePolicy.status: readyForExecution
+- readyForAutomation: true
+- qualityGateSummary: ready=8, notReady=0
+
+| Gate | Status | Evidence / blocker |
+| --- | --- | --- |
+| coverage-inventory | readyForReview | public API inventory reviewed |
+| coverage-metadata | readyForReview | no interaction required row is explicit |
+| coverage-items | readyForReview | every applicable capability has a coverage row |
+| capability-inventory-coverage | readyForReview | pure Dart capability rows covered |
+| scenario-evidence-assertions | readyForReview | no interaction scenario required |
+| existing-test-baseline | readyForReview | package tests reviewed |
+| manifest-permission-coverage | readyForReview | no selected-platform manifest runtime permissions apply |
+| behavior-paths | readyForReview | no device-side behavior path applies |
 
 ## Interaction Evidence
 

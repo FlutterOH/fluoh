@@ -707,7 +707,7 @@ dependencies:
     expect(stderr, isEmpty);
   });
 
-  test('registers deps command group', () async {
+  test('registers app workflow commands', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -718,7 +718,11 @@ dependencies:
     );
 
     expect(exitCode, 0);
+    expect(stdout.join('\n'), contains('create'));
     expect(stdout.join('\n'), contains('deps'));
+    expect(stdout.join('\n'), contains('verify'));
+    expect(stdout.join('\n'), contains('build'));
+    expect(stdout.join('\n'), contains('run'));
     expect(stdout.join('\n'), contains('package'));
     expect(stderr, isEmpty);
   });
@@ -753,21 +757,23 @@ dependencies:
     _expectInOrder(help, [
       'Fluoh',
       '  skill',
+      '  flutter',
       '  doctor',
       '  clean',
       '  upgrade',
-      '\nSDK\n',
-      '  sdk',
-      '  source',
       'Project',
+      '  create',
       '  deps',
       '  verify',
       '  build',
       '  run',
-      '  flutter',
+      '\nSDK & Sources\n',
+      '  sdk',
+      '  source',
       'Package',
       '  package',
       'Tools & Devices',
+      '  automate',
       '  devices',
       '  emulators',
     ]);
@@ -783,7 +789,7 @@ dependencies:
     expect(stderr, isEmpty);
   });
 
-  test('prints moved workflow commands under their command groups', () async {
+  test('prints focused command group help', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -811,10 +817,17 @@ dependencies:
     );
     help = stdout.join('\n');
     _expectInOrder(help, [
+      'Source packages:',
       '  list',
+      'Upstream planning:',
+      '  discover',
+      '  queue',
+      'Repository setup:',
       '  create',
       '  add',
       '  sync',
+      '  docs',
+      'Release:',
       '  status',
       '  version',
       '  check',
@@ -954,10 +967,15 @@ dependencies:
     _expectInOrder(help, [
       'Source packages:',
       '  list',
-      'Package repositories:',
+      'Upstream planning:',
+      '  discover',
+      '  queue',
+      'Repository setup:',
       '  create',
       '  add',
       '  sync',
+      '  docs',
+      'Release:',
       '  status',
       '  version',
       '  check',

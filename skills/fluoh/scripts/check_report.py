@@ -17,6 +17,7 @@ REQUIRED_SECTIONS = (
     "## Commands",
     "## Delivery Checklist",
     "## Platform Matrix",
+    "## Automation Coverage",
     "## Interaction Evidence",
     "## Diagnostics",
     "## Fluoh Feedback",
@@ -24,6 +25,17 @@ REQUIRED_SECTIONS = (
     "## Remaining Risks",
     "## Local State",
     "## Release Decision",
+)
+
+REQUIRED_AUTOMATION_COVERAGE_GATES = (
+    "coverage-inventory",
+    "coverage-metadata",
+    "coverage-items",
+    "capability-inventory-coverage",
+    "scenario-evidence-assertions",
+    "existing-test-baseline",
+    "manifest-permission-coverage",
+    "behavior-paths",
 )
 
 
@@ -132,6 +144,20 @@ def is_ohos_run_evidence(row: dict[str, str]) -> bool:
     )
 
 
+def is_automation_evidence(row: dict[str, str]) -> bool:
+    command = row["command"]
+    return (
+        command_contains(command, "fluoh automate")
+        and "--json" in command
+        and not contains_shell_token(command, "--dry-run")
+        and not contains_shell_token(command, "-n")
+    )
+
+
+def contains_shell_token(command: str, token: str) -> bool:
+    return re.search(rf"(^|\s){re.escape(token)}(\s|$)", command) is not None
+
+
 def section_content(content: str, heading: str) -> str:
     start = content.find(heading)
     if start == -1:
@@ -166,6 +192,82 @@ def interaction_rows(content: str) -> list[dict[str, str]]:
                 }
             )
     return rows
+
+
+def automation_coverage_rows(content: str) -> list[dict[str, str]]:
+    section = section_content(content, "## Automation Coverage")
+    rows: list[dict[str, str]] = []
+    for line in section.splitlines():
+        columns = split_markdown_row(line)
+        if len(columns) < 3:
+            continue
+        gate = columns[0].strip()
+        if not gate or gate.lower() == "gate" or set(gate) <= {"-"}:
+            continue
+        if gate in ("`...`", "..."):
+            continue
+        rows.append(
+            {
+                "gate": gate,
+                "status": columns[1],
+                "row": line,
+            }
+        )
+    return rows
+
+
+def automation_coverage_status(content: str) -> dict[str, str | None]:
+    section = section_content(content, "## Automation Coverage")
+    return {
+        "coveragePolicyStatus": automation_section_field(
+            section, "coveragePolicy.status"
+        ),
+        "readyForAutomation": automation_section_field(section, "readyForAutomation"),
+        "qualityGateSummary": automation_section_field(section, "qualityGateSummary"),
+    }
+
+
+def automation_section_field(section: str, key: str) -> str | None:
+    escaped = re.escape(key)
+    matches = list(
+        re.finditer(
+            rf"^\s*((?:[-*]\s*)?)`?{escaped}`?\s*:\s*(.+?)\s*$",
+            section,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    )
+    if not matches:
+        return None
+    match = next(
+        (candidate for candidate in matches if candidate.group(1).strip()),
+        matches[0],
+    )
+    value = match.group(2).strip()
+    return value or None
+
+
+def quality_gate_summary_ready(value: str | None) -> bool:
+    if value is None or "..." in value:
+        return False
+    match = re.search(
+        r"(?:not\s*ready|notready)\s*[:=]\s*(\[[^\]]*\]|[a-z0-9_-]+)",
+        value,
+        re.IGNORECASE,
+    )
+    if not match:
+        return False
+    return match.group(1).strip().lower() in ("0", "[]", "none", "empty")
+
+
+def automation_coverage_row_ready(row: dict[str, str]) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", "", row["status"].strip().lower())
+    return normalized in (
+        "ready",
+        "readyforreview",
+        "covered",
+        "passed",
+        "notapplicable",
+    )
 
 
 def interaction_row_passed(row: dict[str, str]) -> bool:
@@ -304,6 +406,58 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         errors.append(
             "Ready reports must include passed fluoh run --platform ohos evidence."
         )
+    passed_automation = any(is_automation_evidence(row) for row in passed_command_rows)
+    if recommendation == "ready" and not passed_automation:
+        errors.append("Ready reports must include passed fluoh automate --json evidence.")
+
+    coverage_rows = automation_coverage_rows(content)
+    coverage_status = automation_coverage_status(content)
+    ready_coverage_rows = [
+        row for row in coverage_rows if automation_coverage_row_ready(row)
+    ]
+    unresolved_coverage_rows = [
+        row for row in coverage_rows if not automation_coverage_row_ready(row)
+    ]
+    if recommendation == "ready" and not coverage_rows:
+        errors.append(
+            "Automation Coverage must include concrete gate rows from fluoh automate --dry-run --json or real run JSON."
+        )
+    if recommendation == "ready":
+        reported_gates = {row["gate"] for row in coverage_rows}
+        missing_gates = [
+            gate
+            for gate in REQUIRED_AUTOMATION_COVERAGE_GATES
+            if gate not in reported_gates
+        ]
+        if missing_gates:
+            errors.append(
+                "Automation Coverage is missing required gates: "
+                + ", ".join(missing_gates)
+                + "."
+            )
+    if recommendation == "ready" and unresolved_coverage_rows:
+        unresolved = ", ".join(
+            f"{row['gate']} ({row['status']})" for row in unresolved_coverage_rows
+        )
+        errors.append(f"Automation Coverage has unresolved gates: {unresolved}.")
+    if recommendation == "ready":
+        if coverage_status["coveragePolicyStatus"] != "readyForExecution":
+            errors.append(
+                "Automation Coverage must record coveragePolicy.status: readyForExecution for ready reports."
+            )
+        ready_value = (coverage_status["readyForAutomation"] or "").lower()
+        if ready_value != "true":
+            errors.append(
+                "Automation Coverage must record readyForAutomation: true for ready reports."
+            )
+        quality_summary = coverage_status["qualityGateSummary"]
+        if (
+            quality_summary is None
+            or not quality_gate_summary_ready(quality_summary)
+        ):
+            errors.append(
+                "Automation Coverage must record qualityGateSummary with zero notReady gates for ready reports."
+            )
 
     interactions = interaction_rows(content)
     concrete_interactions = [
@@ -354,6 +508,12 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         "passedVerify": passed_verify,
         "passedOhosBuild": passed_ohos_build,
         "passedOhosRun": passed_ohos_run,
+        "passedAutomation": passed_automation,
+        "coveragePolicyStatus": coverage_status["coveragePolicyStatus"],
+        "readyForAutomation": coverage_status["readyForAutomation"],
+        "qualityGateSummary": coverage_status["qualityGateSummary"],
+        "automationCoverageRows": len(coverage_rows),
+        "readyAutomationCoverageRows": len(ready_coverage_rows),
         "interactionRows": len(concrete_interactions),
         "passedInteractionRows": len(passed_interactions),
         "feedbackRows": len(feedback),

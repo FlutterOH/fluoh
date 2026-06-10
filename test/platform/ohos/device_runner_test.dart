@@ -555,7 +555,7 @@ void main() {
     expect(result.logFile!.readAsStringSync(), contains('app started'));
   });
 
-  test('returns diagnostics when hdc target listing fails', () async {
+  test('returns diagnostics when hdc devicesing fails', () async {
     final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
     addTearDown(() async {
       if (await root.exists()) {
@@ -790,6 +790,13 @@ E flutter: MissingPluginException(No implementation found for method getTemporar
       classifyOhosRuntimeLog(
         'DartMessenger --> Uncaught exception in binary message listener',
       ),
+      isEmpty,
+    );
+    expect(
+      classifyOhosRuntimeLog('''
+D A000ff/Flutter: PlatformMethodCallback --> Received 'System.initializationComplete' message.
+W A000ff/Flutter: MethodChannel# --> method not implemented
+'''),
       isEmpty,
     );
   });

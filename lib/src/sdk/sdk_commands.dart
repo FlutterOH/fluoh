@@ -41,7 +41,7 @@ class SdkCommand extends FluohCommand<int> {
   String get name => 'sdk';
 
   @override
-  String get description => 'Manage cached Flutter OHOS SDKs.';
+  String get description => 'Manage Flutter OHOS SDKs.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -75,7 +75,13 @@ class SdkCommand extends FluohCommand<int> {
 }
 
 const _sdkCommandSections = [
-  CommandUsageSection('', ['list', 'use', 'current', 'install', 'remove']),
+  CommandUsageSection('SDK cache:', [
+    'list',
+    'use',
+    'current',
+    'install',
+    'remove',
+  ]),
 ];
 
 /// Lists remote and installed SDK versions.

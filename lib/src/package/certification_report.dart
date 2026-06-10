@@ -1,5 +1,16 @@
 import 'dart:io';
 
+const _requiredAutomationCoverageGates = {
+  'coverage-inventory',
+  'coverage-metadata',
+  'coverage-items',
+  'capability-inventory-coverage',
+  'scenario-evidence-assertions',
+  'existing-test-baseline',
+  'manifest-permission-coverage',
+  'behavior-paths',
+};
+
 /// Validation result for a fluoh AI package certification report.
 ///
 /// The report is optional for baseline release checks, but when a maintainer
@@ -15,6 +26,11 @@ class PackageCertificationReportResult {
     required this.recommendation,
     required this.commandRows,
     required this.passedCommandRows,
+    required this.coveragePolicyStatus,
+    required this.readyForAutomation,
+    required this.qualityGateSummary,
+    required this.automationCoverageRows,
+    required this.readyAutomationCoverageRows,
     required this.interactionRows,
     required this.passedInteractionRows,
     required this.errors,
@@ -42,6 +58,21 @@ class PackageCertificationReportResult {
   /// Number of command evidence rows whose exit/result values passed.
   final int passedCommandRows;
 
+  /// Recorded `automation.coveragePolicy.status` from the report.
+  final String? coveragePolicyStatus;
+
+  /// Recorded `automation.coveragePolicy.readyForAutomation` from the report.
+  final bool? readyForAutomation;
+
+  /// Recorded `automation.coveragePolicy.qualityGateSummary` from the report.
+  final String? qualityGateSummary;
+
+  /// Number of concrete automation coverage gate rows in the report.
+  final int automationCoverageRows;
+
+  /// Number of automation coverage gate rows whose status is release-ready.
+  final int readyAutomationCoverageRows;
+
   /// Number of concrete interaction evidence rows in the report.
   final int interactionRows;
 
@@ -64,6 +95,12 @@ class PackageCertificationReportResult {
       if (recommendation != null) 'recommendation': recommendation,
       'commandRows': commandRows,
       'passedCommandRows': passedCommandRows,
+      if (coveragePolicyStatus != null)
+        'coveragePolicyStatus': coveragePolicyStatus,
+      if (readyForAutomation != null) 'readyForAutomation': readyForAutomation,
+      if (qualityGateSummary != null) 'qualityGateSummary': qualityGateSummary,
+      'automationCoverageRows': automationCoverageRows,
+      'readyAutomationCoverageRows': readyAutomationCoverageRows,
       'interactionRows': interactionRows,
       'passedInteractionRows': passedInteractionRows,
       'errors': errors,
@@ -76,8 +113,8 @@ class PackageCertificationReportResult {
 ///
 /// Passing reports must contain the generated report sections, completed
 /// checklist items, passed `fluoh verify` evidence, passed OHOS build or run
-/// evidence, and either interaction evidence or an explicit reason that no
-/// interaction is required.
+/// evidence, the complete automation coverage gate set, and either interaction
+/// evidence or an explicit reason that no interaction is required.
 Future<PackageCertificationReportResult> validatePackageCertificationReport({
   required File report,
   required String packageName,
@@ -94,6 +131,11 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       recommendation: null,
       commandRows: 0,
       passedCommandRows: 0,
+      coveragePolicyStatus: null,
+      readyForAutomation: null,
+      qualityGateSummary: null,
+      automationCoverageRows: 0,
+      readyAutomationCoverageRows: 0,
       interactionRows: 0,
       passedInteractionRows: 0,
       errors: ['Certification report does not exist: ${report.path}'],
@@ -172,6 +214,63 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       'Certification report must include passed fluoh run --platform ohos evidence.',
     );
   }
+  final hasAutomate = passedCommandRows.any(_isAutomationEvidence);
+  if (!hasAutomate) {
+    errors.add(
+      'Certification report must include passed fluoh automate --json evidence.',
+    );
+  }
+
+  final automationCoverageRows = _automationCoverageRows(content);
+  final coverageStatus = _automationCoverageStatus(content);
+  final readyAutomationCoverageRows = [
+    for (final row in automationCoverageRows)
+      if (row.ready) row,
+  ];
+  if (automationCoverageRows.isEmpty) {
+    errors.add(
+      'Automation Coverage must include concrete gate rows from '
+      'fluoh automate --dry-run --json or real run JSON.',
+    );
+  }
+  final reportedAutomationCoverageGates = {
+    for (final row in automationCoverageRows) row.gate,
+  };
+  final missingAutomationCoverageGates = [
+    for (final gate in _requiredAutomationCoverageGates)
+      if (!reportedAutomationCoverageGates.contains(gate)) gate,
+  ];
+  if (missingAutomationCoverageGates.isNotEmpty) {
+    errors.add(
+      'Automation Coverage is missing required gates: '
+      '${missingAutomationCoverageGates.join(', ')}.',
+    );
+  }
+  final unresolvedAutomationCoverageRows = [
+    for (final row in automationCoverageRows)
+      if (!row.ready) row,
+  ];
+  if (unresolvedAutomationCoverageRows.isNotEmpty) {
+    errors.add(
+      'Automation Coverage has unresolved gates: '
+      '${unresolvedAutomationCoverageRows.map((row) => '${row.gate} (${row.statusText})').join(', ')}.',
+    );
+  }
+  if (coverageStatus.coveragePolicyStatus != 'readyForExecution') {
+    errors.add(
+      'Automation Coverage must record coveragePolicy.status: readyForExecution for ready reports.',
+    );
+  }
+  if (coverageStatus.readyForAutomation != true) {
+    errors.add(
+      'Automation Coverage must record readyForAutomation: true for ready reports.',
+    );
+  }
+  if (!_hasReadyQualityGateSummary(coverageStatus.qualityGateSummary)) {
+    errors.add(
+      'Automation Coverage must record qualityGateSummary with zero notReady gates for ready reports.',
+    );
+  }
 
   final interactionRows = _interactionRows(content);
   final passedInteractionRows = [
@@ -215,6 +314,11 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
     recommendation: recommendation,
     commandRows: concreteCommandRows.length,
     passedCommandRows: passedCommandRows.length,
+    coveragePolicyStatus: coverageStatus.coveragePolicyStatus,
+    readyForAutomation: coverageStatus.readyForAutomation,
+    qualityGateSummary: coverageStatus.qualityGateSummary,
+    automationCoverageRows: automationCoverageRows.length,
+    readyAutomationCoverageRows: readyAutomationCoverageRows.length,
     interactionRows: interactionRows.length,
     passedInteractionRows: passedInteractionRows.length,
     errors: errors,
@@ -229,6 +333,7 @@ const _requiredSections = [
   '## Commands',
   '## Delivery Checklist',
   '## Platform Matrix',
+  '## Automation Coverage',
   '## Interaction Evidence',
   '## Diagnostics',
   '## Signing',
@@ -282,6 +387,78 @@ List<_InteractionRow> _interactionRows(String content) {
     }
   }
   return rows;
+}
+
+List<_AutomationCoverageRow> _automationCoverageRows(String content) {
+  final section = _sectionContent(content, '## Automation Coverage');
+  final rows = <_AutomationCoverageRow>[];
+  for (final line in section.split('\n')) {
+    final row = _AutomationCoverageRow.fromMarkdown(line);
+    if (row != null &&
+        !row.row.contains('`...`') &&
+        !row.row.contains('| ...')) {
+      rows.add(row);
+    }
+  }
+  return rows;
+}
+
+_AutomationCoverageStatus _automationCoverageStatus(String content) {
+  final section = _sectionContent(content, '## Automation Coverage');
+  return _AutomationCoverageStatus(
+    coveragePolicyStatus: _automationCoverageField(
+      section,
+      'coveragePolicy.status',
+    ),
+    readyForAutomation: _parseBool(
+      _automationCoverageField(section, 'readyForAutomation'),
+    ),
+    qualityGateSummary: _automationCoverageField(section, 'qualityGateSummary'),
+  );
+}
+
+String? _automationCoverageField(String section, String key) {
+  final pattern = RegExp(
+    '^\\s*((?:[-*]\\s*)?)`?${RegExp.escape(key)}`?\\s*:\\s*(.+?)\\s*\$',
+    multiLine: true,
+    caseSensitive: false,
+  );
+  final matches = pattern.allMatches(section).toList();
+  if (matches.isEmpty) {
+    return null;
+  }
+  final match = matches.firstWhere(
+    (match) => (match.group(1) ?? '').trim().isNotEmpty,
+    orElse: () => matches.first,
+  );
+  final value = match.group(2)?.trim();
+  return value == null || value.isEmpty ? null : value;
+}
+
+bool? _parseBool(String? value) {
+  if (value == null) {
+    return null;
+  }
+  final normalized = value.trim().toLowerCase();
+  if (normalized == 'true') {
+    return true;
+  }
+  if (normalized == 'false') {
+    return false;
+  }
+  return null;
+}
+
+bool _hasReadyQualityGateSummary(String? value) {
+  if (value == null || value.contains('...')) {
+    return false;
+  }
+  final match = RegExp(
+    r'(?:not\s*ready|notready)\s*[:=]\s*(\[[^\]]*\]|[a-z0-9_-]+)',
+    caseSensitive: false,
+  ).firstMatch(value);
+  final token = match?.group(1)?.trim().toLowerCase();
+  return const {'0', '[]', 'none', 'empty'}.contains(token);
 }
 
 String _sectionContent(String content, String heading) {
@@ -342,8 +519,20 @@ bool _isOhosRunEvidence(_CommandRow row) {
       command.contains('--json');
 }
 
+bool _isAutomationEvidence(_CommandRow row) {
+  final command = row.command;
+  return _containsCommand(command, 'fluoh automate') &&
+      command.contains('--json') &&
+      !_containsShellToken(command, '--dry-run') &&
+      !_containsShellToken(command, '-n');
+}
+
 bool _containsCommand(String command, String expected) {
   return command == expected || command.startsWith('$expected ');
+}
+
+bool _containsShellToken(String command, String token) {
+  return RegExp('(^|\\s)${RegExp.escape(token)}(\\s|\$)').hasMatch(command);
 }
 
 class _ChecklistItem {
@@ -425,5 +614,62 @@ class _InteractionRow {
       return null;
     }
     return _InteractionRow(method: method, resultText: columns[4], row: line);
+  }
+}
+
+class _AutomationCoverageStatus {
+  const _AutomationCoverageStatus({
+    required this.coveragePolicyStatus,
+    required this.readyForAutomation,
+    required this.qualityGateSummary,
+  });
+
+  final String? coveragePolicyStatus;
+  final bool? readyForAutomation;
+  final String? qualityGateSummary;
+}
+
+class _AutomationCoverageRow {
+  const _AutomationCoverageRow({
+    required this.gate,
+    required this.statusText,
+    required this.row,
+  });
+
+  final String gate;
+  final String statusText;
+  final String row;
+
+  bool get ready {
+    final normalized = statusText.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '',
+    );
+    return const {
+      'ready',
+      'readyforreview',
+      'covered',
+      'passed',
+      'notapplicable',
+    }.contains(normalized);
+  }
+
+  static _AutomationCoverageRow? fromMarkdown(String line) {
+    final columns = [
+      for (final column in line.trim().split('|')) column.trim(),
+    ].where((column) => column.isNotEmpty).toList(growable: false);
+    if (columns.length < 3) {
+      return null;
+    }
+    final gate = columns[0];
+    final normalizedGate = gate.toLowerCase();
+    if (normalizedGate == 'gate' || gate.startsWith('---')) {
+      return null;
+    }
+    return _AutomationCoverageRow(
+      gate: gate,
+      statusText: columns[1],
+      row: line,
+    );
   }
 }

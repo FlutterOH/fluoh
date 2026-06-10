@@ -7,7 +7,7 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import 'platform_environment.dart';
 
-/// Lists connected devices for supported platforms.
+/// Lists connected targets for supported platforms.
 class DevicesCommand extends FluohCommand<int> {
   /// Creates the devices command.
   DevicesCommand({
@@ -48,7 +48,7 @@ class DevicesCommand extends FluohCommand<int> {
   String get name => 'devices';
 
   @override
-  String get description => 'List connected FlutterOH targets.';
+  String get description => 'List connected Flutter targets.';
 
   @override
   Future<int> run() async {
@@ -64,7 +64,7 @@ class DevicesCommand extends FluohCommand<int> {
     if (json) {
       writeMachineOutput(
         _stdout,
-        command: name,
+        command: 'devices',
         ok: ok,
         exitCode: exitCode,
         fields: {
@@ -128,7 +128,7 @@ class EmulatorsCommand extends FluohCommand<int> {
   String get name => 'emulators';
 
   @override
-  String get description => 'List and launch local FlutterOH emulators.';
+  String get description => 'List and launch local emulators and simulators.';
 
   @override
   Future<int> run() async {
@@ -148,7 +148,7 @@ class EmulatorsCommand extends FluohCommand<int> {
       if (json) {
         writeMachineOutput(
           _stdout,
-          command: name,
+          command: 'emulators',
           ok: result.ok,
           exitCode: result.ok ? 0 : 1,
           fields: {'launch': result.toJson()},
@@ -173,7 +173,7 @@ class EmulatorsCommand extends FluohCommand<int> {
     if (json) {
       writeMachineOutput(
         _stdout,
-        command: name,
+        command: 'emulators',
         ok: ok,
         exitCode: exitCode,
         fields: {

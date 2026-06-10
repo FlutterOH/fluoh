@@ -2,12 +2,12 @@
 
 [English](schema.md)
 
-本文档说明 `fluoh` 当前 canonical YAML 和 JSON schema。解析与渲染逻辑位于
+本文档说明 `fluoh` 当前规范化 YAML 和 JSON 数据结构。解析与渲染逻辑位于
 `lib/src/schema/`，Source 加载与缓存校验逻辑位于 `lib/src/source/`。
 
 ## Schema 版本
 
-所有 YAML schema 都使用 `schema: 1`。命令只校验当前 canonical layout。
+所有 YAML schema 都使用 `schema: 1`。命令只校验当前规范结构。
 
 所有 `fluoh.yaml` 都必须包含 `kind`：
 
@@ -18,7 +18,7 @@
 | `source` | Source 根目录 | Source 元数据、SDK 索引和 Manifest 路由。 |
 | `manifest` | Source Package Manifest | 已发布的 Package 适配记录。 |
 
-所属概览：
+状态所属：
 
 | Owner | 用途 |
 | --- | --- |
@@ -34,11 +34,11 @@
 - Source root `name` 是非空且不含空白字符的 token。Source Manifest route 名和
   `package.name` 必须是 Dart package 名。
 - Package 路径是使用 `/` 的规范化相对路径，路径段非空，并且不做父目录跳转。
-- `package.path: .` 是默认值，canonical 输出可以省略。
+- `package.path: .` 是默认值，规范化输出可以省略。
 - upstream 版本和 FlutterOH release 版本统一遵循 pub semver。
 - `upstream.commit` 必须是完整 40 位十六进制 Git commit hash。
 - Release status 取值为 `compatible`、`experimental`、`broken`。`compatible` 是默认值，
-  canonical 输出会省略。
+  规范化输出会省略。
 - 消费命令默认只使用 `compatible` release。
 
 ## Project `fluoh.yaml`
@@ -167,10 +167,10 @@ manifests:
 - `sdk` 和 `manifests` 都可选，并且准备 Source 时可以为空。
 - 如果存在 `sdk`，`sdk.git.url` 必填。
 - `sdk.versions` 按语义化版本升序列出完整可安装 SDK 版本。准备 Source 时可以省略；
-  空 SDK 索引的 canonical 输出会写成 `versions: []`。
+  空 SDK 索引的规范化输出会写成 `versions: []`。
 - `sdk.versions[]` 取值唯一。
 - `manifests[].name` 必填且唯一，映射到 `manifests/<name>/fluoh.yaml`。
-  canonical 输出按名称排序 route。
+  规范化输出按名称排序 route。
 
 ## Source Manifest `fluoh.yaml`
 
@@ -245,7 +245,7 @@ package:
 - `releases[].upstream.ref` 可选。
 - `releases[].upstream.commit` 必填。
 - `releases[].status` 可选。省略表示 `compatible`。
-- canonical 输出按 SDK line 升序排列。每个 SDK line 内的 Release 按 upstream 版本和
+- 规范化输出按 SDK line 升序排列。每个 SDK line 内的 Release 按 upstream 版本和
   release 版本从早到晚排序，所以新增 release 会追加到已有记录后面。
 
 ## 生成 Markdown 段

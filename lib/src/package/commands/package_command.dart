@@ -148,16 +148,7 @@ class PackageCommand extends FluohCommand<int> {
 
 const _packageCommandSections = [
   CommandUsageSection('Source packages:', ['list']),
-  CommandUsageSection('Package repositories:', [
-    'create',
-    'discover',
-    'add',
-    'queue',
-    'sync',
-    'status',
-    'version',
-    'docs',
-    'check',
-    'release',
-  ]),
+  CommandUsageSection('Upstream planning:', ['discover', 'queue']),
+  CommandUsageSection('Repository setup:', ['create', 'add', 'sync', 'docs']),
+  CommandUsageSection('Release:', ['status', 'version', 'check', 'release']),
 ];

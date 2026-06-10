@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
-import 'package:fluoh/src/platform/platform_commands.dart';
+import 'package:fluoh/src/platform/platform_target_commands.dart';
 import 'package:fluoh/src/platform/platform_environment.dart';
 import 'package:test/test.dart';
 

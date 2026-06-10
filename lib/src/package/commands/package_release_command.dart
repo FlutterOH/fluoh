@@ -53,12 +53,11 @@ class PackageReleaseCommand extends FluohCommand<int> {
       )
       ..addFlag('json', negatable: false, help: 'Print the result as JSON.')
       ..addOption(
-        'certification-report',
-        aliases: const ['report'],
+        'report',
         valueHelp: 'path',
         help: kind == PackageReleaseCommandKind.check
-            ? 'Require a completed fluoh AI certification report before passing the check. Alias: --report.'
-            : 'Require a completed fluoh AI certification report before release. Alias: --report.',
+            ? 'Require a completed fluoh AI certification report before passing the check.'
+            : 'Require a completed fluoh AI certification report before release.',
       )
       ..addFlag(
         'require-ohos-run',
@@ -114,7 +113,7 @@ class PackageReleaseCommand extends FluohCommand<int> {
 
     try {
       expectNoArguments(argResults!, usageException);
-      final certificationReport = _trimmedOption('certification-report');
+      final certificationReport = _trimmedOption('report');
       final requireOhosRun = argResults!.flag('require-ohos-run');
       if (requireOhosRun && certificationReport == null) {
         usageException('Use --require-ohos-run with --report <path>.');
@@ -323,6 +322,11 @@ class PackageReleaseCommand extends FluohCommand<int> {
         recommendation: null,
         commandRows: 0,
         passedCommandRows: 0,
+        coveragePolicyStatus: null,
+        readyForAutomation: null,
+        qualityGateSummary: null,
+        automationCoverageRows: 0,
+        readyAutomationCoverageRows: 0,
         interactionRows: 0,
         passedInteractionRows: 0,
         errors: const [],

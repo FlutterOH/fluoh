@@ -27,6 +27,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
   String usage = '',
   String? buildExampleTarget,
   bool buildExampleDebug = false,
+  bool buildExampleForSimulator = false,
   bool autoSignExample = false,
   bool runExample = false,
   String? deviceId,
@@ -341,8 +342,11 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     final buildArguments = [
       'build',
       buildExampleTarget,
+      if (buildExampleTarget == 'ios' && buildExampleForSimulator)
+        '--simulator',
       if (buildExampleDebug) '--debug',
-      if (buildExampleTarget == 'ios') '--no-codesign',
+      if (buildExampleTarget == 'ios' && !buildExampleForSimulator)
+        '--no-codesign',
     ];
     OhosBuildProfileSigningSession? signingSession;
     OhosDebugSigningMaterial? signingMaterial;
@@ -480,7 +484,9 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       }
     }
     late SelectedToolResult exampleBuild;
+    SelectedToolResult? firstFailedIosBuild;
     var exampleBuildExitCode = 1;
+    var retriedAfterClean = false;
     try {
       final buildStartedAt = DateTime.now().subtract(
         const Duration(seconds: 1),
@@ -497,6 +503,50 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         usage: usage,
       );
       exampleBuildExitCode = exampleBuild.exitCode;
+      if (exampleBuildExitCode != 0 &&
+          buildExampleTarget == 'ios' &&
+          _isStaleIosPrecompiledHeaderFailure(exampleBuild)) {
+        firstFailedIosBuild = exampleBuild;
+        output.step(
+          'Cleaning stale iOS build cache before retrying ${package.name}',
+        );
+        final cleanResult = await _runToolCommand(
+          environment: environment,
+          directory: example,
+          displayPath: examplePath,
+          flutter: true,
+          arguments: const ['clean'],
+          stdout: stdout,
+          stderr: stderr,
+          output: output,
+          usage: usage,
+        );
+        steps.add(
+          _commandStep(
+            name: 'example-clean-ios-build-cache',
+            packageName: package.name,
+            path: examplePath,
+            flutter: true,
+            arguments: const ['clean'],
+            result: cleanResult,
+          ),
+        );
+        if (cleanResult.exitCode == 0) {
+          retriedAfterClean = true;
+          exampleBuild = await _runToolCommand(
+            environment: environment,
+            directory: example,
+            displayPath: examplePath,
+            flutter: true,
+            arguments: buildArguments,
+            stdout: stdout,
+            stderr: stderr,
+            output: output,
+            usage: usage,
+          );
+          exampleBuildExitCode = exampleBuild.exitCode;
+        }
+      }
       if (exampleBuildExitCode != 0 && signingMaterial != null) {
         output.step('Signing generated unsigned OHOS HAP for ${package.name}');
         try {
@@ -572,6 +622,9 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     }
     final buildDetails = <String, Object?>{
       if (signedHaps.isNotEmpty) 'installableHaps': _hapPaths(signedHaps),
+      if (retriedAfterClean) 'retryAfterClean': true,
+      if (firstFailedIosBuild != null)
+        'firstFailure': _commandOutputDetails(firstFailedIosBuild),
     };
     if (signingMode != null) {
       buildDetails['signingMode'] = signingMode;
@@ -1422,6 +1475,12 @@ Map<String, Object?> _signingDetails(OhosDebugSigningMaterial signingMaterial) {
 
 List<String> _hapPaths(List<File> haps) {
   return [for (final hap in haps) hap.path];
+}
+
+bool _isStaleIosPrecompiledHeaderFailure(SelectedToolResult result) {
+  final output = result.combinedOutput.toLowerCase();
+  return output.contains('precompiled header') &&
+      output.contains('has been modified since');
 }
 
 Map<String, Object?> _commandOutputDetails(SelectedToolResult result) {

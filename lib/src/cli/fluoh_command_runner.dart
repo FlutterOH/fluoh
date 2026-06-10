@@ -8,7 +8,8 @@ import '../context/fluoh_environment.dart';
 import '../deps/commands/deps_command.dart';
 import '../doctor/doctor_command.dart';
 import '../package/commands/package_command.dart';
-import '../platform/platform_commands.dart';
+import '../platform/platform_target_commands.dart';
+import '../project/create_command.dart';
 import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
@@ -104,6 +105,7 @@ class FluohCommandRunner extends CommandRunner<int> {
          suggestionDistanceLimit: 0,
        ) {
     final env = _environment;
+    addCommand(SdkCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
       FlutterCommand(
         environment: env,
@@ -115,7 +117,15 @@ class FluohCommandRunner extends CommandRunner<int> {
         globalHelpInvocation: flutterGlobalHelpInvocation,
       ),
     );
-    addCommand(SdkCommand(environment: env, stdout: _stdout, output: _output));
+    addCommand(
+      CreateCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+        inheritStdio: stdout == null && stderr == null,
+      ),
+    );
     addCommand(
       DepsCommand(
         environment: env,
@@ -123,17 +133,6 @@ class FluohCommandRunner extends CommandRunner<int> {
         stderr: _stderr,
         output: _output,
       ),
-    );
-    addCommand(
-      PackageCommand(
-        environment: env,
-        stdout: _stdout,
-        stderr: _stderr,
-        output: _output,
-      ),
-    );
-    addCommand(
-      SourceCommand(environment: env, stdout: _stdout, output: _output),
     );
     addCommand(
       VerifyCommand(
@@ -160,6 +159,17 @@ class FluohCommandRunner extends CommandRunner<int> {
       ),
     );
     addCommand(
+      PackageCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
+    );
+    addCommand(
+      SourceCommand(environment: env, stdout: _stdout, output: _output),
+    );
+    addCommand(
       DoctorCommand(environment: env, stdout: _stdout, output: _output),
     );
     addCommand(
@@ -167,6 +177,14 @@ class FluohCommandRunner extends CommandRunner<int> {
     );
     addCommand(
       EmulatorsCommand(environment: env, stdout: _stdout, output: _output),
+    );
+    addCommand(
+      AutomateCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+      ),
     );
     addCommand(
       UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
@@ -398,41 +416,90 @@ _MachineOutputRequest? _machineOutputRequest(ArgResults results) {
     return null;
   }
   if (!current.options.contains('json') || !current.flag('json')) {
+    if (commandParts.length == 1 &&
+        commandParts.single == 'create' &&
+        _createCommandRequestsJson(current.arguments)) {
+      return _MachineOutputRequest(commandParts.join(' '));
+    }
     return null;
   }
   return _MachineOutputRequest(commandParts.join(' '));
 }
 
+bool _createCommandRequestsJson(List<String> arguments) {
+  for (final argument in arguments) {
+    if (argument == '--') {
+      return false;
+    }
+    if (argument == '--json') {
+      return true;
+    }
+  }
+  return false;
+}
+
 const _topLevelCommandSections = [
-  CommandUsageSection('Fluoh', ['skill', 'doctor', 'clean', 'upgrade']),
-  CommandUsageSection('SDK', ['sdk', 'source']),
-  CommandUsageSection('Project', ['deps', 'verify', 'build', 'run', 'flutter']),
+  CommandUsageSection('Fluoh', [
+    'skill',
+    'flutter',
+    'doctor',
+    'clean',
+    'upgrade',
+  ]),
+  CommandUsageSection('Project', ['create', 'deps', 'verify', 'build', 'run']),
+  CommandUsageSection('SDK & Sources', ['sdk', 'source']),
   CommandUsageSection('Package', ['package']),
-  CommandUsageSection('Tools & Devices', ['devices', 'emulators']),
+  CommandUsageSection('Tools & Devices', ['automate', 'devices', 'emulators']),
 ];
 
 bool _usesSourceConfiguration(ArgResults results) {
   if (_hasHelpFlag(results)) {
     return false;
   }
-  if (results.command?.name == 'deps' &&
-      results.command?.command?.name == 'get') {
+  final commandPath = _parsedCommandPath(results);
+  if (_pathEquals(commandPath, const ['deps', 'get'])) {
     return false;
   }
-  final commandName = results.command?.name;
+  if (_pathEquals(commandPath, const ['flutter'])) {
+    return false;
+  }
+  final commandName = commandPath.isEmpty ? null : commandPath.first;
   return commandName != null &&
       const {
         'source',
         'sdk',
         'doctor',
-        'devices',
-        'emulators',
+        'create',
+        'deps',
         'verify',
         'build',
         'run',
-        'deps',
+        'automate',
         'package',
       }.contains(commandName);
+}
+
+List<String> _parsedCommandPath(ArgResults results) {
+  final path = <String>[];
+  var current = results;
+  while (current.command != null) {
+    final command = current.command!;
+    path.add(command.name!);
+    current = command;
+  }
+  return path;
+}
+
+bool _pathEquals(List<String> left, List<String> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool _hasHelpFlag(ArgResults results) {

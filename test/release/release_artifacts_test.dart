@@ -336,6 +336,18 @@ void main() {
     final scenarioTemplate = File(
       'skills/fluoh/references/interaction-scenario-template.md',
     ).readAsStringSync();
+    final appProjectFlow = File(
+      'skills/fluoh/references/app-project-flow.md',
+    ).readAsStringSync();
+    final automationFlow = File(
+      'skills/fluoh/references/automation-evidence-flow.md',
+    ).readAsStringSync();
+    final packageFlow = File(
+      'skills/fluoh/references/package-adaptation-flow.md',
+    ).readAsStringSync();
+    final sourceFlow = File(
+      'skills/fluoh/references/source-maintenance-flow.md',
+    ).readAsStringSync();
     final preflight = File(
       'skills/fluoh/scripts/preflight.py',
     ).readAsStringSync();
@@ -354,113 +366,112 @@ void main() {
     final inspectSession = File(
       'skills/fluoh/scripts/inspect_session.py',
     ).readAsStringSync();
-    expect(skill, contains('name: fluoh'));
-    expect(skill, contains('adapting Flutter apps'));
-    expect(skill, contains('## AI-Driven Default Flow'));
-    expect(skill, contains('## App Project Flow'));
-    expect(skill, contains('## Preflight Routing'));
-    expect(skill, contains('## Complete AI Evidence Loop'));
-    expect(skill, contains('## Package Adaptation Flow'));
-    expect(skill, contains('## Automatic Adaptation Command Flow'));
-    expect(skill, contains('## Source Maintenance Flow'));
-    expect(skill, contains('## User Request Routing'));
-    expect(skill, contains('## CLI Setup'));
-    expect(skill, contains('finalCheckCommands'));
-    expect(skill, contains('deliveryChecks'));
-    expect(skill, contains('upgradeChecks'));
-    expect(skill, contains('final acceptance gate'));
-    expect(skill, contains('dart pub global activate fluoh'));
-    expect(
-      skill,
-      contains(
-        'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
-      ),
-    );
-    expect(skill, contains('brew install FlutterOH/fluoh/fluoh'));
-    expect(skill, contains('Do not use `brew tap FlutterOH/tap`'));
-    expect(skill, contains('fluoh --version'));
-    expect(skill, contains('fluoh skill --json'));
-    expect(skill, contains('--package <package-name>'));
-    expect(skill, contains('repository.git.url'));
-    expect(skill, contains('--repository-name'));
-    expect(skill, contains('--repository'));
-    expect(skill, contains('--git-author-name'));
-    expect(skill, contains('--git-author-email'));
-    expect(skill, contains('--plan --json'));
-    expect(skill, contains('final setup confirmation'));
-    expect(skill, contains('wait for explicit user approval'));
-    expect(skill, contains('operations that will not run'));
-    expect(skill, contains('approval such as release'));
-    expect(skill, contains('It is not authorization to change project files'));
-    expect(skill, contains('setup step does not authorize project'));
-    expect(skill, contains('Git state changes'));
-    expect(skill, contains('commit message, and local Git author identity'));
-    expect(skill, contains('package queue'));
-    expect(skill, contains('package discover'));
-    expect(skill, contains('Implementation checkpoint'));
-    expect(skill, contains('Release metadata checkpoint'));
-    expect(
-      skill,
-      contains('python3 <skill-dir>/scripts/check_report.py <report-path>'),
-    );
-    expect(skill, contains('ignored state'));
-    expect(skill, contains('skillVersion'));
-    expect(skill, contains('upgradePrompt'));
-    expect(skill, contains('manual-assisted'));
-    expect(skill, contains('flutter test integration_test -d <device>'));
-    expect(skill, contains('fluoh deps check --json'));
-    expect(skill, contains('```sh\n# Local YAML/index validation only.'));
-    expect(skill, contains('fluoh source check [path] --schema-only'));
-    expect(skill, contains('fluoh source check <source-pr-url> --json'));
-    expect(skill, contains('fluoh source check . --all --json'));
-    expect(skill, contains('schemaOnly'));
-    expect(skill, contains('--skip-release-checks'));
-    expect(skill, contains('changedFiles'));
-    expect(skill, contains('checkedManifests'));
-    expect(skill, contains('releaseChecks'));
-    expect(skill, contains('fluoh package docs refresh'));
-    expect(skill, contains('fluoh package docs refresh --allow-dirty'));
-    expect(skill, contains('fluoh build --platform ohos --auto-sign --json'));
-    expect(
-      skill,
-      contains(
-        'fluoh run --platform ohos --package <name> --auto-emulator --json',
-      ),
-    );
-    expect(
-      skill,
-      contains(
-        'fluoh run --platform android --package <name> --auto-emulator --json',
-      ),
-    );
-    expect(
-      skill,
-      contains('fluoh build --platform linux --package <name> --json'),
-    );
-    expect(
-      skill,
-      contains(
-        'fluoh run --platform web --package <name> --device web-server --json',
-      ),
-    );
-    expect(
-      skill,
-      contains('fluoh build --platform windows --package <name> --json'),
-    );
-    expect(skill, contains('JSON Diagnostics'));
-    expect(skill, contains('references/report-template.md'));
-    expect(skill, contains('references/interaction-scenario-template.md'));
-    expect(skill, contains('scripts/preflight.py'));
-    expect(skill, contains('scripts/new_report.py'));
-    expect(skill, contains('scripts/new_summary.py'));
-    expect(skill, contains('scripts/check_report.py'));
-    expect(skill, contains('scripts/new_scenario.py'));
-    expect(skill, contains('scripts/inspect_session.py'));
-    expect(skill, contains('scenarioCommand'));
-    expect(skill, contains('sessionInspectCommand'));
-    expect(skill, contains('check_report.py'));
-    expect(skill, contains('--require-vm-service'));
+    expect(skill.split('\n').length, lessThanOrEqualTo(350));
+    expectContainsAll(skill, [
+      'name: fluoh',
+      'adapting Flutter apps',
+      '## Helper Scripts',
+      '## Request Routing',
+      '## Start',
+      '## CLI Setup',
+      '## Adaptation Scope Gate',
+      '## Preflight Routing',
+      '## JSON Diagnostics',
+      '## Evidence Loop',
+      '## Completion Report',
+      'finalCheckCommands',
+      'deliveryChecks',
+      'upgradeChecks',
+      'final adaptation scope confirmation',
+      'explicit user',
+      'approval unless',
+      'operations that will not run',
+      'It is not authorization to change project files',
+      'setup step does not authorize project',
+      'dart pub global activate fluoh',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'brew install FlutterOH/fluoh/fluoh',
+      'brew tap FlutterOH/tap',
+      'fluoh --version',
+      'fluoh upgrade',
+      'fluoh skill --json',
+      'skillVersion',
+      'upgradePrompt',
+      'reinstall or reload',
+      'overwriting any existing fluoh',
+      'references/app-project-flow.md',
+      'references/package-adaptation-flow.md',
+      'references/automation-evidence-flow.md',
+      'references/source-maintenance-flow.md',
+      'references/report-template.md',
+      'references/interaction-scenario-template.md',
+      'scripts/preflight.py',
+      'scripts/new_report.py',
+      'scripts/new_summary.py',
+      'scripts/check_report.py',
+      'scripts/collect_feedback.py',
+      'scripts/new_scenario.py',
+      'scripts/inspect_session.py',
+      'scenarioCommand',
+      'sessionInspectCommand',
+      'python3 <skill-dir>/scripts/check_report.py <report-path>',
+      'manual-assisted',
+    ]);
     expect(skill, isNot(contains('Codex')));
+
+    expectContainsAll(appProjectFlow, [
+      '# App Project Flow',
+      'fluoh deps check --json',
+      'fluoh deps fix --dry-run',
+      'fluoh build --platform ohos --auto-sign --json',
+      'fluoh run --platform ohos --auto-emulator --json',
+    ]);
+    expectContainsAll(packageFlow, [
+      '# Package Adaptation Flow',
+      'fluoh package discover <upstream> --json',
+      '--repository-name',
+      '--repository',
+      '--git-author-name',
+      '--git-author-email',
+      '--plan --json',
+      'repository.git.url',
+      'fluoh package docs refresh',
+      'fluoh package docs refresh --allow-dirty',
+      'fluoh package queue',
+      'fluoh verify --package <name> --json',
+      'fluoh run --platform ohos --package <name> --auto-emulator --json',
+      'fluoh run --platform android --package <name> --auto-emulator --json',
+      'fluoh run --platform ios --package <name> --auto-emulator --json',
+      'fluoh run --platform web --package <name> --device web-server --json',
+      'fluoh build --platform linux --package <name> --json',
+      'fluoh build --platform windows --package <name> --json',
+      'local Git author identity',
+      'release metadata checkpoint',
+    ]);
+    expectContainsAll(automationFlow, [
+      '# Automation Evidence Flow',
+      'fluoh automate --platform <platform> --package <name> --dry-run --json',
+      'flutterRunSession',
+      '--require-vm-service',
+      'integration_test',
+      'manual-assisted',
+      'manifestPermissionCoverage',
+      'permissionCoverage',
+      'readyForAutomation',
+      'ready=8, notReady=0',
+      'automation.repairQueue',
+    ]);
+    expectContainsAll(sourceFlow, [
+      '# Source Maintenance Flow',
+      'fluoh source check [path] --schema-only --json',
+      'fluoh source check <source-pr-url> --json',
+      'fluoh source check . --all --json',
+      'schemaOnly',
+      '--skip-release-checks',
+      'changedFiles',
+      'checkedManifests',
+      'releaseChecks',
+    ]);
 
     expect(openai, contains('display_name: "FlutterOH fluoh"'));
     expect(
@@ -478,6 +489,9 @@ void main() {
     expect(reportTemplate, contains('## Public API / Compatibility'));
     expect(reportTemplate, contains('## Delivery Checklist'));
     expect(reportTemplate, contains('## Platform Matrix'));
+    expect(reportTemplate, contains('## Automation Coverage'));
+    expect(reportTemplate, contains('coverage-inventory'));
+    expect(reportTemplate, contains('complete required'));
     expect(reportTemplate, contains('## Interaction Evidence'));
     expect(reportTemplate, contains('No interaction required: <reason>'));
     expect(reportTemplate, contains('manual-assisted'));
@@ -596,32 +610,42 @@ void main() {
       'href="doc/schema.md">Schema',
       'href="CONTRIBUTING.md">Contributing',
       'AI%20skill-skills%2Ffluoh',
-      'diagnostics-JSON',
       'Adapt Flutter apps and packages to OHOS with AI.',
       'fluoh AI adaptation prompt preview',
       '## Quick Start',
+      '### AI First',
+      '### Install fluoh',
+      '### Existing Flutter App',
+      '### New Flutter App',
+      '### Package Maintainers',
       'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.',
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
-      'fluoh skill --json',
-      'returned localPath',
-      'fluoh upgrade',
-      '## Manual Fallback',
+      'fluoh verify --package <name>',
+      'fluoh package status --package <name>',
+      'fluoh package queue <package-path>...',
+      'fluoh package add <package-path>',
       'dart pub global activate fluoh',
+      'cd path/to/existing_app',
+      'fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos',
+      'cd demo_app',
       'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
       'brew install FlutterOH/fluoh/fluoh',
       'fluoh sdk use 3.35 --pub-get',
       'fluoh deps check',
+      'fluoh deps fix --dry-run',
       'fluoh deps fix',
+      'fluoh deps get',
       'fluoh doctor -p --platform ohos',
       'fluoh build --platform ohos --auto-sign',
-      'Package workflow:',
+      'Start by discovering the upstream package',
       'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
       'fluoh package discover',
       'fluoh package queue',
       'fluoh package add',
       'fluoh verify',
+      'fluoh run --platform ohos --package <name> --auto-emulator',
       'fluoh package status',
       'fluohf pub get',
       'fluohf run',
@@ -644,8 +668,17 @@ void main() {
       '### Daily Loop',
       '## Maintenance Workflows',
       '--no-init-ohos',
+      '--json',
+      'fluoh automate --platform all',
+      'bundled skill path',
+      'update instructions',
+      'fluoh upgrade',
     ]);
     expect(readme, isNot(contains('brew tap FlutterOH/tap')));
+    expect(
+      readme.indexOf('### AI First'),
+      lessThan(readme.indexOf('### Install fluoh')),
+    );
 
     expectContainsAll(chineseReadme, [
       'href="README.md">English',
@@ -654,32 +687,42 @@ void main() {
       'href="doc/schema.zh-CN.md">Schema',
       'href="CONTRIBUTING.zh-CN.md">贡献指南',
       'AI%20skill-skills%2Ffluoh',
-      'diagnostics-JSON',
       '用 AI 将 Flutter App 和 Package 适配到 OHOS',
       'fluoh AI 适配提示预览',
       '## 快速开始',
+      '### AI 优先',
+      '### 安装 fluoh',
+      '### 已有 Flutter App',
+      '### 新建 Flutter App',
+      '### Package 维护者',
       '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。',
       '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
       '使用 \$fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。',
       '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',
-      'fluoh skill --json',
-      '返回的 localPath',
-      'fluoh upgrade',
-      '## 手动兜底',
+      'fluoh verify --package <name>',
+      'fluoh package status --package <name>',
+      'fluoh package queue <package-path>...',
+      'fluoh package add <package-path>',
       'dart pub global activate fluoh',
+      'cd path/to/existing_app',
+      'fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos',
+      'cd demo_app',
       'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
       'brew install FlutterOH/fluoh/fluoh',
       'fluoh sdk use 3.35 --pub-get',
       'fluoh deps check',
+      'fluoh deps fix --dry-run',
       'fluoh deps fix',
+      'fluoh deps get',
       'fluoh doctor -p --platform ohos',
       'fluoh build --platform ohos --auto-sign',
-      'Package 流程',
+      '先发现 upstream 包',
       'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
       'fluoh package discover',
       'fluoh package queue',
       'fluoh package add',
       'fluoh verify',
+      'fluoh run --platform ohos --package <name> --auto-emulator',
       'fluoh package status',
       'fluohf pub get',
       'fluohf run',
@@ -702,8 +745,17 @@ void main() {
       '### 日常循环',
       '## 维护工作流',
       '--no-init-ohos',
+      '--json',
+      'fluoh automate --platform all',
+      '内置 skill 路径',
+      '更新说明',
+      'fluoh upgrade',
     ]);
     expect(chineseReadme, isNot(contains('brew tap FlutterOH/tap')));
+    expect(
+      chineseReadme.indexOf('### AI 优先'),
+      lessThan(chineseReadme.indexOf('### 安装 fluoh')),
+    );
 
     expectContainsAll(readmeHero, [
       'fluoh AI adaptation prompt',
@@ -868,17 +920,25 @@ void main() {
       'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
       'Use \$fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.',
       'Use \$fluoh to continue adapting <package-name> for OHOS.',
-      'does not authorize project, package, Source, local Git, or implementation',
-      'final setup',
+      'adaptation scope review',
+      'installing or locating the CLI',
+      'adaptation value discovery',
+      'project, package, Source, local Git, or implementation changes',
+      'final adaptation',
+      'scope and wait',
       'confirmation includes',
       'wait for explicit user approval',
       'operations that require separate approval',
       'skills/fluoh/SKILL.md',
+      'skills/fluoh/references/',
       'fluoh help [command]',
       'fluoh skill',
       'lib/src/cli/skill_command.dart',
       'fluoh clean',
       'lib/src/clean/clean_command.dart',
+      '`skill`, `flutter`, `doctor`, `clean`, and `upgrade`',
+      'fluoh create [--sdk <version-or-series>] <args>',
+      'lib/src/project/create_command.dart',
       'fluoh flutter <args>',
       'fluohf <args>',
       'fluoh source list',
@@ -912,21 +972,22 @@ void main() {
       'windows.build_failed',
       '--no-codesign',
       'integration_test',
-      'AI-assisted interaction',
       '.fluoh/scenarios',
       'interaction-scenario-template.md',
-      'Flutter debug',
       'details.vmServiceUri',
       '--session-file <path>',
       'flutterRunSession',
       'inspect_session.py',
-      'component state',
-      'semantic',
-      'depend on image',
-      'visual layout',
       'No interaction required',
       'permission grant and denial',
       'Run-smoke success',
+      'automation.coveragePolicy',
+      '`scenarioCoverage`',
+      '`coverageSummary`',
+      '`inventory`',
+      '`qualityGates`',
+      '`repairLoop`',
+      '`FLUOH_IOS_PERMISSION_DRIVER`',
       'emulator or simulator',
       '--auto-sign',
       'fluoh devices',
@@ -978,11 +1039,15 @@ void main() {
       '等待用户明确批准',
       '需要单独批准的操作',
       'skills/fluoh/SKILL.md',
+      'skills/fluoh/references/',
       'fluoh help [command]',
       'fluoh skill',
       'lib/src/cli/skill_command.dart',
       'fluoh clean',
       'lib/src/clean/clean_command.dart',
+      '`skill`、`flutter`、`doctor`、`clean`',
+      'fluoh create [--sdk <version-or-series>] <args>',
+      'lib/src/project/create_command.dart',
       'fluoh flutter <args>',
       'fluohf <args>',
       'fluoh source list',
@@ -1016,21 +1081,22 @@ void main() {
       'windows.build_failed',
       '--no-codesign',
       'integration_test',
-      'AI driver',
       '.fluoh/scenarios',
       'interaction-scenario-template.md',
-      'Flutter debug',
       'details.vmServiceUri',
       '--session-file <path>',
       'flutterRunSession',
       'inspect_session.py',
-      '组件状态',
-      '语义标签',
-      '识图能力',
-      '视觉布局',
       'No interaction required',
-      '权限允许/拒绝',
+      '权限允许和拒绝',
       'run-smoke 成功',
+      'automation.coveragePolicy',
+      '`scenarioCoverage`',
+      '`coverageSummary`',
+      '`inventory`',
+      '`qualityGates`',
+      '`repairLoop`',
+      '`FLUOH_IOS_PERMISSION_DRIVER`',
       'target',
       '--auto-sign',
       'fluoh devices',

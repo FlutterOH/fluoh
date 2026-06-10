@@ -447,14 +447,10 @@ FlutterDeviceTarget? _selectDevice(
 FlutterDeviceTarget? _selectRunningEmulatorDevice(
   List<FlutterDeviceTarget> devices,
 ) {
-  final candidates =
-      [
-        for (final device in devices)
-          if (_isRunningEmulatorDevice(device)) device,
-      ]..sort((left, right) {
-        final nameCompare = left.name.compareTo(right.name);
-        return nameCompare != 0 ? nameCompare : left.id.compareTo(right.id);
-      });
+  final candidates = [
+    for (final device in devices)
+      if (_isRunningEmulatorDevice(device)) device,
+  ]..sort(_compareFlutterEmulatorPreference);
   return candidates.isEmpty ? null : candidates.first;
 }
 
@@ -615,14 +611,80 @@ PlatformTarget? _selectNativeEmulator(
     return null;
   }
   if (preferDefault && emulators.isNotEmpty) {
-    final sorted = [...emulators]
-      ..sort((left, right) {
-        final nameCompare = left.name.compareTo(right.name);
-        return nameCompare != 0 ? nameCompare : left.id.compareTo(right.id);
-      });
+    final sorted = [...emulators]..sort(_compareNativeEmulatorPreference);
     return sorted.first;
   }
   return emulators.length == 1 ? emulators.single : null;
+}
+
+int _compareFlutterEmulatorPreference(
+  FlutterDeviceTarget left,
+  FlutterDeviceTarget right,
+) {
+  final platformCompare = _runTargetPreferenceScore(
+    left.targetPlatform,
+    left.name,
+  ).compareTo(_runTargetPreferenceScore(right.targetPlatform, right.name));
+  if (platformCompare != 0) {
+    return platformCompare;
+  }
+  final nameCompare = left.name.compareTo(right.name);
+  return nameCompare != 0 ? nameCompare : left.id.compareTo(right.id);
+}
+
+int _compareNativeEmulatorPreference(
+  PlatformTarget left,
+  PlatformTarget right,
+) {
+  final platformCompare = _nativeTargetPreferenceScore(
+    left,
+  ).compareTo(_nativeTargetPreferenceScore(right));
+  if (platformCompare != 0) {
+    return platformCompare;
+  }
+  final nameCompare = left.name.compareTo(right.name);
+  return nameCompare != 0 ? nameCompare : left.id.compareTo(right.id);
+}
+
+int _runTargetPreferenceScore(String targetPlatform, String name) {
+  if (!targetPlatform.toLowerCase().contains('ios')) {
+    return 0;
+  }
+  return _iosSimulatorDeviceClassScore(name);
+}
+
+int _nativeTargetPreferenceScore(PlatformTarget target) {
+  if (target.platform != FluohPlatform.ios) {
+    return 0;
+  }
+  final deviceClassScore = _iosSimulatorDeviceClassScore(target.name);
+  final runtimeScore = _iosRuntimeVersionScore(target.details['runtime']);
+  return deviceClassScore * 1000000 - runtimeScore;
+}
+
+int _iosSimulatorDeviceClassScore(String name) {
+  final lower = name.toLowerCase();
+  if (lower.contains('iphone')) {
+    return 0;
+  }
+  if (lower.contains('ipad')) {
+    return 1;
+  }
+  return 2;
+}
+
+int _iosRuntimeVersionScore(Object? runtime) {
+  final match = RegExp(
+    r'iOS-(\d+)(?:-(\d+))?(?:-(\d+))?',
+    caseSensitive: false,
+  ).firstMatch(runtime?.toString() ?? '');
+  if (match == null) {
+    return 0;
+  }
+  final major = int.tryParse(match.group(1) ?? '') ?? 0;
+  final minor = int.tryParse(match.group(2) ?? '') ?? 0;
+  final patch = int.tryParse(match.group(3) ?? '') ?? 0;
+  return major * 10000 + minor * 100 + patch;
 }
 
 FlutterDeviceTarget? _selectStartedEmulatorDevice({

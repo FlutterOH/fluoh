@@ -38,6 +38,7 @@
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
+- [ ] Real `fluoh automate --json` evidence recorded, with no unresolved ready-blocking gates.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
@@ -53,6 +54,45 @@
 | Linux | not present | not present | n/a | n/a | ... |
 | Web | not present | not present | n/a | n/a | ... |
 | Windows | not present | not present | n/a | n/a | ... |
+
+## Automation Coverage
+
+Copy the complete required `automation.coveragePolicy.qualityGates` set from
+`fluoh automate --dry-run --json` or real `fluoh automate --json`; do not omit
+generic gates that are `notApplicable` for the current Package. A `ready`
+release certification cannot include unresolved statuses such as
+`needsInventory`, `needsCapabilityCoverageRows`, `needsPermissionCoverageRows`,
+`needsPathCoverageReview`, `needsEvidenceAssertions`, `blocked`, or `failed`.
+Record `automation.coveragePolicy.status`, `readyForAutomation`, and
+`qualityGateSummary` before the table so the handoff shows whether coverage is
+ready to execute, still missing rows, or waiting on maintainer/environment
+decision. Ready reports must show zero not-ready gates, such as
+`qualityGateSummary: ready=8, notReady=0`.
+When `existing-test-baseline` is not ready, include the concrete
+`coverageBaseline.missingPackageTests` and
+`coverageBaseline.weakPackageTests` rows that were fixed or remain blocked,
+including the printed `testCommand` or accepted alternative command used to
+verify each focused Package test.
+Also record `automation.repairPlan.nextStep` when any gate is not ready, so the
+handoff shows the exact next machine-readable repair action, its `doneWhen`
+completion checks, and the `validation` rerun hint. Include
+`automation.rerunCommand` whenever the next validation step repeats the same
+`automate` invocation.
+
+- coveragePolicy.status: ...
+- readyForAutomation: ...
+- qualityGateSummary: ...
+
+| Gate | Status | Evidence / blocker |
+| --- | --- | --- |
+| coverage-inventory | readyForReview | capability inventory reviewed |
+| coverage-metadata | readyForReview | every scenario declares coverage metadata or has an explicit no-interaction reason |
+| coverage-items | readyForReview | every applicable capability has a coverage row |
+| capability-inventory-coverage | readyForReview | all public API/platform/example rows covered or notApplicable |
+| scenario-evidence-assertions | readyForReview | scenarios use assertText/waitText/assertLog/assertSession |
+| existing-test-baseline | readyForReview | package and integration tests reviewed |
+| manifest-permission-coverage | readyForReview | every selected-platform manifest permission is covered or notApplicable |
+| behavior-paths | readyForReview | success and negative/error paths are covered or explicitly explained |
 
 ## Interaction Evidence
 

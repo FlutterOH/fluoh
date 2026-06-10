@@ -11,7 +11,6 @@
   <a href="https://pub.dev/packages/fluoh"><img src="https://img.shields.io/pub/v/fluoh.svg" alt="pub package"></a>
   <a href="https://github.com/FlutterOH/fluoh/actions/workflows/ci.yml"><img src="https://github.com/FlutterOH/fluoh/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="skills/fluoh/SKILL.md"><img src="https://img.shields.io/badge/AI%20skill-skills%2Ffluoh-6f42c1" alt="AI skill"></a>
-  <img src="https://img.shields.io/badge/diagnostics-JSON-blue" alt="JSON diagnostics">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/FlutterOH/fluoh.svg" alt="License"></a>
 </p>
 
@@ -30,7 +29,12 @@
 
 ## 快速开始
 
-先让 AI agent 安装 skill：
+### AI 优先
+
+大多数 App 或 Package 适配，建议先在 AI agent 中使用内置 skill。把目标交给
+AI，它会搞定从环境准备、项目检查、代码适配、自动验证到本地报告的完整流程。
+
+在 AI agent 中安装内置 skill：
 
 ```text
 从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。
@@ -44,50 +48,74 @@
 使用 $fluoh，继续适配 <package-name> 到 OHOS。
 ```
 
-如果已经安装了 `fluoh`：
+动手修改前，AI agent 会先说明适配范围、改动计划和验证方式；确认后继续执行。
+[skill](skills/fluoh/SKILL.md) 是 AI 入口；
+[命令参考](doc/commands.zh-CN.md) 说明完整 CLI 命令面。
 
-```text
-运行 `fluoh skill --json`，把返回的 localPath 安装为 skill，必要时重载 skills。
-```
-
-运行 `fluoh upgrade` 后，重新执行 `fluoh skill --json` 并重载返回的路径。
-完整流程见 [skill](skills/fluoh/SKILL.md) 和 [命令参考](doc/commands.zh-CN.md)。
-
-## 手动兜底
-
-自己安装 CLI 并运行 App 流程：
+### 安装 fluoh
 
 ```sh
 dart pub global activate fluoh
-fluoh sdk use 3.35 --pub-get
-fluoh deps check
-fluoh deps fix
-fluoh doctor -p --platform ohos
-fluoh build --platform ohos --auto-sign
 ```
 
-macOS 安装：
+macOS 也可以使用原生命令安装：
 
 ```sh
 brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git
 brew install FlutterOH/fluoh/fluoh
 ```
 
-Package 流程：
+### 已有 Flutter App
+
+在项目根目录执行：
 
 ```sh
-fluoh package discover <upstream-git-url> --json
-fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
-fluoh verify
-fluoh package status
+cd path/to/existing_app
+fluoh sdk use 3.35 --pub-get
+fluoh deps check
+fluoh deps fix --dry-run
+fluoh deps fix
+fluoh deps get
+fluoh doctor -p --platform ohos
+fluoh build --platform ohos --auto-sign
 ```
 
-在生成仓库中追加其他 Package：
+先检查 `deps fix --dry-run` 输出，再执行 `deps fix`。
+
+### 新建 Flutter App
+
+先用 Flutter OHOS SDK 创建项目，再进入生成的项目根目录继续：
 
 ```sh
-fluoh package queue
-fluoh package add
-fluoh verify
+fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos
+cd demo_app
+fluoh deps check
+fluoh deps fix --dry-run
+fluoh deps fix
+fluoh deps get
+fluoh doctor -p --platform ohos
+fluoh build --platform ohos --auto-sign
+```
+
+### Package 维护者
+
+先发现 upstream 包，再创建 FlutterOH 适配仓库：
+
+```sh
+fluoh package discover <upstream-git-url>
+fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
+cd <flutteroh-repo-name>
+fluoh verify --package <name>
+fluoh run --platform ohos --package <name> --auto-emulator
+fluoh package status --package <name>
+```
+
+在生成仓库中追加另一个 Package 分支：
+
+```sh
+fluoh package queue <package-path>...
+fluoh package add <package-path>
+fluoh verify --package <name>
 ```
 
 通过已选择的 FlutterOH SDK 运行 Flutter：
