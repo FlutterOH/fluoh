@@ -121,18 +121,8 @@ exit 0
     expect(web, containsPair('platform', 'web'));
     final targets = web['targets'] as List<Object?>;
     expect(
-      targets,
-      contains(
-        allOf(
-          containsPair('id', 'web-server'),
-          containsPair('name', 'Web Server'),
-          containsPair('kind', 'device'),
-          containsPair('displayName', 'Web Server (web)'),
-          containsPair('displayPlatform', 'web-server'),
-          containsPair('category', 'web'),
-          containsPair('summary', 'web-server'),
-        ),
-      ),
+      targets.cast<Map<String, Object?>>().map((target) => target['id']),
+      isNot(contains('web-server')),
     );
     expect(
       targets,
@@ -141,8 +131,8 @@ exit 0
           containsPair('id', 'chrome'),
           containsPair('name', 'Chrome'),
           containsPair('displayName', 'Chrome (web)'),
-          containsPair('displayPlatform', 'chrome'),
-          containsPair('summary', contains('chrome')),
+          containsPair('displayPlatform', 'web-javascript'),
+          containsPair('summary', 'Google Chrome 120.0'),
           containsPair(
             'details',
             allOf(
@@ -457,8 +447,8 @@ exit 1
     final output = stdout.join('\n');
     expect(output, isNot(contains('Checking for wireless devices...')));
     expect(output, contains('OHOS devices unavailable:'));
-    expect(output, contains('Web Server (web)'));
-    expect(output, contains('web-server'));
+    expect(output, isNot(contains('Web Server (web)')));
+    expect(output, isNot(contains('web-server')));
     if (Platform.isMacOS) {
       expect(output, contains('Found 1 wirelessly connected device:'));
       expect(

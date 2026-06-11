@@ -275,6 +275,109 @@ def host_supports_regression_platform(platform: str) -> bool:
     return False
 
 
+REGRESSION_PLATFORM_ORDER = ("android", "ios", "macos", "linux", "web", "windows")
+AUTO_EMULATOR_REGRESSION_PLATFORMS = {"android", "ios"}
+BUILD_REGRESSION_PLATFORMS = {"linux", "windows"}
+OHOS_PLATFORM = "ohos"
+
+
+def doctor_command(platform: str, project: bool = False, strict: bool = False) -> str:
+    parts = [
+        f"fluoh doctor --platform {platform}",
+    ]
+    if project:
+        parts.append("--project")
+    parts.append("--json")
+    if strict:
+        parts.append("--strict")
+    return " ".join(parts)
+
+
+def devices_command(platform: str) -> str:
+    return f"fluoh devices --platform {platform} --json"
+
+
+def emulators_command(platform: str) -> str:
+    return f"fluoh emulators --platform {platform} --json"
+
+
+def build_command(
+    platform: str,
+    trace_dir: str,
+    package_name: str | None = None,
+    auto_sign: bool = False,
+) -> str:
+    package_part = f" --package {package_name}" if package_name else ""
+    auto_sign_part = " --auto-sign" if auto_sign else ""
+    return (
+        f"fluoh build {platform}{package_part}{auto_sign_part} "
+        f"--json --trace-dir {trace_dir}"
+    )
+
+
+def run_command(
+    platform: str,
+    trace_dir: str,
+    package_name: str | None = None,
+    auto_emulator: bool = False,
+) -> str:
+    package_part = f" --package {package_name}" if package_name else ""
+    auto_emulator_part = " --auto-emulator" if auto_emulator else ""
+    return (
+        f"fluoh run {platform}{package_part}{auto_emulator_part} "
+        f"--json --trace-dir {trace_dir}"
+    )
+
+
+def ohos_adaptation_commands(
+    trace_dir: str,
+    package_name: str | None = None,
+) -> list[str]:
+    return [
+        doctor_command(OHOS_PLATFORM, project=True, strict=True),
+        build_command(
+            OHOS_PLATFORM,
+            trace_dir,
+            package_name,
+            auto_sign=True,
+        ),
+        devices_command(OHOS_PLATFORM),
+        emulators_command(OHOS_PLATFORM),
+        run_command(
+            OHOS_PLATFORM,
+            trace_dir,
+            package_name,
+            auto_emulator=True,
+        ),
+    ]
+
+
+def regression_run_command(
+    platform: str,
+    trace_dir: str,
+    package_name: str | None = None,
+) -> str:
+    if platform in BUILD_REGRESSION_PLATFORMS:
+        return build_command(platform, trace_dir, package_name)
+    return run_command(
+        platform,
+        trace_dir,
+        package_name,
+        auto_emulator=platform in AUTO_EMULATOR_REGRESSION_PLATFORMS,
+    )
+
+
+def regression_commands_for_platform(
+    platform: str,
+    trace_dir: str,
+    package_name: str | None = None,
+) -> list[str]:
+    return [
+        doctor_command(platform, strict=True),
+        regression_run_command(platform, trace_dir, package_name),
+    ]
+
+
 def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
     if top_level_key(content, "package"):
         package: dict[str, Any] = {"name": None, "path": None}
@@ -531,48 +634,9 @@ def app_platform_regression_commands(
 ) -> list[str]:
     platforms = project.get("platformDirectories", {})
     commands: list[str] = []
-    if platforms.get("android"):
-        commands.extend(
-            [
-                "fluoh doctor --platform android --json --strict",
-                f"fluoh run android --auto-emulator --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("ios") and host_supports_regression_platform("ios"):
-        commands.extend(
-            [
-                "fluoh doctor --platform ios --json --strict",
-                f"fluoh run ios --auto-emulator --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("macos") and host_supports_regression_platform("macos"):
-        commands.extend(
-            [
-                "fluoh doctor --platform macos --json --strict",
-                f"fluoh run macos --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("linux") and host_supports_regression_platform("linux"):
-        commands.extend(
-            [
-                "fluoh doctor --platform linux --json --strict",
-                f"fluoh build linux --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("web"):
-        commands.extend(
-            [
-                "fluoh doctor --platform web --json --strict",
-                f"fluoh run web --device-id web-server --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("windows") and host_supports_regression_platform("windows"):
-        commands.extend(
-            [
-                "fluoh doctor --platform windows --json --strict",
-                f"fluoh build windows --json --trace-dir {trace_dir}",
-            ]
-        )
+    for platform in REGRESSION_PLATFORM_ORDER:
+        if platforms.get(platform) and host_supports_regression_platform(platform):
+            commands.extend(regression_commands_for_platform(platform, trace_dir))
     return commands
 
 
@@ -590,48 +654,15 @@ def package_platform_regression_commands(
     package = selected_package_entry(project)
     platforms = package.get("examplePlatforms", {})
     commands: list[str] = []
-    if platforms.get("android"):
-        commands.extend(
-            [
-                "fluoh doctor --platform android --json --strict",
-                f"fluoh run android --package {package_name} --auto-emulator --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("ios") and host_supports_regression_platform("ios"):
-        commands.extend(
-            [
-                "fluoh doctor --platform ios --json --strict",
-                f"fluoh run ios --package {package_name} --auto-emulator --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("macos") and host_supports_regression_platform("macos"):
-        commands.extend(
-            [
-                "fluoh doctor --platform macos --json --strict",
-                f"fluoh run macos --package {package_name} --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("linux") and host_supports_regression_platform("linux"):
-        commands.extend(
-            [
-                "fluoh doctor --platform linux --json --strict",
-                f"fluoh build linux --package {package_name} --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("web"):
-        commands.extend(
-            [
-                "fluoh doctor --platform web --json --strict",
-                f"fluoh run web --package {package_name} --device-id web-server --json --trace-dir {trace_dir}",
-            ]
-        )
-    if platforms.get("windows") and host_supports_regression_platform("windows"):
-        commands.extend(
-            [
-                "fluoh doctor --platform windows --json --strict",
-                f"fluoh build windows --package {package_name} --json --trace-dir {trace_dir}",
-            ]
-        )
+    for platform in REGRESSION_PLATFORM_ORDER:
+        if platforms.get(platform) and host_supports_regression_platform(platform):
+            commands.extend(
+                regression_commands_for_platform(
+                    platform,
+                    trace_dir,
+                    package_name,
+                )
+            )
     return commands
 
 
@@ -651,11 +682,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh deps fix --dry-run",
             "fluoh deps fix",
             "fluoh deps get",
-            "fluoh doctor -p --platform ohos --json --strict",
-            f"fluoh build ohos --auto-sign --json --trace-dir {trace_dir}",
-            "fluoh devices --platform ohos --json",
-            "fluoh emulators --platform ohos --json",
-            f"fluoh run ohos --auto-emulator --json --trace-dir {trace_dir}",
+            *ohos_adaptation_commands(trace_dir),
             f"fluoh drive all --json --trace-dir {trace_dir}",
             *app_platform_regression_commands(project, trace_dir),
             f"fluoh report create --scope {command_arg(project['name'] or 'app')} --trace-dir {trace_dir} --json",
@@ -667,11 +694,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             *upgrade_commands,
             "fluoh deps get",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
-            "fluoh doctor -p --platform ohos --json --strict",
-            f"fluoh build ohos --package {package} --auto-sign --json --trace-dir {trace_dir}",
-            "fluoh devices --platform ohos --json",
-            "fluoh emulators --platform ohos --json",
-            f"fluoh run ohos --package {package} --auto-emulator --json --trace-dir {trace_dir}",
+            *ohos_adaptation_commands(trace_dir, package),
             f"fluoh drive all --package {package} --json --trace-dir {trace_dir}",
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
@@ -694,11 +717,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "--sdk <sdk-version-or-line> --package-path .",
             f"cd {output}",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
-            "fluoh doctor -p --platform ohos --json --strict",
-            f"fluoh build ohos --package {package} --auto-sign --json --trace-dir {trace_dir}",
-            "fluoh devices --platform ohos --json",
-            "fluoh emulators --platform ohos --json",
-            f"fluoh run ohos --package {package} --auto-emulator --json --trace-dir {trace_dir}",
+            *ohos_adaptation_commands(trace_dir, package),
             f"fluoh drive all --package {package} --json --trace-dir {trace_dir}",
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
@@ -722,11 +741,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
         trace_dir = f".fluoh/traces/{slug(project['name'] or 'app', 'app')}/adaptation"
         return [
             "git diff --check",
-            "fluoh doctor -p --platform ohos --json --strict",
-            f"fluoh build ohos --auto-sign --json --trace-dir {trace_dir}",
-            "fluoh devices --platform ohos --json",
-            "fluoh emulators --platform ohos --json",
-            f"fluoh run ohos --auto-emulator --json --trace-dir {trace_dir}",
+            *ohos_adaptation_commands(trace_dir),
             *app_platform_regression_commands(project, trace_dir),
         ]
     if kind == "package-repository":
@@ -735,11 +750,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
         return [
             "git diff --check",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
-            "fluoh doctor -p --platform ohos --json --strict",
-            f"fluoh build ohos --package {package} --auto-sign --json --trace-dir {trace_dir}",
-            "fluoh devices --platform ohos --json",
-            "fluoh emulators --platform ohos --json",
-            f"fluoh run ohos --package {package} --auto-emulator --json --trace-dir {trace_dir}",
+            *ohos_adaptation_commands(trace_dir, package),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             f"fluoh package handoff --package {package} --json",
@@ -894,7 +905,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             f"Create or update .fluoh/reports/{scope}/ai-report-...md before the final response.",
             "Record deps, doctor, build, and run command results with exit codes.",
             "Use --auto-emulator for OHOS run so a local emulator is tried before connected devices; record signed build-only evidence only when no local target can be started.",
-            "Run Android checks with --auto-emulator and Web server smoke runs when those platform directories exist; run iOS, macOS, Linux, and Windows checks only on matching hosts, and record exact skip reasons for unavailable hosts.",
+            "Run Android checks with --auto-emulator and Web browser smoke runs when those platform directories exist; run iOS, macOS, Linux, and Windows checks only on matching hosts, and record exact skip reasons for unavailable hosts.",
             "Review the diff and remove unrelated local paths, generated caches, credentials, and private tokens.",
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]
@@ -905,7 +916,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             f"Create or update .fluoh/reports/{package}/ai-report-...md before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
-            "Record Android regression checks with --auto-emulator and Web server smoke runs when examples exist, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
+            "Record Android regression checks with --auto-emulator and Web browser smoke runs when examples exist, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
             "Review the diff and remove unrelated local paths, generated caches, credentials, and private tokens.",
             "State ready, blocked, or needs maintainer decision in the final response.",
@@ -919,7 +930,7 @@ def delivery_checks(info: dict[str, Any]) -> list[str]:
             f"Create or update .fluoh/reports/{package}/ai-report-...md in the generated repository before the final response.",
             f"Record verify, status, and package check results for {package} with exit codes.",
             f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
-            "Record Android regression checks with --auto-emulator and Web server smoke runs when examples exist after repository creation, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
+            "Record Android regression checks with --auto-emulator and Web browser smoke runs when examples exist after repository creation, plus iOS, macOS, Linux, and Windows checks only on matching hosts; record exact skip reasons for unavailable hosts.",
             "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]

@@ -8,6 +8,7 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import '../platform/platform_environment.dart';
 import '../sdk/flutter_runner.dart';
+import '../workflow/platform_workflow_policy.dart';
 
 /// Flutter device entry parsed from `flutter devices --machine`.
 class FlutterDeviceTarget {
@@ -193,16 +194,17 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       details: _commandDetails(devicesResult),
     );
   }
-  var devices = _devicesForPlatform(parsedDevices, platform);
+  final targetPolicy = _runTargetPolicyFor(platform);
+  var devices = _devicesForPlatform(parsedDevices, targetPolicy);
   var target = deviceId != null
-      ? _selectDevice(devices, deviceId, platform: platform)
+      ? _selectDevice(devices, deviceId, policy: targetPolicy)
       : startEmulator && emulatorName == null
       ? _isDesktopRunPlatform(platform)
-            ? _selectDevice(devices, null, platform: platform)
+            ? _selectDevice(devices, null, policy: targetPolicy)
             : _selectRunningEmulatorDevice(devices)
       : startEmulator
       ? null
-      : _selectDevice(devices, null, platform: platform);
+      : _selectDevice(devices, null, policy: targetPolicy);
   FlutterEmulatorTarget? emulator;
   FlutterExampleRunResult? autoEmulatorFailure;
 
@@ -227,7 +229,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
           ) &&
           devices.isNotEmpty) {
         autoEmulatorFailure = emulatorResult;
-        target = _selectDevice(devices, null, platform: platform);
+        target = _selectDevice(devices, null, policy: targetPolicy);
       } else {
         return emulatorResult;
       }
@@ -258,7 +260,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
         parseFlutterDevices(
           waitResult.details['devicesJson'] as String? ?? '[]',
         ),
-        platform,
+        targetPolicy,
       );
       target = _selectStartedEmulatorDevice(
         devices: devices,
@@ -310,7 +312,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
         command: 'flutter devices --machine',
         code: '$platform.device_missing',
         message: 'No Flutter device was available for the platform',
-        reason: _missingFlutterDeviceReason(platform),
+        reason: targetPolicy.missingDeviceReason(),
         details: details,
       );
     }
@@ -398,13 +400,11 @@ String _platformForBuildTarget(String target) {
 
 List<FlutterDeviceTarget> _devicesForPlatform(
   List<FlutterDeviceTarget> devices,
-  String platform,
+  _RunTargetPolicy policy,
 ) {
   return [
     for (final device in devices)
-      if (device.isSupported &&
-          _matchesPlatform(device.targetPlatform, platform))
-        device,
+      if (policy.matchesDevice(device)) device,
   ];
 }
 
@@ -421,10 +421,70 @@ bool _matchesPlatform(String value, String platform) {
   return normalized == platform || normalized.contains(platform);
 }
 
+_RunTargetPolicy _runTargetPolicyFor(String platform) {
+  return platform == 'web'
+      ? const _WebRunTargetPolicy()
+      : _DefaultRunTargetPolicy(platform);
+}
+
+abstract class _RunTargetPolicy {
+  const _RunTargetPolicy(this.platform);
+
+  final String platform;
+
+  bool matchesDevice(FlutterDeviceTarget device) {
+    return device.isSupported &&
+        _matchesPlatform(device.targetPlatform, platform);
+  }
+
+  FlutterDeviceTarget? selectDefaultDevice(List<FlutterDeviceTarget> devices) {
+    return devices.length == 1 ? devices.single : null;
+  }
+
+  String missingDeviceReason() {
+    if (_isDesktopRunPlatform(platform)) {
+      return 'No $platform host target was available. Run on a matching host and '
+          'ensure flutter devices lists the desktop target.';
+    }
+    return 'No $platform device was available. Rerun with --auto-emulator so '
+        'fluoh can start a local emulator or simulator, or pass --device-id <id> '
+        'for a connected target.';
+  }
+}
+
+class _DefaultRunTargetPolicy extends _RunTargetPolicy {
+  const _DefaultRunTargetPolicy(super.platform);
+}
+
+class _WebRunTargetPolicy extends _RunTargetPolicy {
+  const _WebRunTargetPolicy() : super('web');
+
+  @override
+  bool matchesDevice(FlutterDeviceTarget device) {
+    return super.matchesDevice(device) && device.id != 'web-server';
+  }
+
+  @override
+  FlutterDeviceTarget? selectDefaultDevice(List<FlutterDeviceTarget> devices) {
+    for (final device in devices) {
+      if (device.id == 'chrome') {
+        return device;
+      }
+    }
+    return super.selectDefaultDevice(devices);
+  }
+
+  @override
+  String missingDeviceReason() {
+    return 'No browser target was available. Ensure flutter devices lists '
+        'Chrome or another supported browser device.';
+  }
+}
+
 FlutterDeviceTarget? _selectDevice(
   List<FlutterDeviceTarget> devices,
   String? deviceId, {
-  required String platform,
+  required _RunTargetPolicy policy,
 }) {
   final requested = deviceId?.trim();
   if (requested != null && requested.isNotEmpty) {
@@ -435,14 +495,7 @@ FlutterDeviceTarget? _selectDevice(
     }
     return null;
   }
-  if (platform == 'web') {
-    for (final device in devices) {
-      if (device.id == 'web-server') {
-        return device;
-      }
-    }
-  }
-  return devices.length == 1 ? devices.single : null;
+  return policy.selectDefaultDevice(devices);
 }
 
 FlutterDeviceTarget? _selectRunningEmulatorDevice(
@@ -468,24 +521,7 @@ bool _isRunningEmulatorDevice(FlutterDeviceTarget device) {
 }
 
 bool _isDesktopRunPlatform(String platform) {
-  return platform == 'macos' ||
-      platform == 'linux' ||
-      platform == 'web' ||
-      platform == 'windows';
-}
-
-String _missingFlutterDeviceReason(String platform) {
-  if (platform == 'web') {
-    return 'No web target was available. Ensure flutter devices lists Chrome, '
-        'web-server, or another supported Flutter web device.';
-  }
-  if (_isDesktopRunPlatform(platform)) {
-    return 'No $platform host target was available. Run on a matching host and '
-        'ensure flutter devices lists the desktop target.';
-  }
-  return 'No $platform device was available. Rerun with --auto-emulator so '
-      'fluoh can start a local emulator or simulator, or pass --device-id <id> '
-      'for a connected target.';
+  return platformWorkflowPolicy(platform).isDesktopRunPlatform;
 }
 
 Future<FlutterExampleRunResult> _startFlutterEmulator({
@@ -759,7 +795,10 @@ Future<FlutterExampleRunResult> _waitForFlutterDevice({
         details: _commandDetails(result),
       );
     }
-    final devices = _devicesForPlatform(parsedDevices, platform);
+    final devices = _devicesForPlatform(
+      parsedDevices,
+      _runTargetPolicyFor(platform),
+    );
     final readyDevices = waitForNewDevice
         ? [
             for (final device in devices)

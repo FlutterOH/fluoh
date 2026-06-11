@@ -94,7 +94,7 @@ fluoh deps check
 fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
-fluoh doctor -p --platform ohos
+fluoh doctor --platform ohos --project
 fluoh build ohos --auto-sign
 fluoh devices --platform ohos
 fluoh emulators --platform ohos
@@ -318,10 +318,10 @@ Design constraints:
 `doctor` is diagnostic and returns success after printing its findings unless
 `--strict` is used. Bare `fluoh doctor` checks the fluoh installation, Git and
 Dart, configured source snapshots, OpenHarmony SDK tooling, Android SDK and
-Java tooling, Web tooling, and host-supported Apple or desktop tooling. Plain
-output streams each check as soon as it completes, so long device discovery
-does not make the command appear idle. JSON mode waits for all checks and
-writes one machine-readable object.
+Java tooling, Chrome/web tooling, and host-supported Apple or desktop tooling.
+Plain output streams each check as soon as it completes, so long device
+discovery does not make the command appear idle. JSON mode waits for all
+checks and writes one machine-readable object.
 
 OpenHarmony toolchain output focuses on SDK path/version, `hdc`, and emulator
 version or missing state. When both iOS and macOS are selected, Xcode is checked
@@ -344,7 +344,7 @@ Missing or stale state is reported as warnings rather than immediate
 remediation. Use platform-scoped strict checks such as
 `fluoh doctor --platform ohos --json --strict` when automation needs a native
 toolchain gate, and
-`fluoh doctor -p --platform ohos --json --strict` when it also needs a
+`fluoh doctor --platform ohos --project --json --strict` when it also needs a
 current-project gate. Project
 JSON includes `platformDirectories` data for the selected platform set so
 automation can decide whether to create or skip OHOS, Android, iOS, macOS,
@@ -856,8 +856,8 @@ runtime error patterns. For Android, iOS, macOS, Linux, Web, and Windows
 current projects and package examples it launches through the selected SDK's
 `flutter run`, captures smoke output under `$FLUOH_HOME/cache/package-runs`, and runs
 `flutter test integration_test -d <device>` when `integration_test/` exists and
-a concrete target is available. Web `web-server` runs skip integration tests and
-point to a browser device such as Chrome instead. When `flutter run` prints a VM Service or debug
+a concrete target is available. Web runs use browser targets such as Chrome.
+When `flutter run` prints a VM Service or debug
 service URI, `--json` includes it as `details.vmServiceUri` on the run step so
 an AI agent or external tool can attach. Pass `--session-file <path>` on
 Android, iOS, macOS, Linux, Web, or Windows runs to write a live `flutterRunSession` JSON file while

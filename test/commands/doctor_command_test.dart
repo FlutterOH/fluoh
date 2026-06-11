@@ -111,7 +111,7 @@ void main() {
         isNot(contains('Xcode - develop for iOS and macOS')),
       );
     }
-    expect(stdout.join('\n'), contains('Web tooling - build for browsers'));
+    expect(stdout.join('\n'), contains('Chrome - develop for the web'));
     expect(
       stdout.join('\n'),
       contains('[!] OpenHarmony toolchain - develop for OHOS devices'),
@@ -126,7 +126,7 @@ void main() {
       'Android toolchain',
       if (Platform.isMacOS) 'Xcode - develop for iOS and macOS',
       if (Platform.isLinux) 'Linux toolchain',
-      'Web tooling',
+      'Chrome - develop for the web',
       if (Platform.isWindows) 'Windows toolchain',
       '[!] Flutter project',
     ]);
@@ -291,6 +291,114 @@ exit 1
     expect(
       (fluohCheck['details'] as List<Object?>).join('\n'),
       contains('invalid active developer path'),
+    );
+    expect(result.stderr, isEmpty);
+  });
+
+  test('reports web Chrome tooling with only Chrome detail', () async {
+    final environment = await createTestEnvironment();
+    final chrome = File('${environment.homeDirectory.path}/bin/google-chrome');
+    await _writeExecutable(chrome, '''
+if [ "\$1" = "--version" ]; then
+  printf "Google Chrome 149.0.7827.103\\n"
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_WEB_CHROME': chrome.path,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'web'],
+    );
+
+    expect(result.exitCode, 0);
+    final output = result.stdout.join('\n');
+    expect(
+      output,
+      contains(
+        '[✓] Chrome - develop for the web (Google Chrome 149.0.7827.103)',
+      ),
+    );
+    expect(
+      _normalizeOutput(output),
+      contains(_normalizeOutput('    • Chrome at ${chrome.path}')),
+    );
+    expect(
+      _normalizeOutput(output),
+      contains(
+        _normalizeOutput(
+          'Chrome (web) • chrome • web-javascript • '
+          'Google Chrome 149.0.7827.103',
+        ),
+      ),
+    );
+    expect(output, contains('[✓] Connected device (1 available)'));
+    expect(output, isNot(contains('Web Server (web)')));
+    expect(
+      output,
+      isNot(
+        contains('Flutter web builds do not require a native host toolchain'),
+      ),
+    );
+    expect(output, isNot(contains('chrome Google Chrome 149.0.7827.103')));
+    expect(output, isNot(contains('Chrome Google Chrome 149.0.7827.103 at')));
+    expect(result.stderr, isEmpty);
+  });
+
+  test('warns when web Chrome is missing', () async {
+    final environment = await createTestEnvironment();
+    final missingChrome =
+        '${environment.homeDirectory.path}/bin/missing-chrome';
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: {
+        ...environment.processEnvironment,
+        'FLUOH_WEB_CHROME': missingChrome,
+      },
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'web', '--json', '--strict'],
+    );
+
+    expect(result.exitCode, 1);
+    final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 1));
+    final checks = (report['checks'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final webToolchain = checks.firstWhere(
+      (check) => check['id'] == 'web.toolchain',
+    );
+    expect(webToolchain, containsPair('title', 'Chrome - develop for the web'));
+    expect(webToolchain, containsPair('status', 'warning'));
+    final data = webToolchain['data'] as Map<String, Object?>;
+    final toolChecks = (data['checks'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final chrome = toolChecks.firstWhere(
+      (check) => check['id'] == 'web.chrome',
+    );
+    expect(chrome, containsPair('status', 'warning'));
+    expect(
+      chrome,
+      containsPair(
+        'message',
+        'Chrome was not found; install Chrome for browser-specific web runs.',
+      ),
     );
     expect(result.stderr, isEmpty);
   });
@@ -504,6 +612,58 @@ exit 0
           containsPair('id', 'short-id'),
           containsPair('platform', 'android'),
           containsPair('summary', 'device'),
+        ),
+      ),
+    );
+    expect(result.stderr, isEmpty);
+  });
+
+  test('doctor connected device rows are not auto-wrapped', () async {
+    final environment = await createTestEnvironment();
+    final androidSdk = await _writeAndroidSdkFixture(environment.homeDirectory);
+    final longId = 'android-${'x' * 120}';
+    await _writeExecutable(File('${androidSdk.path}/platform-tools/adb'), '''
+if [ "\$1" = "version" ]; then
+  printf "Android Debug Bridge version 1.0.41\\n"
+  exit 0
+fi
+if [ "\$1" = "devices" ]; then
+  printf "List of devices attached\\n$longId device model:Pixel_8_Pro_Maximum_Length\\n"
+  exit 0
+fi
+exit 0
+''');
+    final javaHome = Directory('${environment.homeDirectory.path}/java');
+    await _writeExecutable(File('${javaHome.path}/bin/java'), '''
+if [ "\$1" = "-version" ]; then
+  printf 'openjdk version "17.0.9"\\n' >&2
+  exit 0
+fi
+exit 0
+''');
+    final doctorEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: environment.workingDirectory,
+      processEnvironment: _androidDoctorEnvironment(
+        environment,
+        androidSdk,
+        javaHome,
+      ),
+    );
+
+    final result = await _runDoctorCommand(
+      environment: doctorEnvironment,
+      versionMetadataProvider: () async =>
+          const DoctorVersionMetadata(latestVersion: packageVersion),
+      arguments: const ['doctor', '--platform', 'android'],
+    );
+
+    expect(result.exitCode, 0);
+    expect(
+      result.stdout,
+      contains(
+        contains(
+          'Pixel 8 Pro Maximum Length (mobile) • $longId • android • device',
         ),
       ),
     );

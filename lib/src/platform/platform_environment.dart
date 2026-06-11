@@ -816,9 +816,9 @@ Future<PlatformDoctorReport> _inspectWeb(FluohEnvironment environment) async {
       PlatformToolCheck(
         id: 'web.chrome',
         label: 'Chrome',
-        ok: true,
+        ok: chrome != null,
         message: chrome == null
-            ? 'Chrome was not found; web-server is still available for served web smoke runs.'
+            ? 'Chrome was not found; install Chrome for browser-specific web runs.'
             : 'Chrome was found for browser-specific smoke runs',
         path: chrome?.path,
         version: await _toolVersion(chrome, const [
@@ -1103,14 +1103,6 @@ Future<PlatformTargetReport> _listWebDevices(
     kind: 'device',
     ok: true,
     targets: [
-      const PlatformTarget(
-        platform: FluohPlatform.web,
-        id: 'web-server',
-        name: 'Web Server',
-        kind: 'device',
-        state: 'available',
-        details: {'runtime': 'web-server'},
-      ),
       if (chrome != null)
         PlatformTarget(
           platform: FluohPlatform.web,
@@ -1125,9 +1117,7 @@ Future<PlatformTargetReport> _listWebDevices(
           },
         ),
     ],
-    message: chrome == null
-        ? 'Chrome was not found; web-server is available for build or served web checks'
-        : null,
+    message: chrome == null ? 'Chrome was not found' : null,
   );
 }
 
@@ -2090,9 +2080,7 @@ Future<io.File?> _findWebChromeExecutable(Map<String, String> env) async {
     final value = env[key];
     if (_nonEmpty(value)) {
       final file = io.File(value!.trim());
-      if (await file.exists()) {
-        return file;
-      }
+      return await file.exists() ? file : null;
     }
   }
   final candidates = [
@@ -2559,9 +2547,11 @@ String platformTargetDisplayName(PlatformTarget target, {String? listingKind}) {
 
 /// Returns the platform column value for a target row.
 String platformTargetDisplayPlatform(PlatformTarget target) {
+  if (target.platform == FluohPlatform.web) {
+    return 'web-javascript';
+  }
   if (target.platform == FluohPlatform.linux ||
       target.platform == FluohPlatform.macos ||
-      target.platform == FluohPlatform.web ||
       target.platform == FluohPlatform.windows) {
     return target.details['runtime']?.toString() ?? target.platform.cliName;
   }
@@ -2661,10 +2651,10 @@ String _desktopTargetSummary(PlatformTarget target, String label) {
 String _webTargetSummary(PlatformTarget target) {
   final runtime = target.details['runtime']?.toString();
   final version = target.details['version']?.toString();
-  if (runtime == null || runtime.isEmpty) {
-    return version == null || version.isEmpty ? 'web' : version;
+  if (version != null && version.isNotEmpty) {
+    return version;
   }
-  return version == null || version.isEmpty ? runtime : '$runtime $version';
+  return runtime == null || runtime.isEmpty ? 'web' : runtime;
 }
 
 /// Whether a raw Apple device transport value represents a wireless target.

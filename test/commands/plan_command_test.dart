@@ -164,7 +164,7 @@ dependencyPolicy:
         'fluoh run ohos --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh drive all --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh run android --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
-        'fluoh run web --device-id web-server --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh run web --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh report create --scope example_app --trace-dir .fluoh/traces/example_app/adaptation --json',
       ]),
     );
@@ -291,7 +291,7 @@ dependencyPolicy:
         'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive all --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh run web --package camera --device-id web-server --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh package handoff --package camera --json',
         'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
         'fluoh package check --package camera --json',

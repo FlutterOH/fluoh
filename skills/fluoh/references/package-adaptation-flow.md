@@ -79,7 +79,7 @@ Run these checks one package at a time:
 
 ```sh
 fluoh deps get
-fluoh doctor -p --platform ohos --json --strict
+fluoh doctor --platform ohos --project --json --strict
 fluoh flutter analyze
 fluoh verify --package <name> --json --trace-dir <trace-dir>
 fluoh run ohos --package <name> --auto-emulator --json --trace-dir <trace-dir>
@@ -116,7 +116,7 @@ fluoh run ios --package <name> --auto-emulator --json
 fluoh doctor --platform macos --json --strict
 fluoh run macos --package <name> --json
 fluoh doctor --platform web --json --strict
-fluoh run web --package <name> --device-id web-server --json
+fluoh run web --package <name> --json
 fluoh build web --package <name> --json
 fluoh build linux --package <name> --json
 fluoh build windows --package <name> --json

@@ -34,7 +34,7 @@ const _macosToolchainBaseTitle = 'Xcode - develop for macOS desktop';
 const _linuxToolchainBaseTitle = 'Linux toolchain - develop for Linux desktop';
 const _windowsToolchainBaseTitle =
     'Windows toolchain - develop for Windows desktop';
-const _webToolchainBaseTitle = 'Web tooling - build for browsers';
+const _webToolchainBaseTitle = 'Chrome - develop for the web';
 const _appleToolchainBaseTitle = 'Xcode - develop for iOS and macOS';
 
 /// Version metadata used by `fluoh doctor`.
@@ -1065,6 +1065,9 @@ String _platformToolSummaryTitle(PlatformDoctorReport report) {
     FluohPlatform.web => 'Chrome',
     FluohPlatform.windows => 'CMake',
   };
+  if (report.platform == FluohPlatform.web) {
+    return '$title ($version)';
+  }
   return '$title ($label $version)';
 }
 
@@ -1086,7 +1089,7 @@ String _platformToolchainTitle(FluohPlatform platform) {
     FluohPlatform.linux => 'Linux toolchain',
     FluohPlatform.macos => 'macOS toolchain',
     FluohPlatform.ohos => 'OpenHarmony toolchain',
-    FluohPlatform.web => 'Web tooling',
+    FluohPlatform.web => _webToolchainBaseTitle,
     FluohPlatform.windows => 'Windows toolchain',
   };
 }
@@ -1195,13 +1198,17 @@ List<String> _platformToolDetails(PlatformDoctorReport report) {
     FluohPlatform.ohos => [
       for (final check in report.checks) _toolDetailLine(check),
     ],
-    FluohPlatform.web => [
-      for (final check in report.checks) _toolDetailLine(check),
-    ],
+    FluohPlatform.web => _webToolDetails(report),
     FluohPlatform.windows => [
       for (final check in report.checks) _toolDetailLine(check),
     ],
   };
+}
+
+List<String> _webToolDetails(PlatformDoctorReport report) {
+  final chrome = _checksById(report)['web.chrome'];
+  final detail = _webChromeDetailLine(chrome);
+  return detail.isEmpty ? const <String>[] : <String>[detail];
 }
 
 List<String> _androidToolDetails(PlatformDoctorReport report) {
@@ -1388,6 +1395,17 @@ String _toolDetailLine(PlatformToolCheck? check) {
     return '${check.label} version ${check.version}';
   }
   return _sentence(check.message);
+}
+
+String _webChromeDetailLine(PlatformToolCheck? check) {
+  if (check == null || !check.ok) {
+    return _toolDetailLine(check);
+  }
+  final path = check.path;
+  if (path != null) {
+    return '${check.label} at $path';
+  }
+  return _toolDetailLine(check);
 }
 
 Map<String, Object?> _platformToolData(PlatformDoctorReport report) {

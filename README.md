@@ -79,7 +79,7 @@ fluoh deps check
 fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
-fluoh doctor -p --platform ohos
+fluoh doctor --platform ohos --project
 fluoh build ohos --auto-sign
 ```
 
@@ -97,7 +97,7 @@ fluoh deps check
 fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
-fluoh doctor -p --platform ohos
+fluoh doctor --platform ohos --project
 fluoh build ohos --auto-sign
 ```
 

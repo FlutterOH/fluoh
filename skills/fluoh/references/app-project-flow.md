@@ -12,7 +12,7 @@ fluoh deps check --json
 fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
-fluoh doctor -p --platform ohos --json --strict
+fluoh doctor --platform ohos --project --json --strict
 fluoh build ohos --auto-sign --json
 fluoh devices --platform ohos --json
 fluoh emulators --platform ohos --json

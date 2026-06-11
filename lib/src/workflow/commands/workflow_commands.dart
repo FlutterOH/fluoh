@@ -21,6 +21,7 @@ import '../../platform/ohos/resource_layout.dart';
 import '../../schema/yaml_utils.dart';
 import '../../sdk/flutter_runner.dart';
 import '../automation_scenario.dart';
+import '../platform_workflow_policy.dart';
 import '../workflow_result.dart';
 
 /// Runs baseline verification for a project or package target.
@@ -160,7 +161,8 @@ class BuildCommand extends FluohCommand<int> {
       label: 'build',
     );
     _validatePackageSelection(argResults!, usageException);
-    if (argResults!.flag('auto-sign') && platform != 'ohos') {
+    final policy = platformWorkflowPolicy(platform);
+    if (argResults!.flag('auto-sign') && !policy.supportsAutoSign) {
       usageException('Use --auto-sign only with build platform ohos.');
     }
     final json = argResults!.flag('json');
@@ -171,7 +173,7 @@ class BuildCommand extends FluohCommand<int> {
       phase: '$platform-build',
       buildExampleTarget: _buildTargetForPlatform(platform),
       debug: argResults!.flag('debug'),
-      autoSign: platform == 'ohos' && argResults!.flag('auto-sign'),
+      autoSign: policy.supportsAutoSign && argResults!.flag('auto-sign'),
     );
     final results = await _runPackageOrProject(
       environment: environment,
@@ -185,7 +187,7 @@ class BuildCommand extends FluohCommand<int> {
       projectInvocation: _ProjectWorkflowInvocation.build(
         platform: platform,
         debug: argResults!.flag('debug'),
-        autoSign: platform == 'ohos' && argResults!.flag('auto-sign'),
+        autoSign: policy.supportsAutoSign && argResults!.flag('auto-sign'),
       ),
     );
     final traceResult = await _printWorkflowJson(
@@ -306,8 +308,9 @@ class RunCommand extends FluohCommand<int> {
     final deviceId = _trimmedOption(argResults!, 'device-id');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
     final autoEmulator = argResults!.flag('auto-emulator');
+    final policy = platformWorkflowPolicy(platform);
     final sessionFilePath = _trimmedOption(argResults!, 'session-file');
-    if (sessionFilePath != null && platform == 'ohos') {
+    if (sessionFilePath != null && !policy.supportsSessionFile) {
       usageException(
         'Use --session-file only with Android, iOS, macOS, Linux, Web, or Windows runs.',
       );
@@ -327,9 +330,11 @@ class RunCommand extends FluohCommand<int> {
       phase: '$platform-run',
       buildExampleTarget: _buildTargetForPlatform(platform),
       debug: true,
-      buildExampleForSimulator:
-          platform == 'ios' && deviceId == null && startEmulator,
-      autoSign: platform == 'ohos',
+      buildExampleForSimulator: policy.buildExampleForSimulator(
+        deviceId: deviceId,
+        startEmulator: startEmulator,
+      ),
+      autoSign: policy.supportsAutoSign,
       runExample: true,
       deviceId: deviceId,
       startEmulator: startEmulator,
@@ -699,6 +704,7 @@ _PackageWorkflowInvocation _automationPackageInvocation({
   required bool autoEmulator,
   required Directory sessionDirectory,
 }) {
+  final policy = platformWorkflowPolicy(platform);
   final startEmulator = _automationStartsEmulator(
     platform: platform,
     deviceId: deviceId,
@@ -709,9 +715,11 @@ _PackageWorkflowInvocation _automationPackageInvocation({
     phase: '$platform-run',
     buildExampleTarget: _buildTargetForPlatform(platform),
     debug: true,
-    buildExampleForSimulator:
-        platform == 'ios' && deviceId == null && startEmulator,
-    autoSign: platform == 'ohos',
+    buildExampleForSimulator: policy.buildExampleForSimulator(
+      deviceId: deviceId,
+      startEmulator: startEmulator,
+    ),
+    autoSign: policy.supportsAutoSign,
     runExample: true,
     deviceId: deviceId,
     startEmulator: startEmulator,
@@ -944,7 +952,7 @@ File? _automationSessionFile({
   required String targetName,
   required Directory sessionDirectory,
 }) {
-  if (platform != 'android' && platform != 'ios') {
+  if (!platformWorkflowPolicy(platform).supportsSessionFile) {
     return null;
   }
   return File(
@@ -4095,6 +4103,7 @@ class _AutomationCheckPlan {
   final TraceOptions traceOptions;
 
   Map<String, Object?> toJson() {
+    final policy = platformWorkflowPolicy(platform);
     final sessionFile = _automationSessionFile(
       platform: platform,
       targetName: packageName ?? '<target>',
@@ -4116,13 +4125,7 @@ class _AutomationCheckPlan {
       'evidence': [
         'fluoh command JSON',
         'trace manifest when --trace or --trace-dir is used',
-        if (platform == 'ohos') 'OHOS hilog runtime scan',
-        if (platform == 'android' || platform == 'ios')
-          'flutterRunSession JSON',
-        if (platform == 'android' || platform == 'ios')
-          'Flutter VM Service URI when exposed',
-        if (platform == 'android' || platform == 'ios')
-          'flutter run output log',
+        ...policy.automationEvidenceItems,
         'integration_test result when integration_test/ exists',
       ],
       'agentLoop': [
@@ -4132,12 +4135,7 @@ class _AutomationCheckPlan {
         'route failures through nextCommand before editing again',
       ],
       if (sessionFile != null) 'sessionFile': sessionFile.path,
-      if (platform == 'ohos')
-        'ohos': {
-          'sessionFile': null,
-          'debugEvidence':
-              'installable HAP, launch ability metadata, target id, hilog file, and runtime findings',
-        },
+      ...policy.automationMetadata,
     };
   }
 }
@@ -4524,8 +4522,9 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
     throw UsageException('Build and run require a Flutter project.', usage);
   }
   final platform = invocation.platform!;
+  final policy = platformWorkflowPolicy(platform);
   if (invocation.kind == 'run') {
-    if (platform == 'ohos') {
+    if (policy.usesOhosProjectRunner) {
       return _runProjectOhosWorkflow(
         environment: environment,
         project: project,
@@ -4619,7 +4618,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
   OhosDebugSigningMaterial? signingMaterial;
   var signingMode = '';
   final ohosDirectory = Directory('${project.path}/ohos');
-  if (platform == 'ohos') {
+  if (policy.stabilizesOhosResourceLayout) {
     await stabilizeOhosResourceLayout(ohosDirectory);
   }
   if (invocation.autoSign) {
@@ -4633,7 +4632,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
           message: reason,
           reason: '$reason Expected ./ohos.',
           details: {'expectedPath': 'ohos'},
-          nextCommand: 'fluoh doctor --platform ohos --project --json',
+          nextCommand: policy.doctorCommand(project: true),
         ),
       );
       return WorkflowTargetResult.project(
@@ -4660,7 +4659,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
           message: 'Could not locate the local OpenHarmony toolchain.',
           reason: error.message,
           details: {'error': error.message},
-          nextCommand: 'fluoh doctor --platform ohos --json',
+          nextCommand: policy.doctorCommand(),
         ),
       );
       return WorkflowTargetResult.project(
@@ -4680,7 +4679,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
           message: 'OHOS automatic debug signing failed.',
           reason: error.toString(),
           details: {'error': error.toString()},
-          nextCommand: 'fluoh doctor --platform ohos --json',
+          nextCommand: policy.doctorCommand(),
         ),
       );
       return WorkflowTargetResult.project(
@@ -4707,7 +4706,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
             ..._ohosSigningDetails(signingMaterial),
             'error': error.toString(),
           },
-          nextCommand: 'fluoh build ohos --auto-sign --json',
+          nextCommand: policy.buildCommand(autoSign: true),
         ),
       );
       return WorkflowTargetResult.project(
@@ -4740,7 +4739,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
     'build',
     _buildTargetForPlatform(platform),
     if (invocation.debug) '--debug',
-    if (platform == 'ios') '--no-codesign',
+    if (policy.buildWithoutCodesign) '--no-codesign',
   ];
   output.step('Running flutter ${arguments.join(' ')} in current project');
   final SelectedToolResult result;
@@ -4785,7 +4784,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
               ..._toolOutputDetails(result),
               'error': error.toString(),
             },
-            nextCommand: 'fluoh build ohos --auto-sign --json',
+            nextCommand: policy.buildCommand(autoSign: true),
           ),
         );
         return WorkflowTargetResult.project(
@@ -4817,7 +4816,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         );
       }
     }
-    if (effectiveExitCode == 0 && platform == 'ohos') {
+    if (effectiveExitCode == 0 && policy.stabilizesOhosResourceLayout) {
       await stabilizeOhosResourceLayout(ohosDirectory);
       installableHaps = await findInstallableOhosHaps(
         exampleDirectory: project,
@@ -5017,13 +5016,7 @@ WorkflowStepResult _projectIntegrationDiscoveryStep({
         'method': 'integration_test',
         'execution': 'run fluoh run with a concrete platform and device',
       },
-      'suggestedCommands': [
-        'fluoh run ohos --auto-emulator --json',
-        'fluoh run android --auto-emulator --json',
-        'fluoh run ios --auto-emulator --json',
-        'fluoh run macos --json',
-        'fluoh run web --device-id chrome --json',
-      ],
+      'suggestedCommands': integrationDiscoveryRunCommands(),
       'manualAssistedFallback': {
         'when':
             'system UI, permissions, pickers, external apps, or OHOS runner gaps block automatic execution',
@@ -5047,29 +5040,6 @@ Future<int?> _appendProjectIntegrationRunSteps({
   required String nextCommand,
 }) async {
   if (!await hasIntegrationTests(project)) {
-    return null;
-  }
-  if (platform == 'web' && targetId == 'web-server') {
-    const reason = 'web-server target does not run browser integration tests';
-    steps.add(
-      WorkflowStepResult(
-        name: 'project-integration-web',
-        path: '.',
-        command: 'flutter test integration_test -d <browser-device>',
-        status: 'skipped',
-        reason: reason,
-        details: {
-          'platform': platform,
-          'targetId': targetId,
-          'requiredTargetKind': 'browser',
-          'suggestedDevice': 'chrome',
-          'suggestedCommand': 'fluoh run web --device-id chrome --json',
-        },
-      ),
-    );
-    output.skipped(
-      'Skipping web integration tests in current project: $reason',
-    );
     return null;
   }
   if (targetId == null) {
@@ -5185,27 +5155,11 @@ WorkflowStepResult _projectOhosManualAssistedIntegrationStep({
 }
 
 String _projectIntegrationDiagnosticCode(String platform) {
-  return switch (platform) {
-    'android' => 'android.integration_test_failed',
-    'ios' => 'ios.integration_test_failed',
-    'macos' => 'macos.integration_test_failed',
-    'linux' => 'linux.integration_test_failed',
-    'web' => 'web.integration_test_failed',
-    'windows' => 'windows.integration_test_failed',
-    _ => 'integration_test.failed',
-  };
+  return platformWorkflowPolicy(platform).integrationTestDiagnosticCode;
 }
 
 String _platformLabel(String platform) {
-  return switch (platform) {
-    'ios' => 'iOS',
-    'macos' => 'macOS',
-    'ohos' => 'OHOS',
-    'web' => 'Web',
-    'linux' => 'Linux',
-    'windows' => 'Windows',
-    _ => 'Android',
-  };
+  return platformWorkflowPolicy(platform).label;
 }
 
 List<String> _filePaths(List<File> files) {
@@ -5320,56 +5274,14 @@ String _projectPlatformDiagnosticCode({
   required String kind,
   required String platform,
 }) {
-  if (kind == 'run') {
-    return switch (platform) {
-      'ohos' => 'ohos.run_failed',
-      'android' => 'android.run_failed',
-      'ios' => 'ios.run_failed',
-      'macos' => 'macos.run_failed',
-      'linux' => 'linux.run_failed',
-      'web' => 'web.run_failed',
-      'windows' => 'windows.run_failed',
-      _ => 'command.failed',
-    };
-  }
-  return switch (platform) {
-    'ohos' => 'ohos.hap_build_failed',
-    'android' => 'android.apk_build_failed',
-    'ios' => 'ios.build_failed',
-    'macos' => 'macos.build_failed',
-    'linux' => 'linux.build_failed',
-    'web' => 'web.build_failed',
-    'windows' => 'windows.build_failed',
-    _ => 'command.failed',
-  };
+  return platformWorkflowPolicy(platform).diagnosticCode(kind: kind);
 }
 
 String _projectPlatformDiagnosticMessage({
   required String kind,
   required String platform,
 }) {
-  if (kind == 'run') {
-    return switch (platform) {
-      'ohos' => 'OHOS run failed.',
-      'android' => 'Android run failed.',
-      'ios' => 'iOS run failed.',
-      'macos' => 'macOS run failed.',
-      'linux' => 'Linux run failed.',
-      'web' => 'Web run failed.',
-      'windows' => 'Windows run failed.',
-      _ => 'Command failed.',
-    };
-  }
-  return switch (platform) {
-    'ohos' => 'OHOS HAP build failed.',
-    'android' => 'Android APK build failed.',
-    'ios' => 'iOS build failed.',
-    'macos' => 'macOS build failed.',
-    'linux' => 'Linux build failed.',
-    'web' => 'Web build failed.',
-    'windows' => 'Windows build failed.',
-    _ => 'Command failed.',
-  };
+  return platformWorkflowPolicy(platform).diagnosticMessage(kind: kind);
 }
 
 String _projectPlatformNextCommand(_ProjectWorkflowInvocation invocation) {
@@ -5377,12 +5289,9 @@ String _projectPlatformNextCommand(_ProjectWorkflowInvocation invocation) {
   if (invocation.kind == 'run') {
     return _projectRunNextCommand(invocation);
   }
-  return [
-    'fluoh build $platform',
-    if (!invocation.debug) '--no-debug',
-    if (invocation.autoSign) '--auto-sign',
-    '--json',
-  ].join(' ');
+  return platformWorkflowPolicy(
+    platform,
+  ).buildCommand(debug: invocation.debug, autoSign: invocation.autoSign);
 }
 
 String? _projectNextCommandForDiagnosticCode(
@@ -5395,104 +5304,11 @@ String? _projectNextCommandForDiagnosticCode(
     invocation,
     startEmulator: true,
   );
-  return switch (code) {
-    'ohos.hap_build_failed' ||
-    'ohos.launch_timeout' ||
-    'ohos.run_failed' ||
-    'ohos.runtime_crash' ||
-    'android.apk_build_failed' ||
-    'android.launch_timeout' ||
-    'android.run_failed' ||
-    'android.runtime_crash' ||
-    'ios.build_failed' ||
-    'ios.launch_timeout' ||
-    'ios.run_failed' ||
-    'ios.runtime_crash' ||
-    'macos.build_failed' ||
-    'macos.launch_timeout' ||
-    'macos.run_failed' ||
-    'macos.runtime_crash' ||
-    'linux.build_failed' ||
-    'linux.launch_timeout' ||
-    'linux.run_failed' ||
-    'linux.runtime_crash' ||
-    'web.build_failed' ||
-    'web.launch_timeout' ||
-    'web.run_failed' ||
-    'web.runtime_crash' ||
-    'windows.build_failed' ||
-    'windows.launch_timeout' ||
-    'windows.run_failed' ||
-    'windows.runtime_crash' => runCommand,
-    'ohos.devices_failed' ||
-    'ohos.hdc_connection_failed' ||
-    'ohos.hdc_targets_failed' ||
-    'ohos.emulators_failed' ||
-    'ohos.emulator_missing' ||
-    'ohos.emulator_start_failed' ||
-    'android.devices_failed' ||
-    'android.emulators_failed' ||
-    'android.emulator_missing' ||
-    'android.emulator_start_failed' ||
-    'ios.devices_failed' ||
-    'ios.emulators_failed' ||
-    'ios.emulator_missing' ||
-    'ios.emulator_start_failed' ||
-    'macos.devices_failed' ||
-    'macos.emulators_failed' ||
-    'macos.emulator_missing' ||
-    'macos.emulator_start_failed' ||
-    'linux.devices_failed' ||
-    'linux.emulators_failed' ||
-    'linux.emulator_missing' ||
-    'linux.emulator_start_failed' ||
-    'web.devices_failed' ||
-    'web.emulators_failed' ||
-    'web.emulator_missing' ||
-    'web.emulator_start_failed' ||
-    'windows.devices_failed' ||
-    'windows.emulators_failed' ||
-    'windows.emulator_missing' ||
-    'windows.emulator_start_failed' =>
-      'fluoh doctor --platform $platform --json',
-    'ohos.device_not_found' ||
-    'ohos.device_ambiguous' ||
-    'ohos.hdc_target_unavailable' ||
-    'android.device_not_found' ||
-    'android.device_ambiguous' ||
-    'ios.device_not_found' ||
-    'ios.device_ambiguous' ||
-    'macos.device_not_found' ||
-    'macos.device_ambiguous' ||
-    'linux.device_not_found' ||
-    'linux.device_ambiguous' ||
-    'web.device_not_found' ||
-    'web.device_ambiguous' ||
-    'windows.device_not_found' ||
-    'windows.device_ambiguous' => 'fluoh devices --platform $platform',
-    'ohos.device_missing' ||
-    'android.device_missing' ||
-    'ios.device_missing' => autoEmulatorRunCommand,
-    'ohos.emulator_not_found' ||
-    'ohos.emulator_ambiguous' ||
-    'android.emulator_not_found' ||
-    'android.emulator_ambiguous' ||
-    'ios.emulator_not_found' ||
-    'ios.emulator_ambiguous' ||
-    'macos.device_missing' ||
-    'macos.emulator_not_found' ||
-    'macos.emulator_ambiguous' ||
-    'linux.device_missing' ||
-    'linux.emulator_not_found' ||
-    'linux.emulator_ambiguous' ||
-    'web.device_missing' ||
-    'web.emulator_not_found' ||
-    'web.emulator_ambiguous' ||
-    'windows.device_missing' ||
-    'windows.emulator_not_found' ||
-    'windows.emulator_ambiguous' => runCommand,
-    _ => null,
-  };
+  return platformWorkflowPolicy(platform).projectRepairCommand(
+    code,
+    currentCommand: runCommand,
+    autoEmulatorCommand: autoEmulatorRunCommand,
+  );
 }
 
 String _projectRunNextCommand(
@@ -5500,44 +5316,22 @@ String _projectRunNextCommand(
   bool? startEmulator,
 }) {
   final platform = invocation.platform!;
-  final useDefaultWebServer =
-      platform == 'web' &&
-      invocation.deviceId == null &&
-      invocation.emulatorName == null;
-  return [
-    'fluoh run $platform',
-    if (invocation.deviceId != null) '--device-id ${invocation.deviceId}',
-    if (useDefaultWebServer) '--device-id web-server',
-    if ((startEmulator ?? invocation.startEmulator) &&
-        invocation.emulatorName == null &&
-        !_isDesktopRunPlatform(platform))
-      '--auto-emulator',
-    if (invocation.emulatorName != null)
-      '--emulator ${invocation.emulatorName}',
-    '--json',
-  ].join(' ');
+  return platformWorkflowPolicy(platform).runCommand(
+    deviceId: invocation.deviceId,
+    startEmulator: startEmulator ?? invocation.startEmulator,
+    emulatorName: invocation.emulatorName,
+  );
 }
 
 bool _isDesktopRunPlatform(String platform) {
-  return platform == 'macos' ||
-      platform == 'linux' ||
-      platform == 'web' ||
-      platform == 'windows';
+  return platformWorkflowPolicy(platform).isDesktopRunPlatform;
 }
 
 int _lastExitCode(List<WorkflowStepResult> steps) {
   return steps.last.exitCode ?? 1;
 }
 
-const _buildRunPlatforms = [
-  'ohos',
-  'android',
-  'ios',
-  'macos',
-  'linux',
-  'web',
-  'windows',
-];
+const _buildRunPlatforms = workflowPlatformNames;
 
 const _drivePlatforms = ['all', 'ohos', 'android', 'ios'];
 
@@ -5561,20 +5355,7 @@ String _platformArgument(
 }
 
 String _buildTargetForPlatform(String platform) {
-  return switch (platform) {
-    'ohos' => 'hap',
-    'android' => 'apk',
-    'ios' => 'ios',
-    'macos' => 'macos',
-    'linux' => 'linux',
-    'web' => 'web',
-    'windows' => 'windows',
-    _ => throw ArgumentError.value(
-      platform,
-      'platform',
-      'Unsupported platform.',
-    ),
-  };
+  return platformWorkflowPolicy(platform).buildTarget;
 }
 
 String? _trimmedOption(ArgResults results, String name) {

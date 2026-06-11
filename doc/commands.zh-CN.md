@@ -80,7 +80,7 @@ fluoh deps check
 fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
-fluoh doctor -p --platform ohos
+fluoh doctor --platform ohos --project
 fluoh build ohos --auto-sign
 fluoh devices --platform ohos
 fluoh emulators --platform ohos
@@ -272,7 +272,7 @@ Android、iOS 和 OHOS 的实现细节分别落在平台步骤里，上层通过
 
 `doctor` 是诊断命令，除非使用 `--strict`，否则打印结果后返回成功。裸
 `fluoh doctor` 检查 fluoh 安装状态、Git 和 Dart、已配置 source 快照、OpenHarmony SDK
-工具链、Android SDK 与 Java 工具链、Web 工具链，以及当前 host 支持的 Apple 或桌面工具链。
+工具链、Android SDK 与 Java 工具链、Chrome/Web 工具链，以及当前 host 支持的 Apple 或桌面工具链。
 普通输出会在每个检查完成后立即打印，避免设备发现较慢时命令长时间无反馈；JSON 模式会等待全部检查完成后，
 只输出一个机器可读对象。
 
@@ -290,7 +290,7 @@ fallback 到 pub 时会把 verbose 参数当成 pub 自己的日志开关，可�
 
 缺失或过期状态会作为 warning 输出，不会自动修复。自动化只需要原生工具链门禁时，使用
 `fluoh doctor --platform ohos --json --strict` 这类平台化 strict 检查；也需要当前项目门禁时使用
-`fluoh doctor -p --platform ohos --json --strict`。项目 JSON 会包含所选平台集合的
+`fluoh doctor --platform ohos --project --json --strict`。项目 JSON 会包含所选平台集合的
 `platformDirectories` 数据，方便自动化判断是否需要创建或跳过 OHOS、Android、iOS、macOS、Linux、Web、Windows
 平台工程。`--json` 会输出机器可读的同一组检查结果，并在每个 check 中包含
 `id`、`group`，以及检查项需要的结构化数据。
@@ -641,8 +641,7 @@ example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装�
 hilog，并通过 JSON diagnostics 报告运行时 crash 或 Flutter channel 运行时错误。Android、iOS、macOS、Linux、Web 和 Windows 当前项目与
 Package example 会通过已选择 SDK 的 `flutter run` 启动，把 run-smoke 输出保存到
 `$FLUOH_HOME/cache/package-runs`，并在存在 `integration_test/` 且有具体 target 时继续运行
-`flutter test integration_test -d <device>`。Web 的 `web-server` target 会跳过 integration tests，
-并提示改用 Chrome 等浏览器设备。如果
+`flutter test integration_test -d <device>`。Web run 使用 Chrome 等浏览器 target。如果
 `flutter run` 输出 VM Service 或 debug service URI，`--json` 会在 run step 的
 `details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS、macOS、Linux、Web 或 Windows run
 可以传 `--session-file <path>`，在 App 仍运行时写入实时 `flutterRunSession` JSON 文件；

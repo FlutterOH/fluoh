@@ -211,7 +211,7 @@ sdk:
           'fluoh build linux --json --trace-dir $appTraceDir',
         ],
         'fluoh doctor --platform web --json --strict',
-        'fluoh run web --device-id web-server --json --trace-dir $appTraceDir',
+        'fluoh run web --json --trace-dir $appTraceDir',
         if (Platform.isWindows) ...[
           'fluoh doctor --platform windows --json --strict',
           'fluoh build windows --json --trace-dir $appTraceDir',
@@ -224,7 +224,7 @@ sdk:
         'fluoh deps fix --dry-run',
         'fluoh deps fix',
         'fluoh deps get',
-        'fluoh doctor -p --platform ohos --json --strict',
+        'fluoh doctor --platform ohos --project --json --strict',
         'fluoh build ohos --auto-sign --json --trace-dir $appTraceDir',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
@@ -276,7 +276,7 @@ sdk:
       );
       expect(stringList(report['finalCheckCommands']), [
         'git diff --check',
-        'fluoh doctor -p --platform ohos --json --strict',
+        'fluoh doctor --platform ohos --project --json --strict',
         'fluoh build ohos --auto-sign --json --trace-dir $appTraceDir',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
@@ -712,7 +712,7 @@ package:
           'fluoh devices --platform ohos --json',
           'fluoh emulators --platform ohos --json',
           'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh run web --package camera --device-id web-server --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh package handoff --package camera --json',
           'fluoh package check --package camera --json',
         ]),
@@ -1158,7 +1158,7 @@ package:
         'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir $sharePlusTraceDir',
         if (Platform.isLinux)
           'fluoh build linux --package share_plus --json --trace-dir $sharePlusTraceDir',
-        'fluoh run web --package share_plus --device-id web-server --json --trace-dir $sharePlusTraceDir',
+        'fluoh run web --package share_plus --json --trace-dir $sharePlusTraceDir',
         if (Platform.isWindows)
           'fluoh build windows --package share_plus --json --trace-dir $sharePlusTraceDir',
       ];
@@ -1651,20 +1651,15 @@ package:
         webContent,
         contains('- Example path: packages/camera/camera/example'),
       );
+      expect(webContent, contains('- Target requirement: browser'));
       expect(
         webContent,
-        contains('- Target requirement: browser or web-server'),
+        contains('- Related command: fluoh run web --package camera --json'),
       );
       expect(
         webContent,
         contains(
-          '- Related command: fluoh run web --package camera --device-id web-server --json',
-        ),
-      );
-      expect(
-        webContent,
-        contains(
-          '- Session file command, when supported: fluoh run web --package camera --device-id web-server --session-file .fluoh/run-sessions/camera/web-session.json --json',
+          '- Session file command, when supported: fluoh run web --package camera --session-file .fluoh/run-sessions/camera/web-session.json --json',
         ),
       );
 

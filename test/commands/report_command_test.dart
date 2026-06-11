@@ -478,8 +478,7 @@ name: "root_workspace" # keep comment out of the scope
             'exitCode': 1,
           },
           {
-            'commandLine':
-                'fluoh run web --package camera --device-id web-server --json',
+            'commandLine': 'fluoh run web --package camera --json',
             'ok': true,
             'exitCode': 0,
           },
@@ -523,9 +522,7 @@ name: "root_workspace" # keep comment out of the scope
     );
     expect(
       content,
-      contains(
-        '| `fluoh run web --package camera --device-id web-server --json` | 0 | passed |',
-      ),
+      contains('| `fluoh run web --package camera --json` | 0 | passed |'),
     );
     expect(
       content,

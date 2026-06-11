@@ -2805,7 +2805,7 @@ exit 0
     expect(stderr, isEmpty);
   });
 
-  test('project run web auto emulator prefers web-server target', () async {
+  test('project run web auto emulator uses browser target', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
@@ -2813,7 +2813,7 @@ exit 0
       flutterStdout: const {
         'devices --machine':
             '[{"id":"chrome","name":"Chrome","targetPlatform":"web-javascript","isSupported":true},{"id":"web-server","name":"Web Server","targetPlatform":"web-javascript","isSupported":true}]',
-        'run -d web-server --debug --no-pub':
+        'run -d chrome --debug --no-pub':
             'Flutter run key commands.\\nApplication running.',
       },
     );
@@ -2848,8 +2848,9 @@ exit 0
     expect(invocations, isNot(contains('native emulator')));
     expect(
       invocations,
-      contains('$root::flutter run -d web-server --debug --no-pub'),
+      contains('$root::flutter run -d chrome --debug --no-pub'),
     );
+    expect(invocations, isNot(contains('run -d web-server')));
     expect(stderr, isEmpty);
   });
 
@@ -2918,10 +2919,7 @@ exit 0
       expect(webDiagnostic, containsPair('code', 'web.device_missing'));
       expect(
         webDiagnostic,
-        containsPair(
-          'nextCommand',
-          'fluoh run web --device-id web-server --json',
-        ),
+        containsPair('nextCommand', 'fluoh doctor --platform web --json'),
       );
       expect(stderr, isEmpty);
     },
@@ -7023,7 +7021,7 @@ steps:
     },
   );
 
-  test('web package run skips integration tests on web-server target', () async {
+  test('web package run uses browser target for integration tests', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
@@ -7031,7 +7029,7 @@ steps:
       flutterStdout: const {
         'devices --machine':
             '[{"id":"chrome","name":"Chrome","targetPlatform":"web-javascript","isSupported":true},{"id":"web-server","name":"Web Server","targetPlatform":"web-javascript","isSupported":true}]',
-        'run -d web-server --debug --no-pub':
+        'run -d chrome --debug --no-pub':
             'Flutter run key commands.\\nApplication running.',
       },
     );
@@ -7074,14 +7072,13 @@ steps:
     ).readAsStringSync();
     expect(
       invocations,
-      contains('$root/example::flutter run -d web-server --debug --no-pub'),
+      contains('$root/example::flutter run -d chrome --debug --no-pub'),
     );
     expect(
       invocations,
-      isNot(
-        contains('$root/example::flutter test integration_test -d web-server'),
-      ),
+      contains('$root/example::flutter test integration_test -d chrome'),
     );
+    expect(invocations, isNot(contains('run -d web-server')));
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('ok', true));
@@ -7094,38 +7091,12 @@ steps:
     );
     expect(
       integrationStep,
-      containsPair(
-        'command',
-        'flutter test integration_test -d <browser-device>',
-      ),
+      containsPair('command', 'flutter test integration_test -d chrome'),
     );
-    expect(integrationStep, containsPair('status', 'skipped'));
-    expect(
-      integrationStep,
-      containsPair(
-        'reason',
-        'web-server target does not run browser integration tests',
-      ),
-    );
+    expect(integrationStep, containsPair('status', 'passed'));
     expect(integrationStep.containsKey('nextCommand'), isFalse);
     final details = integrationStep['details'] as Map<String, Object?>;
-    expect(details, containsPair('targetId', 'web-server'));
-    expect(details, containsPair('requiredTargetKind', 'browser'));
-    expect(
-      details,
-      containsPair(
-        'suggestedCommand',
-        'fluoh run web --package camera --device-id chrome --json',
-      ),
-    );
-    final diagnostics = integrationStep['diagnostics'] as List<Object?>;
-    final diagnostic = diagnostics.single as Map<String, Object?>;
-    expect(
-      diagnostic,
-      containsPair('code', 'web.integration_target_unsupported'),
-    );
-    expect(diagnostic, containsPair('severity', 'info'));
-    expect(diagnostic.containsKey('nextCommand'), isFalse);
+    expect(details, containsPair('targetId', 'chrome'));
     expect(stderr, isEmpty);
   });
 
@@ -7499,6 +7470,66 @@ steps:
         'nextCommand',
         'fluoh run android --package camera --auto-emulator --json',
       ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('emits Web diagnostics when no browser target is available', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {'devices --machine': '[]'},
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['run', 'web', '--package', 'camera', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      1,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    final targets = report['targets'] as List<Object?>;
+    final target = targets.single as Map<String, Object?>;
+    final steps = target['steps'] as List<Object?>;
+    final runStep = steps.cast<Map<String, Object?>>().singleWhere(
+      (step) => step['name'] == 'example-run-web',
+    );
+    final diagnostics = runStep['diagnostics'] as List<Object?>;
+    final diagnostic = diagnostics.single as Map<String, Object?>;
+    expect(diagnostic, containsPair('code', 'web.device_missing'));
+    expect(
+      diagnostic,
+      containsPair('nextCommand', 'fluoh doctor --platform web --json'),
+    );
+    expect(
+      runStep,
+      containsPair('nextCommand', 'fluoh doctor --platform web --json'),
+    );
+    expect(
+      target,
+      containsPair('nextCommand', 'fluoh doctor --platform web --json'),
     );
     expect(stderr, isEmpty);
   });

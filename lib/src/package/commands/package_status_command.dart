@@ -8,6 +8,7 @@ import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../schema/yaml_utils.dart' show parseYamlMap;
+import '../../workflow/platform_workflow_policy.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 import '../manifest/pubspec_package.dart';
@@ -130,6 +131,7 @@ class PackageStatusCommand extends FluohCommand<int> {
     final checks = <_PackageStatusCheck>[];
     final blockers = <_PackageReadinessBlocker>[];
     final tag = package.releaseTag(manifest.sdkVersion);
+    final ohosPolicy = platformWorkflowPolicy('ohos');
     if (package.status == null || package.status == 'compatible') {
       checks.add(
         const _PackageStatusCheck.ok(
@@ -162,9 +164,10 @@ class PackageStatusCommand extends FluohCommand<int> {
           packageName: package.name,
           code: 'evidence.ohos_run_missing',
           message: 'Missing passed OHOS run evidence.',
-          nextCommand:
-              'fluoh run ohos --package ${package.name} '
-              '--auto-emulator --json',
+          nextCommand: ohosPolicy.runCommand(
+            packageName: package.name,
+            startEmulator: true,
+          ),
         ),
         _PackageReadinessBlocker(
           scope: 'package',
@@ -347,7 +350,7 @@ class PackageStatusCommand extends FluohCommand<int> {
             packageName: package.name,
             code: 'platform.ohos_missing',
             message: 'Example is missing the OHOS platform directory.',
-            nextCommand: 'fluoh doctor --platform ohos --project --json',
+            nextCommand: ohosPolicy.doctorCommand(project: true),
           ),
         );
       }

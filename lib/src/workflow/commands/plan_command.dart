@@ -12,6 +12,7 @@ import '../../package/git/package_git.dart';
 import '../../package/manifest/package_manifest.dart';
 import '../../schema/yaml_utils.dart';
 import '../../sdk/sdk_project_config.dart';
+import '../platform_workflow_policy.dart';
 
 /// Top-level `fluoh plan` command group.
 class PlanCommand extends FluohCommand<int> {
@@ -402,36 +403,7 @@ List<Map<String, Object?>> _appAdaptationQueue(
       requiresApproval: true,
       evidence: 'pubspec dependency rewrite summary',
     ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh doctor -p --platform ohos --json --strict',
-      mutating: false,
-      evidence: 'OHOS toolchain diagnostics',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh build ohos --auto-sign --json --trace-dir $traceDir',
-      mutating: true,
-      evidence: 'signed HAP build JSON',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh devices --platform ohos --json',
-      mutating: false,
-      evidence: 'connected OHOS target inventory',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh emulators --platform ohos --json',
-      mutating: false,
-      evidence: 'local OHOS emulator inventory',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh run ohos --auto-emulator --json --trace-dir $traceDir',
-      mutating: true,
-      evidence: 'install, launch, hilog, and runtime findings',
-    ),
+    ..._ohosAdaptationQueue(traceDir: traceDir),
     _queueItem(
       phase: 'automation',
       command: 'fluoh drive all --json --trace-dir $traceDir',
@@ -497,38 +469,7 @@ List<Map<String, Object?>> _packageAdaptationQueue(
       mutating: false,
       evidence: 'pub get, analysis, tests, and trace manifest',
     ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh doctor -p --platform ohos --json --strict',
-      mutating: false,
-      evidence: 'OHOS toolchain diagnostics',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command:
-          'fluoh build ohos --package $packageName --auto-sign --json --trace-dir $traceDir',
-      mutating: true,
-      evidence: 'signed HAP build JSON',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh devices --platform ohos --json',
-      mutating: false,
-      evidence: 'connected OHOS target inventory',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command: 'fluoh emulators --platform ohos --json',
-      mutating: false,
-      evidence: 'local OHOS emulator inventory',
-    ),
-    _queueItem(
-      phase: 'ohos',
-      command:
-          'fluoh run ohos --package $packageName --auto-emulator --json --trace-dir $traceDir',
-      mutating: true,
-      evidence: 'install, launch, hilog, and runtime findings',
-    ),
+    ..._ohosAdaptationQueue(packageName: packageName, traceDir: traceDir),
     _queueItem(
       phase: 'automation',
       command:
@@ -623,18 +564,55 @@ Map<String, Object?> _adaptationSafety() {
   };
 }
 
+List<Map<String, Object?>> _ohosAdaptationQueue({
+  String? packageName,
+  required String traceDir,
+}) {
+  final policy = platformWorkflowPolicy('ohos');
+  return [
+    _queueItem(
+      phase: policy.platform,
+      command: policy.doctorCommand(project: true, strict: true),
+      mutating: false,
+      evidence: '${policy.label} toolchain diagnostics',
+    ),
+    _queueItem(
+      phase: policy.platform,
+      command: policy.buildCommand(
+        packageName: packageName,
+        autoSign: true,
+        traceDir: traceDir,
+      ),
+      mutating: true,
+      evidence: 'signed HAP build JSON',
+    ),
+    _queueItem(
+      phase: policy.platform,
+      command: policy.devicesCommand(json: true),
+      mutating: false,
+      evidence: 'connected ${policy.label} target inventory',
+    ),
+    _queueItem(
+      phase: policy.platform,
+      command: policy.emulatorsCommand(json: true),
+      mutating: false,
+      evidence: 'local ${policy.label} emulator inventory',
+    ),
+    _queueItem(
+      phase: policy.platform,
+      command: policy.runCommand(
+        packageName: packageName,
+        startEmulator: true,
+        traceDir: traceDir,
+      ),
+      mutating: true,
+      evidence: 'install, launch, hilog, and runtime findings',
+    ),
+  ];
+}
+
 String _regressionCommand(String platform, String traceDir) {
-  return switch (platform) {
-    'android' =>
-      'fluoh run android --auto-emulator --json --trace-dir $traceDir',
-    'ios' => 'fluoh run ios --auto-emulator --json --trace-dir $traceDir',
-    'macos' => 'fluoh run macos --json --trace-dir $traceDir',
-    'linux' => 'fluoh build linux --json --trace-dir $traceDir',
-    'web' =>
-      'fluoh run web --device-id web-server --json --trace-dir $traceDir',
-    'windows' => 'fluoh build windows --json --trace-dir $traceDir',
-    _ => 'fluoh run $platform --json --trace-dir $traceDir',
-  };
+  return platformWorkflowPolicy(platform).regressionCommand(traceDir: traceDir);
 }
 
 String _packageRegressionCommand(
@@ -642,22 +620,9 @@ String _packageRegressionCommand(
   String packageName,
   String traceDir,
 ) {
-  return switch (platform) {
-    'android' =>
-      'fluoh run android --package $packageName --auto-emulator --json --trace-dir $traceDir',
-    'ios' =>
-      'fluoh run ios --package $packageName --auto-emulator --json --trace-dir $traceDir',
-    'macos' =>
-      'fluoh run macos --package $packageName --json --trace-dir $traceDir',
-    'linux' =>
-      'fluoh build linux --package $packageName --json --trace-dir $traceDir',
-    'web' =>
-      'fluoh run web --package $packageName --device-id web-server --json --trace-dir $traceDir',
-    'windows' =>
-      'fluoh build windows --package $packageName --json --trace-dir $traceDir',
-    _ =>
-      'fluoh run $platform --package $packageName --json --trace-dir $traceDir',
-  };
+  return platformWorkflowPolicy(
+    platform,
+  ).regressionCommand(packageName: packageName, traceDir: traceDir);
 }
 
 String _scopePlaceholder() => '<scope>';

@@ -10,6 +10,7 @@ import '../platform/ohos/device_runner.dart';
 import '../platform/ohos/debug_signer.dart';
 import '../platform/ohos/resource_layout.dart';
 import '../sdk/flutter_runner.dart';
+import '../workflow/platform_workflow_policy.dart';
 import '../workflow/workflow_result.dart';
 import 'flutter_example_runner.dart';
 import 'manifest/package_manifest.dart';
@@ -857,48 +858,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       );
 
       final targetId = runResult.target?.id;
-      if (exampleHasIntegrationTests &&
-          runResult.platform == 'web' &&
-          targetId == 'web-server') {
-        const reason =
-            'web-server target does not run browser integration tests';
-        final suggestedCommand =
-            'fluoh run web --package ${package.name} --device-id chrome --json';
-        steps.add(
-          WorkflowStepResult(
-            name: 'example-integration-${runResult.platform}',
-            path: examplePath,
-            command: 'flutter test integration_test -d <browser-device>',
-            status: 'skipped',
-            reason: reason,
-            details: {
-              'platform': runResult.platform,
-              'targetId': targetId,
-              'requiredTargetKind': 'browser',
-              'suggestedDevice': 'chrome',
-              'suggestedCommand': suggestedCommand,
-            },
-            diagnostics: [
-              WorkflowDiagnostic(
-                code: 'web.integration_target_unsupported',
-                severity: 'info',
-                message:
-                    'Web integration tests require a browser device, not web-server.',
-                details: {
-                  'platform': runResult.platform,
-                  'targetId': targetId,
-                  'requiredTargetKind': 'browser',
-                  'suggestedDevice': 'chrome',
-                  'suggestedCommand': suggestedCommand,
-                },
-              ),
-            ],
-          ),
-        );
-        output.skipped(
-          'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
-        );
-      } else if (exampleHasIntegrationTests && targetId != null) {
+      if (exampleHasIntegrationTests && targetId != null) {
         final integrationArguments = [
           'test',
           'integration_test',
@@ -1022,7 +982,6 @@ WorkflowStepResult _integrationDiscoveryStep({
   required String path,
   required String packageName,
 }) {
-  final targetOption = ' --package $packageName';
   return WorkflowStepResult(
     name: name,
     path: path,
@@ -1036,13 +995,9 @@ WorkflowStepResult _integrationDiscoveryStep({
         'method': 'integration_test',
         'execution': 'run fluoh run with a concrete platform and device',
       },
-      'suggestedCommands': [
-        'fluoh run ohos$targetOption --auto-emulator --json',
-        'fluoh run android$targetOption --auto-emulator --json',
-        'fluoh run ios$targetOption --auto-emulator --json',
-        'fluoh run macos$targetOption --json',
-        'fluoh run web$targetOption --device-id chrome --json',
-      ],
+      'suggestedCommands': integrationDiscoveryRunCommands(
+        packageName: packageName,
+      ),
       'manualAssistedFallback': {
         'when':
             'system UI, permissions, pickers, external apps, or OHOS runner gaps block automatic execution',
@@ -1309,126 +1264,28 @@ WorkflowStepResult _ohosDiagnosticStep({
 
 String? _nextCommandForDiagnosticCode(String code, String packageName) {
   final baseline = 'fluoh verify --package $packageName';
-  final ohosRun = 'fluoh run ohos --package $packageName';
-  final ohosAutoRun = '$ohosRun --auto-emulator';
-  final androidRun = 'fluoh run android --package $packageName';
-  final androidAutoRun = '$androidRun --auto-emulator';
-  final iosRun = 'fluoh run ios --package $packageName';
-  final iosAutoRun = '$iosRun --auto-emulator';
-  final macosRun = 'fluoh run macos --package $packageName';
-  final linuxRun = 'fluoh run linux --package $packageName';
-  final webRun = 'fluoh run web --package $packageName --device-id web-server';
-  final windowsRun = 'fluoh run windows --package $packageName';
   return switch (code) {
     'dart.sdk_constraint_unsatisfied' => '$baseline --json',
     'dart.pub_get_failed' => 'fluoh deps get',
     'dart.analysis_failed' ||
     'dart.test_failed' ||
     'command.failed' => '$baseline --json',
-    'ohos.hap_build_failed' ||
-    'ohos.signing_profile_failed' ||
-    'ohos.build_profile_patch_failed' ||
-    'ohos.direct_sign_failed' ||
-    'ohos.no_installable_hap' ||
-    'ohos.install_failed' ||
-    'ohos.launch_failed' ||
-    'ohos.runtime_crash' => '$ohosAutoRun --json',
-    'ohos.toolchain_missing' ||
-    'ohos.auto_sign_failed' ||
-    'ohos.hdc_connection_failed' ||
-    'ohos.hdc_targets_failed' ||
-    'ohos.hdc_target_unavailable' ||
-    'ohos.emulator_start_failed' ||
-    'ohos.device_not_found' ||
-    'ohos.device_ambiguous' ||
-    'ohos.launch_info_missing' => 'fluoh doctor --platform ohos --json',
-    'ohos.device_missing' => '$ohosRun --auto-emulator --json',
-    'ohos.ohos_project_missing' => 'fluoh doctor --platform ohos --json',
-    'android.apk_build_failed' ||
-    'android.launch_timeout' ||
-    'android.run_failed' ||
-    'android.runtime_crash' ||
-    'android.integration_test_failed' => '$androidAutoRun --json',
-    'android.devices_failed' ||
-    'android.emulators_failed' ||
-    'android.emulator_missing' ||
-    'android.emulator_start_failed' => 'fluoh doctor --platform android --json',
-    'android.emulator_not_found' ||
-    'android.emulator_ambiguous' => '$androidAutoRun --json',
-    'android.device_missing' => '$androidAutoRun --json',
-    'android.device_not_found' ||
-    'android.device_ambiguous' => 'fluoh devices --platform android',
-    'ios.build_failed' ||
-    'ios.launch_timeout' ||
-    'ios.run_failed' ||
-    'ios.runtime_crash' ||
-    'ios.integration_test_failed' => '$iosAutoRun --json',
-    'ios.devices_failed' ||
-    'ios.emulators_failed' ||
-    'ios.emulator_missing' ||
-    'ios.emulator_start_failed' => 'fluoh doctor --platform ios --json',
-    'ios.emulator_not_found' ||
-    'ios.emulator_ambiguous' => '$iosAutoRun --json',
-    'ios.device_missing' => '$iosAutoRun --json',
-    'ios.device_not_found' ||
-    'ios.device_ambiguous' => 'fluoh devices --platform ios',
-    'macos.build_failed' ||
-    'macos.launch_timeout' ||
-    'macos.run_failed' ||
-    'macos.runtime_crash' ||
-    'macos.integration_test_failed' => '$macosRun --json',
-    'macos.devices_failed' ||
-    'macos.emulators_failed' ||
-    'macos.emulator_missing' ||
-    'macos.emulator_start_failed' => 'fluoh doctor --platform macos --json',
-    'macos.emulator_not_found' ||
-    'macos.emulator_ambiguous' => '$macosRun --json',
-    'macos.device_missing' => '$macosRun --json',
-    'macos.device_not_found' ||
-    'macos.device_ambiguous' => 'fluoh devices --platform macos',
-    'linux.build_failed' ||
-    'linux.launch_timeout' ||
-    'linux.run_failed' ||
-    'linux.runtime_crash' ||
-    'linux.integration_test_failed' => '$linuxRun --json',
-    'linux.devices_failed' ||
-    'linux.emulators_failed' ||
-    'linux.emulator_missing' ||
-    'linux.emulator_start_failed' => 'fluoh doctor --platform linux --json',
-    'linux.emulator_not_found' ||
-    'linux.emulator_ambiguous' => '$linuxRun --json',
-    'linux.device_missing' => '$linuxRun --json',
-    'linux.device_not_found' ||
-    'linux.device_ambiguous' => 'fluoh devices --platform linux',
-    'web.build_failed' ||
-    'web.launch_timeout' ||
-    'web.run_failed' ||
-    'web.runtime_crash' ||
-    'web.integration_test_failed' => '$webRun --json',
-    'web.devices_failed' ||
-    'web.emulators_failed' ||
-    'web.emulator_missing' ||
-    'web.emulator_start_failed' => 'fluoh doctor --platform web --json',
-    'web.emulator_not_found' || 'web.emulator_ambiguous' => '$webRun --json',
-    'web.device_missing' => '$webRun --json',
-    'web.device_not_found' ||
-    'web.device_ambiguous' => 'fluoh devices --platform web',
-    'windows.build_failed' ||
-    'windows.launch_timeout' ||
-    'windows.run_failed' ||
-    'windows.runtime_crash' ||
-    'windows.integration_test_failed' => '$windowsRun --json',
-    'windows.devices_failed' ||
-    'windows.emulators_failed' ||
-    'windows.emulator_missing' ||
-    'windows.emulator_start_failed' => 'fluoh doctor --platform windows --json',
-    'windows.emulator_not_found' ||
-    'windows.emulator_ambiguous' => '$windowsRun --json',
-    'windows.device_missing' => '$windowsRun --json',
-    'windows.device_not_found' ||
-    'windows.device_ambiguous' => 'fluoh devices --platform windows',
-    _ => null,
+    _ => _platformPackageRepairCommand(code, packageName),
   };
+}
+
+String? _platformPackageRepairCommand(String code, String packageName) {
+  final separator = code.indexOf('.');
+  if (separator <= 0) {
+    return null;
+  }
+  final platform = code.substring(0, separator);
+  if (!workflowPlatformNames.contains(platform)) {
+    return null;
+  }
+  return platformWorkflowPolicy(
+    platform,
+  ).packageRepairCommand(code, packageName);
 }
 
 String _packageRunNextCommand({
@@ -1438,26 +1295,12 @@ String _packageRunNextCommand({
   required bool startEmulator,
   required String? emulatorName,
 }) {
-  final useDefaultWebServer =
-      platform == 'web' && deviceId == null && emulatorName == null;
-  return [
-    'fluoh run $platform --package $packageName',
-    if (deviceId != null) '--device-id $deviceId',
-    if (useDefaultWebServer) '--device-id web-server',
-    if (startEmulator &&
-        emulatorName == null &&
-        !_isDesktopRunPlatform(platform))
-      '--auto-emulator',
-    if (emulatorName != null) '--emulator $emulatorName',
-    '--json',
-  ].join(' ');
-}
-
-bool _isDesktopRunPlatform(String platform) {
-  return platform == 'macos' ||
-      platform == 'linux' ||
-      platform == 'web' ||
-      platform == 'windows';
+  return platformWorkflowPolicy(platform).runCommand(
+    packageName: packageName,
+    deviceId: deviceId,
+    startEmulator: startEmulator,
+    emulatorName: emulatorName,
+  );
 }
 
 Map<String, Object?> _signingDetails(OhosDebugSigningMaterial signingMaterial) {
