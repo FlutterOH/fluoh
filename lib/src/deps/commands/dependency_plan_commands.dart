@@ -5,14 +5,14 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
-import '../dependency_analyzer.dart';
-import '../dependency_plan.dart';
-import '../dependency_policy.dart';
-import '../pubspec_dependency_editor.dart';
+import '../../deps/dependency_analyzer.dart';
+import '../../deps/dependency_plan.dart';
+import '../../deps/dependency_policy.dart';
+import '../../deps/pubspec_dependency_editor.dart';
 
 /// Implements `fluoh deps check`.
 class DepsCheckCommand extends FluohCommand<int> {
-  /// Creates the dependency check command.
+  /// Creates the project dependency check command.
   DepsCheckCommand({
     required this.environment,
     required this.stdout,
@@ -85,7 +85,7 @@ String _displayReleaseStatuses(Set<String> statuses) {
 
 /// Implements `fluoh deps fix`.
 class DepsFixCommand extends FluohCommand<int> {
-  /// Creates the dependency fix command.
+  /// Creates the project dependency fix command.
   DepsFixCommand({
     required this.environment,
     required this.stdout,
@@ -185,7 +185,7 @@ class DepsFixCommand extends FluohCommand<int> {
 
 void _printCheckPlan(TerminalOutput output, DependencyPlan plan) {
   output.heading(
-    'Dependency OHOS support for Flutter OHOS SDK ${plan.sdkVersion}',
+    'Dependency OHOS support for FlutterOH SDK ${plan.sdkVersion}',
   );
   output.info(
     'Policy: pubspecSection=${plan.policy.pubspecSection.yamlValue}, '

@@ -272,7 +272,7 @@ void main() {
       );
       _expectWrappedContainsAll(stdout.join('\n'), [
         'Created package repository at ${packageRepository.path}',
-        'Configured Flutter OHOS SDK 3.35.8-ohos-0.0.3',
+        'Configured FlutterOH SDK 3.35.8-ohos-0.0.3',
         'Created release tag camera-0.11.0-ohos-3.35-0.1.0',
       ]);
       expect(
@@ -803,7 +803,7 @@ packages/camera/camera/generated.txt
     expect(
       output,
       contains(
-        'requires Dart >=3.10.0 <4.0.0, but the selected Flutter OHOS SDK '
+        'requires Dart >=3.10.0 <4.0.0, but the selected FlutterOH SDK '
         'provides Dart 3.9.2',
       ),
     );
@@ -812,7 +812,7 @@ packages/camera/camera/generated.txt
       contains(
         'Keep adapting the selected upstream target camera-v0.12.0+1. '
         'Adapt the package pubspec, example config, and Dart code to the '
-        'selected Flutter OHOS SDK Dart 3.9.2',
+        'selected FlutterOH SDK Dart 3.9.2',
       ),
     );
     expect(
@@ -963,8 +963,8 @@ packages/camera/camera/generated.txt
     expect(firstBlank, greaterThanOrEqualTo(0));
     final sdkMessageIndex = stdout.indexWhere(
       (line) =>
-          line.contains('Using installed Flutter OHOS SDK') ||
-          line.contains('Flutter OHOS SDK path:'),
+          line.contains('Using installed FlutterOH SDK') ||
+          line.contains('FlutterOH SDK path:'),
     );
     expect(sdkMessageIndex, greaterThan(firstBlank));
     final sdkLinkIndex = stdout.indexWhere(
@@ -1998,6 +1998,8 @@ Original upstream README body.
         'Add dependency `path_provider_ohos` with relative path `../path_provider_ohos`',
       ),
     );
+    expect(guide, contains('## Platform Implementation Template'));
+    expect(guide, contains('Federated packages: keep `path_provider`'));
     expect(stderr, isEmpty);
   });
 
@@ -3893,16 +3895,16 @@ void _expectImplementationGuide(
     'fluoh doctor --project --json --strict',
     'fluoh deps get',
     'fluoh flutter analyze',
-    'fluoh run --platform ohos',
-    'fluoh run --platform android',
-    'fluoh run --platform ios',
-    'fluoh run --platform macos',
-    'fluoh build --platform linux',
-    'fluoh run --platform web',
-    'fluoh build --platform windows',
-    'fluoh build --platform ohos',
+    'fluoh run ohos',
+    'fluoh run android',
+    'fluoh run ios',
+    'fluoh run macos',
+    'fluoh build linux',
+    'fluoh run web',
+    'fluoh build windows',
+    'fluoh build ohos',
     '--no-codesign',
-    '--device <id>',
+    '--device-id <id>',
     'integration_test/',
     'AI-assisted interaction evidence',
     '.fluoh/scenarios',
@@ -4022,7 +4024,7 @@ void _expectAgentsInstructions(
   expect(content, isNot(contains('## Completion Report')));
   expect(content, isNot(contains('## Local Commit Checkpoints')));
   expect(content, isNot(contains('fluoh doctor --project --json --strict')));
-  expect(content, isNot(contains('fluoh run --platform ohos')));
+  expect(content, isNot(contains('fluoh run ohos')));
   expect(content, isNot(contains('.fluoh/reports/')));
 }
 

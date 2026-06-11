@@ -15,6 +15,11 @@ part 'automation_scenario_driver.dart';
 part 'automation_scenario_ios.dart';
 part 'automation_scenario_ohos.dart';
 
+/// Returns automation driver metadata for [platform].
+Map<String, Object?> automationScenarioPlatformDriverMetadata(String platform) {
+  return _AutomationScenarioPlatformDrivers.metadataForPlatform(platform);
+}
+
 /// Parsed AI automation scenario.
 class AutomationScenario {
   /// Creates an automation scenario.
@@ -1265,7 +1270,7 @@ Future<AutomationScenarioActionResult> _runIosTextAction(
       },
       repairHints: [
         ...action.repairHints,
-        'Run fluoh run --platform ios first, or make sure build/ios/iphonesimulator contains the app bundle for this scenario bundleId.',
+        'Run fluoh run ios first, or make sure build/ios/iphonesimulator contains the app bundle for this scenario bundleId.',
       ],
     );
   }
@@ -1377,7 +1382,7 @@ Future<AutomationScenarioActionResult> _runIosCoordinateAction(
       },
       repairHints: [
         ...action.repairHints,
-        'Run fluoh run --platform ios first, or make sure build/ios/iphonesimulator contains the app bundle for this scenario bundleId.',
+        'Run fluoh run ios first, or make sure build/ios/iphonesimulator contains the app bundle for this scenario bundleId.',
       ],
     );
   }
@@ -2190,7 +2195,7 @@ Future<AutomationScenarioActionResult> _tapIosPermissionWithXCTest(
       },
       repairHints: [
         ...action.repairHints,
-        'Run fluoh run --platform ios first, or make sure build/ios/iphonesimulator contains the app bundle for this scenario bundleId.',
+        'Run fluoh run ios first, or make sure build/ios/iphonesimulator contains the app bundle for this scenario bundleId.',
       ],
     );
   }
@@ -2299,7 +2304,7 @@ Future<AutomationScenarioActionResult> _assertIosLog(
       'iOS flutter run output log is missing',
       repairHints: [
         ...action.repairHints,
-        'Run automate on iOS so fluoh can capture the flutter run output log.',
+        'Run drive on iOS so fluoh can capture the flutter run output log.',
       ],
     );
   }
@@ -2629,7 +2634,7 @@ Future<AutomationScenarioActionResult> _assertSession(
       action,
       'flutterRunSession file is missing',
       repairHints: [
-        'Run automate on Android or iOS, or pass --session-dir so fluoh can write the session file.',
+        'Run drive on Android or iOS, or pass --session-dir so fluoh can write the session file.',
       ],
     );
   }
@@ -2649,6 +2654,47 @@ Future<AutomationScenarioActionResult> _assertSession(
   return _passedAction(
     action,
     details: {'sessionFile': file.path, 'session': decoded},
+  );
+}
+
+Future<AutomationScenarioActionResult> _assertOhosSession(
+  AutomationScenarioAction action,
+  _ScenarioExecutionContext context,
+) async {
+  final expected = action.value ?? action.text;
+  final captured = await _readOptionalFile(context.hilog);
+  final launchInfo = {
+    if (context.ohosBundleName != null) 'bundleName': context.ohosBundleName,
+    if (context.ohosAbilityName != null) 'abilityName': context.ohosAbilityName,
+    if (context.targetId != null) 'targetId': context.targetId,
+  };
+  if (expected != null && expected.isNotEmpty) {
+    final launchText = jsonEncode(launchInfo);
+    if (!_matches(launchText, expected, action.match) &&
+        (captured == null || !_matches(captured, expected, action.match))) {
+      return _failedAction(
+        action,
+        'OHOS run evidence did not contain $expected',
+        details: {
+          'launchInfo': launchInfo,
+          if (context.hilog != null) 'hilog': context.hilog!.path,
+          if (captured != null) 'hilogTail': _tail(captured),
+        },
+        repairHints: [
+          ...action.repairHints,
+          'Assert a value present in OHOS launchInfo or emit a stable hilog marker.',
+        ],
+      );
+    }
+  }
+  return _passedAction(
+    action,
+    details: {
+      'source': 'ohosRunEvidence',
+      'launchInfo': launchInfo,
+      if (context.hilog != null) 'hilog': context.hilog!.path,
+      if (captured != null) 'hilogTail': _tail(captured),
+    },
   );
 }
 

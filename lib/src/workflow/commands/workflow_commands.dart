@@ -3,25 +3,25 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
-import '../cli/argument_validation.dart';
-import '../cli/fluoh_command_runner.dart';
-import '../cli/machine_output.dart';
-import '../cli/terminal_output.dart';
-import '../cli/trace_output.dart';
-import '../context/fluoh_environment.dart';
-import '../platform/ohos/build_profile_signing.dart';
-import '../platform/ohos/debug_signer.dart';
-import '../platform/ohos/device_runner.dart';
-import '../platform/ohos/resource_layout.dart';
-import '../package/manifest/package_manifest.dart';
-import '../package/flutter_example_runner.dart';
-import '../package/git/package_git.dart';
-import '../package/package_workflow_runner.dart';
-import '../package/package_examples.dart';
-import '../schema/yaml_utils.dart';
-import '../sdk/flutter_runner.dart';
-import 'automation_scenario.dart';
-import 'workflow_result.dart';
+import '../../cli/argument_validation.dart';
+import '../../cli/fluoh_command_runner.dart';
+import '../../cli/machine_output.dart';
+import '../../cli/terminal_output.dart';
+import '../../cli/trace_output.dart';
+import '../../context/fluoh_environment.dart';
+import '../../package/flutter_example_runner.dart';
+import '../../package/git/package_git.dart';
+import '../../package/manifest/package_manifest.dart';
+import '../../package/package_examples.dart';
+import '../../package/package_workflow_runner.dart';
+import '../../platform/ohos/build_profile_signing.dart';
+import '../../platform/ohos/debug_signer.dart';
+import '../../platform/ohos/device_runner.dart';
+import '../../platform/ohos/resource_layout.dart';
+import '../../schema/yaml_utils.dart';
+import '../../sdk/flutter_runner.dart';
+import '../automation_scenario.dart';
+import '../workflow_result.dart';
 
 /// Runs baseline verification for a project or package target.
 class VerifyCommand extends FluohCommand<int> {
@@ -119,20 +119,6 @@ class BuildCommand extends FluohCommand<int> {
        _stderr = stderr,
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
     argParser
-      ..addOption(
-        'platform',
-        allowed: const [
-          'ohos',
-          'android',
-          'ios',
-          'macos',
-          'linux',
-          'web',
-          'windows',
-        ],
-        mandatory: true,
-        help: 'Platform to build.',
-      )
       ..addFlag('debug', defaultsTo: true, help: 'Build a debug artifact.')
       ..addFlag(
         'auto-sign',
@@ -162,12 +148,20 @@ class BuildCommand extends FluohCommand<int> {
   String get description => 'Build a FlutterOH project or package example.';
 
   @override
+  String get invocation =>
+      '${runner?.executableName ?? 'fluoh'} build <platform> [arguments]';
+
+  @override
   Future<int> run() async {
-    expectNoArguments(argResults!, usageException);
+    final platform = _platformArgument(
+      argResults!,
+      usageException,
+      allowed: _buildRunPlatforms,
+      label: 'build',
+    );
     _validatePackageSelection(argResults!, usageException);
-    final platform = _platformFromBuildOption(argResults!.option('platform'));
     if (argResults!.flag('auto-sign') && platform != 'ohos') {
-      usageException('Use --auto-sign only with --platform ohos.');
+      usageException('Use --auto-sign only with build platform ohos.');
     }
     final json = argResults!.flag('json');
     final output = _outputFor(json, _output);
@@ -227,20 +221,11 @@ class RunCommand extends FluohCommand<int> {
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
     argParser
       ..addOption(
-        'platform',
-        allowed: const [
-          'ohos',
-          'android',
-          'ios',
-          'macos',
-          'linux',
-          'web',
-          'windows',
-        ],
-        mandatory: true,
-        help: 'Platform to run.',
+        'device-id',
+        abbr: 'd',
+        valueHelp: 'id',
+        help: 'Connected device id.',
       )
-      ..addOption('device', valueHelp: 'id', help: 'Connected device id.')
       ..addOption(
         'emulator',
         valueHelp: 'name',
@@ -292,16 +277,25 @@ class RunCommand extends FluohCommand<int> {
   String get description => 'Build, install, launch, and diagnose an app.';
 
   @override
+  String get invocation =>
+      '${runner?.executableName ?? 'fluoh'} run <platform> [arguments]';
+
+  @override
   Future<int> run() async {
-    expectNoArguments(argResults!, usageException);
+    final platform = _platformArgument(
+      argResults!,
+      usageException,
+      allowed: _buildRunPlatforms,
+      label: 'run',
+    );
     _validatePackageSelection(argResults!, usageException);
-    if (_trimmedOption(argResults!, 'device') != null &&
+    if (_trimmedOption(argResults!, 'device-id') != null &&
         _trimmedOption(argResults!, 'emulator') != null) {
-      usageException('Use only one of --device or --emulator.');
+      usageException('Use only one of --device-id or --emulator.');
     }
-    if (_trimmedOption(argResults!, 'device') != null &&
+    if (_trimmedOption(argResults!, 'device-id') != null &&
         argResults!.flag('auto-emulator')) {
-      usageException('Use only one of --device or --auto-emulator.');
+      usageException('Use only one of --device-id or --auto-emulator.');
     }
     if (_trimmedOption(argResults!, 'emulator') != null &&
         argResults!.flag('auto-emulator')) {
@@ -309,8 +303,7 @@ class RunCommand extends FluohCommand<int> {
     }
     final deviceTimeout = _durationOption('device-timeout');
     final logDuration = _durationOption('log-duration');
-    final platform = _platformFromBuildOption(argResults!.option('platform'));
-    final deviceId = _trimmedOption(argResults!, 'device');
+    final deviceId = _trimmedOption(argResults!, 'device-id');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
     final autoEmulator = argResults!.flag('auto-emulator');
     final sessionFilePath = _trimmedOption(argResults!, 'session-file');
@@ -390,10 +383,10 @@ class RunCommand extends FluohCommand<int> {
   }
 }
 
-/// Runs AI-oriented mobile automation for project and package targets.
-class AutomateCommand extends FluohCommand<int> {
-  /// Creates the automate command.
-  AutomateCommand({
+/// Runs mobile scenarios for project and package targets.
+class DriveCommand extends FluohCommand<int> {
+  /// Creates the drive command.
+  DriveCommand({
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
@@ -403,12 +396,11 @@ class AutomateCommand extends FluohCommand<int> {
        _output = output ?? TerminalOutput(stdout: stdout, stderr: stderr) {
     argParser
       ..addOption(
-        'platform',
-        allowed: const ['all', 'ohos', 'android', 'ios'],
-        defaultsTo: 'all',
-        help: 'Mobile platform automation target.',
+        'device-id',
+        abbr: 'd',
+        valueHelp: 'id',
+        help: 'Connected device id.',
       )
-      ..addOption('device', valueHelp: 'id', help: 'Connected device id.')
       ..addOption(
         'emulator',
         valueHelp: 'name',
@@ -466,30 +458,37 @@ class AutomateCommand extends FluohCommand<int> {
   final TerminalOutput _output;
 
   @override
-  String get name => 'automate';
+  String get name => 'drive';
 
   @override
   String get description =>
-      'Run mobile app automation scenarios and evidence checks.';
+      'Run mobile scenario automation and collect evidence.';
+
+  @override
+  String get invocation =>
+      '${runner?.executableName ?? 'fluoh'} drive <platform> [arguments]';
 
   @override
   Future<int> run() async {
-    expectNoArguments(argResults!, usageException);
-    _validatePackageSelection(argResults!, usageException);
-    final platforms = _automationPlatformsFromOption(
-      argResults!.option('platform'),
+    final platform = _platformArgument(
+      argResults!,
+      usageException,
+      allowed: _drivePlatforms,
+      label: 'drive',
     );
-    final deviceId = _trimmedOption(argResults!, 'device');
+    _validatePackageSelection(argResults!, usageException);
+    final platforms = _drivePlatformsFromArgument(platform);
+    final deviceId = _trimmedOption(argResults!, 'device-id');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
     final autoEmulator = deviceId == null && argResults!.flag('auto-emulator');
     if (deviceId != null && emulatorName != null) {
-      usageException('Use only one of --device or --emulator.');
+      usageException('Use only one of --device-id or --emulator.');
     }
     if (deviceId != null && platforms.length != 1) {
-      usageException('Use --device with one --platform value.');
+      usageException('Use --device-id with one drive platform.');
     }
     if (emulatorName != null && platforms.length != 1) {
-      usageException('Use --emulator with one --platform value.');
+      usageException('Use --emulator with one drive platform.');
     }
     final deviceTimeout = _durationOption('device-timeout');
     final logDuration = _durationOption('log-duration');
@@ -529,7 +528,7 @@ class AutomateCommand extends FluohCommand<int> {
       if (json) {
         writeMachineOutput(
           _stdout,
-          command: 'automate',
+          command: 'drive',
           ok: true,
           exitCode: 0,
           fields: {
@@ -596,7 +595,7 @@ class AutomateCommand extends FluohCommand<int> {
       json: json,
       stdout: _stdout,
       environment: environment,
-      command: 'automate',
+      command: 'drive',
       arguments: argResults!.arguments,
       results: results,
       traceOptions: _traceOptionsFrom(argResults!),
@@ -678,15 +677,15 @@ void _validateAutomationScenarios(
     }
     if (!platforms.contains(scenario.platform)) {
       usageException(
-        'Scenario ${scenario.path.path} targets ${scenario.platform}, which is not included by --platform.',
+        'Scenario ${scenario.path.path} targets ${scenario.platform}, which is not included by the drive platform.',
       );
     }
   }
 }
 
-List<String> _automationPlatformsFromOption(String? value) {
+List<String> _drivePlatformsFromArgument(String value) {
   return switch (value) {
-    'all' || null => const ['ohos', 'android', 'ios'],
+    'all' => const ['ohos', 'android', 'ios'],
     'ohos' || 'android' || 'ios' => [value],
     _ => throw ArgumentError.value(value, 'platform', 'Unsupported platform.'),
   };
@@ -896,8 +895,7 @@ String _automationScenarioNextCommand({
 }) {
   final parts = [
     'fluoh',
-    'automate',
-    '--platform',
+    'drive',
     platform,
     if (packageName != null) ...[
       '--package',
@@ -908,7 +906,7 @@ String _automationScenarioNextCommand({
       '--package',
       targetName,
     ],
-    if (deviceId != null) ...['--device', deviceId],
+    if (deviceId != null) ...['--device-id', deviceId],
     if (emulatorName != null) ...['--emulator', emulatorName],
     if (deviceId == null && emulatorName == null)
       autoEmulator ? '--auto-emulator' : '--no-auto-emulator',
@@ -1044,7 +1042,7 @@ class _AutomationPlan {
         ).toJson(),
     ];
     final executionResults = results ?? const <WorkflowTargetResult>[];
-    final rerunCommand = _automateCommand(dryRun: dryRun);
+    final rerunCommand = _driveCommand(dryRun: dryRun);
     Map<String, Object?>? deliveryRecommendation;
     List<Map<String, Object?>>? repairQueue;
     if (results != null || dryRun) {
@@ -1056,7 +1054,7 @@ class _AutomationPlan {
       repairQueue = _repairQueue(
         executionResults,
         coveragePolicy,
-        checks: checks,
+        executionCommand: _driveCommand(dryRun: false),
         dryRun: dryRun,
       );
     }
@@ -1102,16 +1100,15 @@ class _AutomationPlan {
     };
   }
 
-  String _automateCommand({required bool dryRun}) {
+  String _driveCommand({required bool dryRun}) {
     final platform = platforms.length == 3 ? 'all' : platforms.single;
     final parts = [
       'fluoh',
-      'automate',
-      '--platform',
+      'drive',
       platform,
       if (packageName != null) ...['--package', packageName!],
       if (all) '--all',
-      if (deviceId != null) ...['--device', deviceId!],
+      if (deviceId != null) ...['--device-id', deviceId!],
       if (emulatorName != null) ...['--emulator', emulatorName!],
       if (deviceId == null && emulatorName == null)
         autoEmulator ? '--auto-emulator' : '--no-auto-emulator',
@@ -1187,7 +1184,7 @@ class _AutomationPlan {
         'kind': 'executeAutomation',
         'sourceType': type,
         'action':
-            'Run the planned platform automation commands and keep the resulting JSON evidence before reporting ready.',
+            'Run the planned drive automation command and keep the resulting JSON evidence before reporting ready.',
         if (item['nextCommands'] != null) 'nextCommands': item['nextCommands'],
         'doneWhen': _repairPlanDoneWhen(type, item),
         'validation': _repairPlanValidation(
@@ -1280,8 +1277,8 @@ class _AutomationPlan {
         'the failed target or scenario step passes',
       ],
       'execution' => [
-        'all planned automation commands exit successfully',
-        'real run JSON includes passed targets and retained evidence',
+        'the planned automation command exits successfully',
+        'real drive JSON includes passed targets and retained evidence',
       ],
       'coverageBlocked' => [
         'the blocked row has a concrete environment or maintainer-decision note',
@@ -1319,7 +1316,7 @@ class _AutomationPlan {
       ],
       _ => [
         'the first repairQueue item is resolved',
-        'rerunning automate no longer emits the same first repair item',
+        'rerunning drive no longer emits the same first repair item',
       ],
     };
   }
@@ -1341,7 +1338,7 @@ class _AutomationPlan {
       final testCommand = item['testCommand'];
       final acceptedTestCommands = item['acceptedTestCommands'];
       return {
-        'kind': 'packageTestsThenAutomate',
+        'kind': 'packageTestsThenDrive',
         if (item['expectedTestPath'] != null)
           'testPath': item['expectedTestPath'],
         if (testCommand is String && testCommand.isNotEmpty)
@@ -1349,7 +1346,7 @@ class _AutomationPlan {
         if (acceptedTestCommands is List<Object?> &&
             acceptedTestCommands.isNotEmpty)
           'acceptedTestCommands': acceptedTestCommands,
-        'automateCommand': rerunCommand,
+        'driveCommand': rerunCommand,
         'commands': [
           if (testCommand is String && testCommand.isNotEmpty) testCommand,
           rerunCommand,
@@ -1357,23 +1354,23 @@ class _AutomationPlan {
       };
     }
     if (type == 'coverageBlocked') {
-      return {'kind': 'reportEvidence', 'automateCommand': rerunCommand};
+      return {'kind': 'reportEvidence', 'driveCommand': rerunCommand};
     }
-    return {'kind': 'sameAutomateCommand', 'command': rerunCommand};
+    return {'kind': 'sameDriveCommand', 'command': rerunCommand};
   }
 
   String _repairPlanAction(String? type) {
     return switch (type) {
       'scenarioCoverage' =>
-        'Add or update scenario coverage rows for the discovered package capability, then rerun automate.',
+        'Add or update scenario coverage rows for the discovered package capability, then rerun drive.',
       'permissionCoverage' =>
-        'Add selected-platform permission coverage rows for grant and denied or error paths, then rerun automate.',
+        'Add selected-platform permission coverage rows for grant and denied or error paths, then rerun drive.',
       'pathCoverage' =>
-        'Add the missing success or negative behavior path rows, then rerun automate.',
+        'Add the missing success or negative behavior path rows, then rerun drive.',
       'scenarioEvidence' =>
-        'Add a tool-readable scenario verification action, then rerun automate.',
+        'Add a tool-readable scenario verification action, then rerun drive.',
       'testCoverage' =>
-        'Create or expand the focused package test, then rerun package tests and automate.',
+        'Create or expand the focused package test, then rerun package tests and drive.',
       _ =>
         'Apply the printed nextAction, then rerun the same automation command.',
     };
@@ -1450,7 +1447,7 @@ class _AutomationPlan {
   List<Map<String, Object?>> _repairQueue(
     List<WorkflowTargetResult> results,
     Map<String, Object?> coveragePolicy, {
-    required List<Map<String, Object?>> checks,
+    required String executionCommand,
     required bool dryRun,
   }) {
     final coverageQueue = _coverageRepairQueue(coveragePolicy);
@@ -1476,26 +1473,18 @@ class _AutomationPlan {
           testCoverageQueue.isEmpty &&
           targetQueue.isEmpty &&
           blockedQueue.isEmpty)
-        _dryRunExecutionQueue(checks),
+        _dryRunExecutionQueue(executionCommand),
     ];
   }
 
-  Map<String, Object?> _dryRunExecutionQueue(
-    List<Map<String, Object?>> checks,
-  ) {
+  Map<String, Object?> _dryRunExecutionQueue(String executionCommand) {
     return {
       'type': 'execution',
       'status': 'needsExecution',
       'repair':
-          'Dry-run coverage is ready. Execute the selected platform automation commands and keep the resulting JSON evidence before reporting ready.',
+          'Dry-run coverage is ready. Execute the selected automation command and keep the resulting JSON evidence before reporting ready.',
       'nextCommands': [
-        for (final check in checks)
-          {
-            'platform': check['platform'],
-            'command': check['command'],
-            if (check['sessionFile'] != null)
-              'sessionFile': check['sessionFile'],
-          },
+        {'command': executionCommand},
       ],
     };
   }
@@ -4123,8 +4112,9 @@ class _AutomationCheckPlan {
         sessionFile: sessionFile,
         traceOptions: traceOptions,
       ),
+      'driver': automationScenarioPlatformDriverMetadata(platform),
       'evidence': [
-        'fluoh workflow JSON',
+        'fluoh command JSON',
         'trace manifest when --trace or --trace-dir is used',
         if (platform == 'ohos') 'OHOS hilog runtime scan',
         if (platform == 'android' || platform == 'ios')
@@ -4165,11 +4155,10 @@ String _automationRunCommand({
   final parts = [
     'fluoh',
     'run',
-    '--platform',
     platform,
     if (packageName != null) ...['--package', packageName],
     if (all) '--all',
-    if (deviceId != null) ...['--device', deviceId],
+    if (deviceId != null) ...['--device-id', deviceId],
     if (emulatorName != null) ...['--emulator', emulatorName],
     if (deviceId == null &&
         emulatorName == null &&
@@ -4718,7 +4707,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
             ..._ohosSigningDetails(signingMaterial),
             'error': error.toString(),
           },
-          nextCommand: 'fluoh build --platform ohos --auto-sign --json',
+          nextCommand: 'fluoh build ohos --auto-sign --json',
         ),
       );
       return WorkflowTargetResult.project(
@@ -4796,7 +4785,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
               ..._toolOutputDetails(result),
               'error': error.toString(),
             },
-            nextCommand: 'fluoh build --platform ohos --auto-sign --json',
+            nextCommand: 'fluoh build ohos --auto-sign --json',
           ),
         );
         return WorkflowTargetResult.project(
@@ -5029,11 +5018,11 @@ WorkflowStepResult _projectIntegrationDiscoveryStep({
         'execution': 'run fluoh run with a concrete platform and device',
       },
       'suggestedCommands': [
-        'fluoh run --platform ohos --auto-emulator --json',
-        'fluoh run --platform android --auto-emulator --json',
-        'fluoh run --platform ios --auto-emulator --json',
-        'fluoh run --platform macos --json',
-        'fluoh run --platform web --device chrome --json',
+        'fluoh run ohos --auto-emulator --json',
+        'fluoh run android --auto-emulator --json',
+        'fluoh run ios --auto-emulator --json',
+        'fluoh run macos --json',
+        'fluoh run web --device-id chrome --json',
       ],
       'manualAssistedFallback': {
         'when':
@@ -5074,7 +5063,7 @@ Future<int?> _appendProjectIntegrationRunSteps({
           'targetId': targetId,
           'requiredTargetKind': 'browser',
           'suggestedDevice': 'chrome',
-          'suggestedCommand': 'fluoh run --platform web --device chrome --json',
+          'suggestedCommand': 'fluoh run web --device-id chrome --json',
         },
       ),
     );
@@ -5389,7 +5378,7 @@ String _projectPlatformNextCommand(_ProjectWorkflowInvocation invocation) {
     return _projectRunNextCommand(invocation);
   }
   return [
-    'fluoh build --platform $platform',
+    'fluoh build $platform',
     if (!invocation.debug) '--no-debug',
     if (invocation.autoSign) '--auto-sign',
     '--json',
@@ -5516,9 +5505,9 @@ String _projectRunNextCommand(
       invocation.deviceId == null &&
       invocation.emulatorName == null;
   return [
-    'fluoh run --platform $platform',
-    if (invocation.deviceId != null) '--device ${invocation.deviceId}',
-    if (useDefaultWebServer) '--device web-server',
+    'fluoh run $platform',
+    if (invocation.deviceId != null) '--device-id ${invocation.deviceId}',
+    if (useDefaultWebServer) '--device-id web-server',
     if ((startEmulator ?? invocation.startEmulator) &&
         invocation.emulatorName == null &&
         !_isDesktopRunPlatform(platform))
@@ -5540,17 +5529,35 @@ int _lastExitCode(List<WorkflowStepResult> steps) {
   return steps.last.exitCode ?? 1;
 }
 
-String _platformFromBuildOption(String? value) {
-  return switch (value) {
-    'ohos' ||
-    'android' ||
-    'ios' ||
-    'macos' ||
-    'linux' ||
-    'web' ||
-    'windows' => value!,
-    _ => throw ArgumentError.value(value, 'platform', 'Unsupported platform.'),
-  };
+const _buildRunPlatforms = [
+  'ohos',
+  'android',
+  'ios',
+  'macos',
+  'linux',
+  'web',
+  'windows',
+];
+
+const _drivePlatforms = ['all', 'ohos', 'android', 'ios'];
+
+String _platformArgument(
+  ArgResults results,
+  UsageError usageException, {
+  required List<String> allowed,
+  required String label,
+}) {
+  final arguments = results.rest;
+  if (arguments.length != 1) {
+    usageException('Expected one $label platform: ${allowed.join(', ')}.');
+  }
+  final value = arguments.single.trim().toLowerCase();
+  if (!allowed.contains(value)) {
+    usageException(
+      'Unsupported $label platform "$value". Expected one of: ${allowed.join(', ')}.',
+    );
+  }
+  return value;
 }
 
 String _buildTargetForPlatform(String platform) {

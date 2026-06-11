@@ -9,7 +9,7 @@ import '../helpers/package_test_context.dart';
 
 void main() {
   test(
-    'chains source add, package create, deps check, deps fix, verify, check, and release',
+    'chains source add, package create, deps, verify, check, and release',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(

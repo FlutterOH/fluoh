@@ -6,7 +6,7 @@ import '../context/fluoh_environment.dart';
 import 'ohos/device_runner.dart';
 import 'ohos/ohos_toolchain.dart';
 
-/// Platforms understood by fluoh project and package workflows.
+/// Platforms understood by project and package workflows.
 enum FluohPlatform {
   /// Android tooling and targets.
   android,

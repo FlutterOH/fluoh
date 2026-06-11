@@ -319,7 +319,8 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
       command: 'flutter devices --machine',
       code: '$platform.device_ambiguous',
       message: 'Multiple Flutter devices matched the platform',
-      reason: 'Multiple $platform devices are connected; rerun with --device',
+      reason:
+          'Multiple $platform devices are connected; rerun with --device-id',
       details: details,
     );
   }
@@ -483,7 +484,7 @@ String _missingFlutterDeviceReason(String platform) {
         'ensure flutter devices lists the desktop target.';
   }
   return 'No $platform device was available. Rerun with --auto-emulator so '
-      'fluoh can start a local emulator or simulator, or pass --device <id> '
+      'fluoh can start a local emulator or simulator, or pass --device-id <id> '
       'for a connected target.';
 }
 

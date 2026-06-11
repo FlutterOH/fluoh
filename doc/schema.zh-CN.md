@@ -29,7 +29,7 @@
 
 ## 共享规则
 
-- 完整 Flutter OHOS SDK 版本必须符合 `<major>.<minor>.<patch>-ohos-...`。
+- 完整 FlutterOH SDK 版本必须符合 `<major>.<minor>.<patch>-ohos-...`。
   SDK line 取前两个数字段，例如 `3.35.8-ohos-1.0.1 -> 3.35`。
 - Source root `name` 是非空且不含空白字符的 token。Source Manifest route 名和
   `package.name` 必须是 Dart package 名。
@@ -139,7 +139,7 @@ Source 根 `fluoh.yaml` 描述 Source 自身、可选 SDK 数据和逐 Package M
 schema: 1
 kind: source
 name: flutteroh
-description: Flutter OHOS SDK and package adaptation source.
+description: FlutterOH SDK and package adaptation source.
 
 repository:
   git:

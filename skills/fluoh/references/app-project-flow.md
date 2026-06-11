@@ -13,11 +13,11 @@ fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
 fluoh doctor -p --platform ohos --json --strict
-fluoh build --platform ohos --auto-sign --json
+fluoh build ohos --auto-sign --json
 fluoh devices --platform ohos --json
 fluoh emulators --platform ohos --json
-fluoh run --platform ohos --auto-emulator --json
-fluoh run --platform ohos --device <id> --json
+fluoh run ohos --auto-emulator --json
+fluoh run ohos --device-id <id> --json
 ```
 
 ## Rules
@@ -31,9 +31,9 @@ fluoh run --platform ohos --device <id> --json
 - If `fluoh deps check --json` reports unavailable, blocked, or SDK-mismatch
   dependencies, record them as blockers or maintainer decisions. Do not invent
   package implementations inside the app project unless asked.
-- Prefer `fluoh run --platform ohos --auto-emulator --json` so fluoh starts a
+- Prefer `fluoh run ohos --auto-emulator --json` so fluoh starts a
   local DevEco emulator before falling back to connected devices.
-- For explicit real runs, use `--device <id>` from
+- For explicit real runs, use `--device-id <id>` from
   `fluoh devices --platform ohos --json`.
 - Use `--emulator <name>` only when selected from
   `fluoh emulators --platform ohos --json`.

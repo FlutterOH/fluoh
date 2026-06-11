@@ -15,9 +15,12 @@ body:
       description: Choose the closest fluoh area.
       options:
         - sdk
+        - source
+        - project
         - deps
         - package
-        - source
+        - workflow
+        - devices
         - schema
         - platform
         - doctor
@@ -34,7 +37,7 @@ body:
     attributes:
       label: fluoh version
       description: Run `fluoh --version` and paste the first line.
-      placeholder: fluoh 0.1.0 - CLI for Flutter OHOS SDKs and package workflows
+      placeholder: fluoh 0.1.0 - CLI for FlutterOH SDKs, projects, and package adaptation workflows
     validations:
       required: true
   - type: input

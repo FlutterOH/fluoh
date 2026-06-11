@@ -80,14 +80,14 @@ fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
 fluoh doctor -p --platform ohos
-fluoh build --platform ohos --auto-sign
+fluoh build ohos --auto-sign
 ```
 
-Review the `deps fix --dry-run` output before applying `deps fix`.
+Review the `fluoh deps fix --dry-run` output before applying `fluoh deps fix`.
 
 ### New Flutter App
 
-Create the project with a Flutter OHOS SDK, then continue from the generated
+Create the project with a FlutterOH SDK, then continue from the generated
 project root:
 
 ```sh
@@ -98,7 +98,7 @@ fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
 fluoh doctor -p --platform ohos
-fluoh build --platform ohos --auto-sign
+fluoh build ohos --auto-sign
 ```
 
 ### Package Maintainers
@@ -111,7 +111,7 @@ fluoh package discover <upstream-git-url>
 fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 cd <flutteroh-repo-name>
 fluoh verify --package <name>
-fluoh run --platform ohos --package <name> --auto-emulator
+fluoh run ohos --package <name> --auto-emulator
 fluoh package status --package <name>
 ```
 

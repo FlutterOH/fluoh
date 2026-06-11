@@ -8,6 +8,151 @@ import '../helpers/fluoh_command_context.dart';
 import '../helpers/package_test_context.dart';
 
 void main() {
+  test('reports package handoff state as json', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final trace = File(
+      '${packageRepository.path}/.fluoh/traces/camera/adaptation/trace.json',
+    );
+    await trace.parent.create(recursive: true);
+    await trace.writeAsString(jsonEncode({'id': 'camera-adaptation'}));
+    final unrelatedTrace = File(
+      '${packageRepository.path}/.fluoh/traces/share_plus/adaptation/trace.json',
+    );
+    await unrelatedTrace.parent.create(recursive: true);
+    await unrelatedTrace.writeAsString(jsonEncode({'id': 'share-plus'}));
+    final reportFile = File(
+      '${packageRepository.path}/.fluoh/reports/camera/ai-report-test.md',
+    );
+    await reportFile.parent.create(recursive: true);
+    await reportFile.writeAsString('# camera report\n');
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'handoff', '--json'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final handoff = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(handoff, containsPair('schema', 1));
+    expect(handoff, containsPair('command', 'package handoff'));
+    expect(handoff, containsPair('ok', true));
+    expect(handoff, containsPair('handoffSchema', 1));
+    expect(handoff, containsPair('kind', 'fluoh.packageHandoff'));
+    expect(handoff, containsPair('branchMatchesManifest', true));
+    expect(handoff, containsPair('dirty', false));
+    final package = handoff['package'] as Map<String, Object?>;
+    expect(package, containsPair('name', 'camera'));
+    expect(package, containsPair('upstreamVersion', '0.11.0'));
+    final evidence = handoff['evidence'] as Map<String, Object?>;
+    expect(evidence, containsPair('latestTrace', trace.path));
+    expect(
+      evidence,
+      containsPair('traceDir', '.fluoh/traces/camera/adaptation'),
+    );
+    expect(evidence['reports'], contains(reportFile.path));
+    final nextCommands = (handoff['nextCommands'] as List<Object?>)
+        .cast<String>();
+    expect(
+      nextCommands,
+      containsAllInOrder([
+        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive all --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh package check --package camera --json',
+      ]),
+    );
+    expect(nextCommands, isNot(contains('fluoh report create --scope camera')));
+    expect(stderr, isEmpty);
+  });
+
+  test('package handoff defaults next commands to the adaptation trace', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'handoff', '--json'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final handoff = jsonDecode(stdout.single) as Map<String, Object?>;
+    final evidence = handoff['evidence'] as Map<String, Object?>;
+    expect(evidence, isNot(contains('latestTrace')));
+    expect(
+      evidence,
+      containsPair('traceDir', '.fluoh/traces/camera/adaptation'),
+    );
+    final nextCommands = (handoff['nextCommands'] as List<Object?>)
+        .cast<String>();
+    expect(
+      nextCommands,
+      containsAllInOrder([
+        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive all --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+        'fluoh package check --package camera --json',
+      ]),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'package handoff reports real manifest branch when branch differs',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      await runGit(packageRepository, ['checkout', '-b', 'scratch-work']);
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['package', 'handoff', '--json'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final handoff = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(handoff, containsPair('branch', 'scratch-work'));
+      expect(handoff, containsPair('branchMatchesManifest', false));
+      final manifestBranch = handoff['manifestBranch'] as String;
+      expect(manifestBranch, isNotEmpty);
+      expect((handoff['nextCommands'] as List<Object?>).cast<String>(), [
+        'git switch $manifestBranch',
+      ]);
+      expect(stderr, isEmpty);
+    },
+  );
+
   test('reports package release readiness as json', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
@@ -46,7 +191,7 @@ void main() {
           containsPair('code', 'evidence.ohos_run_missing'),
           containsPair(
             'nextCommand',
-            'fluoh run --platform ohos --package camera --auto-emulator --json',
+            'fluoh run ohos --package camera --auto-emulator --json',
           ),
         ),
       ),

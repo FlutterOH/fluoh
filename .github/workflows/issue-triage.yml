@@ -40,6 +40,14 @@ jobs:
                 color: '0969DA',
                 description: 'FlutterOH SDK selection, install, or listing.',
               },
+              'area:source': {
+                color: '0969DA',
+                description: 'Source registry, cache, sync, or checks.',
+              },
+              'area:project': {
+                color: '0969DA',
+                description: 'Flutter project creation and project dependency commands.',
+              },
               'area:deps': {
                 color: '0969DA',
                 description: 'Dependency analysis or pubspec rewrite behavior.',
@@ -48,9 +56,13 @@ jobs:
                 color: '0969DA',
                 description: 'FlutterOH package adaptation workflows.',
               },
-              'area:source': {
+              'area:workflow': {
                 color: '0969DA',
-                description: 'Source registry, cache, sync, or checks.',
+                description: 'Plan, verify, build, run, drive, and report workflows.',
+              },
+              'area:devices': {
+                color: '0969DA',
+                description: 'Device and emulator listing or launch workflows.',
               },
               'area:schema': {
                 color: '0969DA',
@@ -58,7 +70,7 @@ jobs:
               },
               'area:platform': {
                 color: '0969DA',
-                description: 'OHOS platform build, run, signing, or tooling.',
+                description: 'Native platform tooling, signing, and environment discovery.',
               },
               'area:doctor': {
                 color: '0969DA',
@@ -103,9 +115,12 @@ jobs:
             const selectedArea = sectionValue('Affected area').toLowerCase();
             const selectedAreaLabels = {
               sdk: 'area:sdk',
+              source: 'area:source',
+              project: 'area:project',
               deps: 'area:deps',
               package: 'area:package',
-              source: 'area:source',
+              workflow: 'area:workflow',
+              devices: 'area:devices',
               schema: 'area:schema',
               platform: 'area:platform',
               doctor: 'area:doctor',
@@ -140,15 +155,18 @@ jobs:
             };
 
             addWhen('area:sdk', /\bfluoh\s+sdk\b|\bsdk\s+(use|list|install|remove)\b|flutteroh sdk/);
+            addWhen('area:source', /\bfluoh\s+source\b|source index|source check|source sync|manifest route|manifests\//);
+            addWhen('area:project', /\bfluoh\s+create\b|\bfluoh\s+deps\b|\bcreate\s+(?:a\s+)?flutter project|project creation|project deps|project dependenc/);
             addWhen('area:deps', /\bfluoh\s+deps\b|\bdeps\s+(check|fix|get|upgrade)\b|dependency|dependencies|pubspec|dependency_overrides/);
             addWhen('area:package', /\bfluoh\s+package\b|package adaptation|package workflow|package create|package sync|package release/);
-            addWhen('area:source', /\bfluoh\s+source\b|source index|source check|source sync|manifest route|manifests\//);
+            addWhen('area:workflow', /\bfluoh\s+(plan|verify|build|run|drive|report)\b|\b(plan|verify|build|run|drive|report)\s+(app|package|ohos|android|ios|web|linux|windows|macos|all)\b|adaptation plan|automation evidence|trace-dir|ai report/);
+            addWhen('area:devices', /\bfluoh\s+(devices|emulators)\b|\bdevices?\b|\bemulators?\b|simulator|connected target|auto-emulator/);
             addWhen('area:schema', /\bfluoh\.yaml\b|\bschema\b|machine output|"schema"|"exitcode"|--json/);
-            addWhen('area:platform', /\bfluohf\b|\bfluoh\s+(build|run|flutter)\b|ohos|openharmony|hap|hdc|deveco|signing/);
+            addWhen('area:platform', /\bfluohf\b|\bfluoh\s+flutter\b|ohos platform|openharmony platform|openharmony|hap|hdc|deveco|signing|permission profile|build profile/);
             addWhen('area:doctor', /\bfluoh\s+doctor\b|\bdiagnostic\b/);
             addWhen('area:upgrade', /\bfluoh\s+upgrade\b|\bupgrade\b/);
             addWhen('area:docs', /\breadme\b|\bcontributing\b|\bdocumentation\b|\bdocs?\b|agents\.md/);
-            addWhen('area:ci', /github actions|\bworkflow\b|\bci\b|publish workflow|\.github/);
+            addWhen('area:ci', /github actions|\bci\b|publish workflow|workflow file|workflow ya?ml|\.github/);
             addWhen('area:skill', /\bskill\b|ai agent|agent skill|\$fluoh/);
             addWhen('area:release', /pub\.dev|homebrew|formula|release tag|version metadata|publishing|publish/);
 

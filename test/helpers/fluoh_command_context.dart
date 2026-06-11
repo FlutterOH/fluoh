@@ -37,7 +37,7 @@ Future<Directory> createPackageSourceFixture(Directory parent) async {
   final sdkRepository = await createTaggedGitRepository(
     Directory('${parent.path}/flutter-ohos-sdk'),
     tag: '3.35.8-ohos-0.0.3',
-    readme: '# Mock Flutter OHOS SDK\n',
+    readme: '# Mock FlutterOH SDK\n',
   );
 
   await File('${source.path}/fluoh.yaml').writeAsString('''

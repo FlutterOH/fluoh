@@ -163,7 +163,7 @@ class PackageStatusCommand extends FluohCommand<int> {
           code: 'evidence.ohos_run_missing',
           message: 'Missing passed OHOS run evidence.',
           nextCommand:
-              'fluoh run --platform ohos --package ${package.name} '
+              'fluoh run ohos --package ${package.name} '
               '--auto-emulator --json',
         ),
         _PackageReadinessBlocker(

@@ -435,7 +435,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
         ? 'No OHOS device target is connected. Start a DevEco emulator or '
               'connect a device, then retry. Pass --auto-emulator to let '
               'fluoh choose and start a local DevEco emulator.'
-        : 'Multiple OHOS device targets are connected; pass --device with one '
+        : 'Multiple OHOS device targets are connected; pass --device-id with one '
               'of: ${targets.map((item) => item.id).join(', ')}.';
     return OhosDeviceRunResult(
       exitCode: 1,
@@ -817,7 +817,7 @@ Future<Map<String, Object?>> _ohosTargetRecommendationDetails({
       {
         'id': target.id,
         if (target.details != null) 'details': target.details,
-        'runArguments': '--device ${target.id}',
+        'runArguments': '--device-id ${target.id}',
       },
   ];
   List<OhosLocalEmulator> emulators;

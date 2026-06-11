@@ -48,6 +48,14 @@ jobs:
                 color: '0969DA',
                 description: 'FlutterOH SDK selection, install, or listing.',
               },
+              'area:source': {
+                color: '0969DA',
+                description: 'Source registry, cache, sync, or checks.',
+              },
+              'area:project': {
+                color: '0969DA',
+                description: 'Flutter project creation and project dependency commands.',
+              },
               'area:deps': {
                 color: '0969DA',
                 description: 'Dependency analysis or pubspec rewrite behavior.',
@@ -56,9 +64,13 @@ jobs:
                 color: '0969DA',
                 description: 'FlutterOH package adaptation workflows.',
               },
-              'area:source': {
+              'area:workflow': {
                 color: '0969DA',
-                description: 'Source registry, cache, sync, or checks.',
+                description: 'Plan, verify, build, run, drive, and report workflows.',
+              },
+              'area:devices': {
+                color: '0969DA',
+                description: 'Device and emulator listing or launch workflows.',
               },
               'area:schema': {
                 color: '0969DA',
@@ -66,7 +78,7 @@ jobs:
               },
               'area:platform': {
                 color: '0969DA',
-                description: 'OHOS platform build, run, signing, or tooling.',
+                description: 'Native platform tooling, signing, and environment discovery.',
               },
               'area:doctor': {
                 color: '0969DA',
@@ -119,20 +131,29 @@ jobs:
             if (fileMatches(/^(lib\/src\/sdk\/|test\/sdk\/|test\/commands\/sdk_)/)) {
               addArea('area:sdk', 'dart test test/sdk test/commands/sdk_command_test.dart test/commands/sdk_use_command_test.dart');
             }
+            if (fileMatches(/^(lib\/src\/source\/|test\/source\/|test\/commands\/source_)/)) {
+              addArea('area:source', 'dart test test/source test/commands/source_command_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/project\/|test\/commands\/create_command_test\.dart)/)) {
+              addArea('area:project', 'dart test test/commands/create_command_test.dart');
+            }
             if (fileMatches(/^(lib\/src\/deps\/|test\/commands\/deps_|test\/commands\/dependency_plan)/)) {
               addArea('area:deps', 'dart test test/commands/deps_get_command_test.dart test/commands/deps_upgrade_command_test.dart test/commands/dependency_plan_commands_test.dart');
             }
             if (fileMatches(/^(lib\/src\/package\/|test\/package\/|test\/commands\/package_)/)) {
               addArea('area:package', 'dart test test/package test/commands/package_*_test.dart');
             }
-            if (fileMatches(/^(lib\/src\/source\/|test\/source\/|test\/commands\/source_)/)) {
-              addArea('area:source', 'dart test test/source test/commands/source_command_test.dart');
+            if (fileMatches(/^(lib\/src\/workflow\/|test\/commands\/(workflow_commands|plan_command|report_command)_test\.dart)/)) {
+              addArea('area:workflow', 'dart test test/commands/workflow_commands_test.dart test/commands/plan_command_test.dart test/commands/report_command_test.dart');
+            }
+            if (fileMatches(/^(lib\/src\/platform\/platform_target_commands\.dart|test\/commands\/platform_target_commands_test\.dart)/)) {
+              addArea('area:devices', 'dart test test/commands/platform_target_commands_test.dart');
             }
             if (fileMatches(/^(lib\/src\/schema\/|test\/schema\/|doc\/schema)/)) {
               addArea('area:schema', 'dart test test/schema');
             }
-            if (fileMatches(/^(lib\/src\/platform\/|test\/platform\/|test\/commands\/platform_|test\/commands\/flutter_|bin\/fluohf\.dart)/)) {
-              addArea('area:platform', 'dart test test/platform test/commands/platform_commands_test.dart test/commands/flutter_command_test.dart');
+            if (fileMatches(/^(lib\/src\/platform\/ohos\/|lib\/src\/platform\/platform_environment\.dart|test\/platform\/|test\/commands\/flutter_|bin\/fluohf\.dart)/)) {
+              addArea('area:platform', 'dart test test/platform test/commands/platform_target_commands_test.dart test/commands/flutter_command_test.dart');
             }
             if (fileMatches(/^(lib\/src\/doctor\/|test\/commands\/doctor_)/)) {
               addArea('area:doctor', 'dart test test/commands/doctor_command_test.dart');
@@ -177,8 +198,14 @@ jobs:
             if (fileNames.includes('lib/src/deps/pubspec_dependency_editor.dart')) {
               highReasons.push('Pubspec rewrite behavior changed');
             }
+            if (fileNames.includes('lib/src/project/create_command.dart')) {
+              highReasons.push('Project creation command changed');
+            }
             if (fileMatches(/^lib\/src\/package\/(commands\/package_(create|sync|release)_command\.dart|package_workflow_runner\.dart|release_validator\.dart|manifest\/)/)) {
               highReasons.push('Package create, sync, release, or manifest workflow changed');
+            }
+            if (fileMatches(/^lib\/src\/workflow\/commands\//)) {
+              highReasons.push('Workflow command behavior changed');
             }
             if (jsonContractImpact) {
               highReasons.push('JSON or machine-output contract may have changed');

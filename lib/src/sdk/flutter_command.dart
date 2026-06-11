@@ -41,8 +41,7 @@ class FlutterCommand extends Command<int> {
   String get name => 'flutter';
 
   @override
-  String get description =>
-      "Run the selected Flutter OHOS SDK's flutter command.";
+  String get description => "Run the selected FlutterOH SDK's flutter command.";
 
   @override
   String get invocation => _invocation;

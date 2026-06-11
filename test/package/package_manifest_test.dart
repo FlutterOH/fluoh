@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
-  test('builds release tags from the Flutter OHOS SDK line', () {
+  test('builds release tags from the FlutterOH SDK line', () {
     expect(
       packageReleaseTagForPackage(
         packageName: 'image_gallery_saver',
@@ -36,7 +36,7 @@ void main() {
     expect(secondPatch, firstPatch);
   });
 
-  test('builds package branches from the Flutter OHOS baseline version', () {
+  test('builds package branches from the FlutterOH baseline version', () {
     expect(flutterOhosBranchForSdk('3.35.8-ohos-0.0.3'), 'ohos/3.35');
     expect(flutterOhosBranchForSdk('3.35.8-ohos-0.0.4'), 'ohos/3.35');
   });

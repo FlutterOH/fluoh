@@ -5,8 +5,8 @@ import 'package:args/command_runner.dart';
 
 import '../clean/clean_command.dart';
 import '../context/fluoh_environment.dart';
-import '../deps/commands/deps_command.dart';
 import '../doctor/doctor_command.dart';
+import '../deps/commands/deps_command.dart';
 import '../package/commands/package_command.dart';
 import '../platform/platform_target_commands.dart';
 import '../project/create_command.dart';
@@ -16,7 +16,9 @@ import '../source/source_commands.dart';
 import '../source/source_runtime.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
-import '../workflow/workflow_commands.dart';
+import '../workflow/commands/plan_command.dart';
+import '../workflow/commands/report_command.dart';
+import '../workflow/commands/workflow_commands.dart';
 import 'command_suggestions.dart';
 import 'command_usage.dart';
 import 'machine_output.dart';
@@ -100,7 +102,7 @@ class FluohCommandRunner extends CommandRunner<int> {
        ),
        super(
          executableName,
-         'CLI for Flutter OHOS SDKs and package workflows.',
+         'CLI for FlutterOH SDKs, projects, and package adaptation workflows.',
          usageLineLength: fluohUsageLineLength(),
          suggestionDistanceLimit: 0,
        ) {
@@ -158,6 +160,7 @@ class FluohCommandRunner extends CommandRunner<int> {
         output: _output,
       ),
     );
+    addCommand(PlanCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
       PackageCommand(
         environment: env,
@@ -179,12 +182,15 @@ class FluohCommandRunner extends CommandRunner<int> {
       EmulatorsCommand(environment: env, stdout: _stdout, output: _output),
     );
     addCommand(
-      AutomateCommand(
+      DriveCommand(
         environment: env,
         stdout: _stdout,
         stderr: _stderr,
         output: _output,
       ),
+    );
+    addCommand(
+      ReportCommand(environment: env, stdout: _stdout, output: _output),
     );
     addCommand(
       UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
@@ -232,7 +238,9 @@ class FluohCommandRunner extends CommandRunner<int> {
   Future<int> run(Iterable<String> args) async {
     _MachineOutputRequest? machineOutputRequest;
     try {
-      final results = parse(args);
+      final arguments = args.toList(growable: false);
+      _throwUnknownLeadingCommandUsage(arguments);
+      final results = parse(arguments);
       machineOutputRequest = _machineOutputRequest(results);
       if (results.flag('version')) {
         _printVersionInformation();
@@ -307,7 +315,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     final style = _output.style;
     _output.write(
       '${style.header('fluoh')} ${style.value(packageVersion)} - '
-      'CLI for Flutter OHOS SDKs and package workflows',
+      'CLI for FlutterOH SDKs, projects, and package adaptation workflows',
     );
     _output.write('${style.label('Dart')} $dartVersion');
     _output.write(
@@ -318,6 +326,25 @@ class FluohCommandRunner extends CommandRunner<int> {
       '${style.label('Repository')} '
       '${style.url('https://github.com/FlutterOH/fluoh')}',
     );
+  }
+
+  void _throwUnknownLeadingCommandUsage(List<String> args) {
+    if (args.isEmpty) {
+      return;
+    }
+    final requested = args.first;
+    if (requested.startsWith('-') ||
+        requested == 'help' ||
+        commands.containsKey(requested)) {
+      return;
+    }
+
+    final suggestions = commandSuggestionsText(
+      requested,
+      commands.values,
+      commandPrefix: executableName,
+    );
+    usageException('Could not find a command named "$requested".$suggestions');
   }
 
   void _throwUnknownCommandUsage(ArgResults results) {
@@ -356,10 +383,14 @@ class FluohCommandRunner extends CommandRunner<int> {
       }
       commandString = '$commandString ${parsedCommand.name}';
       currentResults = parsedCommand;
-      if (_hasHelpFlag(currentResults)) {
+      availableCommands = command.subcommands;
+      if (_hasHelpFlag(currentResults) &&
+          _helpDoesNotHideUnknownSubcommand(
+            currentResults,
+            availableCommands,
+          )) {
         return;
       }
-      availableCommands = command.subcommands;
     }
   }
 
@@ -416,8 +447,7 @@ _MachineOutputRequest? _machineOutputRequest(ArgResults results) {
     return null;
   }
   if (!current.options.contains('json') || !current.flag('json')) {
-    if (commandParts.length == 1 &&
-        commandParts.single == 'create' &&
+    if (_pathEquals(commandParts, const ['create']) &&
         _createCommandRequestsJson(current.arguments)) {
       return _MachineOutputRequest(commandParts.join(' '));
     }
@@ -439,17 +469,25 @@ bool _createCommandRequestsJson(List<String> arguments) {
 }
 
 const _topLevelCommandSections = [
-  CommandUsageSection('Fluoh', [
+  CommandUsageSection('Core', [
     'skill',
-    'flutter',
     'doctor',
+    'flutter',
     'clean',
     'upgrade',
   ]),
-  CommandUsageSection('Project', ['create', 'deps', 'verify', 'build', 'run']),
-  CommandUsageSection('SDK & Sources', ['sdk', 'source']),
+  CommandUsageSection('SDK & Metadata', ['sdk', 'source']),
+  CommandUsageSection('Project', ['create', 'deps']),
   CommandUsageSection('Package', ['package']),
-  CommandUsageSection('Tools & Devices', ['automate', 'devices', 'emulators']),
+  CommandUsageSection('Workflow', [
+    'plan',
+    'verify',
+    'build',
+    'run',
+    'drive',
+    'report',
+  ]),
+  CommandUsageSection('Devices', ['devices', 'emulators']),
 ];
 
 bool _usesSourceConfiguration(ArgResults results) {
@@ -471,10 +509,12 @@ bool _usesSourceConfiguration(ArgResults results) {
         'doctor',
         'create',
         'deps',
+        'plan',
         'verify',
         'build',
         'run',
-        'automate',
+        'drive',
+        'report',
         'package',
       }.contains(commandName);
 }
@@ -508,6 +548,16 @@ bool _hasHelpFlag(ArgResults results) {
   }
   final command = results.command;
   return command != null && _hasHelpFlag(command);
+}
+
+bool _helpDoesNotHideUnknownSubcommand(
+  ArgResults results,
+  Map<String, Command<int>> subcommands,
+) {
+  if (results.command != null || results.rest.isEmpty) {
+    return true;
+  }
+  return subcommands.containsKey(results.rest.first);
 }
 
 bool _repairsSourceSnapshots(ArgResults results) {

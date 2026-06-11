@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
-  test('uses an SDK version and writes fluoh project config', () async {
+  test('uses an SDK version and writes fluoh.yaml selection', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
@@ -35,11 +35,11 @@ void main() {
     expect(
       stdout,
       contains(
-        'Flutter OHOS SDK path: '
+        'FlutterOH SDK path: '
         '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
       ),
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
+    expect(stdout, contains('Using FlutterOH SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
 
     final fluohConfig = File(
@@ -366,7 +366,7 @@ flutter_*.log
       File('${existingSdk.path}/README.md').readAsStringSync(),
       'existing sdk',
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
+    expect(stdout, contains('Using FlutterOH SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
   });
 
@@ -458,7 +458,7 @@ custom:
       pathEntries.first,
       '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3/bin',
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.8-ohos-0.0.3'));
+    expect(stdout, contains('Using FlutterOH SDK 3.35.8-ohos-0.0.3'));
     expect(stderr, isEmpty);
   });
 

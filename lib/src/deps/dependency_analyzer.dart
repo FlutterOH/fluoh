@@ -12,7 +12,7 @@ export '../schema/schema.dart'
     show
         DependencyCompatibility,
         DependencyStatus,
-        LockedPackage,
+        PubLockPackage,
         DependencyReport;
 
 /// Analyzes project dependencies against configured FlutterOH Sources.

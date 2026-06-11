@@ -54,7 +54,7 @@ const sourceRootYamlTemplate = '''
 schema: 1
 kind: source
 name: flutteroh
-description: Flutter OHOS SDK and package adaptation source.
+description: FlutterOH SDK and package adaptation source.
 
 # repository:
 #   git:

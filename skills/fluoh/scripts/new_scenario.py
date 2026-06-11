@@ -104,27 +104,27 @@ def run_command_for(
     session_part = f" --session-file {session_file}" if session_file else ""
     if app:
         if platform == "ohos":
-            return f"fluoh run --platform ohos --auto-emulator{session_part} --json"
+            return f"fluoh run ohos --auto-emulator{session_part} --json"
         if platform in {"android", "ios"}:
-            return f"fluoh run --platform {platform} --auto-emulator{session_part} --json"
+            return f"fluoh run {platform} --auto-emulator{session_part} --json"
         if platform in {"macos", "linux", "windows"}:
-            return f"fluoh run --platform {platform}{session_part} --json"
+            return f"fluoh run {platform}{session_part} --json"
         if platform == "web":
             return (
-                f"fluoh run --platform web --device web-server{session_part} --json"
+                f"fluoh run web --device-id web-server{session_part} --json"
             )
-        return f"fluoh run --platform {platform} --device <id>{session_part} --json"
+        return f"fluoh run {platform} --device-id <id>{session_part} --json"
     package_part = f" --package {package}" if package else " --package <name>"
     if platform == "ohos":
-        return f"fluoh run --platform ohos{package_part} --auto-emulator{session_part} --json"
+        return f"fluoh run ohos{package_part} --auto-emulator{session_part} --json"
     if platform in {"android", "ios"}:
-        return f"fluoh run --platform {platform}{package_part} --auto-emulator{session_part} --json"
+        return f"fluoh run {platform}{package_part} --auto-emulator{session_part} --json"
     if platform == "web":
         return (
-            f"fluoh run --platform web{package_part} "
-            f"--device web-server{session_part} --json"
+            f"fluoh run web{package_part} "
+            f"--device-id web-server{session_part} --json"
         )
-    return f"fluoh run --platform {platform}{package_part}{session_part} --json"
+    return f"fluoh run {platform}{package_part}{session_part} --json"
 
 
 def session_file_for(scope: str, platform: str) -> str:

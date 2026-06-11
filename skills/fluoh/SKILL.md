@@ -195,7 +195,7 @@ Use this loop for app and package work:
 7. Write and check the report before the final response.
 
 Launch success is smoke evidence. Release-ready interaction evidence must come
-from `integration_test`, `fluoh automate --scenario <path> --json`, or
+from `integration_test`, `fluoh drive --scenario <path> --json`, or
 manual-assisted tool-readable verification with a concrete blocker or result.
 Do not rely on screenshot recognition as the primary assertion.
 

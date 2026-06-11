@@ -26,7 +26,7 @@ void main() {
 
     expect(exitCode, 0);
     expect(stdout, [
-      'fluoh $packageVersion - CLI for Flutter OHOS SDKs and package workflows',
+      'fluoh $packageVersion - CLI for FlutterOH SDKs, projects, and package adaptation workflows',
       'Dart $dartVersion',
       'Platform ${io.Platform.operatingSystem} $platformVersion',
       'Repository https://github.com/FlutterOH/fluoh',
@@ -529,6 +529,30 @@ dependencies:
     expect(output, contains('  fluoh doctor\n\nUsage:'));
   });
 
+  test(
+    'reports unknown leading commands before a valid command name',
+    () async {
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      final exitCode = await runFluoh(
+        ['project', 'create', 'demo_app'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(exitCode, 64);
+      expect(stdout, isEmpty);
+      final output = stderr.join('\n');
+      expect(output, contains('Could not find a command named "project".'));
+      expect(
+        output,
+        isNot(contains('Cannot specify arguments before a command')),
+      );
+      expect(output, contains('Usage: fluoh <command> [arguments]'));
+    },
+  );
+
   test('suggests similar subcommand names', () async {
     final stdout = <String>[];
     final stderr = <String>[];
@@ -551,26 +575,71 @@ dependencies:
     expect(output, contains('  fluoh deps check\n\nUsage:'));
   });
 
-  test(
-    'prints parent command help instead of suggestions when help is set',
-    () async {
-      final stdout = <String>[];
-      final stderr = <String>[];
+  test('reports unknown subcommands even when help is set', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      final exitCode = await runFluoh(
-        ['deps', '--help', 'udpate'],
-        stdout: stdout.add,
-        stderr: stderr.add,
-      );
+    final depsExitCode = await runFluoh(
+      ['deps', '--help', 'udpate'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final depsOutput = stderr.join('\n');
 
-      expect(exitCode, 0);
-      final output = stdout.join('\n');
-      expect(output, contains('Manage FlutterOH project dependencies.'));
-      expect(output, contains('Usage: fluoh deps <subcommand> [arguments]'));
-      expect(output, isNot(contains('Did you mean one of these?')));
-      expect(stderr, isEmpty);
-    },
-  );
+    expect(depsExitCode, 64);
+    expect(stdout, isEmpty);
+    expect(
+      depsOutput,
+      contains('Could not find a subcommand named "udpate" for "fluoh deps".'),
+    );
+    expect(depsOutput, contains('Did you mean one of these?'));
+    expect(depsOutput, contains('  fluoh deps upgrade'));
+
+    stderr.clear();
+    final reportExitCode = await runFluoh(
+      ['report', 'compose', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final reportOutput = stderr.join('\n');
+
+    expect(reportExitCode, 64);
+    expect(stdout, isEmpty);
+    expect(
+      reportOutput,
+      contains(
+        'Could not find a subcommand named "compose" for "fluoh report".',
+      ),
+    );
+  });
+
+  test('keeps help available for valid parent and leaf commands', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final depsExitCode = await runFluoh(
+      ['deps', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final depsOutput = stdout.join('\n');
+
+    expect(depsExitCode, 0);
+    expect(depsOutput, contains('Usage: fluoh deps <subcommand> [arguments]'));
+    expect(stderr, isEmpty);
+
+    stdout.clear();
+    final sourceAddExitCode = await runFluoh(
+      ['source', 'add', 'fixture', 'path', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    final sourceAddOutput = stdout.join('\n');
+
+    expect(sourceAddExitCode, 0);
+    expect(sourceAddOutput, contains('Usage: fluoh source add <name>'));
+    expect(stderr, isEmpty);
+  });
 
   test('suggests upgrade for pub update-style command typos', () async {
     final stdout = <String>[];
@@ -720,9 +789,12 @@ dependencies:
     expect(exitCode, 0);
     expect(stdout.join('\n'), contains('create'));
     expect(stdout.join('\n'), contains('deps'));
+    expect(stdout.join('\n'), contains('plan'));
     expect(stdout.join('\n'), contains('verify'));
     expect(stdout.join('\n'), contains('build'));
     expect(stdout.join('\n'), contains('run'));
+    expect(stdout.join('\n'), contains('drive'));
+    expect(stdout.join('\n'), contains('report'));
     expect(stdout.join('\n'), contains('package'));
     expect(stderr, isEmpty);
   });
@@ -755,25 +827,28 @@ dependencies:
     expect(exitCode, 0);
     final help = stdout.join('\n');
     _expectInOrder(help, [
-      'Fluoh',
+      'Core',
       '  skill',
-      '  flutter',
       '  doctor',
+      '  flutter',
       '  clean',
       '  upgrade',
+      '\nSDK & Metadata\n',
+      '  sdk',
+      '  source',
       'Project',
       '  create',
       '  deps',
+      'Package',
+      '  package',
+      'Workflow',
+      '  plan',
       '  verify',
       '  build',
       '  run',
-      '\nSDK & Sources\n',
-      '  sdk',
-      '  source',
-      'Package',
-      '  package',
-      'Tools & Devices',
-      '  automate',
+      '  drive',
+      '  report',
+      'Devices',
       '  devices',
       '  emulators',
     ]);
@@ -809,6 +884,18 @@ dependencies:
     stdout.clear();
     expect(
       await runFluoh(
+        ['plan', '--help'],
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    help = stdout.join('\n');
+    _expectInOrder(help, ['Adaptation plans:', '  app', '  package']);
+
+    stdout.clear();
+    expect(
+      await runFluoh(
         ['package', '--help'],
         stdout: stdout.add,
         stderr: stderr.add,
@@ -819,7 +906,7 @@ dependencies:
     _expectInOrder(help, [
       'Source packages:',
       '  list',
-      'Upstream planning:',
+      'Planning:',
       '  discover',
       '  queue',
       'Repository setup:',
@@ -827,6 +914,8 @@ dependencies:
       '  add',
       '  sync',
       '  docs',
+      'Handoff:',
+      '  handoff',
       'Release:',
       '  status',
       '  version',
@@ -860,7 +949,7 @@ dependencies:
       0,
     );
     help = stdout.join('\n');
-    expect(help, contains('Usage: fluoh build'));
+    expect(help, contains('Usage: fluoh build <platform>'));
     expect(help, contains('Build a FlutterOH project or package example.'));
     expect(help, contains('Generate temporary OHOS debug signing'));
     expect(help, contains('project or package example.'));
@@ -967,7 +1056,7 @@ dependencies:
     _expectInOrder(help, [
       'Source packages:',
       '  list',
-      'Upstream planning:',
+      'Planning:',
       '  discover',
       '  queue',
       'Repository setup:',
@@ -975,6 +1064,8 @@ dependencies:
       '  add',
       '  sync',
       '  docs',
+      'Handoff:',
+      '  handoff',
       'Release:',
       '  status',
       '  version',

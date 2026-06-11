@@ -11,8 +11,13 @@
 
 - [ ] CLI behavior
 - [ ] JSON contract
-- [ ] Pubspec, Source, or package metadata
-- [ ] SDK, platform, build, run, or doctor workflow
+- [ ] SDK, Source, or Flutter wrapper workflow
+- [ ] Project creation or dependency workflow
+- [ ] Package repository workflow
+- [ ] App workflow: plan, verify, build, run, drive, or report
+- [ ] Devices, emulators, or platform tooling
+- [ ] Doctor, clean, upgrade, or skill command
+- [ ] Pubspec, Source, package, or release metadata
 - [ ] Documentation, generated guidance, or release artifacts
 - [ ] GitHub automation, publishing, or packaging
 

@@ -74,7 +74,7 @@ PackageReleaseTag parsePackageReleaseTag(String tag) {
 String flutterOhosVersionFromSdkVersion(String sdkVersion) {
   final match = RegExp(r'^(\d+\.\d+\.\d+-ohos)-.+$').firstMatch(sdkVersion);
   if (match == null) {
-    throw FormatException('Invalid Flutter OHOS SDK version: $sdkVersion');
+    throw FormatException('Invalid FlutterOH SDK version: $sdkVersion');
   }
   return match.group(1)!;
 }
@@ -88,7 +88,7 @@ String sdkVersionSeriesFromSdkVersion(String sdkVersion) {
 String sdkLineFromSdkVersion(String sdkVersion) {
   final match = _completeFlutterOhosSdkVersion.firstMatch(sdkVersion);
   if (match == null) {
-    throw FormatException('Invalid Flutter OHOS SDK version: $sdkVersion');
+    throw FormatException('Invalid FlutterOH SDK version: $sdkVersion');
   }
   return '${match.group(1)}.${match.group(2)}';
 }
@@ -97,7 +97,7 @@ String sdkLineFromSdkVersion(String sdkVersion) {
 String flutterVersionFromSdkVersion(String version) {
   final match = RegExp(r'^(\d+\.\d+\.\d+)-ohos-.+$').firstMatch(version);
   if (match == null) {
-    throw FormatException('Invalid Flutter OHOS SDK version: $version');
+    throw FormatException('Invalid FlutterOH SDK version: $version');
   }
   return match.group(1)!;
 }

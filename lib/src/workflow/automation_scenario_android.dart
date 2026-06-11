@@ -8,6 +8,33 @@ class _AndroidAutomationScenarioDriver
   String get platform => 'android';
 
   @override
+  Set<String> get supportedActions => const {
+    'allowPermission',
+    'assertLog',
+    'assertSession',
+    'assertText',
+    'clearAppData',
+    'denyPermission',
+    'drag',
+    'inputText',
+    'launchApp',
+    'press',
+    'swipe',
+    'tap',
+    'tapText',
+    'wait',
+    'waitText',
+  };
+
+  @override
+  List<String> get evidenceMethods => const [
+    'adb shell input',
+    'uiautomator window dump',
+    'Android logcat',
+    'flutterRunSession JSON',
+  ];
+
+  @override
   Future<AutomationScenarioActionResult> runAction(
     AutomationScenarioAction action, {
     required _ScenarioExecutionContext context,
@@ -151,13 +178,7 @@ class _AndroidAutomationScenarioDriver
       case 'wait':
         return _waitAction(action);
       default:
-        return _failedAction(
-          action,
-          'Android action ${action.action} is not supported',
-          repairHints: [
-            'Use integration_test for this interaction, or add a supported scenario action.',
-          ],
-        );
+        return unsupportedAction(action);
     }
   }
 }

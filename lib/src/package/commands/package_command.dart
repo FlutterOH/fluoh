@@ -8,6 +8,7 @@ import 'package_add_command.dart';
 import 'package_create_command.dart';
 import 'package_discover_command.dart';
 import 'package_docs_command.dart';
+import 'package_handoff_command.dart';
 import 'package_list_command.dart';
 import 'package_queue_command.dart';
 import 'package_release_command.dart';
@@ -89,6 +90,13 @@ class PackageCommand extends FluohCommand<int> {
       ),
     );
     addSubcommand(
+      PackageHandoffCommand(
+        environment: environment,
+        stdout: stdout,
+        output: _output,
+      ),
+    );
+    addSubcommand(
       PackageDocsCommand(
         environment: environment,
         stdout: stdout,
@@ -148,7 +156,8 @@ class PackageCommand extends FluohCommand<int> {
 
 const _packageCommandSections = [
   CommandUsageSection('Source packages:', ['list']),
-  CommandUsageSection('Upstream planning:', ['discover', 'queue']),
+  CommandUsageSection('Planning:', ['discover', 'queue']),
   CommandUsageSection('Repository setup:', ['create', 'add', 'sync', 'docs']),
+  CommandUsageSection('Handoff:', ['handoff']),
   CommandUsageSection('Release:', ['status', 'version', 'check', 'release']),
 ];

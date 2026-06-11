@@ -43,7 +43,7 @@ class CreateCommand extends Command<int> {
   String get name => 'create';
 
   @override
-  String get description => 'Create a Flutter project with a Flutter OHOS SDK.';
+  String get description => 'Create a Flutter project with a FlutterOH SDK.';
 
   @override
   String get invocation => 'fluoh create [--sdk <version-or-series>] <args>';
@@ -65,7 +65,7 @@ class CreateCommand extends Command<int> {
       '',
       'Usage: $invocation',
       '-h, --help                 Print this usage information.',
-      '--sdk <version-or-series>  Flutter OHOS SDK to use. Defaults to the latest stable SDK.',
+      '--sdk <version-or-series>  FlutterOH SDK to use. Defaults to the latest stable SDK.',
       '--json                     Print a machine-readable create report.',
       '',
       'All other arguments are passed to `flutter create`.',
@@ -81,7 +81,7 @@ class CreateCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final rawArguments = argResults!.arguments;
+    final rawArguments = argResults!.rest;
     late final _CreateArguments parsed;
     try {
       parsed = _parseCreateArguments(rawArguments);
@@ -166,7 +166,7 @@ class CreateCommand extends Command<int> {
         );
       } else {
         createResult = await _output.withProgress(
-          'Running flutter create with Flutter OHOS SDK ${sdk.version}',
+          'Running flutter create with FlutterOH SDK ${sdk.version}',
           () => _runFlutterCreate(
             flutter,
             parsed.flutterArguments,
@@ -250,7 +250,7 @@ class CreateCommand extends Command<int> {
       );
       return 0;
     }
-    _output.info('Flutter OHOS SDK: ${_output.style.path(sdk.directory.path)}');
+    _output.info('FlutterOH SDK: ${_output.style.path(sdk.directory.path)}');
     _output.info('Project: ${_output.style.path(targetDirectory.path)}');
     _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}');
     _output.success('Created FlutterOH project with SDK ${sdk.version}');
@@ -300,7 +300,7 @@ class CreateCommand extends Command<int> {
       );
     }
     throw UsageException(
-      'No Flutter OHOS SDK was found. Run "fluoh source update" or pass --sdk after installing an SDK.',
+      'No FlutterOH SDK was found. Run "fluoh source update" or pass --sdk after installing an SDK.',
       usage,
     );
   }
@@ -316,8 +316,8 @@ class CreateCommand extends Command<int> {
     }
     return _output.withProgress(
       installed
-          ? 'Using Flutter OHOS SDK ${release.tag}'
-          : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+          ? 'Using FlutterOH SDK ${release.tag}'
+          : 'Installing FlutterOH SDK ${release.tag}; this may take a while.',
       () => manager.install(release),
       showWhenPlain: true,
     );

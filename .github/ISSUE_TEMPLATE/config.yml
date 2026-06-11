@@ -5,4 +5,4 @@ contact_links:
     about: Check the command behavior, JSON contract, and local state rules before filing an issue.
   - name: Contributing guide
     url: https://github.com/FlutterOH/fluoh/blob/main/CONTRIBUTING.md
-    about: Read local development, verification, commit, release, and package workflow guidance.
+    about: Read local development, verification, commit, release, and project or package workflow guidance.

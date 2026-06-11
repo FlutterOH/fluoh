@@ -129,7 +129,7 @@ def is_ohos_build_evidence(row: dict[str, str]) -> bool:
     command = row["command"]
     return (
         command_contains(command, "fluoh build")
-        and "--platform ohos" in command
+        and re.search(r"(^|\s)fluoh\s+build\s+ohos(\s|$)", command) is not None
         and "--auto-sign" in command
         and "--json" in command
     )
@@ -139,7 +139,7 @@ def is_ohos_run_evidence(row: dict[str, str]) -> bool:
     command = row["command"]
     return (
         command_contains(command, "fluoh run")
-        and "--platform ohos" in command
+        and re.search(r"(^|\s)fluoh\s+run\s+ohos(\s|$)", command) is not None
         and "--json" in command
     )
 
@@ -147,7 +147,7 @@ def is_ohos_run_evidence(row: dict[str, str]) -> bool:
 def is_automation_evidence(row: dict[str, str]) -> bool:
     command = row["command"]
     return (
-        command_contains(command, "fluoh automate")
+        command_contains(command, "fluoh drive")
         and "--json" in command
         and not contains_shell_token(command, "--dry-run")
         and not contains_shell_token(command, "-n")
@@ -404,11 +404,11 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         errors.append("Ready reports must include passed OHOS build or run evidence.")
     if recommendation == "ready" and require_ohos_run and not passed_ohos_run:
         errors.append(
-            "Ready reports must include passed fluoh run --platform ohos evidence."
+            "Ready reports must include passed fluoh run ohos evidence."
         )
     passed_automation = any(is_automation_evidence(row) for row in passed_command_rows)
     if recommendation == "ready" and not passed_automation:
-        errors.append("Ready reports must include passed fluoh automate --json evidence.")
+        errors.append("Ready reports must include passed fluoh drive --json evidence.")
 
     coverage_rows = automation_coverage_rows(content)
     coverage_status = automation_coverage_status(content)
@@ -420,7 +420,7 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     ]
     if recommendation == "ready" and not coverage_rows:
         errors.append(
-            "Automation Coverage must include concrete gate rows from fluoh automate --dry-run --json or real run JSON."
+            "Automation Coverage must include concrete gate rows from fluoh drive --dry-run --json or real run JSON."
         )
     if recommendation == "ready":
         reported_gates = {row["gate"] for row in coverage_rows}
@@ -538,7 +538,7 @@ def main() -> int:
     parser.add_argument(
         "--require-ohos-run",
         action="store_true",
-        help="Require passed fluoh run --platform ohos evidence for ready reports.",
+        help="Require passed fluoh run ohos evidence for ready reports.",
     )
     args = parser.parse_args()
     result = validate(

@@ -175,7 +175,7 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Package Repository Workflow Maintenance
 
-`fluoh package create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a Flutter OHOS package branch such as `ohos/3.35/camera`, sets `origin` to the final package repository push target, and configures the selected Flutter OHOS SDK environment. The default repository URL is derived from the package name:
+`fluoh package create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a FlutterOH package branch such as `ohos/3.35/camera`, sets `origin` to the final package repository push target, and configures the selected FlutterOH SDK environment. The default repository URL is derived from the package name:
 
 ```sh
 https://github.com/FlutterOH/<package>.git

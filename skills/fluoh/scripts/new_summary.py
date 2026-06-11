@@ -173,7 +173,7 @@ def build_summary(root: Path, scope: str, packages: list[str], sdk: str) -> str:
             "## Next Actions",
             "",
             "- Finish one package branch checkpoint before moving to the next package.",
-            "- Keep the latest upstream target and adapt package config/code to the selected FlutterOH SDK unless maintainers explicitly approve an older baseline.",
+            "- Keep the latest upstream target and plan package config/code to the selected FlutterOH SDK unless maintainers explicitly approve an older baseline.",
             "- Link each completed package report from the Package Matrix.",
             "",
         ]

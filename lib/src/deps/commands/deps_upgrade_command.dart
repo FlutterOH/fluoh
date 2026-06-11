@@ -5,13 +5,13 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
-import '../dependency_plan.dart';
-import '../dependency_policy.dart';
-import '../pubspec_dependency_editor.dart';
+import '../../deps/dependency_plan.dart';
+import '../../deps/dependency_policy.dart';
+import '../../deps/pubspec_dependency_editor.dart';
 
 /// Upgrades existing FlutterOH dependency replacement refs.
 class DepsUpgradeCommand extends FluohCommand<int> {
-  /// Creates the dependency replacement upgrade command.
+  /// Creates the project dependency replacement upgrade command.
   DepsUpgradeCommand({
     required this.environment,
     required OutputWriter stdout,

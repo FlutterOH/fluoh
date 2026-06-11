@@ -77,14 +77,14 @@ fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
 fluoh doctor -p --platform ohos
-fluoh build --platform ohos --auto-sign
+fluoh build ohos --auto-sign
 ```
 
-先检查 `deps fix --dry-run` 输出，再执行 `deps fix`。
+先检查 `fluoh deps fix --dry-run` 输出，再执行 `fluoh deps fix`。
 
 ### 新建 Flutter App
 
-先用 Flutter OHOS SDK 创建项目，再进入生成的项目根目录继续：
+先用 FlutterOH SDK 创建项目，再进入生成的项目根目录继续：
 
 ```sh
 fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos
@@ -94,7 +94,7 @@ fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
 fluoh doctor -p --platform ohos
-fluoh build --platform ohos --auto-sign
+fluoh build ohos --auto-sign
 ```
 
 ### Package 维护者
@@ -106,7 +106,7 @@ fluoh package discover <upstream-git-url>
 fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 cd <flutteroh-repo-name>
 fluoh verify --package <name>
-fluoh run --platform ohos --package <name> --auto-emulator
+fluoh run ohos --package <name> --auto-emulator
 fluoh package status --package <name>
 ```
 

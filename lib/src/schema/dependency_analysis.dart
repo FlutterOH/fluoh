@@ -456,7 +456,7 @@ DependencyPlanEntry _entryFor(
       dependency: dependency,
       status: DependencyPlanStatus.sdkMismatch,
       reason:
-          'OHOS implementations exist, but not for the selected Flutter OHOS SDK.',
+          'OHOS implementations exist, but not for the selected FlutterOH SDK.',
     ),
     DependencyStatus.unknown => DependencyPlanEntry(
       dependency: dependency,
@@ -629,7 +629,7 @@ String _reasonForDependencyStatus(DependencyStatus status) {
     DependencyStatus.incompatibleVersion =>
       'OHOS implementation upstream version differs.',
     DependencyStatus.sdkMismatch =>
-      'OHOS implementations exist, but not for the selected Flutter OHOS SDK.',
+      'OHOS implementations exist, but not for the selected FlutterOH SDK.',
     DependencyStatus.unknown => 'No known OHOS implementation is available.',
     DependencyStatus.blocked =>
       'Configured sources mark this package as blocked for OHOS.',

@@ -13,7 +13,7 @@ import '../../package/manifest/pubspec_package.dart';
 
 /// Runs `flutter pub get` for a project and package repository examples.
 class DepsGetCommand extends Command<int> {
-  /// Creates the dependency fetch command.
+  /// Creates the project dependency fetch command.
   DepsGetCommand({
     required this.environment,
     required OutputWriter stdout,
@@ -171,7 +171,7 @@ class DepsGetCommand extends Command<int> {
   }
 
   bool _isHelpRequest(List<String> arguments) {
-    return arguments.length == 1 &&
-        const {'help', '-h', '--help'}.contains(arguments.single);
+    return arguments.any(const {'-h', '--help'}.contains) ||
+        arguments.length == 1 && arguments.single == 'help';
   }
 }

@@ -81,7 +81,7 @@ class SourceCommand extends FluohCommand<int> {
   String get name => 'source';
 
   @override
-  String get description => 'Manage FlutterOH data sources.';
+  String get description => 'Manage FlutterOH package metadata sources.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -115,17 +115,13 @@ class SourceCommand extends FluohCommand<int> {
 }
 
 const _sourceCommandSections = [
-  CommandUsageSection('Use configured sources:', [
+  CommandUsageSection('Configured sources:', [
     'list',
     'add',
     'remove',
     'update',
   ]),
-  CommandUsageSection('Maintain source repositories:', [
-    'init',
-    'sync',
-    'check',
-  ]),
+  CommandUsageSection('Source repositories:', ['init', 'sync', 'check']),
 ];
 
 /// Lists configured Source entries.
@@ -393,20 +389,37 @@ class SourceSyncCommand extends FluohCommand<int> {
       );
       final openedRepositories = <_SourceManifestRepository>[];
       repositories = openedRepositories;
+      final tagsByRepository = <String, Set<String>>{};
+      for (final item in plan) {
+        if (item.tagsToSync.isEmpty) {
+          continue;
+        }
+        tagsByRepository
+            .putIfAbsent(item.resolvedRepository, () => <String>{})
+            .addAll(item.tagsToSync);
+      }
+      final repositoryCache = <String, _SourceManifestRepository>{};
       final syncPackages = <_SourceSyncPackage>[];
       for (var index = 0; index < plan.length; index += 1) {
         final item = plan[index];
         if (item.tagsToSync.isEmpty) {
           continue;
         }
-        final repository = await _sourceManifestRepository(
-          name: item.manifestName,
-          source: source,
-          url: item.repository,
-        );
-        openedRepositories.add(repository);
+        var repository = repositoryCache[item.resolvedRepository];
+        if (repository == null) {
+          final tagsToFetch =
+              tagsByRepository[item.resolvedRepository]!.toList()..sort();
+          repository = await _sourceManifestRepository(
+            url: item.resolvedRepository,
+            displayPath: _syncRepositoryDisplayPath(item),
+            tags: tagsToFetch,
+          );
+          repositoryCache[item.resolvedRepository] = repository;
+          openedRepositories.add(repository);
+        }
         final released = await _releasedSourcePackages(
           repository,
+          sourceManifestName: item.manifestName,
           tags: item.tagsToSync,
           packageFilters: packageFilters,
           expectedPackagePath: item.packagePath,
@@ -497,7 +510,7 @@ class SourceSyncCommand extends FluohCommand<int> {
           } else {
             _output.success(
               'Synced source metadata for ${result.packageName} from '
-              '${_output.style.path(item.repository.path)}',
+              '${_output.style.path(item.repository)}',
             );
           }
         }
@@ -620,35 +633,20 @@ class SourceSyncCommand extends FluohCommand<int> {
   }
 
   Future<_SourceManifestRepository> _sourceManifestRepository({
-    required String name,
-    required Directory source,
     required String url,
+    required String displayPath,
+    required List<String> tags,
   }) async {
-    final local = localSourceDirectoryFromUrl(url);
-    if (local != null) {
-      final directory = local.isAbsolute
-          ? local
-          : Directory('${source.path}/${local.path}');
-      await _ensureLocalPackageRepository(directory, url);
-      return _SourceManifestRepository(name: name, path: directory);
-    }
-
-    final directory = Directory(url);
-    if (directory.isAbsolute) {
-      await _ensureLocalPackageRepository(directory, url);
-      return _SourceManifestRepository(name: name, path: directory);
-    }
-
-    if (!_looksLikeRemoteGitUrl(url)) {
-      final sourceRelative = Directory('${source.path}/$url');
-      await _ensureLocalPackageRepository(sourceRelative, url);
-      return _SourceManifestRepository(name: name, path: sourceRelative);
-    }
-
     final temp = await Directory.systemTemp.createTemp('fluoh_package_repo_');
     try {
-      await git(['clone', '--quiet', url, temp.path]);
-      return _SourceManifestRepository(name: name, path: temp, temporary: true);
+      await runGit(['init', '--quiet'], workingDirectory: temp);
+      await runGit(['remote', 'add', 'origin', url], workingDirectory: temp);
+      await _fetchRepositoryTags(temp, url: url, tags: tags);
+      return _SourceManifestRepository(
+        path: temp,
+        displayPath: displayPath,
+        temporary: true,
+      );
     } catch (_) {
       await deleteIfExists(temp);
       rethrow;
@@ -657,6 +655,7 @@ class SourceSyncCommand extends FluohCommand<int> {
 
   Future<_ReleasedSourcePackages> _releasedSourcePackages(
     _SourceManifestRepository repository, {
+    required String sourceManifestName,
     required List<String> tags,
     required Set<String> packageFilters,
     required String expectedPackagePath,
@@ -707,8 +706,8 @@ class SourceSyncCommand extends FluohCommand<int> {
       }
       packages.add(
         _SourceSyncPackage(
-          sourceManifestName: repository.name,
-          repository: repository.path,
+          sourceManifestName: sourceManifestName,
+          repository: repository.displayPath,
           manifest: manifest,
           package: package,
           releaseTag: tag,
@@ -770,31 +769,17 @@ class SourceSyncCommand extends FluohCommand<int> {
       );
     }
   }
-
-  Future<void> _ensureLocalPackageRepository(
-    Directory directory,
-    String url,
-  ) async {
-    if (!await directory.exists()) {
-      usageException('Package repository path does not exist for $url.');
-    }
-    if (!await File('${directory.path}/fluoh.yaml').exists()) {
-      usageException(
-        'Package repository ${directory.path} is missing fluoh.yaml.',
-      );
-    }
-  }
 }
 
 class _SourceManifestRepository {
   const _SourceManifestRepository({
-    required this.name,
     required this.path,
+    required this.displayPath,
     this.temporary = false,
   });
 
-  final String name;
   final Directory path;
+  final String displayPath;
   final bool temporary;
 
   Future<void> cleanup() async {
@@ -914,13 +899,13 @@ class _SourceSyncSkippedTag {
 class _SourceSyncResult {
   const _SourceSyncResult({required this.repository, required this.result});
 
-  final Directory repository;
+  final String repository;
   final _SourcePackageMetadataResult result;
 
   Map<String, Object?> toJson() {
     return {
       'package': result.packageName,
-      'repository': repository.path,
+      'repository': repository,
       'manifestPath': result.manifestPath,
       'status': result.skippedFrozen ? 'skipped' : 'synced',
       if (result.frozenReason != null) 'reason': result.frozenReason,
@@ -938,7 +923,7 @@ class _SourceSyncPackage {
   });
 
   final String sourceManifestName;
-  final Directory repository;
+  final String repository;
   final PackageManifest manifest;
   final PackageManifestPackage package;
   final String releaseTag;
@@ -985,6 +970,48 @@ Future<Set<String>> _lsRemoteReleaseTags(
     tags.add(ref);
   }
   return tags;
+}
+
+Future<void> _fetchRepositoryTags(
+  Directory repository, {
+  required String url,
+  required List<String> tags,
+}) async {
+  if (tags.isEmpty) {
+    return;
+  }
+  final refspecs = [
+    for (final tag in tags.toSet().toList(growable: false)..sort())
+      'refs/tags/$tag:refs/tags/$tag',
+  ];
+  final result = await runGit(
+    ['fetch', '--depth=1', '--no-tags', 'origin', ...refspecs],
+    workingDirectory: repository,
+    allowFailure: true,
+  );
+  if (result.exitCode == 0) {
+    return;
+  }
+  final detail = result.stderr.toString().trim();
+  throw UsageException(
+    detail.isEmpty
+        ? 'Could not fetch release tags in $url.'
+        : 'Could not fetch release tags in $url: $detail',
+    '',
+  );
+}
+
+String _syncRepositoryDisplayPath(_SourceSyncRoutePlan item) {
+  if (localSourceDirectoryFromUrl(item.repository) != null) {
+    return item.resolvedRepository;
+  }
+  if (Directory(item.repository).isAbsolute) {
+    return item.resolvedRepository;
+  }
+  if (_looksLikeRemoteGitUrl(item.repository)) {
+    return item.repository;
+  }
+  return item.resolvedRepository;
 }
 
 Set<String> _declaredReleaseTags(
@@ -1803,7 +1830,7 @@ String _localSourceMetadata() {
     '#   git:',
     '#     url: "https://github.com/FlutterOH/source.git"',
     '',
-    '# Uncomment to publish Flutter OHOS SDK versions from this source.',
+    '# Uncomment to publish FlutterOH SDK versions from this source.',
     '# sdk:',
     '#   git:',
     '#     url: "https://gitcode.com/CPF-Flutter/flutter_flutter.git"',

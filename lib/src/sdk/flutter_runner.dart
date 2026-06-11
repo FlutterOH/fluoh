@@ -54,7 +54,7 @@ Future<io.File> resolveFlutterExecutable({
   if (!await sdkDirectory.exists()) {
     final release = await manager.resolveRelease(sdkVersion);
     sdkDirectory = await output.withProgress(
-      'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+      'Installing FlutterOH SDK ${release.tag}; this may take a while.',
       () => manager.install(release),
       showWhenPlain: true,
     );

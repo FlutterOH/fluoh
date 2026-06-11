@@ -122,9 +122,12 @@ void main() {
       isNot(contains('Documentation or generated guidance changed')),
     );
     expect(prWorkflow, contains('area:sdk'));
+    expect(prWorkflow, contains('area:source'));
+    expect(prWorkflow, contains('area:project'));
     expect(prWorkflow, contains('area:deps'));
     expect(prWorkflow, contains('area:package'));
-    expect(prWorkflow, contains('area:source'));
+    expect(prWorkflow, contains('area:workflow'));
+    expect(prWorkflow, contains('area:devices'));
     expect(prWorkflow, contains('area:schema'));
     expect(prWorkflow, contains('area:platform'));
     expect(prWorkflow, contains('area:skill'));
@@ -133,7 +136,16 @@ void main() {
     expect(prWorkflow, contains('Suggested focused tests'));
     expect(prWorkflow, contains('Release metadata versions'));
     expect(prWorkflow, contains('dart pub publish --dry-run'));
+    expect(prWorkflow, contains('test/commands/create_command_test.dart'));
+    expect(prWorkflow, contains('test/commands/workflow_commands_test.dart'));
+    expect(
+      prWorkflow,
+      contains('test/commands/platform_target_commands_test.dart'),
+    );
+    expect(prWorkflow, isNot(contains('platform_commands_test.dart')));
     expect(prWorkflow, contains('lib/src/deps/pubspec_dependency_editor.dart'));
+    expect(prWorkflow, contains('lib/src/project/create_command.dart'));
+    expect(prWorkflow, contains('Workflow command behavior changed'));
     expect(prWorkflow, contains('lib/src/cli/machine_output.dart'));
     expect(prWorkflow, contains('Formula/fluoh.rb'));
 
@@ -152,9 +164,12 @@ void main() {
     expect(issueWorkflow, contains('deleteComment'));
     expect(issueWorkflow, isNot(contains('for (const label of areaLabels)')));
     expect(issueWorkflow, contains('area:sdk'));
+    expect(issueWorkflow, contains('area:source'));
+    expect(issueWorkflow, contains('area:project'));
     expect(issueWorkflow, contains('area:deps'));
     expect(issueWorkflow, contains('area:package'));
-    expect(issueWorkflow, contains('area:source'));
+    expect(issueWorkflow, contains('area:workflow'));
+    expect(issueWorkflow, contains('area:devices'));
     expect(issueWorkflow, contains('area:schema'));
     expect(issueWorkflow, contains('area:platform'));
     expect(issueWorkflow, contains('area:upgrade'));
@@ -162,6 +177,12 @@ void main() {
     expect(issueWorkflow, contains('area:release'));
     expect(issueWorkflow, contains('area:other'));
     expect(issueWorkflow, contains('fluoh\\s+sdk'));
+    expect(issueWorkflow, contains('fluoh\\s+create'));
+    expect(
+      issueWorkflow,
+      contains('fluoh\\s+(plan|verify|build|run|drive|report)'),
+    );
+    expect(issueWorkflow, contains('fluoh\\s+(devices|emulators)'));
     expect(issueWorkflow, contains('fluoh\\s+package'));
     expect(issueWorkflow, contains('fluoh\\s+source'));
     expect(issueWorkflow, contains('Affected area'));
@@ -206,9 +227,12 @@ void main() {
     final pullRequestHeadings = markdownHeadings(pullRequestTemplate);
     const areaOptions = [
       'sdk',
+      'source',
+      'project',
       'deps',
       'package',
-      'source',
+      'workflow',
+      'devices',
       'schema',
       'platform',
       'doctor',
@@ -244,7 +268,12 @@ void main() {
     expect(issueFormField(bugYaml, 'area')['type'], 'dropdown');
     expect(issueFormField(bugYaml, 'disclosure')['type'], 'checkboxes');
     expect(bugTemplate, contains('fluoh --version'));
-    expect(bugTemplate, contains('fluoh 0.1.0'));
+    expect(
+      bugTemplate,
+      contains(
+        'fluoh 0.1.0 - CLI for FlutterOH SDKs, projects, and package adaptation workflows',
+      ),
+    );
     expect(bugTemplate, contains('fluoh doctor -p'));
     expect(bugTemplate, contains('Doctor output'));
     expect(bugTemplate, contains('Reproduction steps'));
@@ -297,6 +326,27 @@ void main() {
     ]);
     expect(pullRequestTemplate, contains('CLI behavior'));
     expect(pullRequestTemplate, contains('JSON contract'));
+    expect(
+      pullRequestTemplate,
+      contains('SDK, Source, or Flutter wrapper workflow'),
+    );
+    expect(
+      pullRequestTemplate,
+      contains('Project creation or dependency workflow'),
+    );
+    expect(pullRequestTemplate, contains('Package repository workflow'));
+    expect(
+      pullRequestTemplate,
+      contains('App workflow: plan, verify, build, run, drive, or report'),
+    );
+    expect(
+      pullRequestTemplate,
+      contains('Devices, emulators, or platform tooling'),
+    );
+    expect(
+      pullRequestTemplate,
+      contains('Doctor, clean, upgrade, or skill command'),
+    );
     expect(pullRequestTemplate, contains('`dart format .`'));
     expect(pullRequestTemplate, contains('`dart analyze`'));
     expect(pullRequestTemplate, contains('`dart test`'));
@@ -423,8 +473,8 @@ void main() {
       '# App Project Flow',
       'fluoh deps check --json',
       'fluoh deps fix --dry-run',
-      'fluoh build --platform ohos --auto-sign --json',
-      'fluoh run --platform ohos --auto-emulator --json',
+      'fluoh build ohos --auto-sign --json',
+      'fluoh run ohos --auto-emulator --json',
     ]);
     expectContainsAll(packageFlow, [
       '# Package Adaptation Flow',
@@ -439,18 +489,18 @@ void main() {
       'fluoh package docs refresh --allow-dirty',
       'fluoh package queue',
       'fluoh verify --package <name> --json',
-      'fluoh run --platform ohos --package <name> --auto-emulator --json',
-      'fluoh run --platform android --package <name> --auto-emulator --json',
-      'fluoh run --platform ios --package <name> --auto-emulator --json',
-      'fluoh run --platform web --package <name> --device web-server --json',
-      'fluoh build --platform linux --package <name> --json',
-      'fluoh build --platform windows --package <name> --json',
+      'fluoh run ohos --package <name> --auto-emulator --json',
+      'fluoh run android --package <name> --auto-emulator --json',
+      'fluoh run ios --package <name> --auto-emulator --json',
+      'fluoh run web --package <name> --device-id web-server --json',
+      'fluoh build linux --package <name> --json',
+      'fluoh build windows --package <name> --json',
       'local Git author identity',
       'release metadata checkpoint',
     ]);
     expectContainsAll(automationFlow, [
       '# Automation Evidence Flow',
-      'fluoh automate --platform <platform> --package <name> --dry-run --json',
+      'fluoh drive <platform> --package <name> --dry-run --json',
       'flutterRunSession',
       '--require-vm-service',
       'integration_test',
@@ -638,14 +688,14 @@ void main() {
       'fluoh deps fix',
       'fluoh deps get',
       'fluoh doctor -p --platform ohos',
-      'fluoh build --platform ohos --auto-sign',
+      'fluoh build ohos --auto-sign',
       'Start by discovering the upstream package',
       'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
       'fluoh package discover',
       'fluoh package queue',
       'fluoh package add',
       'fluoh verify',
-      'fluoh run --platform ohos --package <name> --auto-emulator',
+      'fluoh run ohos --package <name> --auto-emulator',
       'fluoh package status',
       'fluohf pub get',
       'fluohf run',
@@ -669,7 +719,7 @@ void main() {
       '## Maintenance Workflows',
       '--no-init-ohos',
       '--json',
-      'fluoh automate --platform all',
+      'fluoh drive all',
       'bundled skill path',
       'update instructions',
       'fluoh upgrade',
@@ -715,14 +765,14 @@ void main() {
       'fluoh deps fix',
       'fluoh deps get',
       'fluoh doctor -p --platform ohos',
-      'fluoh build --platform ohos --auto-sign',
+      'fluoh build ohos --auto-sign',
       '先发现 upstream 包',
       'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
       'fluoh package discover',
       'fluoh package queue',
       'fluoh package add',
       'fluoh verify',
-      'fluoh run --platform ohos --package <name> --auto-emulator',
+      'fluoh run ohos --package <name> --auto-emulator',
       'fluoh package status',
       'fluohf pub get',
       'fluohf run',
@@ -746,7 +796,7 @@ void main() {
       '## 维护工作流',
       '--no-init-ohos',
       '--json',
-      'fluoh automate --platform all',
+      'fluoh drive all',
       '内置 skill 路径',
       '更新说明',
       'fluoh upgrade',
@@ -934,11 +984,24 @@ void main() {
       'fluoh help [command]',
       'fluoh skill',
       'lib/src/cli/skill_command.dart',
+      'SDK & Metadata',
+      'Project',
+      'Package',
+      'Workflow',
+      'Devices',
       'fluoh clean',
       'lib/src/clean/clean_command.dart',
-      '`skill`, `flutter`, `doctor`, `clean`, and `upgrade`',
+      '`skill`, `doctor`, `flutter`, `clean`, and `upgrade`',
       'fluoh create [--sdk <version-or-series>] <args>',
       'lib/src/project/create_command.dart',
+      'fluoh deps',
+      'lib/src/deps/commands/deps_command.dart',
+      'lib/src/deps/commands/deps_get_command.dart',
+      'lib/src/deps/commands/dependency_plan_commands.dart',
+      'lib/src/deps/commands/deps_upgrade_command.dart',
+      'fluoh plan app',
+      'fluoh plan package',
+      'lib/src/workflow/commands/plan_command.dart',
       'fluoh flutter <args>',
       'fluohf <args>',
       'fluoh source list',
@@ -960,13 +1023,14 @@ void main() {
       '--plan',
       'fluoh package add <package-path>',
       'fluoh package status',
+      'fluoh package handoff',
       'fluoh package version',
       'fluoh package docs refresh',
       'fluoh verify',
-      'fluoh build --platform ohos --auto-sign --json',
-      'fluoh run --platform ohos --auto-emulator',
-      'fluoh run --platform ohos --device <id>',
-      'fluoh build --platform <platform>',
+      'fluoh build ohos --auto-sign --json',
+      'fluoh run ohos --auto-emulator',
+      'fluoh run ohos --device-id <id>',
+      'fluoh build <platform>',
       'linux.build_failed',
       'web.build_failed',
       'windows.build_failed',
@@ -982,6 +1046,8 @@ void main() {
       'permission grant and denial',
       'Run-smoke success',
       'automation.coveragePolicy',
+      'fluoh report create',
+      'lib/src/workflow/commands/report_command.dart',
       '`scenarioCoverage`',
       '`coverageSummary`',
       '`inventory`',
@@ -1043,11 +1109,24 @@ void main() {
       'fluoh help [command]',
       'fluoh skill',
       'lib/src/cli/skill_command.dart',
+      'SDK & Metadata',
+      'Project',
+      'Package',
+      'Workflow',
+      'Devices',
       'fluoh clean',
       'lib/src/clean/clean_command.dart',
-      '`skill`、`flutter`、`doctor`、`clean`',
+      '`skill`、`doctor`、`flutter`、`clean`',
       'fluoh create [--sdk <version-or-series>] <args>',
       'lib/src/project/create_command.dart',
+      'fluoh deps',
+      'lib/src/deps/commands/deps_command.dart',
+      'lib/src/deps/commands/deps_get_command.dart',
+      'lib/src/deps/commands/dependency_plan_commands.dart',
+      'lib/src/deps/commands/deps_upgrade_command.dart',
+      'fluoh plan app',
+      'fluoh plan package',
+      'lib/src/workflow/commands/plan_command.dart',
       'fluoh flutter <args>',
       'fluohf <args>',
       'fluoh source list',
@@ -1069,13 +1148,14 @@ void main() {
       '--plan',
       'fluoh package add <package-path>',
       'fluoh package status',
+      'fluoh package handoff',
       'fluoh package version',
       'fluoh package docs refresh',
       'fluoh verify',
-      'fluoh build --platform ohos --auto-sign --json',
-      'fluoh run --platform ohos --auto-emulator',
-      'fluoh run --platform ohos --device <id>',
-      'fluoh build --platform <platform>',
+      'fluoh build ohos --auto-sign --json',
+      'fluoh run ohos --auto-emulator',
+      'fluoh run ohos --device-id <id>',
+      'fluoh build <platform>',
       'linux.build_failed',
       'web.build_failed',
       'windows.build_failed',
@@ -1091,6 +1171,8 @@ void main() {
       '权限允许和拒绝',
       'run-smoke 成功',
       'automation.coveragePolicy',
+      'fluoh report create',
+      'lib/src/workflow/commands/report_command.dart',
       '`scenarioCoverage`',
       '`coverageSummary`',
       '`inventory`',

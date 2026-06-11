@@ -43,7 +43,7 @@ class SdkUseCommand extends FluohCommand<int> {
 
   @override
   String get description =>
-      'Select a Flutter OHOS SDK version or series for this project.';
+      'Select a FlutterOH SDK version or series for this project.';
 
   @override
   String get invocation => 'fluoh sdk use <version-or-series>';
@@ -69,12 +69,12 @@ class SdkUseCommand extends FluohCommand<int> {
     await projectEnvironment.ensureIdeSdkLinkCanBeUpdated();
     final sdkDirectory = await _output.withProgress(
       installed
-          ? 'Configuring Flutter OHOS SDK ${release.tag}'
-          : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+          ? 'Configuring FlutterOH SDK ${release.tag}'
+          : 'Installing FlutterOH SDK ${release.tag}; this may take a while.',
       () => projectEnvironment.configure(release),
     );
     _output.info(
-      'Flutter OHOS SDK path: ${_output.style.path(sdkDirectory.path)}',
+      'FlutterOH SDK path: ${_output.style.path(sdkDirectory.path)}',
     );
     final ideLink = await projectEnvironment.linkIdeSdk(sdkDirectory);
     _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}');
@@ -107,7 +107,7 @@ class SdkUseCommand extends FluohCommand<int> {
       }
     }
 
-    _output.success('Using Flutter OHOS SDK ${release.tag}');
+    _output.success('Using FlutterOH SDK ${release.tag}');
     return 0;
   }
 

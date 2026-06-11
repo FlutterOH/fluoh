@@ -44,8 +44,8 @@ void main() {
     expect(configFile.existsSync(), isFalse);
     expect(sourceCache.existsSync(), isFalse);
     expect(stdout.join('\n'), contains('Available subcommands:'));
-    expect(stdout.join('\n'), contains('Use configured sources:'));
-    expect(stdout.join('\n'), contains('Maintain source repositories:'));
+    expect(stdout.join('\n'), contains('Configured sources:'));
+    expect(stdout.join('\n'), contains('Source repositories:'));
     expect(stdout.join('\n'), contains('  list'));
     expect(stdout.join('\n'), contains('  sync'));
     expect(stdout.join('\n'), contains('  check'));
@@ -725,7 +725,7 @@ description: "Local FlutterOH source maintained by fluoh users."
 #   git:
 #     url: "https://github.com/FlutterOH/source.git"
 
-# Uncomment to publish Flutter OHOS SDK versions from this source.
+# Uncomment to publish FlutterOH SDK versions from this source.
 # sdk:
 #   git:
 #     url: "https://gitcode.com/CPF-Flutter/flutter_flutter.git"
@@ -1017,6 +1017,79 @@ description: "Local FlutterOH source maintained by fluoh users."
     expect(manifest, isNot(contains('version: 0.12.0')));
     expect(manifest, isNot(contains('- version: 0.3.0')));
     expect(manifest, isNot(contains('status: experimental')));
+    expect(
+      stdout,
+      contains(
+        'Synced source metadata for camera from ${packageRepository.path}',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('source sync reads release manifests from fetched tag refs', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory(
+      '${environment.homeDirectory.path}/tag_only_source',
+    );
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/tag_only_package',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'init', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await _writePackageManifest(
+      packageRepository,
+      upstreamRef: 'camera-v0.11.0',
+    );
+    await _writeSourceSyncManifest(source, packageRepository);
+    await initializeGitRepository(packageRepository);
+    await _runGit(packageRepository, [
+      'tag',
+      '-a',
+      'camera-0.11.0-ohos-3.35-0.2.0',
+      '-m',
+      'Release 0.2.0',
+    ]);
+    await _writePackageManifest(
+      packageRepository,
+      releaseVersion: '0.3.0',
+      upstreamVersion: '0.12.0',
+      upstreamRef: 'camera-v0.12.0',
+      upstreamCommit: '2222222222222222222222222222222222222222',
+    );
+    await commitAll(packageRepository, message: 'Release 0.3.0 metadata');
+    await _runGit(packageRepository, ['tag', 'camera-0.12.0-ohos-3.35-0.3.0']);
+    await File('${packageRepository.path}/fluoh.yaml').delete();
+
+    expect(
+      await runFluoh(
+        ['source', 'sync', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final manifest = File(
+      '${source.path}/manifests/camera/fluoh.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('upstream:\n            version: 0.11.0'));
+    expect(manifest, contains('ref: camera-v0.11.0'));
+    expect(manifest, contains('- version: 0.2.0'));
+    expect(manifest, contains('upstream:\n            version: 0.12.0'));
+    expect(manifest, contains('ref: camera-v0.12.0'));
+    expect(
+      manifest,
+      contains('commit: "2222222222222222222222222222222222222222"'),
+    );
+    expect(manifest, contains('- version: 0.3.0'));
     expect(
       stdout,
       contains(

@@ -19,7 +19,7 @@ void main() {
 
     await File(
       '${repo.path}/README.md',
-    ).writeAsString('# Mock Flutter OHOS SDK\n');
+    ).writeAsString('# Mock FlutterOH SDK\n');
     await _git(repo, ['add', 'README.md']);
     await _git(repo, ['commit', '-m', 'Initial SDK fixture']);
     await _git(repo, ['tag', '3.35.8-ohos-0.0.3']);

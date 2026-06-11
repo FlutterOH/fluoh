@@ -211,13 +211,13 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
   }
   if (requireOhosRun && !hasOhosRun) {
     errors.add(
-      'Certification report must include passed fluoh run --platform ohos evidence.',
+      'Certification report must include passed fluoh run ohos evidence.',
     );
   }
   final hasAutomate = passedCommandRows.any(_isAutomationEvidence);
   if (!hasAutomate) {
     errors.add(
-      'Certification report must include passed fluoh automate --json evidence.',
+      'Certification report must include passed fluoh drive --json evidence.',
     );
   }
 
@@ -230,7 +230,7 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
   if (automationCoverageRows.isEmpty) {
     errors.add(
       'Automation Coverage must include concrete gate rows from '
-      'fluoh automate --dry-run --json or real run JSON.',
+      'fluoh drive --dry-run --json or real run JSON.',
     );
   }
   final reportedAutomationCoverageGates = {
@@ -507,7 +507,7 @@ List<String> _placeholderHits(String content) {
 bool _isOhosBuildEvidence(_CommandRow row) {
   final command = row.command;
   return _containsCommand(command, 'fluoh build') &&
-      command.contains('--platform ohos') &&
+      RegExp(r'(^|\s)fluoh\s+build\s+ohos(\s|$)').hasMatch(command) &&
       command.contains('--auto-sign') &&
       command.contains('--json');
 }
@@ -515,13 +515,13 @@ bool _isOhosBuildEvidence(_CommandRow row) {
 bool _isOhosRunEvidence(_CommandRow row) {
   final command = row.command;
   return _containsCommand(command, 'fluoh run') &&
-      command.contains('--platform ohos') &&
+      RegExp(r'(^|\s)fluoh\s+run\s+ohos(\s|$)').hasMatch(command) &&
       command.contains('--json');
 }
 
 bool _isAutomationEvidence(_CommandRow row) {
   final command = row.command;
-  return _containsCommand(command, 'fluoh automate') &&
+  return _containsCommand(command, 'fluoh drive') &&
       command.contains('--json') &&
       !_containsShellToken(command, '--dry-run') &&
       !_containsShellToken(command, '-n');

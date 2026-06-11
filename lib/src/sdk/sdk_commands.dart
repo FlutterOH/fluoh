@@ -41,7 +41,7 @@ class SdkCommand extends FluohCommand<int> {
   String get name => 'sdk';
 
   @override
-  String get description => 'Manage Flutter OHOS SDKs.';
+  String get description => 'Manage FlutterOH SDKs.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';

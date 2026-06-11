@@ -208,15 +208,15 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('check certification rejects dry-run automate evidence', () async {
+  test('check certification rejects dry-run drive evidence', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
     final report = await _writeCertificationReport(packageRepository);
     final content = await report.readAsString();
     await report.writeAsString(
       content.replaceFirst(
-        'fluoh automate --platform ohos --package camera --json',
-        'fluoh automate --platform ohos --package camera --dry-run --json',
+        'fluoh drive ohos --package camera --json',
+        'fluoh drive ohos --package camera --dry-run --json',
       ),
     );
     final releaseEnvironment = FluohEnvironment(
@@ -242,10 +242,7 @@ void main() {
       result['error'],
       allOf(
         isA<Map<String, Object?>>(),
-        containsPair(
-          'message',
-          contains('passed fluoh automate --json evidence'),
-        ),
+        containsPair('message', contains('passed fluoh drive --json evidence')),
       ),
     );
     expect(stderr, isEmpty);
@@ -559,7 +556,7 @@ void main() {
       result['error'],
       allOf(
         isA<Map<String, Object?>>(),
-        containsPair('message', contains('fluoh run --platform ohos')),
+        containsPair('message', contains('fluoh run ohos')),
         containsPair('message', contains('evidence')),
       ),
     );
@@ -1027,7 +1024,7 @@ Future<File> _writeCertificationReport(
   await reportDirectory.create(recursive: true);
   final report = File('${reportDirectory.path}/ai-report-20260602-120000.md');
   final ohosRunRow = includeOhosRun
-      ? '| `fluoh run --platform ohos --package camera --json` | 0 | passed | installed, launched, and collected hilog |\n'
+      ? '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, and collected hilog |\n'
       : '';
   await report.writeAsString('''
 # fluoh AI Report
@@ -1059,8 +1056,8 @@ Future<File> _writeCertificationReport(
 | Command | Exit | Result | Notes |
 | --- | --- | --- | --- |
 | `fluoh verify --package camera --json` | 0 | passed | package and example baseline passed |
-| `fluoh build --platform ohos --package camera --auto-sign --json` | $ohosBuildExit | $ohosBuildResult | signed HAP was produced |
-| `fluoh automate --platform ohos --package camera --json` | 0 | passed | automation scenarios executed |
+| `fluoh build ohos --package camera --auto-sign --json` | $ohosBuildExit | $ohosBuildResult | signed HAP was produced |
+| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed |
 $ohosRunRow
 ## Delivery Checklist
 
@@ -1069,7 +1066,7 @@ $ohosRunRow
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
-- [x] Real `fluoh automate --json` evidence recorded, with no unresolved ready-blocking gates.
+- [x] Real `fluoh drive --json` evidence recorded, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.

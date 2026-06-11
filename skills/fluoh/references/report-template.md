@@ -38,7 +38,7 @@
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
-- [ ] Real `fluoh automate --json` evidence recorded, with no unresolved ready-blocking gates.
+- [ ] Real `fluoh drive --json` evidence recorded, with no unresolved ready-blocking gates.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
@@ -58,7 +58,7 @@
 ## Automation Coverage
 
 Copy the complete required `automation.coveragePolicy.qualityGates` set from
-`fluoh automate --dry-run --json` or real `fluoh automate --json`; do not omit
+`fluoh drive --dry-run --json` or real `fluoh drive --json`; do not omit
 generic gates that are `notApplicable` for the current Package. A `ready`
 release certification cannot include unresolved statuses such as
 `needsInventory`, `needsCapabilityCoverageRows`, `needsPermissionCoverageRows`,
@@ -77,7 +77,7 @@ Also record `automation.repairPlan.nextStep` when any gate is not ready, so the
 handoff shows the exact next machine-readable repair action, its `doneWhen`
 completion checks, and the `validation` rerun hint. Include
 `automation.rerunCommand` whenever the next validation step repeats the same
-`automate` invocation.
+`drive` invocation.
 
 - coveragePolicy.status: ...
 - readyForAutomation: ...

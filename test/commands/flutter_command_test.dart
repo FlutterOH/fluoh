@@ -191,15 +191,18 @@ void main() {
     },
   );
 
-  test('installs the selected SDK before running flutter when needed', () async {
-    final environment = await createTestEnvironment();
-    final source = await _createFlutterCommandSdkSource(
-      environment.homeDirectory,
-      environment.workingDirectory,
-    );
-    await writeFlutterProjectFixture(environment.workingDirectory);
-    await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
-      '''
+  test(
+    'installs the selected SDK before running flutter when needed',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createFlutterCommandSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+      );
+      await writeFlutterProjectFixture(environment.workingDirectory);
+      await File(
+        '${environment.workingDirectory.path}/fluoh.yaml',
+      ).writeAsString('''
 schema: 1
 kind: project
 sdk:
@@ -207,48 +210,48 @@ sdk:
 dependencyPolicy:
   pubspecSection: dependency_overrides
   versionChanges: compatible
-''',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-
-    expect(
       await runFluoh(
-        ['flutter', '--version'],
+        ['source', 'add', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      0,
-    );
+      );
 
-    expect(
-      stdout,
-      contains(
-        'Installing Flutter OHOS SDK 3.35.8-ohos-0.0.3; this may take a while.',
-      ),
-    );
-    expect(
-      Directory(
-        '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '${environment.workingDirectory.path}/flutter_args.txt',
-      ).readAsStringSync(),
-      '--version\n',
-    );
-    expect(stderr, contains('flutter stderr'));
-  });
+      expect(
+        await runFluoh(
+          ['flutter', '--version'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(
+        stdout,
+        contains(
+          'Installing FlutterOH SDK 3.35.8-ohos-0.0.3; this may take a while.',
+        ),
+      );
+      expect(
+        Directory(
+          '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${environment.workingDirectory.path}/flutter_args.txt',
+        ).readAsStringSync(),
+        '--version\n',
+      );
+      expect(stderr, contains('flutter stderr'));
+    },
+  );
 
   test('runs cached selected SDK without readable sources', () async {
     final environment = await createTestEnvironment();
@@ -294,7 +297,7 @@ dependencyPolicy:
       stdout,
       isNot(
         contains(
-          'Installing Flutter OHOS SDK 3.35.8-ohos-0.0.3; this may take a while.',
+          'Installing FlutterOH SDK 3.35.8-ohos-0.0.3; this may take a while.',
         ),
       ),
     );

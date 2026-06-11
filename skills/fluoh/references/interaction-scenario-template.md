@@ -47,7 +47,7 @@ package exposes more.
 
 Status must be one of `covered`, `notApplicable`, or `blocked`. `blocked` and
 `notApplicable` rows must include a non-empty `note` or `reason`.
-`fluoh automate --dry-run --json` reports these rows under
+`fluoh drive --dry-run --json` reports these rows under
 `automation.coveragePolicy.scenarioCoverage` and also emits
 `coverageSummary`, `inventory`, `capabilityCoverage`,
 `manifestPermissionCoverage`, `pathCoverage`, `scenarioEvidence`,
@@ -86,11 +86,11 @@ still need concrete notes or reasons.
 
 ## Executable Automation Block
 
-When the flow can be operated by `fluoh automate`, keep one YAML block in this
+When the flow can be operated by `fluoh drive`, keep one YAML block in this
 file and run it with:
 
 ```sh
-fluoh automate --platform <platform> --package <name> --scenario <this-file> --json
+fluoh drive <platform> --package <name> --scenario <this-file> --json
 ```
 
 ```yaml
@@ -142,7 +142,7 @@ Supported first-pass actions:
   checks captured Flutter run output and is best for startup markers or other
   output known to be inside the captured log window. For
   repeatable simulator runs, prefer
-  `fluoh automate --platform ios --auto-emulator`; iOS auto-emulator selection
+  `fluoh drive ios --auto-emulator`; iOS auto-emulator selection
   prefers iPhone simulators over iPad simulators and waits for
   `xcrun simctl bootstatus <udid> -b` after startup. `allowPermission` and
   `denyPermission` click the
@@ -165,7 +165,7 @@ over post-action log markers whenever the scenario needs to prove a tap, swipe,
 permission result, or form submission changed app state. Use `assertLog` only
 when the relevant marker is guaranteed to be present in the captured run output.
 
-`coverage` metadata is included in `fluoh automate --dry-run --json` and real
+`coverage` metadata is included in `fluoh drive --dry-run --json` and real
 run JSON. Use it to make AI package adaptation auditable: every applicable
 package API, permission, picker, media flow, callback, lifecycle path, and
 negative path should have a `covered`, `notApplicable`, or `blocked` row before

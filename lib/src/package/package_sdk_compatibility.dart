@@ -61,7 +61,7 @@ class PackageSdkCompatibilityWarning {
   /// Human-readable warning message.
   String get message =>
       'Selected upstream $selectedRef for $packageName requires Dart '
-      '$selectedDartConstraint, but the selected Flutter OHOS SDK provides '
+      '$selectedDartConstraint, but the selected FlutterOH SDK provides '
       'Dart $sdkDartVersion.';
 
   /// Recommended next step.
@@ -70,7 +70,7 @@ class PackageSdkCompatibilityWarning {
     final keepLatest =
         'Keep adapting the selected upstream target $selectedRef. Adapt the '
         'package pubspec, example config, and Dart code to the selected '
-        'Flutter OHOS SDK Dart $sdkDartVersion, then rerun verify.';
+        'FlutterOH SDK Dart $sdkDartVersion, then rerun verify.';
     if (compatible != null) {
       return '$keepLatest Latest compatible upstream tag: ${compatible.ref} '
           '(${compatible.package.version}) is informational only and must not '

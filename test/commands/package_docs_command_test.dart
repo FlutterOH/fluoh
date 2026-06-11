@@ -198,7 +198,15 @@ Old generated agent guidance.
       content,
       contains(
         '<!-- fluoh:generated:start id=package-implementation-guide '
-        'template=1 -->',
+        'template=2 -->',
+      ),
+    );
+    expect(content, contains('## Platform Implementation Template'));
+    expect(content, contains('PackagePlatformAdapter'));
+    expect(
+      content,
+      contains(
+        'Keep Android, iOS, and OHOS behavior behind platform-specific adapters',
       ),
     );
     expect(
@@ -367,6 +375,8 @@ flutter:
           'Add dependency `camera_ohos` with relative path `camera_ohos`',
         ),
       );
+      expect(guide, contains('## Platform Implementation Template'));
+      expect(guide, contains('Federated packages: keep `camera`'));
       expect(stdout, contains('Refreshed package docs'));
       expect(stderr, isEmpty);
     },

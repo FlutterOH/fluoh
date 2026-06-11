@@ -57,9 +57,6 @@ class PubLockPackage {
   final List<String> dependencies;
 }
 
-/// Compatibility alias for lockfile package entries.
-typedef LockedPackage = PubLockPackage;
-
 /// Returns direct non-Flutter SDK dependency names from `pubspec.yaml`.
 Set<String> directDependencyNamesFromPubspec(String content) {
   final pubspec = parseYamlMap(content, label: 'pubspec.yaml');

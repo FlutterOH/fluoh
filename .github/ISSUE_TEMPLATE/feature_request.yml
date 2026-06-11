@@ -15,9 +15,12 @@ body:
       description: Choose the closest fluoh area.
       options:
         - sdk
+        - source
+        - project
         - deps
         - package
-        - source
+        - workflow
+        - devices
         - schema
         - platform
         - doctor
@@ -50,7 +53,7 @@ body:
     attributes:
       label: Affected commands or files
       description: List the fluoh commands, domains, or release artifacts involved.
-      placeholder: package create, package discover, source sync, doc/commands.md
+      placeholder: create, deps fix, plan app, build ohos, report create, doc/commands.md
     validations:
       required: false
   - type: textarea

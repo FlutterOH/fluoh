@@ -398,7 +398,7 @@ String packageManifestContent(PackageManifest manifest) {
     'schema: $packageManifestSchema',
     'kind: $packageManifestKind',
     '',
-    '# Complete Flutter OHOS SDK tag used by this adaptation branch.',
+    '# Complete FlutterOH SDK tag used by this adaptation branch.',
     'sdk:',
     '  version: ${manifest.sdkVersion}',
     '',

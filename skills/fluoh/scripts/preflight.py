@@ -20,7 +20,14 @@ from pathlib import Path
 from typing import Any
 
 
-PACKAGE_DOC_TEMPLATE_VERSION = 1
+PACKAGE_IMPLEMENTATION_GUIDE_TEMPLATE_VERSION = 2
+PACKAGE_AGENTS_INSTRUCTIONS_TEMPLATE_VERSION = 1
+PACKAGE_README_ADAPTATION_TEMPLATE_VERSION = 1
+PACKAGE_DOC_TEMPLATE_VERSION = max(
+    PACKAGE_IMPLEMENTATION_GUIDE_TEMPLATE_VERSION,
+    PACKAGE_AGENTS_INSTRUCTIONS_TEMPLATE_VERSION,
+    PACKAGE_README_ADAPTATION_TEMPLATE_VERSION,
+)
 PACKAGE_IMPLEMENTATION_GUIDE_SECTION = "package-implementation-guide"
 PACKAGE_AGENTS_INSTRUCTIONS_SECTION = "package-agents-instructions"
 PACKAGE_README_ADAPTATION_SECTION = "package-readme-adaptation"
@@ -177,16 +184,18 @@ def top_level_scalar(content: str, key: str) -> str | None:
     return clean_scalar(match.group(1)) or None
 
 
-def generated_section_state(content: str, section_id: str) -> dict[str, Any]:
+def generated_section_state(
+    content: str, section_id: str, current_version: int
+) -> dict[str, Any]:
     template_match = re.search(
         rf"<!--\s*fluoh:generated:start\s+id={re.escape(section_id)}\s+template=(\d+)\s*-->",
         content,
     )
     if template_match:
         template_version = int(template_match.group(1))
-        if template_version < PACKAGE_DOC_TEMPLATE_VERSION:
+        if template_version < current_version:
             status = "stale"
-        elif template_version > PACKAGE_DOC_TEMPLATE_VERSION:
+        elif template_version > current_version:
             status = "newer"
         else:
             status = "current"
@@ -194,13 +203,13 @@ def generated_section_state(content: str, section_id: str) -> dict[str, Any]:
             "sectionId": section_id,
             "status": status,
             "version": template_version,
-            "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+            "currentVersion": current_version,
         }
     return {
         "sectionId": section_id,
         "status": "missing",
         "version": None,
-        "currentVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+        "currentVersion": current_version,
     }
 
 
@@ -437,6 +446,11 @@ def upgrade_checks(
         agents_content = read_text(root / "AGENTS.md")
         docs = {
             "templateVersion": PACKAGE_DOC_TEMPLATE_VERSION,
+            "templateVersions": {
+                "README.md": PACKAGE_README_ADAPTATION_TEMPLATE_VERSION,
+                "FLUOH.md": PACKAGE_IMPLEMENTATION_GUIDE_TEMPLATE_VERSION,
+                "AGENTS.md": PACKAGE_AGENTS_INSTRUCTIONS_TEMPLATE_VERSION,
+            },
             "refreshCommand": "fluoh package docs refresh",
             "allowDirtyRefreshCommand": "fluoh package docs refresh --allow-dirty",
             "dryRunCommand": "fluoh package docs refresh --dry-run",
@@ -444,19 +458,25 @@ def upgrade_checks(
                 {
                     "file": "README.md",
                     **generated_section_state(
-                        readme_content, PACKAGE_README_ADAPTATION_SECTION
+                        readme_content,
+                        PACKAGE_README_ADAPTATION_SECTION,
+                        PACKAGE_README_ADAPTATION_TEMPLATE_VERSION,
                     ),
                 },
                 {
                     "file": "FLUOH.md",
                     **generated_section_state(
-                        guide_content, PACKAGE_IMPLEMENTATION_GUIDE_SECTION
+                        guide_content,
+                        PACKAGE_IMPLEMENTATION_GUIDE_SECTION,
+                        PACKAGE_IMPLEMENTATION_GUIDE_TEMPLATE_VERSION,
                     ),
                 },
                 {
                     "file": "AGENTS.md",
                     **generated_section_state(
-                        agents_content, PACKAGE_AGENTS_INSTRUCTIONS_SECTION
+                        agents_content,
+                        PACKAGE_AGENTS_INSTRUCTIONS_SECTION,
+                        PACKAGE_AGENTS_INSTRUCTIONS_TEMPLATE_VERSION,
                     ),
                 },
             ],
@@ -506,49 +526,51 @@ def upgrade_checks(
     return checks
 
 
-def app_platform_regression_commands(project: dict[str, Any]) -> list[str]:
+def app_platform_regression_commands(
+    project: dict[str, Any], trace_dir: str
+) -> list[str]:
     platforms = project.get("platformDirectories", {})
     commands: list[str] = []
     if platforms.get("android"):
         commands.extend(
             [
                 "fluoh doctor --platform android --json --strict",
-                "fluoh run --platform android --auto-emulator --json",
+                f"fluoh run android --auto-emulator --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("ios") and host_supports_regression_platform("ios"):
         commands.extend(
             [
                 "fluoh doctor --platform ios --json --strict",
-                "fluoh run --platform ios --auto-emulator --json",
+                f"fluoh run ios --auto-emulator --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("macos") and host_supports_regression_platform("macos"):
         commands.extend(
             [
                 "fluoh doctor --platform macos --json --strict",
-                "fluoh run --platform macos --json",
+                f"fluoh run macos --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("linux") and host_supports_regression_platform("linux"):
         commands.extend(
             [
                 "fluoh doctor --platform linux --json --strict",
-                "fluoh build --platform linux --json",
+                f"fluoh build linux --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("web"):
         commands.extend(
             [
                 "fluoh doctor --platform web --json --strict",
-                "fluoh run --platform web --device web-server --json",
+                f"fluoh run web --device-id web-server --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("windows") and host_supports_regression_platform("windows"):
         commands.extend(
             [
                 "fluoh doctor --platform windows --json --strict",
-                "fluoh build --platform windows --json",
+                f"fluoh build windows --json --trace-dir {trace_dir}",
             ]
         )
     return commands
@@ -563,7 +585,7 @@ def selected_package_entry(project: dict[str, Any]) -> dict[str, Any]:
 
 
 def package_platform_regression_commands(
-    project: dict[str, Any], package_name: str
+    project: dict[str, Any], package_name: str, trace_dir: str
 ) -> list[str]:
     package = selected_package_entry(project)
     platforms = package.get("examplePlatforms", {})
@@ -572,42 +594,42 @@ def package_platform_regression_commands(
         commands.extend(
             [
                 "fluoh doctor --platform android --json --strict",
-                f"fluoh run --platform android --package {package_name} --auto-emulator --json",
+                f"fluoh run android --package {package_name} --auto-emulator --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("ios") and host_supports_regression_platform("ios"):
         commands.extend(
             [
                 "fluoh doctor --platform ios --json --strict",
-                f"fluoh run --platform ios --package {package_name} --auto-emulator --json",
+                f"fluoh run ios --package {package_name} --auto-emulator --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("macos") and host_supports_regression_platform("macos"):
         commands.extend(
             [
                 "fluoh doctor --platform macos --json --strict",
-                f"fluoh run --platform macos --package {package_name} --json",
+                f"fluoh run macos --package {package_name} --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("linux") and host_supports_regression_platform("linux"):
         commands.extend(
             [
                 "fluoh doctor --platform linux --json --strict",
-                f"fluoh build --platform linux --package {package_name} --json",
+                f"fluoh build linux --package {package_name} --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("web"):
         commands.extend(
             [
                 "fluoh doctor --platform web --json --strict",
-                f"fluoh run --platform web --package {package_name} --device web-server --json",
+                f"fluoh run web --package {package_name} --device-id web-server --json --trace-dir {trace_dir}",
             ]
         )
     if platforms.get("windows") and host_supports_regression_platform("windows"):
         commands.extend(
             [
                 "fluoh doctor --platform windows --json --strict",
-                f"fluoh build --platform windows --package {package_name} --json",
+                f"fluoh build windows --package {package_name} --json --trace-dir {trace_dir}",
             ]
         )
     return commands
@@ -620,6 +642,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
     upgrade_commands = upgrade.get("commands", [])
     if kind == "app-project":
         sdk = project["sdkVersion"] or "<sdk-version-or-line>"
+        trace_dir = f".fluoh/traces/{slug(project['name'] or 'app', 'app')}/adaptation"
         return [
             *upgrade_commands,
             "fluoh source update",
@@ -629,29 +652,38 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh deps fix",
             "fluoh deps get",
             "fluoh doctor -p --platform ohos --json --strict",
-            "fluoh build --platform ohos --auto-sign --json",
+            f"fluoh build ohos --auto-sign --json --trace-dir {trace_dir}",
             "fluoh devices --platform ohos --json",
             "fluoh emulators --platform ohos --json",
-            "fluoh run --platform ohos --auto-emulator --json",
-            *app_platform_regression_commands(project),
+            f"fluoh run ohos --auto-emulator --json --trace-dir {trace_dir}",
+            f"fluoh drive all --json --trace-dir {trace_dir}",
+            *app_platform_regression_commands(project, trace_dir),
+            f"fluoh report create --scope {command_arg(project['name'] or 'app')} --trace-dir {trace_dir} --json",
         ]
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
+        trace_dir = f".fluoh/traces/{command_arg(package)}/adaptation"
         return [
             *upgrade_commands,
             "fluoh deps get",
+            f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             "fluoh doctor -p --platform ohos --json --strict",
-            f"fluoh verify --package {package} --json",
-            f"fluoh run --platform ohos --package {package} --auto-emulator --json",
-            f"fluoh build --platform ohos --package {package} --auto-sign --json",
-            *package_platform_regression_commands(project, package),
+            f"fluoh build ohos --package {package} --auto-sign --json --trace-dir {trace_dir}",
+            "fluoh devices --platform ohos --json",
+            "fluoh emulators --platform ohos --json",
+            f"fluoh run ohos --package {package} --auto-emulator --json --trace-dir {trace_dir}",
+            f"fluoh drive all --package {package} --json --trace-dir {trace_dir}",
+            *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
+            f"fluoh package handoff --package {package} --json",
+            f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
             f"fluoh package check --package {package} --json",
         ]
     if kind == "flutter-package":
         package = project["name"] or "<package-name>"
         output = flutter_package_output(project)
         upstream = shlex.quote(info["cwd"])
+        trace_dir = f".fluoh/traces/{command_arg(package)}/adaptation"
         return [
             "Resolve package setup: "
             f"repository-name={package}, output={output}, repository=<flutteroh-repo-url-or-path>, "
@@ -661,11 +693,17 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "--git-author-name <name> --git-author-email <email> "
             "--sdk <sdk-version-or-line> --package-path .",
             f"cd {output}",
-            f"fluoh verify --package {package} --json",
-            f"fluoh run --platform ohos --package {package} --auto-emulator --json",
-            f"fluoh build --platform ohos --package {package} --auto-sign --json",
-            *package_platform_regression_commands(project, package),
+            f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
+            "fluoh doctor -p --platform ohos --json --strict",
+            f"fluoh build ohos --package {package} --auto-sign --json --trace-dir {trace_dir}",
+            "fluoh devices --platform ohos --json",
+            "fluoh emulators --platform ohos --json",
+            f"fluoh run ohos --package {package} --auto-emulator --json --trace-dir {trace_dir}",
+            f"fluoh drive all --package {package} --json --trace-dir {trace_dir}",
+            *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
+            f"fluoh package handoff --package {package} --json",
+            f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
             f"fluoh package check --package {package} --json",
         ]
     if kind == "dart-package":
@@ -681,27 +719,169 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
     project = info["project"]
     kind = project["kind"]
     if kind == "app-project":
+        trace_dir = f".fluoh/traces/{slug(project['name'] or 'app', 'app')}/adaptation"
         return [
             "git diff --check",
             "fluoh doctor -p --platform ohos --json --strict",
-            "fluoh build --platform ohos --auto-sign --json",
+            f"fluoh build ohos --auto-sign --json --trace-dir {trace_dir}",
             "fluoh devices --platform ohos --json",
             "fluoh emulators --platform ohos --json",
-            "fluoh run --platform ohos --auto-emulator --json",
-            *app_platform_regression_commands(project),
+            f"fluoh run ohos --auto-emulator --json --trace-dir {trace_dir}",
+            *app_platform_regression_commands(project, trace_dir),
         ]
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
+        trace_dir = f".fluoh/traces/{command_arg(package)}/adaptation"
         return [
             "git diff --check",
-            f"fluoh verify --package {package} --json",
-            *package_platform_regression_commands(project, package),
+            f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
+            "fluoh doctor -p --platform ohos --json --strict",
+            f"fluoh build ohos --package {package} --auto-sign --json --trace-dir {trace_dir}",
+            "fluoh devices --platform ohos --json",
+            "fluoh emulators --platform ohos --json",
+            f"fluoh run ohos --package {package} --auto-emulator --json --trace-dir {trace_dir}",
+            *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
+            f"fluoh package handoff --package {package} --json",
             f"fluoh package check --package {package} --json",
         ]
     if kind == "flutter-package":
         return []
     return []
+
+
+def adapt_plan_command(project: dict[str, Any]) -> str | None:
+    if project["kind"] == "app-project":
+        sdk = project["sdkVersion"]
+        if sdk:
+            return f"fluoh plan app --sdk {command_arg(sdk)} --json"
+        return "fluoh plan app --json"
+    if project["kind"] == "package-repository":
+        package = project["selectedPackage"] or "<name>"
+        return f"fluoh plan package --package {command_arg(package)} --json"
+    return None
+
+
+def command_queue(info: dict[str, Any]) -> list[dict[str, Any]]:
+    project = info["project"]
+    queue: list[dict[str, Any]] = []
+    for command in suggested_commands(info):
+        queue.append(command_queue_item(command, project))
+    return queue
+
+
+def command_queue_item(command: str, project: dict[str, Any]) -> dict[str, Any]:
+    phase = command_phase(command)
+    mutating = command_mutates(command)
+    item: dict[str, Any] = {
+        "phase": phase,
+        "command": command,
+        "mutating": mutating,
+        "requiresApproval": mutating,
+        "expectedEvidence": command_expected_evidence(command),
+    }
+    if command.startswith("Resolve package setup:"):
+        item["mutating"] = False
+        item["requiresApproval"] = False
+        item["kind"] = "setup-inputs"
+    if project["kind"] in {"app-project", "package-repository", "flutter-package"}:
+        item["adaptationKind"] = (
+            "package" if project["kind"] != "app-project" else "app"
+        )
+    return item
+
+
+def command_phase(command: str) -> str:
+    if command.startswith("Resolve package setup") or " package create " in command:
+        return "setup"
+    if command.startswith("cd "):
+        return "setup"
+    if " source update" in command:
+        return "setup"
+    if " deps " in command:
+        return "deps"
+    if " doctor " in command:
+        return "doctor"
+    if " verify" in command:
+        return "verify"
+    if " devices " in command or " emulators " in command:
+        return "target-discovery"
+    if " build " in command or " run " in command:
+        return "platform"
+    if " drive " in command:
+        return "automation"
+    if " report create " in command:
+        return "report"
+    if " package handoff " in command:
+        return "handoff"
+    if " package status " in command or " package check " in command:
+        return "release-check"
+    return "other"
+
+
+def command_mutates(command: str) -> bool:
+    readonly_tokens = (
+        "--dry-run",
+        "--plan",
+        " deps check ",
+        " doctor ",
+        " devices ",
+        " emulators ",
+        " package status ",
+        " package handoff ",
+        " package check ",
+        " package discover ",
+        " package queue ",
+    )
+    if command.startswith("Resolve package setup") or command.startswith("cd "):
+        return False
+    if any(token in command for token in readonly_tokens):
+        return False
+    return any(
+        token in command
+        for token in (
+            " sdk use ",
+            " source update",
+            " deps fix",
+            " deps get",
+            " build ",
+            " run ",
+            " drive ",
+            " package create ",
+            " package docs refresh",
+            " report create ",
+        )
+    )
+
+
+def command_expected_evidence(command: str) -> str:
+    if " source update" in command:
+        return "source update result"
+    if " deps check " in command:
+        return "dependency support JSON"
+    if " deps fix --dry-run" in command:
+        return "dependency rewrite plan"
+    if " doctor " in command:
+        return "toolchain diagnostic JSON"
+    if " devices " in command:
+        return "connected target inventory JSON"
+    if " emulators " in command:
+        return "local emulator inventory JSON"
+    if " verify" in command:
+        return "pub get, analyze, and test JSON"
+    if " build " in command:
+        return "build artifact and command JSON"
+    if " run " in command:
+        return "launch, runtime log, target, and diagnostic JSON"
+    if " drive " in command:
+        return "automation coverage policy, scenario rows, and repair queue"
+    if " report create " in command:
+        return "local AI report path"
+    if " package handoff " in command:
+        return "branch state, reports, traces, and next commands"
+    if " package check " in command:
+        return "release gate JSON"
+    return "command result"
 
 
 def delivery_checks(info: dict[str, Any]) -> list[str]:
@@ -901,7 +1081,9 @@ def main() -> int:
     info["upgradeChecks"] = upgrade_checks(
         root, info["project"], info["git"], fluoh_command
     )
+    info["adaptPlanCommand"] = adapt_plan_command(info["project"])
     info["suggestedCommands"] = suggested_commands(info)
+    info["commandQueue"] = command_queue(info)
     info["finalCheckCommands"] = final_check_commands(info)
     info["deliveryChecks"] = delivery_checks(info)
     info["reportCommand"] = report_command(info["project"])

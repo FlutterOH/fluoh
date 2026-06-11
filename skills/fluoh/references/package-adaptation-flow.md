@@ -82,8 +82,8 @@ fluoh deps get
 fluoh doctor -p --platform ohos --json --strict
 fluoh flutter analyze
 fluoh verify --package <name> --json --trace-dir <trace-dir>
-fluoh run --platform ohos --package <name> --auto-emulator --json --trace-dir <trace-dir>
-fluoh build --platform ohos --package <name> --auto-sign --json --trace-dir <trace-dir>
+fluoh run ohos --package <name> --auto-emulator --json --trace-dir <trace-dir>
+fluoh build ohos --package <name> --auto-sign --json --trace-dir <trace-dir>
 fluoh package status --package <name>
 fluoh package version --package <name> --bump patch --status compatible
 fluoh package check --package <name> --json
@@ -110,23 +110,23 @@ exist and local toolchains are available:
 
 ```sh
 fluoh doctor --platform android --json --strict
-fluoh run --platform android --package <name> --auto-emulator --json
+fluoh run android --package <name> --auto-emulator --json
 fluoh doctor --platform ios --json --strict
-fluoh run --platform ios --package <name> --auto-emulator --json
+fluoh run ios --package <name> --auto-emulator --json
 fluoh doctor --platform macos --json --strict
-fluoh run --platform macos --package <name> --json
+fluoh run macos --package <name> --json
 fluoh doctor --platform web --json --strict
-fluoh run --platform web --package <name> --device web-server --json
-fluoh build --platform web --package <name> --json
-fluoh build --platform linux --package <name> --json
-fluoh build --platform windows --package <name> --json
+fluoh run web --package <name> --device-id web-server --json
+fluoh build web --package <name> --json
+fluoh build linux --package <name> --json
+fluoh build windows --package <name> --json
 ```
 
 For iOS, auto-emulator selection should prefer an iPhone simulator over iPad,
 prefer newer runtimes inside the same device class, and wait for
 `xcrun simctl bootstatus <udid> -b` before treating the simulator as ready.
 
-Use `fluoh automate --platform all --package <name> --json` when an AI
+Use `fluoh drive all --package <name> --json` when an AI
 adaptation loop needs one mobile evidence command for OHOS, Android, and iOS.
 
 ## Checkpoints

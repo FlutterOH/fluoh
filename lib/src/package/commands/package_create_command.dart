@@ -70,7 +70,7 @@ class PackageCreateCommand extends FluohCommand<int> {
       ..addOption(
         'sdk',
         valueHelp: 'version-or-series',
-        help: 'Flutter OHOS SDK version or version series.',
+        help: 'FlutterOH SDK version or version series.',
       )
       ..addOption(
         'org',
@@ -163,7 +163,7 @@ class PackageCreateCommand extends FluohCommand<int> {
     final flutterCreateOrg = _flutterCreateOrgFromOptions();
     final repositoryOption = argResults!.option('repository');
     if (!json) {
-      _output.step('Resolving Flutter OHOS SDK');
+      _output.step('Resolving FlutterOH SDK');
     }
     final release = await _resolveSdkRelease();
     final destination = _packageCreateDestination(
@@ -260,18 +260,18 @@ class PackageCreateCommand extends FluohCommand<int> {
       ).sdkDirectory(release.tag);
       final sdkInstalled = await sdkDirectory.exists();
       if (sdkInstalled) {
-        _output.info('Using installed Flutter OHOS SDK ${release.tag}');
+        _output.info('Using installed FlutterOH SDK ${release.tag}');
       }
       final projectEnvironment = SdkProjectEnvironment(packageEnvironment);
       final configuredSdkDirectory = await _output.withProgress(
         sdkInstalled
-            ? 'Configuring Flutter OHOS SDK ${release.tag}'
-            : 'Installing Flutter OHOS SDK ${release.tag}; this may take a while.',
+            ? 'Configuring FlutterOH SDK ${release.tag}'
+            : 'Installing FlutterOH SDK ${release.tag}; this may take a while.',
         () => projectEnvironment.configure(release, writeFluohConfig: false),
         showWhenPlain: !sdkInstalled,
       );
       _output.info(
-        'Flutter OHOS SDK path: ${_output.style.path(configuredSdkDirectory.path)}',
+        'FlutterOH SDK path: ${_output.style.path(configuredSdkDirectory.path)}',
       );
       await _warnForSelectedPackageSdkCompatibility(
         repository: destination,
@@ -389,7 +389,7 @@ class PackageCreateCommand extends FluohCommand<int> {
       );
       _output.info('Package branch: $branch');
       _output.info('Origin: ${_output.style.url(repositoryUrl)}');
-      _output.success('Configured Flutter OHOS SDK ${release.tag}');
+      _output.success('Configured FlutterOH SDK ${release.tag}');
       if (implementationRecommendation != null) {
         _output.next(
           'Create ${implementationRecommendation.implementationPackageName} at '
@@ -769,7 +769,7 @@ class _PackageCreatePlan {
         'configure origin remote',
         if (gitAuthor != null) 'configure local Git author',
         'checkout $branch',
-        'configure Flutter OHOS SDK $sdkVersion',
+        'configure FlutterOH SDK $sdkVersion',
         'write README.md, fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, AGENTS.md, and CLAUDE.md',
         'prepare example OHOS platform when an example exists',
         'stage generated files',

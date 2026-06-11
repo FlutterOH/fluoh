@@ -7,6 +7,30 @@ class _IosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
   String get platform => 'ios';
 
   @override
+  Set<String> get supportedActions => const {
+    'allowPermission',
+    'assertLog',
+    'assertSession',
+    'assertText',
+    'denyPermission',
+    'drag',
+    'resetPermission',
+    'swipe',
+    'tap',
+    'tapText',
+    'wait',
+    'waitText',
+  };
+
+  @override
+  List<String> get evidenceMethods => const [
+    'xcrun simctl',
+    'XCTest action project',
+    'flutterRunSession JSON',
+    'Flutter run output log',
+  ];
+
+  @override
   Future<AutomationScenarioActionResult> runAction(
     AutomationScenarioAction action, {
     required _ScenarioExecutionContext context,
@@ -35,13 +59,7 @@ class _IosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
       case 'wait':
         return _waitAction(action);
       default:
-        return _failedAction(
-          action,
-          'iOS action ${action.action} is not supported by fluoh yet',
-          repairHints: [
-            'Use integration_test, XCTest-backed tooling, or record manual-assisted evidence with flutterRunSession output.',
-          ],
-        );
+        return unsupportedAction(action);
     }
   }
 }

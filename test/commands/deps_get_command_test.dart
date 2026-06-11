@@ -28,6 +28,22 @@ void main() {
     expect(stdout.join('\n'), contains('Usage: fluoh deps get'));
     expect(stdout.join('\n'), isNot(contains('Running flutter pub get')));
     expect(stderr, isEmpty);
+
+    stdout.clear();
+    stderr.clear();
+    expect(
+      await runFluoh(
+        ['deps', 'get', '--offline', '--help'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout.join('\n'), contains('Usage: fluoh deps get'));
+    expect(stdout.join('\n'), isNot(contains('Running flutter pub get')));
+    expect(stderr, isEmpty);
   });
 
   test('runs pub get for project and existing example', () async {

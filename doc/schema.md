@@ -31,7 +31,7 @@ State owners:
 
 ## Shared Rules
 
-- Complete Flutter OHOS SDK versions must match
+- Complete FlutterOH SDK versions must match
   `<major>.<minor>.<patch>-ohos-...`. SDK lines are derived from the first two
   numeric components, for example `3.35.8-ohos-1.0.1 -> 3.35`.
 - Source root `name` values are non-empty tokens without whitespace. Source
@@ -150,7 +150,7 @@ routes to per-package Manifests.
 schema: 1
 kind: source
 name: flutteroh
-description: Flutter OHOS SDK and package adaptation source.
+description: FlutterOH SDK and package adaptation source.
 
 repository:
   git:

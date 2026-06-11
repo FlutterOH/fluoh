@@ -359,7 +359,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     if (autoSignExample) {
       if (buildExampleTarget != 'hap') {
         throw UsageException(
-          'Automatic OHOS signing only supports --platform ohos.',
+          'Automatic OHOS signing only supports the OHOS build target.',
           usage,
         );
       }
@@ -863,7 +863,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         const reason =
             'web-server target does not run browser integration tests';
         final suggestedCommand =
-            'fluoh run --platform web --package ${package.name} --device chrome --json';
+            'fluoh run web --package ${package.name} --device-id chrome --json';
         steps.add(
           WorkflowStepResult(
             name: 'example-integration-${runResult.platform}',
@@ -1037,11 +1037,11 @@ WorkflowStepResult _integrationDiscoveryStep({
         'execution': 'run fluoh run with a concrete platform and device',
       },
       'suggestedCommands': [
-        'fluoh run --platform ohos$targetOption --auto-emulator --json',
-        'fluoh run --platform android$targetOption --auto-emulator --json',
-        'fluoh run --platform ios$targetOption --auto-emulator --json',
-        'fluoh run --platform macos$targetOption --json',
-        'fluoh run --platform web$targetOption --device chrome --json',
+        'fluoh run ohos$targetOption --auto-emulator --json',
+        'fluoh run android$targetOption --auto-emulator --json',
+        'fluoh run ios$targetOption --auto-emulator --json',
+        'fluoh run macos$targetOption --json',
+        'fluoh run web$targetOption --device-id chrome --json',
       ],
       'manualAssistedFallback': {
         'when':
@@ -1309,17 +1309,16 @@ WorkflowStepResult _ohosDiagnosticStep({
 
 String? _nextCommandForDiagnosticCode(String code, String packageName) {
   final baseline = 'fluoh verify --package $packageName';
-  final ohosRun = 'fluoh run --platform ohos --package $packageName';
+  final ohosRun = 'fluoh run ohos --package $packageName';
   final ohosAutoRun = '$ohosRun --auto-emulator';
-  final androidRun = 'fluoh run --platform android --package $packageName';
+  final androidRun = 'fluoh run android --package $packageName';
   final androidAutoRun = '$androidRun --auto-emulator';
-  final iosRun = 'fluoh run --platform ios --package $packageName';
+  final iosRun = 'fluoh run ios --package $packageName';
   final iosAutoRun = '$iosRun --auto-emulator';
-  final macosRun = 'fluoh run --platform macos --package $packageName';
-  final linuxRun = 'fluoh run --platform linux --package $packageName';
-  final webRun =
-      'fluoh run --platform web --package $packageName --device web-server';
-  final windowsRun = 'fluoh run --platform windows --package $packageName';
+  final macosRun = 'fluoh run macos --package $packageName';
+  final linuxRun = 'fluoh run linux --package $packageName';
+  final webRun = 'fluoh run web --package $packageName --device-id web-server';
+  final windowsRun = 'fluoh run windows --package $packageName';
   return switch (code) {
     'dart.sdk_constraint_unsatisfied' => '$baseline --json',
     'dart.pub_get_failed' => 'fluoh deps get',
@@ -1442,9 +1441,9 @@ String _packageRunNextCommand({
   final useDefaultWebServer =
       platform == 'web' && deviceId == null && emulatorName == null;
   return [
-    'fluoh run --platform $platform --package $packageName',
-    if (deviceId != null) '--device $deviceId',
-    if (useDefaultWebServer) '--device web-server',
+    'fluoh run $platform --package $packageName',
+    if (deviceId != null) '--device-id $deviceId',
+    if (useDefaultWebServer) '--device-id web-server',
     if (startEmulator &&
         emulatorName == null &&
         !_isDesktopRunPlatform(platform))

@@ -468,7 +468,7 @@ dependencyPolicy:
       ).readAsStringSync(),
       contains('version: 3.35.9-ohos-0.0.4'),
     );
-    expect(stdout, contains('Using Flutter OHOS SDK 3.35.9-ohos-0.0.4'));
+    expect(stdout, contains('Using FlutterOH SDK 3.35.9-ohos-0.0.4'));
     expect(stderr, isEmpty);
   });
 

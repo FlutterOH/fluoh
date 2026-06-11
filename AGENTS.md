@@ -2,7 +2,7 @@
 
 ## Project Scope
 
-`fluoh` is a Dart CLI package for FlutterOH workflows. It manages Flutter OHOS SDKs, checks dependency implementation status, rewrites project dependency declarations, runs platform build and device workflows, and helps maintain third-party FlutterOH package repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
+`fluoh` is a Dart CLI package for FlutterOH workflows. It manages FlutterOH SDKs, checks dependency implementation status, rewrites project dependency declarations, runs platform build and device workflows, and helps maintain third-party FlutterOH package repositories. Keep user-facing behavior predictable: commands should be repeatable, report what changed, and preserve local work when network or GitHub automation fails.
 
 ## Repository Layout
 
@@ -13,11 +13,12 @@
 - `lib/src/context/` and `lib/src/config/`: runtime environment and persisted project/tool configuration.
 - `lib/src/schema/`: internal YAML/JSON/text schema models, validation, canonical generation, and pure rewrite rules.
 - `lib/src/source/`: FlutterOH Source registry, source snapshot loading, validation, sync, and lock maintenance.
-- `lib/src/project/`: project creation commands.
+- `lib/src/project/create_command.dart`: top-level `create` command entry point.
 - `lib/src/sdk/`: SDK listing, installation, removal, selection, and Flutter wrapper commands.
 - `lib/src/platform/`: cross-platform target discovery, emulator/simulator helpers, and OHOS toolchain helpers.
-- `lib/src/deps/`: project dependency analysis and rewrite commands.
-- `lib/src/workflow/`: project verification/build workflows and run/test automation.
+- `lib/src/deps/`: project dependency analysis, policy, plan, pubspec rewrite helpers, and top-level `deps` command entry points.
+- `lib/src/workflow/commands/`: workflow command entry points for `plan`, `verify`, `build`, `run`, `drive`, and `report`.
+- `lib/src/workflow/`: shared workflow result models, automation scenarios, and platform automation helpers.
 - `lib/src/clean/`: cleanup of tool-owned cache artifacts.
 - `lib/src/package/`: package repository create, sync, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
@@ -72,10 +73,11 @@ level. Keep human progress text off stdout/stderr while JSON mode is active.
 Top-level commands are wired in `lib/src/cli/fluoh_command_runner.dart`. Keep the command table in `doc/commands.md` and `doc/commands.zh-CN.md` aligned when adding, removing, renaming, or moving commands.
 
 - Fluoh commands: `skill`, `flutter`, `doctor`, `clean`, and `upgrade`; `fluohf` is the `flutter` shortcut.
-- SDK and Source commands: `sdk` and `source`.
-- Project commands: `create`, `deps`, `verify`, `build`, and `run`.
-- Package commands: `package` and its repository lifecycle subcommands.
-- Tool and device commands: `devices`, `emulators`, and `automate`.
+- SDK and Metadata commands: `sdk` and `source`.
+- Project commands: `create` and `deps`.
+- Package commands: `package` owns package repository lifecycle, handoff, and release tasks.
+- Workflow commands: `plan`, `verify`, `build`, `run`, `drive`, and `report`.
+- Device commands: `devices` and `emulators`.
 
 State must have one owner. Do not bypass these owners in command implementations or tests:
 
@@ -84,7 +86,7 @@ State must have one owner. Do not bypass these owners in command implementations
 - `$FLUOH_HOME/sdks/<version>`: SDK install, remove, and on-demand wrapper setup in `lib/src/sdk/`.
 - `$FLUOH_HOME/cache/`: cleanable runtime artifacts produced by workflow, platform, and package commands; cleanup is owned by `fluoh clean`.
 - Project `fluoh.yaml` and `.fluoh/flutter_sdk`: SDK selection and dependency workflow configuration.
-- Project `pubspec.yaml`: dependency rewrite commands under `lib/src/deps/`.
+- Project `pubspec.yaml`: `deps` command entry points under `lib/src/deps/commands/`, using rewrite helpers under `lib/src/deps/`.
 - FlutterOH package repository `fluoh.yaml`, generated docs, examples, and release metadata: package workflow commands under `lib/src/package/`.
 - Source root and Manifest files: `source init`, `source sync`, and Source validation commands.
 

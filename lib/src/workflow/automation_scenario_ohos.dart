@@ -7,6 +7,34 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
   String get platform => 'ohos';
 
   @override
+  Set<String> get supportedActions => const {
+    'allowPermission',
+    'assertLog',
+    'assertSession',
+    'assertText',
+    'clearAppData',
+    'denyPermission',
+    'drag',
+    'inputText',
+    'launchApp',
+    'press',
+    'resetPermission',
+    'swipe',
+    'tap',
+    'tapText',
+    'wait',
+    'waitText',
+  };
+
+  @override
+  List<String> get evidenceMethods => const [
+    'hdc shell uitest',
+    'OHOS UI dump',
+    'OHOS hilog',
+    'launch ability metadata',
+  ];
+
+  @override
   Future<AutomationScenarioActionResult> runAction(
     AutomationScenarioAction action, {
     required _ScenarioExecutionContext context,
@@ -57,6 +85,34 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
               ...result.toDetails(),
             },
             repairHints: action.repairHints,
+          );
+        });
+      case 'resetPermission':
+        final bundleName = action.bundleId ?? action.value ?? action.text;
+        if (bundleName == null || bundleName.isEmpty) {
+          return _failedAction(
+            action,
+            'OHOS resetPermission requires bundleId or packageName',
+          );
+        }
+        return _withOhosToolchain(action, context, (hdcRun) async {
+          final result = await hdcRun([
+            'shell',
+            'bm',
+            'clean',
+            '-d',
+            '-n',
+            bundleName,
+          ]);
+          return _processActionResult(
+            action,
+            result,
+            result.command,
+            details: {
+              'bundleName': bundleName,
+              'method': 'bm clean -d',
+              'permission': action.permission,
+            },
           );
         });
       case 'launchApp':
@@ -157,18 +213,54 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
           context,
           (hdcRun) => _tapOhosPermission(action, hdcRun, allow: false),
         );
+      case 'inputText':
+        final value = action.value ?? action.text;
+        if (value == null || value.isEmpty) {
+          return _failedAction(action, 'OHOS inputText requires value or text');
+        }
+        return _withOhosToolchain(action, context, (hdcRun) async {
+          final result = await hdcRun([
+            'shell',
+            'uitest',
+            'uiInput',
+            'inputText',
+            value,
+          ]);
+          return _processActionResult(
+            action,
+            result,
+            result.command,
+            details: {'inputLength': value.length},
+          );
+        });
+      case 'press':
+        final keyCode = action.keyCode ?? action.value ?? action.text;
+        if (keyCode == null || keyCode.isEmpty) {
+          return _failedAction(action, 'OHOS press requires keyCode');
+        }
+        return _withOhosToolchain(action, context, (hdcRun) async {
+          final result = await hdcRun([
+            'shell',
+            'uitest',
+            'uiInput',
+            'keyEvent',
+            keyCode,
+          ]);
+          return _processActionResult(
+            action,
+            result,
+            result.command,
+            details: {'keyCode': keyCode},
+          );
+        });
       case 'assertLog':
         return _assertOhosLog(action, context);
+      case 'assertSession':
+        return _assertOhosSession(action, context);
       case 'wait':
         return _waitAction(action);
       default:
-        return _failedAction(
-          action,
-          'OHOS action ${action.action} is not supported by fluoh yet',
-          repairHints: [
-            'Expose this verification through hilog, integration_test, or a coordinate-based tap action.',
-          ],
-        );
+        return unsupportedAction(action);
     }
   }
 }

@@ -166,7 +166,7 @@ fluoh --version
 
 ## Package 仓库工作流维护
 
-`fluoh package create` 会保持上游分支干净，把克隆来源保留为 `upstream`，创建 `ohos/3.35/camera` 这类 Flutter OHOS Package 分支，把 `origin` 设置为 package 仓库最终推送位置，并配置所选 Flutter OHOS SDK 环境。默认仓库 URL 会根据 package 名称推导：
+`fluoh package create` 会保持上游分支干净，把克隆来源保留为 `upstream`，创建 `ohos/3.35/camera` 这类 FlutterOH Package 分支，把 `origin` 设置为 package 仓库最终推送位置，并配置所选 FlutterOH SDK 环境。默认仓库 URL 会根据 package 名称推导：
 
 ```sh
 https://github.com/FlutterOH/<package>.git

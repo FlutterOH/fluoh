@@ -175,9 +175,7 @@ void main() {
     expect(details, containsPair('testDirectory', 'example/integration_test'));
     expect(
       details['suggestedCommands'] as List<Object?>,
-      contains(
-        'fluoh run --platform ohos --package camera --auto-emulator --json',
-      ),
+      contains('fluoh run ohos --package camera --auto-emulator --json'),
     );
     final evidence = details['interactionEvidence'] as Map<String, Object?>;
     expect(evidence, containsPair('method', 'integration_test'));
@@ -598,7 +596,7 @@ Failed to update packages.
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'android', '--json', '--trace-dir', traceDir],
+        ['build', 'android', '--json', '--trace-dir', traceDir],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -658,7 +656,7 @@ Failed to update packages.
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'android', '--json'],
+        ['build', 'android', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -704,7 +702,7 @@ Failed to update packages.
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ohos', '--debug', '--json'],
+        ['build', 'ohos', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -787,7 +785,7 @@ Failed to update packages.
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'ohos', '--json'],
+          ['run', 'ohos', '--json'],
           environment: workflowEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -810,7 +808,7 @@ Failed to update packages.
         diagnostic,
         containsPair(
           'nextCommand',
-          'fluoh run --platform ohos --package camera --auto-emulator --json',
+          'fluoh run ohos --package camera --auto-emulator --json',
         ),
       );
       expect(stderr, isEmpty);
@@ -866,7 +864,7 @@ Failed to update packages.
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'ohos', '--json'],
+          ['run', 'ohos', '--json'],
           environment: workflowEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -947,7 +945,7 @@ Failed to update packages.
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ohos', '--json'],
+        ['run', 'ohos', '--json'],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1028,7 +1026,7 @@ Failed to update packages.
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ohos', '--log-duration', '0', '--json'],
+        ['run', 'ohos', '--log-duration', '0', '--json'],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1056,7 +1054,7 @@ Failed to update packages.
     expect(stderr, isEmpty);
   });
 
-  test('automate OHOS scenario grants permission through UI text', () async {
+  test('drive OHOS scenario grants permission through UI text', () async {
     final environment = await createTestEnvironment();
     final hdcLog = File('${environment.homeDirectory.path}/hdc.log');
     final devEco = await _writeWorkflowDevEcoFixture(
@@ -1110,12 +1108,18 @@ steps:
   - action: clearAppData
     bundleId: com.example.camera
     abilityName: PermissionAbility
+  - action: resetPermission
+    bundleId: com.example.camera
   - action: swipe
     x: 10
     y: 20
     endX: 30
     endY: 40
     durationMilliseconds: 250
+  - action: inputText
+    value: camera
+  - action: press
+    value: 2072
   - action: wait
     timeoutSeconds: 0
   - action: waitText
@@ -1127,6 +1131,8 @@ steps:
     labels: [PermissionStatus.granted]
   - action: assertLog
     contains: "sample_permissions_ohos: requestPermissions"
+  - action: assertSession
+    contains: com.example.camera
 ''');
     final stdout = <String>[];
     final stderr = <String>[];
@@ -1143,8 +1149,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'ohos',
           '--package',
           'camera',
@@ -1159,10 +1164,11 @@ steps:
         stderr: stderr.add,
       ),
       0,
+      reason: [...stdout, ...stderr].join('\n'),
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('command', 'automate'));
+    expect(report, containsPair('command', 'drive'));
     expect(report, containsPair('ok', true));
     final target =
         (report['targets'] as List<Object?>).single as Map<String, Object?>;
@@ -1177,14 +1183,18 @@ steps:
         .cast<Map<String, Object?>>();
     expect(actions.map((action) => action['action']), [
       'clearAppData',
+      'resetPermission',
       'foregroundApp',
       'swipe',
+      'inputText',
+      'press',
       'wait',
       'waitText',
       'tapText',
       'allowPermission',
       'assertText',
       'assertLog',
+      'assertSession',
     ]);
     final waitAction = actions.singleWhere(
       (action) => action['action'] == 'wait',
@@ -1208,6 +1218,14 @@ steps:
     expect(
       invocations,
       contains('-t emulator-5554 shell uitest uiInput swipe 10 20 30 40 250'),
+    );
+    expect(
+      invocations,
+      contains('-t emulator-5554 shell uitest uiInput inputText camera'),
+    );
+    expect(
+      invocations,
+      contains('-t emulator-5554 shell uitest uiInput keyEvent 2072'),
     );
     expect(
       invocations,
@@ -1273,7 +1291,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ohos', '--json'],
+        ['run', 'ohos', '--json'],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1295,7 +1313,7 @@ steps:
       diagnostic,
       containsPair(
         'nextCommand',
-        'fluoh run --platform ohos --package camera --auto-emulator --json',
+        'fluoh run ohos --package camera --auto-emulator --json',
       ),
     );
     expect(stderr, isEmpty);
@@ -1326,7 +1344,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'android', '--debug', '--json'],
+        ['build', 'android', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1384,7 +1402,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ios', '--debug', '--json'],
+        ['build', 'ios', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1441,7 +1459,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'macos', '--debug', '--json'],
+        ['build', 'macos', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1501,7 +1519,7 @@ steps:
       for (final platform in ['linux', 'web', 'windows']) {
         expect(
           await runFluoh(
-            ['build', '--platform', platform, '--debug', '--json'],
+            ['build', platform, '--debug', '--json'],
             environment: environment,
             stdout: stdout.add,
             stderr: stderr.add,
@@ -1568,7 +1586,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'android', '--debug', '--json'],
+        ['build', 'android', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1622,7 +1640,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ios', '--debug', '--json'],
+        ['build', 'ios', '--debug', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1674,7 +1692,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ohos', '--json'],
+        ['build', 'ohos', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1697,22 +1715,13 @@ steps:
     final diagnostic = diagnostics.single as Map<String, Object?>;
     expect(diagnostic, containsPair('code', 'ohos.hap_build_failed'));
     expect(diagnostic, containsPair('message', 'OHOS HAP build failed.'));
-    expect(
-      diagnostic,
-      containsPair('nextCommand', 'fluoh build --platform ohos --json'),
-    );
+    expect(diagnostic, containsPair('nextCommand', 'fluoh build ohos --json'));
     final details = diagnostic['details'] as Map<String, Object?>;
     expect(details, containsPair('command', 'flutter build hap --debug'));
     expect(details, containsPair('stdoutTail', contains('flutter stdout')));
     expect(details, containsPair('stderrTail', contains('flutter stderr')));
-    expect(
-      buildStep,
-      containsPair('nextCommand', 'fluoh build --platform ohos --json'),
-    );
-    expect(
-      target,
-      containsPair('nextCommand', 'fluoh build --platform ohos --json'),
-    );
+    expect(buildStep, containsPair('nextCommand', 'fluoh build ohos --json'));
+    expect(target, containsPair('nextCommand', 'fluoh build ohos --json'));
     expect(stderr, isEmpty);
   });
 
@@ -1738,7 +1747,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ohos', '--auto-sign', '--json'],
+        ['build', 'ohos', '--auto-sign', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1799,7 +1808,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ohos', '--json'],
+        ['build', 'ohos', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1848,7 +1857,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ohos', '--json'],
+        ['run', 'ohos', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1935,7 +1944,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ohos', '--json'],
+        ['run', 'ohos', '--json'],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -1988,7 +1997,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ios', '--device', 'ios-sim', '--json'],
+        ['run', 'ios', '--device-id', 'ios-sim', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2016,10 +2025,7 @@ steps:
     );
     expect(
       diagnostic,
-      containsPair(
-        'nextCommand',
-        'fluoh run --platform ios --device ios-sim --json',
-      ),
+      containsPair('nextCommand', 'fluoh run ios --device-id ios-sim --json'),
     );
     expect(stderr, isEmpty);
   });
@@ -2058,7 +2064,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--device', 'emulator-5554', '--json'],
+        ['run', 'android', '--device-id', 'emulator-5554', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2145,14 +2151,7 @@ steps:
 
       expect(
         await runFluoh(
-          [
-            'run',
-            '--platform',
-            'android',
-            '--device',
-            'emulator-5554',
-            '--json',
-          ],
+          ['run', 'android', '--device-id', 'emulator-5554', '--json'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -2168,7 +2167,7 @@ steps:
         target,
         containsPair(
           'nextCommand',
-          'fluoh run --platform android --device emulator-5554 --json',
+          'fluoh run android --device-id emulator-5554 --json',
         ),
       );
       final steps = target['steps'] as List<Object?>;
@@ -2180,7 +2179,7 @@ steps:
         integrationStep,
         containsPair(
           'nextCommand',
-          'fluoh run --platform android --device emulator-5554 --json',
+          'fluoh run android --device-id emulator-5554 --json',
         ),
       );
       final diagnostics = integrationStep['diagnostics'] as List<Object?>;
@@ -2193,7 +2192,7 @@ steps:
         diagnostic,
         containsPair(
           'nextCommand',
-          'fluoh run --platform android --device emulator-5554 --json',
+          'fluoh run android --device-id emulator-5554 --json',
         ),
       );
       expect(stderr, isEmpty);
@@ -2244,7 +2243,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--emulator', 'Pixel_35', '--json'],
+        ['run', 'android', '--emulator', 'Pixel_35', '--json'],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2360,7 +2359,7 @@ exit 0
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ios', '--emulator', 'iPhone 17 Pro', '--json'],
+        ['run', 'ios', '--emulator', 'iPhone 17 Pro', '--json'],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2436,7 +2435,7 @@ exit 0
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'android', '--auto-emulator', '--json'],
+          ['run', 'android', '--auto-emulator', '--json'],
           environment: commandEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -2535,7 +2534,7 @@ exit 0
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ios', '--auto-emulator', '--json'],
+        ['run', 'ios', '--auto-emulator', '--json'],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2593,7 +2592,7 @@ exit 0
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--auto-emulator', '--json'],
+        ['run', 'android', '--auto-emulator', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2657,7 +2656,7 @@ exit 0
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'android', '--auto-emulator', '--json'],
+          ['run', 'android', '--auto-emulator', '--json'],
           environment: commandEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -2722,7 +2721,7 @@ exit 0
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'android', '--auto-emulator', '--json'],
+          ['run', 'android', '--auto-emulator', '--json'],
           environment: commandEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -2786,7 +2785,7 @@ exit 0
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'linux', '--auto-emulator', '--json'],
+        ['run', 'linux', '--auto-emulator', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2834,7 +2833,7 @@ exit 0
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'web', '--auto-emulator', '--json'],
+        ['run', 'web', '--auto-emulator', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2879,7 +2878,7 @@ exit 0
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'linux', '--auto-emulator', '--json'],
+          ['run', 'linux', '--auto-emulator', '--json'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -2895,16 +2894,13 @@ exit 0
       final diagnostics = runStep['diagnostics'] as List<Object?>;
       final diagnostic = diagnostics.single as Map<String, Object?>;
       expect(diagnostic, containsPair('code', 'linux.device_missing'));
-      expect(
-        diagnostic,
-        containsPair('nextCommand', 'fluoh run --platform linux --json'),
-      );
+      expect(diagnostic, containsPair('nextCommand', 'fluoh run linux --json'));
       stdout.clear();
       stderr.clear();
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'web', '--auto-emulator', '--json'],
+          ['run', 'web', '--auto-emulator', '--json'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -2924,7 +2920,7 @@ exit 0
         webDiagnostic,
         containsPair(
           'nextCommand',
-          'fluoh run --platform web --device web-server --json',
+          'fluoh run web --device-id web-server --json',
         ),
       );
       expect(stderr, isEmpty);
@@ -2972,7 +2968,7 @@ exit 0
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--emulator', 'Pixel_35', '--json'],
+        ['run', 'android', '--emulator', 'Pixel_35', '--json'],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -2994,7 +2990,7 @@ exit 0
       diagnostic,
       containsPair(
         'nextCommand',
-        'fluoh run --platform android --emulator Pixel_35 --json',
+        'fluoh run android --emulator Pixel_35 --json',
       ),
     );
     expect(stderr, isEmpty);
@@ -3047,7 +3043,6 @@ void main() {
       await runFluoh(
         [
           'run',
-          '--platform',
           'android',
           '--session-file',
           '.fluoh/run-session.json',
@@ -3144,7 +3139,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('automate dry-run plans mobile emulator evidence', () async {
+  test('drive dry-run plans mobile emulator evidence', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
@@ -3152,7 +3147,8 @@ void main() {
     expect(
       await runFluoh(
         [
-          'automate',
+          'drive',
+          'all',
           '--package',
           'camera',
           '--trace-dir',
@@ -3169,7 +3165,7 @@ void main() {
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('schema', 1));
-    expect(report, containsPair('command', 'automate'));
+    expect(report, containsPair('command', 'drive'));
     expect(report, containsPair('ok', true));
     final automation = report['automation'] as Map<String, Object?>;
     expect(automation, containsPair('kind', 'fluoh.mobileAutomation'));
@@ -3211,7 +3207,7 @@ void main() {
     expect(
       rerunCommand,
       allOf(
-        contains('fluoh automate --platform all --package camera'),
+        contains('fluoh drive all --package camera'),
         contains('--trace-dir .fluoh/traces/camera/mobile'),
         contains('--dry-run --json'),
       ),
@@ -3232,7 +3228,7 @@ void main() {
         containsPair(
           'validation',
           allOf(
-            containsPair('kind', 'sameAutomateCommand'),
+            containsPair('kind', 'sameDriveCommand'),
             containsPair('command', rerunCommand),
           ),
         ),
@@ -3294,8 +3290,15 @@ void main() {
           containsPair('platform', 'ohos'),
           containsPair(
             'command',
-            contains(
-              'fluoh run --platform ohos --package camera --auto-emulator',
+            contains('fluoh run ohos --package camera --auto-emulator'),
+          ),
+          containsPair(
+            'driver',
+            allOf(
+              containsPair('platform', 'ohos'),
+              containsPair('supportedActions', contains('assertSession')),
+              containsPair('supportedActions', contains('inputText')),
+              containsPair('evidenceMethods', contains('OHOS hilog')),
             ),
           ),
         ),
@@ -3306,6 +3309,17 @@ void main() {
       contains(
         allOf(
           containsPair('platform', 'android'),
+          containsPair(
+            'driver',
+            allOf(
+              containsPair('platform', 'android'),
+              containsPair('supportedActions', contains('tapText')),
+              containsPair(
+                'evidenceMethods',
+                contains('flutterRunSession JSON'),
+              ),
+            ),
+          ),
           containsPair(
             'sessionFile',
             '${environment.workingDirectory.path}/.fluoh/run-sessions/automation/camera-android-session.json',
@@ -3329,122 +3343,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test(
-    'automate dry-run asks execution after coverage gates are ready',
-    () async {
-      final environment = await createTestEnvironment();
-      await _writePackageManifest(environment.workingDirectory);
-      await _writeFlutterPackage(environment.workingDirectory);
-      final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
-      );
-      await scenario.parent.create(recursive: true);
-      await scenario.writeAsString('''
-kind: fluoh.automationScenario
-schema: 1
-name: android public api ready
-platform: android
-coverage:
-  - category: publicApi
-    item: camera
-    path: success
-  - category: publicApi
-    item: camera
-    path: error
-steps:
-  - action: assertLog
-    contains: camera-ok
-''');
-      final stdout = <String>[];
-      final stderr = <String>[];
-
-      expect(
-        await runFluoh(
-          [
-            'automate',
-            '--platform',
-            'android',
-            '--package',
-            'camera',
-            '--scenario',
-            scenario.path,
-            '--dry-run',
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('ok', true));
-      final automation = report['automation'] as Map<String, Object?>;
-      final recommendation =
-          automation['deliveryRecommendation'] as Map<String, Object?>;
-      expect(recommendation, containsPair('status', 'needsExecution'));
-      expect(recommendation, containsPair('ready', false));
-      expect(
-        recommendation['targetSummary'],
-        allOf(containsPair('executed', false), containsPair('dryRun', true)),
-      );
-      final repairQueue = (automation['repairQueue'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(repairQueue, hasLength(1));
-      expect(repairQueue.single, containsPair('type', 'execution'));
-      final repairPlan = automation['repairPlan'] as Map<String, Object?>;
-      expect(repairPlan, containsPair('status', 'needsExecution'));
-      expect(repairPlan, containsPair('queueLength', 1));
-      expect(
-        repairPlan['nextStep'],
-        allOf(
-          containsPair('kind', 'executeAutomation'),
-          containsPair('sourceType', 'execution'),
-          containsPair('nextCommands', isA<List<Object?>>()),
-          containsPair(
-            'doneWhen',
-            contains('all planned automation commands exit successfully'),
-          ),
-          containsPair('validation', containsPair('kind', 'commands')),
-        ),
-      );
-      final nextCommands = (repairQueue.single['nextCommands'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(
-        nextCommands.single,
-        allOf(
-          containsPair('platform', 'android'),
-          containsPair(
-            'command',
-            contains('fluoh run --platform android --package camera'),
-          ),
-        ),
-      );
-      final coveragePolicy =
-          automation['coveragePolicy'] as Map<String, Object?>;
-      expect(coveragePolicy, containsPair('status', 'readyForExecution'));
-      expect(coveragePolicy, containsPair('readyForAutomation', true));
-      expect(
-        coveragePolicy['qualityGateSummary'],
-        allOf(
-          containsPair('total', greaterThan(0)),
-          containsPair('ready', greaterThan(0)),
-          containsPair('notReady', isEmpty),
-        ),
-      );
-      final qualityGates = (coveragePolicy['qualityGates'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(
-        qualityGates,
-        everyElement(containsPair('status', 'readyForReview')),
-      );
-      expect(report['targets'], isEmpty);
-      expect(stderr, isEmpty);
-    },
-  );
-
-  test('automate dry-run quotes executable plan command arguments', () async {
+  test('drive dry-run asks execution after coverage gates are ready', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -3474,8 +3373,121 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
+          'android',
+          '--package',
+          'camera',
+          '--scenario',
+          scenario.path,
+          '--dry-run',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final automation = report['automation'] as Map<String, Object?>;
+    final recommendation =
+        automation['deliveryRecommendation'] as Map<String, Object?>;
+    expect(recommendation, containsPair('status', 'needsExecution'));
+    expect(recommendation, containsPair('ready', false));
+    expect(
+      recommendation['targetSummary'],
+      allOf(containsPair('executed', false), containsPair('dryRun', true)),
+    );
+    final repairQueue = (automation['repairQueue'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(repairQueue, hasLength(1));
+    expect(repairQueue.single, containsPair('type', 'execution'));
+    final repairPlan = automation['repairPlan'] as Map<String, Object?>;
+    expect(repairPlan, containsPair('status', 'needsExecution'));
+    expect(repairPlan, containsPair('queueLength', 1));
+    expect(
+      repairPlan['nextStep'],
+      allOf(
+        containsPair('kind', 'executeAutomation'),
+        containsPair('sourceType', 'execution'),
+        containsPair('nextCommands', isA<List<Object?>>()),
+        containsPair(
+          'doneWhen',
+          contains('the planned automation command exits successfully'),
+        ),
+        containsPair('validation', containsPair('kind', 'commands')),
+      ),
+    );
+    final nextCommands = (repairQueue.single['nextCommands'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final executionCommand = nextCommands.single['command'] as String;
+    expect(
+      nextCommands.single,
+      allOf(
+        containsPair(
+          'command',
+          contains('fluoh drive android --package camera'),
+        ),
+        containsPair('command', contains('--scenario ${scenario.path}')),
+        containsPair('command', contains('--json')),
+      ),
+    );
+    expect(executionCommand, isNot(contains('fluoh run android')));
+    expect(executionCommand, isNot(contains('--dry-run')));
+    final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
+    expect(coveragePolicy, containsPair('status', 'readyForExecution'));
+    expect(coveragePolicy, containsPair('readyForAutomation', true));
+    expect(
+      coveragePolicy['qualityGateSummary'],
+      allOf(
+        containsPair('total', greaterThan(0)),
+        containsPair('ready', greaterThan(0)),
+        containsPair('notReady', isEmpty),
+      ),
+    );
+    final qualityGates = (coveragePolicy['qualityGates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      qualityGates,
+      everyElement(containsPair('status', 'readyForReview')),
+    );
+    expect(report['targets'], isEmpty);
+    expect(stderr, isEmpty);
+  });
+
+  test('drive dry-run quotes executable plan command arguments', () async {
+    final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android public api ready
+platform: android
+coverage:
+  - category: publicApi
+    item: camera
+    path: success
+  - category: publicApi
+    item: camera
+    path: error
+steps:
+  - action: assertLog
+    contains: camera-ok
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'drive',
           'android',
           '--package',
           'camera',
@@ -3513,17 +3525,15 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test(
-    'automate dry-run routes blocked coverage to maintainer decision',
-    () async {
-      final environment = await createTestEnvironment();
-      await _writePackageManifest(environment.workingDirectory);
-      await _writeFlutterPackage(environment.workingDirectory);
-      final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-blocked-api.md',
-      );
-      await scenario.parent.create(recursive: true);
-      await scenario.writeAsString('''
+  test('drive dry-run routes blocked coverage to maintainer decision', () async {
+    final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-blocked-api.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
 kind: fluoh.automationScenario
 schema: 1
 name: android blocked public api
@@ -3543,66 +3553,63 @@ steps:
   - action: wait
     timeoutSeconds: 0
 ''');
-      final stdout = <String>[];
-      final stderr = <String>[];
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      expect(
-        await runFluoh(
-          [
-            'automate',
-            '--platform',
-            'android',
-            '--package',
-            'camera',
-            '--scenario',
-            scenario.path,
-            '--dry-run',
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
+    expect(
+      await runFluoh(
+        [
+          'drive',
+          'android',
+          '--package',
+          'camera',
+          '--scenario',
+          scenario.path,
+          '--dry-run',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
 
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('ok', true));
-      final automation = report['automation'] as Map<String, Object?>;
-      final coveragePolicy =
-          automation['coveragePolicy'] as Map<String, Object?>;
-      expect(coveragePolicy, containsPair('status', 'needsMaintainerDecision'));
-      expect(coveragePolicy, containsPair('readyForAutomation', false));
-      expect(
-        coveragePolicy['qualityGateSummary'],
-        allOf(
-          containsPair('notReady', isEmpty),
-          containsPair('ready', greaterThan(0)),
-        ),
-      );
-      final recommendation =
-          automation['deliveryRecommendation'] as Map<String, Object?>;
-      expect(recommendation, containsPair('status', 'needsMaintainerDecision'));
-      expect(
-        recommendation,
-        containsPair('recommendation', 'needs-maintainer-decision'),
-      );
-      final repairQueue = (automation['repairQueue'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(repairQueue, hasLength(1));
-      expect(
-        repairQueue.single,
-        allOf(
-          containsPair('type', 'coverageBlocked'),
-          containsPair('scenario', 'android blocked public api'),
-          containsPair('coverage', containsPair('status', 'blocked')),
-        ),
-      );
-      expect(stderr, isEmpty);
-    },
-  );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final automation = report['automation'] as Map<String, Object?>;
+    final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
+    expect(coveragePolicy, containsPair('status', 'needsMaintainerDecision'));
+    expect(coveragePolicy, containsPair('readyForAutomation', false));
+    expect(
+      coveragePolicy['qualityGateSummary'],
+      allOf(
+        containsPair('notReady', isEmpty),
+        containsPair('ready', greaterThan(0)),
+      ),
+    );
+    final recommendation =
+        automation['deliveryRecommendation'] as Map<String, Object?>;
+    expect(recommendation, containsPair('status', 'needsMaintainerDecision'));
+    expect(
+      recommendation,
+      containsPair('recommendation', 'needs-maintainer-decision'),
+    );
+    final repairQueue = (automation['repairQueue'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(repairQueue, hasLength(1));
+    expect(
+      repairQueue.single,
+      allOf(
+        containsPair('type', 'coverageBlocked'),
+        containsPair('scenario', 'android blocked public api'),
+        containsPair('coverage', containsPair('status', 'blocked')),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
 
-  test('automate dry-run inventories package evidence and permissions', () async {
+  test('drive dry-run inventories package evidence and permissions', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -3650,15 +3657,7 @@ steps:
 
     expect(
       await runFluoh(
-        [
-          'automate',
-          '--platform',
-          'android',
-          '--package',
-          'camera',
-          '--dry-run',
-          '--json',
-        ],
+        ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -3804,7 +3803,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate dry-run flags low package test coverage baseline', () async {
+  test('drive dry-run flags low package test coverage baseline', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -3822,15 +3821,7 @@ steps:
 
     expect(
       await runFluoh(
-        [
-          'automate',
-          '--platform',
-          'android',
-          '--package',
-          'camera',
-          '--dry-run',
-          '--json',
-        ],
+        ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -3960,7 +3951,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate dry-run flags weak package tests', () async {
+  test('drive dry-run flags weak package tests', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -3987,15 +3978,7 @@ void main() {
 
     expect(
       await runFluoh(
-        [
-          'automate',
-          '--platform',
-          'android',
-          '--package',
-          'camera',
-          '--dry-run',
-          '--json',
-        ],
+        ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -4072,7 +4055,7 @@ void main() {
   });
 
   test(
-    'automate dry-run accepts tests that exercise public declarations',
+    'drive dry-run accepts tests that exercise public declarations',
     () async {
       final environment = await createTestEnvironment();
       await _writePackageManifest(environment.workingDirectory);
@@ -4101,15 +4084,7 @@ void main() {
 
       expect(
         await runFluoh(
-          [
-            'automate',
-            '--platform',
-            'android',
-            '--package',
-            'camera',
-            '--dry-run',
-            '--json',
-          ],
+          ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -4152,7 +4127,7 @@ void main() {
     },
   );
 
-  test('automate dry-run flags untested public declarations', () async {
+  test('drive dry-run flags untested public declarations', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -4184,15 +4159,7 @@ void main() {
 
     expect(
       await runFluoh(
-        [
-          'automate',
-          '--platform',
-          'android',
-          '--package',
-          'camera',
-          '--dry-run',
-          '--json',
-        ],
+        ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -4267,7 +4234,7 @@ void main() {
   });
 
   test(
-    'automate dry-run prints dart package test command for coverage repair',
+    'drive dry-run prints dart package test command for coverage repair',
     () async {
       final environment = await createTestEnvironment();
       await _writePackageManifest(environment.workingDirectory);
@@ -4307,8 +4274,7 @@ steps:
       expect(
         await runFluoh(
           [
-            'automate',
-            '--platform',
+            'drive',
             'android',
             '--package',
             'camera',
@@ -4401,7 +4367,7 @@ steps:
           containsPair(
             'validation',
             allOf(
-              containsPair('kind', 'packageTestsThenAutomate'),
+              containsPair('kind', 'packageTestsThenDrive'),
               containsPair(
                 'testCommand',
                 allOf(
@@ -4409,7 +4375,7 @@ steps:
                   contains('/test/camera_controller_test.dart'),
                 ),
               ),
-              containsPair('automateCommand', rerunCommand),
+              containsPair('driveCommand', rerunCommand),
               containsPair('commands', contains(rerunCommand)),
             ),
           ),
@@ -4419,7 +4385,7 @@ steps:
     },
   );
 
-  test('automate dry-run reports generic package capability gaps', () async {
+  test('drive dry-run reports generic package capability gaps', () async {
     final environment = await createTestEnvironment();
     await File('${environment.workingDirectory.path}/fluoh.yaml').writeAsString(
       '''
@@ -4536,8 +4502,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'sample_tool',
@@ -4705,7 +4670,7 @@ steps:
     expect(
       rerunCommand,
       allOf(
-        contains('fluoh automate --platform android --package sample_tool'),
+        contains('fluoh drive android --package sample_tool'),
         contains('--scenario ${scenario.path}'),
         contains('--dry-run --json'),
       ),
@@ -4726,7 +4691,7 @@ steps:
         containsPair(
           'validation',
           allOf(
-            containsPair('kind', 'sameAutomateCommand'),
+            containsPair('kind', 'sameDriveCommand'),
             containsPair('command', rerunCommand),
           ),
         ),
@@ -4775,7 +4740,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate dry-run requires every manifest permission row', () async {
+  test('drive dry-run requires every manifest permission row', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -4853,8 +4818,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'camera',
@@ -5034,7 +4998,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate dry-run reports scenario coverage matrix', () async {
+  test('drive dry-run reports scenario coverage matrix', () async {
     final environment = await createTestEnvironment();
     final scenarioDirectory = Directory(
       '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions',
@@ -5083,8 +5047,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'sample_permissions',
@@ -5282,15 +5245,13 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test(
-    'automate dry-run allows explanatory coverage without assertions',
-    () async {
-      final environment = await createTestEnvironment();
-      final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/sample/explanatory-coverage.md',
-      );
-      await scenario.parent.create(recursive: true);
-      await scenario.writeAsString('''
+  test('drive dry-run allows explanatory coverage without assertions', () async {
+    final environment = await createTestEnvironment();
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/sample/explanatory-coverage.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
 kind: fluoh.automationScenario
 schema: 1
 name: explanatory coverage
@@ -5310,72 +5271,69 @@ steps:
   - action: wait
     timeoutSeconds: 0
 ''');
-      final stdout = <String>[];
-      final stderr = <String>[];
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      expect(
-        await runFluoh(
-          [
-            'automate',
-            '--platform',
-            'android',
-            '--package',
-            'sample_permissions',
-            '--scenario',
-            scenario.path,
-            '--dry-run',
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
+    expect(
+      await runFluoh(
+        [
+          'drive',
+          'android',
+          '--package',
+          'sample_permissions',
+          '--scenario',
+          scenario.path,
+          '--dry-run',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
 
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('ok', true));
-      final automation = report['automation'] as Map<String, Object?>;
-      final coveragePolicy =
-          automation['coveragePolicy'] as Map<String, Object?>;
-      final scenarioEvidence =
-          (coveragePolicy['scenarioEvidence'] as List<Object?>)
-              .cast<Map<String, Object?>>();
-      expect(scenarioEvidence, hasLength(1));
-      expect(
-        scenarioEvidence.single,
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final automation = report['automation'] as Map<String, Object?>;
+    final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
+    final scenarioEvidence =
+        (coveragePolicy['scenarioEvidence'] as List<Object?>)
+            .cast<Map<String, Object?>>();
+    expect(scenarioEvidence, hasLength(1));
+    expect(
+      scenarioEvidence.single,
+      allOf(
+        containsPair('status', 'readyForReview'),
+        containsPair('coverageItemCount', 2),
+        containsPair('coveredCoverageItemCount', 0),
+        containsPair('explanatoryCoverageItemCount', 2),
+        containsPair('verificationActions', isEmpty),
+      ),
+    );
+    final qualityGates = (coveragePolicy['qualityGates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      qualityGates,
+      contains(
         allOf(
+          containsPair('id', 'scenario-evidence-assertions'),
           containsPair('status', 'readyForReview'),
-          containsPair('coverageItemCount', 2),
-          containsPair('coveredCoverageItemCount', 0),
-          containsPair('explanatoryCoverageItemCount', 2),
-          containsPair('verificationActions', isEmpty),
         ),
-      );
-      final qualityGates = (coveragePolicy['qualityGates'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(
-        qualityGates,
-        contains(
-          allOf(
-            containsPair('id', 'scenario-evidence-assertions'),
-            containsPair('status', 'readyForReview'),
-          ),
-        ),
-      );
-      final repairQueue = (automation['repairQueue'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(
-        repairQueue.where(
-          (item) => item['gate'] == 'scenario-evidence-assertions',
-        ),
-        isEmpty,
-      );
-      expect(stderr, isEmpty);
-    },
-  );
+      ),
+    );
+    final repairQueue = (automation['repairQueue'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      repairQueue.where(
+        (item) => item['gate'] == 'scenario-evidence-assertions',
+      ),
+      isEmpty,
+    );
+    expect(stderr, isEmpty);
+  });
 
-  test('automate rejects invalid scenario coverage status', () async {
+  test('drive rejects invalid scenario coverage status', () async {
     final environment = await createTestEnvironment();
     final scenario = File(
       '${environment.workingDirectory.path}/.fluoh/scenarios/sample/invalid-coverage.md',
@@ -5400,8 +5358,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'sample_permissions',
@@ -5425,7 +5382,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate rejects blocked coverage without a reason', () async {
+  test('drive rejects blocked coverage without a reason', () async {
     final environment = await createTestEnvironment();
     final scenario = File(
       '${environment.workingDirectory.path}/.fluoh/scenarios/sample/blocked-coverage.md',
@@ -5451,8 +5408,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'sample_permissions',
@@ -5476,7 +5432,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate Android package run writes session evidence', () async {
+  test('drive Android package run writes session evidence', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
@@ -5510,8 +5466,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'camera',
@@ -5537,7 +5492,7 @@ steps:
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('command', 'automate'));
+    expect(report, containsPair('command', 'drive'));
     expect(report, containsPair('ok', true));
     final automation = report['automation'] as Map<String, Object?>;
     expect(automation['platforms'], ['android']);
@@ -5565,7 +5520,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate iOS scenario taps permission via built-in XCTest', () async {
+  test('drive iOS scenario taps permission via built-in XCTest', () async {
     final baseEnvironment = await createTestEnvironment();
     final xcrunLog = File('${baseEnvironment.workingDirectory.path}/xcrun.log');
     final xcrun = await _writeXcrunFixture(
@@ -5651,8 +5606,7 @@ steps:
 
     final exitCode = await runFluoh(
       [
-        'automate',
-        '--platform',
+        'drive',
         'ios',
         '--package',
         'camera',
@@ -5669,7 +5623,7 @@ steps:
     expect(exitCode, 0, reason: stdout.join('\n'));
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('command', 'automate'));
+    expect(report, containsPair('command', 'drive'));
     expect(report, containsPair('ok', true));
     final automation = report['automation'] as Map<String, Object?>;
     final delivery =
@@ -5762,7 +5716,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate iOS scenario runs text actions via built-in XCTest', () async {
+  test('drive iOS scenario runs text actions via built-in XCTest', () async {
     final baseEnvironment = await createTestEnvironment();
     final xcrunLog = File('${baseEnvironment.workingDirectory.path}/xcrun.log');
     final xcrun = await _writeXcrunFixture(
@@ -5873,8 +5827,7 @@ steps:
 
     final exitCode = await runFluoh(
       [
-        'automate',
-        '--platform',
+        'drive',
         'ios',
         '--package',
         'camera',
@@ -5891,7 +5844,7 @@ steps:
     expect(exitCode, 0, reason: stdout.join('\n'));
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('command', 'automate'));
+    expect(report, containsPair('command', 'drive'));
     expect(report, containsPair('ok', true));
     final target =
         (report['targets'] as List<Object?>).single as Map<String, Object?>;
@@ -5995,48 +5948,44 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test(
-    'automate iOS scenario runs coordinate gestures via built-in XCTest',
-    () async {
-      final baseEnvironment = await createTestEnvironment();
-      final xcrunLog = File(
-        '${baseEnvironment.workingDirectory.path}/xcrun.log',
-      );
-      final xcrun = await _writeXcrunFixture(
-        Directory('${baseEnvironment.workingDirectory.path}/tools'),
-        xcrunLog.path,
-        supportsXCTest: true,
-      );
-      final environment = FluohEnvironment(
-        homeDirectory: baseEnvironment.homeDirectory,
-        workingDirectory: baseEnvironment.workingDirectory,
-        processEnvironment: {
-          ...baseEnvironment.processEnvironment,
-          'FLUOH_XCRUN': xcrun.path,
-        },
-      );
-      final source = await _createWorkflowSdkSource(
-        environment.homeDirectory,
-        environment.workingDirectory,
-        flutterStdout: const {
-          'devices --machine':
-              '[{"id":"ios-sim","name":"iPhone","targetPlatform":"ios","isSupported":true,"emulator":true}]',
-          'run -d ios-sim --debug --no-pub':
-              'Flutter run key commands.\n'
-              'Debug service listening on http://127.0.0.1:23456/ios=/\n'
-              'Application running.',
-        },
-      );
-      await _writePackageManifest(environment.workingDirectory);
-      await _writeFlutterPackage(environment.workingDirectory);
-      await _writeFlutterExample(
-        Directory('${environment.workingDirectory.path}/example'),
-      );
-      final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-xctest-gestures.md',
-      );
-      await scenario.parent.create(recursive: true);
-      await scenario.writeAsString('''
+  test('drive iOS scenario runs coordinate gestures via built-in XCTest', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final xcrunLog = File('${baseEnvironment.workingDirectory.path}/xcrun.log');
+    final xcrun = await _writeXcrunFixture(
+      Directory('${baseEnvironment.workingDirectory.path}/tools'),
+      xcrunLog.path,
+      supportsXCTest: true,
+    );
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        ...baseEnvironment.processEnvironment,
+        'FLUOH_XCRUN': xcrun.path,
+      },
+    );
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"ios-sim","name":"iPhone","targetPlatform":"ios","isSupported":true,"emulator":true}]',
+        'run -d ios-sim --debug --no-pub':
+            'Flutter run key commands.\n'
+            'Debug service listening on http://127.0.0.1:23456/ios=/\n'
+            'Application running.',
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-xctest-gestures.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
 kind: fluoh.automationScenario
 schema: 1
 name: ios xctest gestures
@@ -6056,131 +6005,125 @@ steps:
   - action: assertSession
     status: passed
 ''');
-      final stdout = <String>[];
-      final stderr = <String>[];
+    final stdout = <String>[];
+    final stderr = <String>[];
 
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        [
+          'drive',
+          'ios',
+          '--package',
+          'camera',
+          '--scenario',
+          scenario.path,
+          '--log-duration',
+          '0',
+          '--json',
+        ],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      );
-      stdout.clear();
-      stderr.clear();
+      ),
+      0,
+    );
 
-      expect(
-        await runFluoh(
-          [
-            'automate',
-            '--platform',
-            'ios',
-            '--package',
-            'camera',
-            '--scenario',
-            scenario.path,
-            '--log-duration',
-            '0',
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'drive'));
+    expect(report, containsPair('ok', true));
+    final target =
+        (report['targets'] as List<Object?>).single as Map<String, Object?>;
+    final steps = (target['steps'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final scenarioStep = steps.singleWhere(
+      (step) => step['name'] == 'automation-scenario-ios-ios-xctest-gestures',
+    );
+    expect(scenarioStep, containsPair('status', 'passed'));
+    final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
+    final actions = (scenarioDetails['actions'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(actions.map((action) => action['action']), [
+      'tap',
+      'swipe',
+      'assertSession',
+    ]);
+    final tapDetails = actions.first['details'] as Map<String, Object?>;
+    expect(tapDetails, containsPair('driver', 'xctest'));
+    expect(tapDetails, containsPair('method', 'xcodebuildTest'));
+    expect(tapDetails['gesture'], containsPair('x', 20));
+    final swipeDetails = actions[1]['details'] as Map<String, Object?>;
+    expect(swipeDetails, containsPair('driver', 'xctest'));
+    expect(
+      swipeDetails['gesture'],
+      allOf(
+        containsPair('x', 10),
+        containsPair('y', 20),
+        containsPair('endX', 30),
+        containsPair('endY', 40),
+        containsPair('durationMilliseconds', 250),
+      ),
+    );
+    final generatedTest = File(
+      '${environment.homeDirectory.path}/cache/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+    );
+    expect(await generatedTest.exists(), isTrue);
+    final generatedSource = await generatedTest.readAsString();
+    expect(generatedSource, contains('CoordinateActionUITests'));
+    expect(generatedSource, contains('press(forDuration: 0.25'));
+    final invocations = xcrunLog.readAsStringSync();
+    expect(RegExp('xcodebuild test').allMatches(invocations), hasLength(2));
+    expect(stderr, isEmpty);
+  });
 
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('command', 'automate'));
-      expect(report, containsPair('ok', true));
-      final target =
-          (report['targets'] as List<Object?>).single as Map<String, Object?>;
-      final steps = (target['steps'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      final scenarioStep = steps.singleWhere(
-        (step) => step['name'] == 'automation-scenario-ios-ios-xctest-gestures',
-      );
-      expect(scenarioStep, containsPair('status', 'passed'));
-      final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
-      final actions = (scenarioDetails['actions'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(actions.map((action) => action['action']), [
-        'tap',
-        'swipe',
-        'assertSession',
-      ]);
-      final tapDetails = actions.first['details'] as Map<String, Object?>;
-      expect(tapDetails, containsPair('driver', 'xctest'));
-      expect(tapDetails, containsPair('method', 'xcodebuildTest'));
-      expect(tapDetails['gesture'], containsPair('x', 20));
-      final swipeDetails = actions[1]['details'] as Map<String, Object?>;
-      expect(swipeDetails, containsPair('driver', 'xctest'));
-      expect(
-        swipeDetails['gesture'],
-        allOf(
-          containsPair('x', 10),
-          containsPair('y', 20),
-          containsPair('endX', 30),
-          containsPair('endY', 40),
-          containsPair('durationMilliseconds', 250),
-        ),
-      );
-      final generatedTest = File(
-        '${environment.homeDirectory.path}/cache/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
-      );
-      expect(await generatedTest.exists(), isTrue);
-      final generatedSource = await generatedTest.readAsString();
-      expect(generatedSource, contains('CoordinateActionUITests'));
-      expect(generatedSource, contains('press(forDuration: 0.25'));
-      final invocations = xcrunLog.readAsStringSync();
-      expect(RegExp('xcodebuild test').allMatches(invocations), hasLength(2));
-      expect(stderr, isEmpty);
-    },
-  );
-
-  test(
-    'automate iOS scenario rejects app bundles with mismatched bundle ids',
-    () async {
-      final baseEnvironment = await createTestEnvironment();
-      final xcrunLog = File(
-        '${baseEnvironment.workingDirectory.path}/xcrun.log',
-      );
-      final xcrun = await _writeXcrunFixture(
-        Directory('${baseEnvironment.workingDirectory.path}/tools'),
-        xcrunLog.path,
-        supportsXCTest: true,
-        iosAppInstalled: false,
-      );
-      final environment = FluohEnvironment(
-        homeDirectory: baseEnvironment.homeDirectory,
-        workingDirectory: baseEnvironment.workingDirectory,
-        processEnvironment: {
-          ...baseEnvironment.processEnvironment,
-          'FLUOH_XCRUN': xcrun.path,
-        },
-      );
-      final source = await _createWorkflowSdkSource(
-        environment.homeDirectory,
-        environment.workingDirectory,
-        flutterStdout: const {
-          'devices --machine':
-              '[{"id":"ios-sim","name":"iPhone","targetPlatform":"ios","isSupported":true,"emulator":true}]',
-          'run -d ios-sim --debug --no-pub':
-              'Flutter run key commands.\n'
-              'Debug service listening on http://127.0.0.1:23456/ios=/\n'
-              'Application running.',
-        },
-      );
-      await _writePackageManifest(environment.workingDirectory);
-      await _writeFlutterPackage(environment.workingDirectory);
-      final exampleDirectory = Directory(
-        '${environment.workingDirectory.path}/example',
-      );
-      await _writeFlutterExample(exampleDirectory);
-      final appInfoPlist = File(
-        '${exampleDirectory.path}/build/ios/iphonesimulator/Runner.app/Info.plist',
-      );
-      await appInfoPlist.parent.create(recursive: true);
-      await appInfoPlist.writeAsString('''
+  test('drive iOS scenario rejects app bundles with mismatched bundle ids', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final xcrunLog = File('${baseEnvironment.workingDirectory.path}/xcrun.log');
+    final xcrun = await _writeXcrunFixture(
+      Directory('${baseEnvironment.workingDirectory.path}/tools'),
+      xcrunLog.path,
+      supportsXCTest: true,
+      iosAppInstalled: false,
+    );
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        ...baseEnvironment.processEnvironment,
+        'FLUOH_XCRUN': xcrun.path,
+      },
+    );
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+      flutterStdout: const {
+        'devices --machine':
+            '[{"id":"ios-sim","name":"iPhone","targetPlatform":"ios","isSupported":true,"emulator":true}]',
+        'run -d ios-sim --debug --no-pub':
+            'Flutter run key commands.\n'
+            'Debug service listening on http://127.0.0.1:23456/ios=/\n'
+            'Application running.',
+      },
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final exampleDirectory = Directory(
+      '${environment.workingDirectory.path}/example',
+    );
+    await _writeFlutterExample(exampleDirectory);
+    final appInfoPlist = File(
+      '${exampleDirectory.path}/build/ios/iphonesimulator/Runner.app/Info.plist',
+    );
+    await appInfoPlist.parent.create(recursive: true);
+    await appInfoPlist.writeAsString('''
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key>
@@ -6188,11 +6131,11 @@ steps:
 </dict>
 </plist>
 ''');
-      final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-wrong-bundle.md',
-      );
-      await scenario.parent.create(recursive: true);
-      await scenario.writeAsString('''
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-wrong-bundle.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
 kind: fluoh.automationScenario
 schema: 1
 name: ios wrong bundle
@@ -6203,77 +6146,75 @@ steps:
     x: 20
     y: 30
 ''');
-      final stdout = <String>[];
-      final stderr = <String>[];
+    final stdout = <String>[];
+    final stderr = <String>[];
 
+    await runFluoh(
+      ['source', 'add', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        [
+          'drive',
+          'ios',
+          '--package',
+          'camera',
+          '--scenario',
+          scenario.path,
+          '--log-duration',
+          '0',
+          '--json',
+        ],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      );
-      stdout.clear();
-      stderr.clear();
+      ),
+      1,
+    );
 
-      expect(
-        await runFluoh(
-          [
-            'automate',
-            '--platform',
-            'ios',
-            '--package',
-            'camera',
-            '--scenario',
-            scenario.path,
-            '--log-duration',
-            '0',
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    final target =
+        (report['targets'] as List<Object?>).single as Map<String, Object?>;
+    final steps = (target['steps'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final scenarioStep = steps.singleWhere(
+      (step) => step['name'] == 'automation-scenario-ios-ios-wrong-bundle',
+    );
+    expect(scenarioStep, containsPair('status', 'failed'));
+    final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
+    final actions = (scenarioDetails['actions'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final tapAction = actions.singleWhere(
+      (action) => action['action'] == 'tap',
+    );
+    final tapDetails = tapAction['details'] as Map<String, Object?>;
+    final appInstall = tapDetails['appInstall'] as Map<String, Object?>;
+    expect(appInstall, containsPair('status', 'missingAppBundle'));
+    expect(
+      appInstall['candidateAppBundles'],
+      contains(
+        allOf(
+          containsPair('path', appInfoPlist.parent.path),
+          containsPair('bundleIdentifier', 'com.example.other'),
         ),
-        1,
-      );
-
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('ok', false));
-      final target =
-          (report['targets'] as List<Object?>).single as Map<String, Object?>;
-      final steps = (target['steps'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      final scenarioStep = steps.singleWhere(
-        (step) => step['name'] == 'automation-scenario-ios-ios-wrong-bundle',
-      );
-      expect(scenarioStep, containsPair('status', 'failed'));
-      final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
-      final actions = (scenarioDetails['actions'] as List<Object?>)
-          .cast<Map<String, Object?>>();
-      final tapAction = actions.singleWhere(
-        (action) => action['action'] == 'tap',
-      );
-      final tapDetails = tapAction['details'] as Map<String, Object?>;
-      final appInstall = tapDetails['appInstall'] as Map<String, Object?>;
-      expect(appInstall, containsPair('status', 'missingAppBundle'));
-      expect(
-        appInstall['candidateAppBundles'],
-        contains(
-          allOf(
-            containsPair('path', appInfoPlist.parent.path),
-            containsPair('bundleIdentifier', 'com.example.other'),
-          ),
-        ),
-      );
-      final invocations = xcrunLog.readAsStringSync();
-      expect(invocations, contains('simctl get_app_container'));
-      expect(invocations, isNot(contains('simctl install ios-sim')));
-      expect(invocations, isNot(contains('xcodebuild test')));
-      expect(stderr, isEmpty);
-    },
-  );
+      ),
+    );
+    final invocations = xcrunLog.readAsStringSync();
+    expect(invocations, contains('simctl get_app_container'));
+    expect(invocations, isNot(contains('simctl install ios-sim')));
+    expect(invocations, isNot(contains('xcodebuild test')));
+    expect(stderr, isEmpty);
+  });
 
   test(
-    'automate Android scenario finds HOME Android SDK adb and verifies evidence',
+    'drive Android scenario finds HOME Android SDK adb and verifies evidence',
     () async {
       final baseEnvironment = await createTestEnvironment();
       final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
@@ -6377,8 +6318,7 @@ steps:
       expect(
         await runFluoh(
           [
-            'automate',
-            '--platform',
+            'drive',
             'android',
             '--package',
             'camera',
@@ -6396,7 +6336,7 @@ steps:
       );
 
       final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('command', 'automate'));
+      expect(report, containsPair('command', 'drive'));
       expect(report, containsPair('ok', true));
       final automation = report['automation'] as Map<String, Object?>;
       final delivery =
@@ -6460,7 +6400,7 @@ steps:
   );
 
   test(
-    'automate Android scenario prefers example applicationId over package namespace',
+    'drive Android scenario prefers example applicationId over package namespace',
     () async {
       final baseEnvironment = await createTestEnvironment();
       final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
@@ -6556,8 +6496,7 @@ steps:
       expect(
         await runFluoh(
           [
-            'automate',
-            '--platform',
+            'drive',
             'android',
             '--package',
             'camera',
@@ -6612,7 +6551,7 @@ steps:
     },
   );
 
-  test('automate Android scenario failure returns repair hints', () async {
+  test('drive Android scenario failure returns repair hints', () async {
     final baseEnvironment = await createTestEnvironment();
     final adb = await _writeAndroidAdbFixture(
       Directory('${baseEnvironment.workingDirectory.path}/tools'),
@@ -6675,8 +6614,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'camera',
@@ -6708,7 +6646,7 @@ steps:
         allOf(
           containsPair('type', 'diagnostic'),
           containsPair('code', 'android.scenario_allowPermission_failed'),
-          containsPair('nextCommand', contains('fluoh automate')),
+          containsPair('nextCommand', contains('fluoh drive')),
         ),
       ),
     );
@@ -6720,7 +6658,7 @@ steps:
         containsPair('kind', 'fixDiagnosticAndRerun'),
         containsPair('sourceType', 'diagnostic'),
         containsPair('code', 'android.scenario_allowPermission_failed'),
-        containsPair('nextCommand', contains('fluoh automate')),
+        containsPair('nextCommand', contains('fluoh drive')),
         containsPair(
           'doneWhen',
           contains(
@@ -6731,7 +6669,7 @@ steps:
           'validation',
           allOf(
             containsPair('kind', 'command'),
-            containsPair('command', contains('fluoh automate')),
+            containsPair('command', contains('fluoh drive')),
           ),
         ),
         containsPair(
@@ -6763,11 +6701,11 @@ steps:
         'Add a stable permission trigger and visible allow label before this step.',
       ),
     );
-    expect(diagnostics.single['nextCommand'], contains('fluoh automate'));
+    expect(diagnostics.single['nextCommand'], contains('fluoh drive'));
     expect(stderr, isEmpty);
   });
 
-  test('automate project scenario failure reruns project automation', () async {
+  test('drive project scenario failure reruns project automation', () async {
     final baseEnvironment = await createTestEnvironment();
     final adb = await _writeAndroidAdbFixture(
       Directory('${baseEnvironment.workingDirectory.path}/tools'),
@@ -6825,8 +6763,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--no-auto-emulator',
           '--scenario',
@@ -6848,7 +6785,7 @@ steps:
     expect(target['target'], containsPair('kind', 'project'));
     expect(target, containsPair('nextCommand', isA<String>()));
     final nextCommand = target['nextCommand'] as String;
-    expect(nextCommand, contains('fluoh automate --platform android'));
+    expect(nextCommand, contains('fluoh drive android'));
     expect(nextCommand, contains('--no-auto-emulator'));
     expect(nextCommand, contains('--scenario ${scenario.path}'));
     expect(nextCommand, isNot(contains('--package current')));
@@ -6865,7 +6802,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('automate Android scenario kills timed out adb commands', () async {
+  test('drive Android scenario kills timed out adb commands', () async {
     final baseEnvironment = await createTestEnvironment();
     final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
     final timeoutMarker = File(
@@ -6939,8 +6876,7 @@ steps:
     expect(
       await runFluoh(
         [
-          'automate',
-          '--platform',
+          'drive',
           'android',
           '--package',
           'camera',
@@ -6978,7 +6914,7 @@ steps:
     expect(tapDetails, containsPair('exitCode', 124));
     expect(tapDetails['stderrTail'], contains('Command timed out.'));
     var timeoutMarkerText = '';
-    for (var attempt = 0; attempt < 20; attempt += 1) {
+    for (var attempt = 0; attempt < 100; attempt += 1) {
       if (await timeoutMarker.exists()) {
         timeoutMarkerText = await timeoutMarker.readAsString();
         if (timeoutMarkerText.contains('terminated')) {
@@ -6991,96 +6927,101 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('package run integration test failure preserves device next command', () async {
-    final environment = await createTestEnvironment();
-    final source = await _createWorkflowSdkSource(
-      environment.homeDirectory,
-      environment.workingDirectory,
-      flutterStdout: const {
-        'devices --machine':
-            '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
-        'run -d emulator-5554 --debug --no-pub':
-            'Flutter run key commands.\\nApplication running.',
-      },
-      flutterFailures: const {'test integration_test -d emulator-5554': 9},
-    );
-    await _writePackageManifest(environment.workingDirectory);
-    await _writeFlutterPackage(environment.workingDirectory);
-    await _writeFlutterExample(
-      Directory('${environment.workingDirectory.path}/example'),
-    );
-    await Directory(
-      '${environment.workingDirectory.path}/example/integration_test',
-    ).create(recursive: true);
-    await File(
-      '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
-    ).writeAsString('void main() {}\n');
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'package run integration test failure preserves device next command',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await _createWorkflowSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterStdout: const {
+          'devices --machine':
+              '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true}]',
+          'run -d emulator-5554 --debug --no-pub':
+              'Flutter run key commands.\\nApplication running.',
+        },
+        flutterFailures: const {'test integration_test -d emulator-5554': 9},
+      );
+      await _writePackageManifest(environment.workingDirectory);
+      await _writeFlutterPackage(environment.workingDirectory);
+      await _writeFlutterExample(
+        Directory('${environment.workingDirectory.path}/example'),
+      );
+      await Directory(
+        '${environment.workingDirectory.path}/example/integration_test',
+      ).create(recursive: true);
+      await File(
+        '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
+      ).writeAsString('void main() {}\n');
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    stdout.clear();
-    stderr.clear();
-
-    expect(
       await runFluoh(
-        [
-          'run',
-          '--platform',
-          'android',
-          '--package',
-          'camera',
-          '--device',
-          'emulator-5554',
-          '--json',
-        ],
+        ['source', 'add', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      9,
-    );
+      );
+      stdout.clear();
+      stderr.clear();
 
-    final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('ok', false));
-    final targets = report['targets'] as List<Object?>;
-    final target = targets.single as Map<String, Object?>;
-    expect(
-      target,
-      containsPair(
-        'nextCommand',
-        'fluoh run --platform android --package camera --device emulator-5554 --json',
-      ),
-    );
-    final steps = target['steps'] as List<Object?>;
-    final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
-      (step) => step['name'] == 'example-integration-android',
-    );
-    expect(integrationStep, containsPair('status', 'failed'));
-    expect(
-      integrationStep,
-      containsPair(
-        'nextCommand',
-        'fluoh run --platform android --package camera --device emulator-5554 --json',
-      ),
-    );
-    final diagnostics = integrationStep['diagnostics'] as List<Object?>;
-    final diagnostic = diagnostics.single as Map<String, Object?>;
-    expect(diagnostic, containsPair('code', 'android.integration_test_failed'));
-    expect(
-      diagnostic,
-      containsPair(
-        'nextCommand',
-        'fluoh run --platform android --package camera --device emulator-5554 --json',
-      ),
-    );
-    expect(stderr, isEmpty);
-  });
+      expect(
+        await runFluoh(
+          [
+            'run',
+            'android',
+            '--package',
+            'camera',
+            '--device-id',
+            'emulator-5554',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        9,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('ok', false));
+      final targets = report['targets'] as List<Object?>;
+      final target = targets.single as Map<String, Object?>;
+      expect(
+        target,
+        containsPair(
+          'nextCommand',
+          'fluoh run android --package camera --device-id emulator-5554 --json',
+        ),
+      );
+      final steps = target['steps'] as List<Object?>;
+      final integrationStep = steps.cast<Map<String, Object?>>().singleWhere(
+        (step) => step['name'] == 'example-integration-android',
+      );
+      expect(integrationStep, containsPair('status', 'failed'));
+      expect(
+        integrationStep,
+        containsPair(
+          'nextCommand',
+          'fluoh run android --package camera --device-id emulator-5554 --json',
+        ),
+      );
+      final diagnostics = integrationStep['diagnostics'] as List<Object?>;
+      final diagnostic = diagnostics.single as Map<String, Object?>;
+      expect(
+        diagnostic,
+        containsPair('code', 'android.integration_test_failed'),
+      );
+      expect(
+        diagnostic,
+        containsPair(
+          'nextCommand',
+          'fluoh run android --package camera --device-id emulator-5554 --json',
+        ),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
 
   test('web package run skips integration tests on web-server target', () async {
     final environment = await createTestEnvironment();
@@ -7119,7 +7060,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'web', '--json'],
+        ['run', 'web', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7174,7 +7115,7 @@ steps:
       details,
       containsPair(
         'suggestedCommand',
-        'fluoh run --platform web --package camera --device chrome --json',
+        'fluoh run web --package camera --device-id chrome --json',
       ),
     );
     final diagnostics = integrationStep['diagnostics'] as List<Object?>;
@@ -7225,7 +7166,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'macos', '--json'],
+        ['run', 'macos', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7309,14 +7250,7 @@ steps:
 
       expect(
         await runFluoh(
-          [
-            'run',
-            '--platform',
-            'android',
-            '--device',
-            'emulator-5554',
-            '--json',
-          ],
+          ['run', 'android', '--device-id', 'emulator-5554', '--json'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -7382,7 +7316,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--device', 'emulator-5554', '--json'],
+        ['run', 'android', '--device-id', 'emulator-5554', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7472,7 +7406,7 @@ steps:
 
       expect(
         await runFluoh(
-          ['run', '--platform', 'android', '--emulator', 'Pixel_35', '--json'],
+          ['run', 'android', '--emulator', 'Pixel_35', '--json'],
           environment: commandEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -7526,7 +7460,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--json'],
+        ['run', 'android', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7549,21 +7483,21 @@ steps:
       diagnostic,
       containsPair(
         'nextCommand',
-        'fluoh run --platform android --package camera --auto-emulator --json',
+        'fluoh run android --package camera --auto-emulator --json',
       ),
     );
     expect(
       runStep,
       containsPair(
         'nextCommand',
-        'fluoh run --platform android --package camera --auto-emulator --json',
+        'fluoh run android --package camera --auto-emulator --json',
       ),
     );
     expect(
       target,
       containsPair(
         'nextCommand',
-        'fluoh run --platform android --package camera --auto-emulator --json',
+        'fluoh run android --package camera --auto-emulator --json',
       ),
     );
     expect(stderr, isEmpty);
@@ -7599,7 +7533,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'ios', '--json'],
+        ['run', 'ios', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7623,21 +7557,21 @@ steps:
       diagnostic,
       containsPair(
         'nextCommand',
-        'fluoh run --platform ios --package camera --auto-emulator --json',
+        'fluoh run ios --package camera --auto-emulator --json',
       ),
     );
     expect(
       runStep,
       containsPair(
         'nextCommand',
-        'fluoh run --platform ios --package camera --auto-emulator --json',
+        'fluoh run ios --package camera --auto-emulator --json',
       ),
     );
     expect(
       target,
       containsPair(
         'nextCommand',
-        'fluoh run --platform ios --package camera --auto-emulator --json',
+        'fluoh run ios --package camera --auto-emulator --json',
       ),
     );
     expect(stderr, isEmpty);
@@ -7746,7 +7680,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'ohos', '--auto-sign', '--json'],
+        ['build', 'ohos', '--auto-sign', '--json'],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7907,7 +7841,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', '--platform', 'android', '--auto-sign'],
+        ['build', 'android', '--auto-sign'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7917,7 +7851,7 @@ steps:
 
     expect(
       stderr.join('\n'),
-      contains('Use --auto-sign only with --platform ohos.'),
+      contains('Use --auto-sign only with build platform ohos.'),
     );
   });
 
@@ -7930,9 +7864,8 @@ steps:
       await runFluoh(
         [
           'run',
-          '--platform',
           'android',
-          '--device',
+          '--device-id',
           'emulator-5554',
           '--emulator',
           'Pixel',
@@ -7946,7 +7879,7 @@ steps:
 
     expect(
       stderr.join('\n'),
-      contains('Use only one of --device or --emulator.'),
+      contains('Use only one of --device-id or --emulator.'),
     );
   });
 
@@ -7957,14 +7890,7 @@ steps:
 
     expect(
       await runFluoh(
-        [
-          'run',
-          '--platform',
-          'android',
-          '--device',
-          'emulator-5554',
-          '--auto-emulator',
-        ],
+        ['run', 'android', '--device-id', 'emulator-5554', '--auto-emulator'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -7973,7 +7899,7 @@ steps:
     );
     expect(
       stderr.join('\n'),
-      contains('Use only one of --device or --auto-emulator.'),
+      contains('Use only one of --device-id or --auto-emulator.'),
     );
 
     stdout.clear();
@@ -7981,14 +7907,7 @@ steps:
 
     expect(
       await runFluoh(
-        [
-          'run',
-          '--platform',
-          'android',
-          '--emulator',
-          'Pixel',
-          '--auto-emulator',
-        ],
+        ['run', 'android', '--emulator', 'Pixel', '--auto-emulator'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -8008,7 +7927,7 @@ steps:
 
     expect(
       await runFluoh(
-        ['run', '--platform', 'android', '--device-timeout', 'not-seconds'],
+        ['run', 'android', '--device-timeout', 'not-seconds'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -8029,13 +7948,7 @@ steps:
 
     expect(
       await runFluoh(
-        [
-          'run',
-          '--platform',
-          'ohos',
-          '--session-file',
-          '.fluoh/run-session.json',
-        ],
+        ['run', 'ohos', '--session-file', '.fluoh/run-session.json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -8588,6 +8501,12 @@ if "uitest" in args and "click" in args:
     raise SystemExit(0)
 
 if "uitest" in args and "swipe" in args:
+    raise SystemExit(0)
+
+if "uitest" in args and "inputText" in args:
+    raise SystemExit(0)
+
+if "uitest" in args and "keyEvent" in args:
     raise SystemExit(0)
 
 if "hilog" in args:

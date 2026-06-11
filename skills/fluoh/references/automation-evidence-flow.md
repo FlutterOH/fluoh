@@ -11,16 +11,16 @@ Start with a dry-run when selecting devices, session paths, trace paths, or
 checking coverage readiness:
 
 ```sh
-fluoh automate --platform <platform> --package <name> --dry-run --json
-fluoh automate --platform <platform> --package <name> --scenario <path> --json
-fluoh automate --platform all --package <name> --trace-dir .fluoh/traces/<name>/mobile-automation --json
+fluoh drive <platform> --package <name> --dry-run --json
+fluoh drive <platform> --package <name> --scenario <path> --json
+fluoh drive all --package <name> --trace-dir .fluoh/traces/<name>/mobile-automation --json
 ```
 
 For live Flutter attach evidence on supported platforms, write and inspect a
 live `flutterRunSession` JSON file:
 
 ```sh
-fluoh run --platform android --package <name> \
+fluoh run android --package <name> \
   --session-file .fluoh/run-sessions/<name>/android-session.json --json
 python3 <skill-dir>/scripts/inspect_session.py \
   .fluoh/run-sessions/<name>/android-session.json --wait 30 \
@@ -33,7 +33,7 @@ Use the preflight `scenarioCommand` and `sessionInspectCommand` when available.
 
 - `fluoh run` launch success is smoke evidence only.
 - Prefer `integration_test/` when available.
-- Prefer `fluoh automate --scenario <path> --json` for AI-assisted scenarios
+- Prefer `fluoh drive --scenario <path> --json` for AI-assisted scenarios
   with structured actions.
 - Use manual-assisted interaction only as a fallback when automation cannot
   operate or observe the target, and only mark it passed after tool-readable
@@ -48,7 +48,7 @@ Use the preflight `scenarioCommand` and `sessionInspectCommand` when available.
 
 ## Platform Support
 
-`fluoh automate --scenario` can execute supported actions across mobile
+`fluoh drive --scenario` can execute supported actions across mobile
 platforms:
 
 - Android: text and coordinate taps, coordinate swipes and drags, permission
