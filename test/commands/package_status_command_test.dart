@@ -21,11 +21,17 @@ void main() {
     );
     await unrelatedTrace.parent.create(recursive: true);
     await unrelatedTrace.writeAsString(jsonEncode({'id': 'share-plus'}));
-    final reportFile = File(
-      '${packageRepository.path}/.fluoh/reports/camera/ai-report-test.md',
+    final oldReportFile = File(
+      '${packageRepository.path}/.fluoh/reports/camera/report-1781092800122.md',
     );
-    await reportFile.parent.create(recursive: true);
+    final reportFile = File(
+      '${packageRepository.path}/.fluoh/reports/camera/report-1781092800123.md',
+    );
+    await oldReportFile.parent.create(recursive: true);
+    await oldReportFile.writeAsString('# old camera report\n');
     await reportFile.writeAsString('# camera report\n');
+    await reportFile.setLastModified(DateTime(2026, 6, 10, 12));
+    await oldReportFile.setLastModified(DateTime(2026, 6, 10, 13));
     final packageEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
       workingDirectory: packageRepository,
@@ -60,15 +66,19 @@ void main() {
       evidence,
       containsPair('traceDir', '.fluoh/traces/camera/adaptation'),
     );
-    expect(evidence['reports'], contains(reportFile.path));
+    expect(
+      evidence['reports'],
+      containsAll([oldReportFile.path, reportFile.path]),
+    );
+    expect(evidence, containsPair('latestReport', reportFile.path));
     final nextCommands = (handoff['nextCommands'] as List<Object?>)
         .cast<String>();
     expect(
       nextCommands,
       containsAllInOrder([
         'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive all --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh package check --package camera --json',
+        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh package check --package camera --report ${reportFile.path} --json',
       ]),
     );
     expect(nextCommands, isNot(contains('fluoh report create --scope camera')));
@@ -108,11 +118,75 @@ void main() {
       nextCommands,
       containsAllInOrder([
         'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive all --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
-        'fluoh package check --package camera --json',
+        'fluoh package check --package camera --report <report-path> --json',
       ]),
     );
+    expect(stderr, isEmpty);
+  });
+
+  test('package handoff adds optional drive commands for existing examples', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    await Directory(
+      '${packageRepository.path}/example/android',
+    ).create(recursive: true);
+    await File(
+      '${packageRepository.path}/example/android/.keep',
+    ).writeAsString('');
+    await Directory(
+      '${packageRepository.path}/example/ios',
+    ).create(recursive: true);
+    await File('${packageRepository.path}/example/ios/.keep').writeAsString('');
+    await runGit(packageRepository, ['add', 'example']);
+    await runGit(packageRepository, [
+      'commit',
+      '-m',
+      'Add optional example platforms',
+    ]);
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'handoff', '--json'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final handoff = jsonDecode(stdout.single) as Map<String, Object?>;
+    final nextCommands = (handoff['nextCommands'] as List<Object?>)
+        .cast<String>();
+    expect(
+      nextCommands,
+      containsAllInOrder([
+        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        if (Platform.isMacOS)
+          'fluoh drive ios --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+        'fluoh package check --package camera --report <report-path> --json',
+      ]),
+    );
+    if (!Platform.isMacOS) {
+      expect(
+        nextCommands,
+        isNot(
+          contains(
+            'fluoh drive ios --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          ),
+        ),
+      );
+    }
     expect(stderr, isEmpty);
   });
 

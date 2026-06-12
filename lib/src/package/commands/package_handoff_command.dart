@@ -90,14 +90,16 @@ class PackageHandoffCommand extends FluohCommand<int> {
         if (latestTrace != null) 'latestTrace': latestTrace.path,
         'traceDir': traceDir,
         'reports': [for (final file in reports) file.path],
+        if (reports.isNotEmpty) 'latestReport': reports.first.path,
       },
       'nextCommands': _nextCommands(
         package.name,
+        packageRoot: _packageRoot(environment.workingDirectory, package.path),
         traceDir: traceDir,
         dirty: status.stdout.trim().isNotEmpty,
         manifestBranch: manifest.branch,
         branchMatchesManifest: branch == manifest.branch,
-        hasReport: reports.isNotEmpty,
+        reportPath: reports.isEmpty ? null : reports.first.path,
       ),
     };
     if (argResults!.flag('json')) {
@@ -123,11 +125,12 @@ class PackageHandoffCommand extends FluohCommand<int> {
 
 List<String> _nextCommands(
   String packageName, {
+  required Directory packageRoot,
   required String traceDir,
   required bool dirty,
   required String manifestBranch,
   required bool branchMatchesManifest,
-  required bool hasReport,
+  required String? reportPath,
 }) {
   if (!branchMatchesManifest) {
     return ['git switch $manifestBranch'];
@@ -137,11 +140,47 @@ List<String> _nextCommands(
   }
   return [
     'fluoh verify --package $packageName --json --trace-dir $traceDir',
-    'fluoh drive all --package $packageName --json --trace-dir $traceDir',
-    if (!hasReport)
+    ..._driveCommands(
+      packageName,
+      packageRoot: packageRoot,
+      traceDir: traceDir,
+    ),
+    if (reportPath == null)
       'fluoh report create --scope $packageName --package $packageName --trace-dir $traceDir --json',
-    'fluoh package check --package $packageName --json',
+    'fluoh package check --package $packageName --report ${_shellQuote(reportPath ?? '<report-path>')} --json',
   ];
+}
+
+Directory _packageRoot(Directory repository, String packagePath) {
+  if (packagePath == '.' || packagePath.isEmpty) {
+    return repository;
+  }
+  return Directory('${repository.path}/$packagePath');
+}
+
+List<String> _driveCommands(
+  String packageName, {
+  required Directory packageRoot,
+  required String traceDir,
+}) {
+  final example = Directory('${packageRoot.path}/example');
+  return [
+    'fluoh drive ohos --package $packageName --json --trace-dir $traceDir',
+    if (Directory('${example.path}/android').existsSync())
+      'fluoh drive android --package $packageName --json --trace-dir $traceDir',
+    if (Platform.isMacOS && Directory('${example.path}/ios').existsSync())
+      'fluoh drive ios --package $packageName --json --trace-dir $traceDir',
+  ];
+}
+
+String _shellQuote(String value) {
+  if (value.startsWith('<') && value.endsWith('>')) {
+    return value;
+  }
+  if (RegExp(r'^[A-Za-z0-9_./:=@%+-]+$').hasMatch(value)) {
+    return value;
+  }
+  return "'${value.replaceAll("'", "'\"'\"'")}'";
 }
 
 Future<File?> _latestTrace(Directory root, String packageName) async {
@@ -192,10 +231,35 @@ Future<List<File>> _reportFiles(Directory root, String packageName) async {
   }
   final files = <File>[];
   await for (final entity in reports.list()) {
-    if (entity is File && entity.path.endsWith('.md')) {
+    if (entity is File && _isReportFile(entity)) {
       files.add(entity);
     }
   }
-  files.sort((a, b) => b.path.compareTo(a.path));
+  files.sort((a, b) {
+    final timestamp = _reportTimestamp(b).compareTo(_reportTimestamp(a));
+    if (timestamp != 0) {
+      return timestamp;
+    }
+    final modified = b.lastModifiedSync().compareTo(a.lastModifiedSync());
+    if (modified != 0) {
+      return modified;
+    }
+    return b.path.compareTo(a.path);
+  });
   return files;
+}
+
+bool _isReportFile(File file) {
+  final name = file.uri.pathSegments.isEmpty
+      ? file.path
+      : file.uri.pathSegments.last;
+  return RegExp(r'^report-\d+\.md$').hasMatch(name);
+}
+
+int _reportTimestamp(File file) {
+  final name = file.uri.pathSegments.isEmpty
+      ? file.path
+      : file.uri.pathSegments.last;
+  final integer = RegExp(r'^report-(\d+)\.md$').firstMatch(name);
+  return int.tryParse(integer?.group(1) ?? '') ?? 0;
 }

@@ -49,6 +49,50 @@ void _registerPackageReleaseCertificationTests() {
     expect(stderr, isEmpty);
   });
 
+  test('check rejects noncanonical certification report filenames', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(packageRepository);
+    final legacyReport = File('${report.parent.path}/legacy-report.md');
+    await legacyReport.writeAsString(await report.readAsString());
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--report', legacyReport.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(result, containsPair('ok', false));
+    expect(
+      result['error'],
+      allOf(
+        isA<Map<String, Object?>>(),
+        containsPair(
+          'message',
+          allOf(
+            contains(
+              'Certification report filename must match report-<timestamp>.md',
+            ),
+            contains('integer'),
+            contains('timestamp.'),
+          ),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('check rejects maintainer-confirmed interaction evidence', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);

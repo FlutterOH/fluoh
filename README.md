@@ -38,7 +38,7 @@ writes a local report.
 Install the bundled skill in your AI agent:
 
 ```text
-Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.
+Run `fluoh skill --path`, install the printed path as the fluoh skill, and overwrite any existing installation. Use https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only when fluoh is not installed yet.
 ```
 
 Then ask the agent for the workflow you need:

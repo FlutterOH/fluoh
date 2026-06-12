@@ -7,9 +7,6 @@ void _registerReleaseArtifactsSkillTests() {
     final reportTemplate = File(
       'skills/fluoh/references/report-template.md',
     ).readAsStringSync();
-    final reportTemplateZhCn = File(
-      'skills/fluoh/references/report-template.zh-CN.md',
-    ).readAsStringSync();
     final scenarioTemplate = File(
       'skills/fluoh/references/interaction-scenario-template.md',
     ).readAsStringSync();
@@ -61,6 +58,8 @@ void _registerReleaseArtifactsSkillTests() {
       '## Completion Report',
       'finalCheckCommands',
       'deliveryChecks',
+      'automationRunbook',
+      'deliveryGate',
       'upgradeChecks',
       'final adaptation scope confirmation',
       'explicit user',
@@ -84,7 +83,6 @@ void _registerReleaseArtifactsSkillTests() {
       'references/automation-evidence-flow.md',
       'references/source-maintenance-flow.md',
       'references/report-template.md',
-      'references/report-template.zh-CN.md',
       'references/interaction-scenario-template.md',
       'scripts/preflight.py',
       'scripts/new_report.py',
@@ -96,6 +94,7 @@ void _registerReleaseArtifactsSkillTests() {
       'scenarioCommand',
       'sessionInspectCommand',
       'sessionAttachCommand',
+      'deliveryGate.readyRequires',
       'Session attach command',
       'python3 <skill-dir>/scripts/check_report.py <report-path>',
       'manual-assisted',
@@ -111,6 +110,7 @@ void _registerReleaseArtifactsSkillTests() {
     ]);
     expectContainsAll(packageFlow, [
       '# Package Adaptation Flow',
+      '## End-to-End Contract',
       'fluoh package discover <upstream> --json',
       '--repository-name',
       '--repository',
@@ -123,13 +123,18 @@ void _registerReleaseArtifactsSkillTests() {
       'fluoh package queue',
       'fluoh verify --package <name> --json',
       'fluoh run ohos --package <name> --auto-emulator --json',
+      'fluoh drive ohos --package <name> --json',
+      'fluoh report create --scope <name> --package <name>',
+      'python3 <skill-dir>/scripts/check_report.py <report-path>',
       'fluoh run android --package <name> --auto-emulator --json',
       'fluoh run ios --package <name> --auto-emulator --json',
       'fluoh run web --package <name> --json',
       'fluoh build linux --package <name> --json',
       'fluoh build windows --package <name> --json',
       'local Git author identity',
-      'release metadata checkpoint',
+      'Create small local checkpoint commits automatically',
+      'delivery report handoff',
+      'still require separate maintainer approval',
     ]);
     expectContainsAll(automationFlow, [
       '# Automation Evidence Flow',
@@ -191,19 +196,6 @@ void _registerReleaseArtifactsSkillTests() {
     );
     expect(reportTemplate, contains('flutterRunSession/VM Service evidence'));
     expect(reportTemplate, contains('screenshots optional'));
-    expect(reportTemplateZhCn, contains('# fluoh AI 适配报告'));
-    expect(
-      reportTemplateZhCn,
-      contains('## Adaptation Responsibility / 适配责任边界'),
-    );
-    expect(reportTemplateZhCn, contains('manual-assisted'));
-    expect(reportTemplateZhCn, contains('不能只记录启动状态'));
-    expect(
-      reportTemplateZhCn,
-      contains('flutter test integration_test -d <device>'),
-    );
-    expect(reportTemplateZhCn, contains('Release recommendation:'));
-
     expect(newSummary, contains('fluoh Monorepo Summary'));
     expect(newSummary, contains('Package Matrix'));
     expect(newSummary, contains('.fluoh/reports'));
@@ -233,6 +225,8 @@ void _registerReleaseArtifactsSkillTests() {
       'suggestedCommands',
       'finalCheckCommands',
       'deliveryChecks',
+      'automationRunbook',
+      'deliveryGate',
       'reportCommand',
       'summaryCommand',
       'sessionInspectCommand',
@@ -248,6 +242,8 @@ void _registerReleaseArtifactsSkillTests() {
     ]);
     expectContainsAll(preflightGuidance, [
       'command_queue',
+      'automation_runbook',
+      'delivery_gate',
       'delivery_checks',
       'report_command',
       'summary_command',
@@ -258,11 +254,9 @@ void _registerReleaseArtifactsSkillTests() {
     ]);
     expectContainsAll(newReport, [
       '.fluoh',
-      'ai-report-',
+      'report-',
       'report-template.md',
-      'report-template.zh-CN.md',
-      'localized_report_path',
-      'unique_report_path',
+      'timestamp',
       'Release recommendation',
     ]);
     expectContainsAll(newSummary, [

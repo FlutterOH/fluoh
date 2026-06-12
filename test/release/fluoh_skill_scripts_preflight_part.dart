@@ -79,7 +79,8 @@ sdk:
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
         'fluoh run ohos --auto-emulator --json --trace-dir $appTraceDir',
-        'fluoh drive all --json --trace-dir $appTraceDir',
+        'fluoh drive ohos --json --trace-dir $appTraceDir',
+        'fluoh drive android --json --trace-dir $appTraceDir',
         ...appRegressionCommands,
         'fluoh report create --scope example_app --trace-dir $appTraceDir --json',
       ]);
@@ -131,12 +132,29 @@ sdk:
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
         'fluoh run ohos --auto-emulator --json --trace-dir $appTraceDir',
+        'fluoh drive ohos --json --trace-dir $appTraceDir',
+        'fluoh drive android --json --trace-dir $appTraceDir',
         ...appRegressionCommands,
       ]);
+      final automationRunbook =
+          report['automationRunbook'] as Map<String, Object?>;
+      expect(automationRunbook['mode'], 'autonomous-to-delivery');
+      expect(automationRunbook['loop'], contains('run, parse, fix, rerun'));
+      final deliveryGate = report['deliveryGate'] as Map<String, Object?>;
+      expect(deliveryGate['status'], 'active');
+      expect(deliveryGate['requiresReportCheckPass'], isTrue);
+      expect(
+        deliveryGate['reportCheckCommand'],
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
+      );
+      expect(
+        stringList(deliveryGate['readyRequires']),
+        contains(contains('reportCheckCommand passes')),
+      );
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/reports/example_app/ai-report-...md'),
+          contains('.fluoh/reports/example_app/report-<timestamp>.md'),
           contains('Record deps, doctor, build, and run command results'),
           contains('State ready, blocked, or needs maintainer decision'),
         ]),
@@ -294,7 +312,7 @@ dependencies:
       expect(project['name'], 'Example App');
       expect(
         stringList(report['deliveryChecks']),
-        contains(contains('.fluoh/reports/Example-App/ai-report-...md')),
+        contains(contains('.fluoh/reports/Example-App/report-<timestamp>.md')),
       );
       expect(
         report['reportCommand'],
@@ -454,6 +472,21 @@ dependencies:
         stringList(report['suggestedCommands'])[1],
         allOf([
           contains('fluoh package create'),
+          contains('--plan --json'),
+          contains('--repository-name camera'),
+          contains('--repository <flutteroh-repo-url-or-path>'),
+          contains('--git-author-name <name>'),
+          contains('--git-author-email <email>'),
+          contains('--sdk <sdk-version-or-line>'),
+          contains('--package-path .'),
+          contains('--output ../camera_ohos'),
+        ]),
+      );
+      expect(
+        stringList(report['suggestedCommands'])[2],
+        allOf([
+          contains('fluoh package create'),
+          isNot(contains('--plan')),
           contains('--repository-name camera'),
           contains('--repository <flutteroh-repo-url-or-path>'),
           contains('--git-author-name <name>'),
@@ -570,9 +603,11 @@ package:
           'fluoh devices --platform ohos --json',
           'fluoh emulators --platform ohos --json',
           'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh package handoff --package camera --json',
-          'fluoh package check --package camera --json',
+          'fluoh package check --package camera --report <report-path> --json',
         ]),
       );
       final commandQueue = (report['commandQueue'] as List<Object?>)
@@ -606,15 +641,33 @@ package:
           'fluoh devices --platform ohos --json',
           'fluoh emulators --platform ohos --json',
           'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh package status --package camera',
           'fluoh package handoff --package camera --json',
-          'fluoh package check --package camera --json',
+          'fluoh package check --package camera --report <report-path> --json',
         ]),
+      );
+      final deliveryGate = report['deliveryGate'] as Map<String, Object?>;
+      expect(deliveryGate['status'], 'active');
+      expect(
+        stringList(deliveryGate['finalCheckCommands']),
+        contains(
+          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        ),
+      );
+      expect(
+        stringList(deliveryGate['readyRequires']),
+        contains(
+          contains(
+            'fluoh package check --package camera --report <report-path> --json',
+          ),
+        ),
       );
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/reports/camera/ai-report-...md'),
+          contains('.fluoh/reports/camera/report-<timestamp>.md'),
           contains('Record verify, status, and package check results'),
           contains('Review public API compatibility'),
         ]),

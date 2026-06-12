@@ -6,6 +6,8 @@ void _registerFluohSkillScriptsMiscTests() {
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
+      File reportFixture(int timestamp) =>
+          File('${root.path}/report-$timestamp.md');
       final outputRoot = Directory('${root.path}/reports');
       await File('${root.path}/fluoh.yaml').writeAsString('''
 schema: 1
@@ -143,9 +145,7 @@ the local trace-evidence issue here.
       expect(completeJson['passedInteractionRows'], 1);
       expect(completeJson['checklistDone'], completeJson['checklistTotal']);
 
-      final manualAssistedReadyReport = File(
-        '${root.path}/manual-assisted-ready.md',
-      );
+      final manualAssistedReadyReport = reportFixture(1780401600101);
       await manualAssistedReadyReport.writeAsString(
         content
             .replaceFirst(
@@ -174,9 +174,7 @@ the local trace-evidence issue here.
       expect(manualAssistedReadyJson['passedIntegrationTest'], isFalse);
       expect(manualAssistedReadyJson['passedManualAssisted'], isTrue);
 
-      final launchOnlyManualAssistedReport = File(
-        '${root.path}/launch-only-manual-assisted.md',
-      );
+      final launchOnlyManualAssistedReport = reportFixture(1780401600102);
       await launchOnlyManualAssistedReport.writeAsString(
         content
             .replaceFirst(
@@ -208,9 +206,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final launchOnlySessionReport = File(
-        '${root.path}/launch-only-session.md',
-      );
+      final launchOnlySessionReport = reportFixture(1780401600103);
       await launchOnlySessionReport.writeAsString(
         content
             .replaceFirst(
@@ -242,9 +238,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final unbackedIntegrationReadyReport = File(
-        '${root.path}/unbacked-integration-ready.md',
-      );
+      final unbackedIntegrationReadyReport = reportFixture(1780401600104);
       await unbackedIntegrationReadyReport.writeAsString(
         content
             .replaceFirst(
@@ -273,9 +267,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final backedIntegrationReadyReport = File(
-        '${root.path}/backed-integration-ready.md',
-      );
+      final backedIntegrationReadyReport = reportFixture(1780401600105);
       await backedIntegrationReadyReport.writeAsString(
         content.replaceFirst(
           '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready |',
@@ -298,7 +290,7 @@ the local trace-evidence issue here.
       expect(backedIntegrationReadyJson['passedIntegrationTest'], isTrue);
       expect(backedIntegrationReadyJson['passedManualAssisted'], isFalse);
 
-      final missingGateReport = File('${root.path}/missing-gate-report.md');
+      final missingGateReport = reportFixture(1780401600106);
       await missingGateReport.writeAsString(
         '${content.split('\n').where((line) => !line.startsWith('| manifest-permission-coverage |')).join('\n')}\n',
       );
@@ -319,7 +311,7 @@ the local trace-evidence issue here.
         contains('manifest-permission-coverage'),
       );
 
-      final missingStatusReport = File('${root.path}/missing-status-report.md');
+      final missingStatusReport = reportFixture(1780401600107);
       await missingStatusReport.writeAsString(
         '${content.split('\n').where((line) => !line.startsWith('- coveragePolicy.status:')).join('\n')}\n',
       );
@@ -338,9 +330,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final nonzeroSummaryReport = File(
-        '${root.path}/nonzero-summary-report.md',
-      );
+      final nonzeroSummaryReport = reportFixture(1780401600108);
       await nonzeroSummaryReport.writeAsString(
         content.replaceFirst(
           '- qualityGateSummary: ready=8, notReady=0',
@@ -362,7 +352,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final manualReport = File('${root.path}/manual-report.md');
+      final manualReport = reportFixture(1780401600109);
       await manualReport.writeAsString(
         content.replaceFirst(
           '| camera preview | integration_test | OHOS | emulator-5554 | passed |',
@@ -383,9 +373,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final bareManualAssistedReport = File(
-        '${root.path}/bare-manual-assisted.md',
-      );
+      final bareManualAssistedReport = reportFixture(1780401600110);
       await bareManualAssistedReport.writeAsString(
         content.replaceFirst(
           '| camera preview | integration_test | OHOS | emulator-5554 | passed | flutter test integration_test -d emulator-5554 passed and hilog marker camera.captureSuccess confirmed the result |',
@@ -407,9 +395,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final maintainerDecisionReport = File(
-        '${root.path}/maintainer-decision.md',
-      );
+      final maintainerDecisionReport = reportFixture(1780401600111);
       await maintainerDecisionReport.writeAsString(
         content.replaceFirst(
           'Release recommendation: ready',
@@ -433,7 +419,7 @@ the local trace-evidence issue here.
         containsPair('recommendation', 'needs maintainer decision'),
       );
 
-      final failedEvidenceReport = File('${root.path}/failed-ready.md');
+      final failedEvidenceReport = reportFixture(1780401600112);
       await failedEvidenceReport.writeAsString(
         content.replaceFirst(
           '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |',
@@ -453,7 +439,7 @@ the local trace-evidence issue here.
         contains('Ready reports must include passed fluoh verify evidence.'),
       );
 
-      final verifyOnlyReport = File('${root.path}/verify-only-ready.md');
+      final verifyOnlyReport = reportFixture(1780401600113);
       await verifyOnlyReport.writeAsString(
         content.replaceFirst(
           '\n| `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |',
@@ -475,7 +461,7 @@ the local trace-evidence issue here.
         ),
       );
 
-      final ordinaryEvidenceReport = File('${root.path}/ordinary-ready.md');
+      final ordinaryEvidenceReport = reportFixture(1780401600114);
       await ordinaryEvidenceReport.writeAsString(
         content
             .replaceFirst(
@@ -507,6 +493,31 @@ the local trace-evidence issue here.
           'Passed manual-assisted interaction evidence must include tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers.',
           'Ready reports must include passed fluoh drive --json, integration_test, or manual-assisted tool-readable interaction evidence.',
         ]),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'check_report rejects noncanonical report filenames',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final report = File('${root.path}/legacy-report.md');
+      await report.writeAsString('# legacy report\n');
+
+      final check = await Process.run('python3', [
+        checkReportScript,
+        report.path,
+      ]);
+
+      expect(check.exitCode, 1);
+      final json = jsonDecode(check.stdout.toString()) as Map<String, Object?>;
+      expect(
+        stringList(json['errors']),
+        contains(
+          'Report filename must match report-<timestamp>.md using an integer timestamp.',
+        ),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -548,7 +559,7 @@ the local trace-evidence issue here.
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
-      final report = File('${root.path}/report.md');
+      final report = File('${root.path}/report-1780401600201.md');
       const defaultFeedback = '''
 Replace this section with either `No fluoh feedback: <reason>` or concrete
 feedback rows from `collect_feedback.py`. If JSON contains `traceError`, record
@@ -634,7 +645,7 @@ $defaultFeedback
 ## Local State
 
 - Git status summary: clean
-- Files intentionally left uncommitted: report.md
+- Files intentionally left uncommitted: report-1780401600201.md
 - Files that must not be committed: none
 
 ## Release Decision
@@ -689,7 +700,7 @@ Ready.
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
-      final report = File('${root.path}/report.md');
+      final report = File('${root.path}/report-1780401600202.md');
       await report.writeAsString('''
 # fluoh AI Report
 
@@ -768,7 +779,7 @@ No fluoh feedback: diagnostics were actionable and no tool or Source gap was fou
 ## Local State
 
 - Git status summary: clean
-- Files intentionally left uncommitted: report.md
+- Files intentionally left uncommitted: report-1780401600202.md
 - Files that must not be committed: none
 
 ## Release Decision

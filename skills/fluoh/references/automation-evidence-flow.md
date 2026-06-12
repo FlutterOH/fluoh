@@ -16,6 +16,11 @@ fluoh drive <platform> --package <name> --scenario <path> --json
 fluoh drive all --package <name> --trace-dir .fluoh/traces/<name>/mobile-automation --json
 ```
 
+Use `drive all` only when every mobile target is intentionally in scope. For
+AI delivery gates, prefer the platform-specific commands emitted by preflight,
+`fluoh plan`, or `fluoh package handoff` so missing Android or iOS examples do
+not become artificial blockers.
+
 For platform launch evidence, write and inspect a `flutterRunSession` JSON file.
 Pass `--require-vm-service` only when the platform run is expected to expose a
 Flutter VM Service:

@@ -3,6 +3,29 @@
 Use this workflow when the user asks to adapt a third-party Flutter package for
 FlutterOH/OHOS.
 
+## End-to-End Contract
+
+The package adaptation is not complete after repository creation, baseline
+verification, HAP build, app launch, or a screenshot. Continue until exactly
+one delivery state is justified:
+
+- `ready`: implementation, package tests, OHOS build/run, applicable
+  interaction automation, existing-platform regressions, package handoff,
+  release check, canonical report, and `check_report.py` all pass.
+- `needs maintainer decision`: code and evidence are as complete as the local
+  environment allows, but release, publish, push, tag, signing policy, SDK
+  line, upstream downgrade, public API break, or release version choice needs a
+  maintainer decision.
+- `blocked`: a concrete local toolchain, SDK, signing, device/emulator,
+  upstream, or automation-evidence blocker remains after running the diagnostic
+  command and the printed repair command or `nextCommand`.
+
+Use `scripts/preflight.py` or `fluoh plan package --json` as the machine
+runbook. Execute `commandQueue`/`queue` in order, parse every JSON result,
+follow diagnostics `nextCommand`, make the smallest owned fix, and rerun the
+failed command. Do not skip `drive`, `report create`, `package handoff`,
+`package check`, or `check_report.py` when applicable.
+
 ## Setup
 
 For a new package repository, resolve the FlutterOH repository name, output
@@ -82,11 +105,19 @@ fluoh deps get
 fluoh doctor --platform ohos --project --json --strict
 fluoh flutter analyze
 fluoh verify --package <name> --json --trace-dir <trace-dir>
-fluoh run ohos --package <name> --auto-emulator --json --trace-dir <trace-dir>
 fluoh build ohos --package <name> --auto-sign --json --trace-dir <trace-dir>
+fluoh devices --platform ohos --json
+fluoh emulators --platform ohos --json
+fluoh run ohos --package <name> --auto-emulator --json --trace-dir <trace-dir>
+fluoh drive ohos --package <name> --json --trace-dir <trace-dir>
+# When emitted by preflight/plan for existing supported mobile examples:
+fluoh drive android --package <name> --json --trace-dir <trace-dir>
+fluoh drive ios --package <name> --json --trace-dir <trace-dir>
 fluoh package status --package <name>
-fluoh package version --package <name> --bump patch --status compatible
-fluoh package check --package <name> --json
+fluoh report create --scope <name> --package <name> --trace-dir <trace-dir> --json
+fluoh package handoff --package <name> --json
+fluoh package check --package <name> --report <report-path> --json
+python3 <skill-dir>/scripts/check_report.py <report-path>
 ```
 
 Rules:
@@ -102,6 +133,10 @@ Rules:
 - Extend package tests or examples when behavior changes.
 - Example apps are functional harnesses: expose operations, expected results,
   pass/fail status, and failure hints for automated or AI-assisted checks.
+- Every failing command enters the repair loop: parse JSON diagnostics and log
+  tails, inspect trace feedback candidates, patch the smallest owned issue,
+  rerun the failed command or its `nextCommand`, and record the command/result
+  in the report.
 - `fluoh run ohos --package <name> ...` owns the OHOS Flutter platform loop:
   debug signing preparation, `flutter run`, run/session diagnostics, and
   `example/integration_test/` execution on the selected target when present.
@@ -133,19 +168,35 @@ For iOS, auto-emulator selection should prefer an iPhone simulator over iPad,
 prefer newer runtimes inside the same device class, and wait for
 `xcrun simctl bootstatus <udid> -b` before treating the simulator as ready.
 
-Use `fluoh drive all --package <name> --json` when an AI
-adaptation loop needs one mobile evidence command for OHOS, Android, and iOS.
+Use the per-platform `fluoh drive <platform> --package <name> --json` commands
+emitted by preflight or `fluoh plan package --json`. OHOS is part of the
+adaptation target; Android and iOS drive commands are included only when the
+example platform exists and the local host can run the target.
 
-## Checkpoints
+## Delivery Gate
 
-Create small local commits at completed checkpoints when the workflow needs
-commits, such as before package sync, package check, or handoff. Before each
-commit, self-review staged paths, commit message, and local Git author
-identity. Keep commits local unless the maintainer explicitly asks to push.
+Before the final response:
 
-Before `fluoh package version`, `fluoh package sync`, or
-`fluoh package check`, the implementation checkpoint should be clean. Then
-update release metadata, review `fluoh.yaml`, update `FLUOH_CHANGELOG.md`, and
-create a release metadata checkpoint when required.
+- Run the preflight or plan `finalCheckCommands` after the last implementation
+  edit.
+- Create or update the canonical report under `.fluoh/reports/`.
+- Run `python3 <skill-dir>/scripts/check_report.py <report-path>` against the
+  canonical report and fix every failure.
+- Ensure `fluoh package handoff --package <name> --json` sees the current
+  branch, trace, report paths, and next commands.
+- Ensure `fluoh package check --package <name> --report <report-path> --json`
+  passes for `ready`, or records the remaining maintainer decision or blocker
+  in the report.
+- Review the diff for unrelated files, machine-local paths, generated caches,
+  credentials, and private tokens.
 
-Run `fluoh package release` only when the maintainer approves the release.
+Create small local checkpoint commits automatically after completed phases with
+clean command evidence. Typical phases are generated baseline, selected-SDK
+baseline, implementation, tests and example verification, release metadata, and
+delivery report handoff. Before each commit, review `git status --short`, run
+`git diff --check`, stage only intentional tracked files, and keep `.fluoh`
+reports/traces, caches, credentials, signing secrets, and machine-local paths
+out of commits. Push, force-push, release, tag, public API breaks, upstream
+downgrades, SDK line changes, signing policy changes, and manual release
+version overrides still require separate maintainer approval. Run
+`fluoh package release` only when the maintainer approves the release.

@@ -22,13 +22,12 @@ contract.
 
 - `scripts/preflight.py`: read-only workspace classifier. It reports
   `upgradeChecks`, `suggestedCommands`, `finalCheckCommands`,
-  `deliveryChecks`, `reportCommand`, `summaryCommand`,
-  `scenarioCommand`, `sessionInspectCommand`, and `sessionAttachCommand`.
-- `scripts/new_report.py`: creates the English canonical report
-  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md` from
-  `references/report-template.md` and a Chinese companion
-  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md` from
-  `references/report-template.zh-CN.md`.
+  `deliveryChecks`, `automationRunbook`, `deliveryGate`, `reportCommand`,
+  `summaryCommand`, `scenarioCommand`, `sessionInspectCommand`, and
+  `sessionAttachCommand`.
+- `scripts/new_report.py`: creates the canonical report
+  `.fluoh/reports/<report-group>/report-<timestamp>.md` from
+  `references/report-template.md`.
 - `scripts/new_summary.py`: creates a monorepo summary report for
   multi-package work.
 - `scripts/check_report.py`: fails when the report is missing required
@@ -80,7 +79,7 @@ contract.
    `unknown`.
 5. Route by preflight `project.kind`, `selectedPackage`, `examplePlatforms`,
    `upgradeChecks`, `suggestedCommands`, `finalCheckCommands`, and
-   `deliveryChecks`.
+   `deliveryChecks`, `automationRunbook`, and `deliveryGate`.
 6. If the user specified an SDK version or line, use it. Otherwise keep the SDK
    recorded in `fluoh.yaml`; when none is recorded, run `fluoh sdk list` and
    choose the latest stable FlutterOH SDK line.
@@ -134,9 +133,14 @@ this task. The confirmation must list:
   push, force-push, destructive Git commands, public API breaks, or manual
   release version overrides.
 
-After approval, local code edits, project-file edits, and local checkpoint
-commits are allowed when the workflow needs them. Keep release, push,
-force-push, and destructive Git operations separately approved.
+After approval, local code edits, project-file edits, and phase checkpoint
+commits are part of the automatic adaptation workflow. Create small local
+commits after completed phases with clean command evidence, such as generated
+baseline, selected-SDK baseline, implementation, tests and example
+verification, release metadata, and delivery report handoff. Keep release,
+push, force-push, destructive Git operations, public API breaks, SDK line
+changes, upstream downgrades, and manual release version overrides separately
+approved.
 
 ## Preflight Routing
 
@@ -156,8 +160,12 @@ When using `scripts/preflight.py`, route by the returned JSON:
   implementation edits. Generated `README.md`, `FLUOH.md`, and `AGENTS.md`
   sections are tool-owned; do not edit inside `fluoh:generated` blocks by hand.
 - `reportCommand`, `summaryCommand`, `scenarioCommand`,
-  `sessionInspectCommand`, and `sessionAttachCommand`: prefer these exact helper commands over
-  reconstructing paths manually.
+  `sessionInspectCommand`, and `sessionAttachCommand`: prefer these exact
+  helper commands over reconstructing paths manually.
+- `automationRunbook` and `deliveryGate`: treat these as the stop condition.
+  Do not end the adaptation until `deliveryGate.readyRequires` is satisfied,
+  `deliveryGate.blockedWhen` explains the remaining blocker, or
+  `deliveryGate.needsMaintainerDecision` applies.
 
 ## JSON Diagnostics
 
@@ -197,6 +205,7 @@ Use this loop for app and package work:
 6. Run `scripts/collect_feedback.py` on the trace session when feedback
    candidates exist.
 7. Write and check the report before the final response.
+8. Run the report check command and fix every failure before claiming `ready`.
 
 Launch success is smoke evidence. Release-ready interaction evidence must come
 from a passed `flutter test integration_test -d <device>` command row, real
@@ -211,18 +220,17 @@ Do not rely on screenshot recognition as the primary assertion.
 
 ## Completion Report
 
-Before the final response, create English and Chinese local reports under:
+Before the final response, create the local report under:
 
 ```text
-.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md
-.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md
+.fluoh/reports/<report-group>/report-<timestamp>.md
 ```
 
 For package work, `<report-group>` is normally the package name slug. For
 multi-package monorepos, also create a summary report under:
 
 ```text
-.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md
+.fluoh/reports/<scope-slug>/summary-<timestamp>.md
 ```
 
 Prefer preflight `reportCommand` and `summaryCommand`, or run:
@@ -238,12 +246,12 @@ automation coverage gates, interaction evidence, diagnostics, Fluoh Feedback,
 remaining risks, and release recommendation. Mark every applicable Delivery
 Checklist item as done, or leave it unchecked and explain the blocker. A ready
 recommendation requires all applicable checklist items to be done and
-`check_report.py` to pass against the English canonical report.
+`check_report.py` to pass against the canonical report.
 
 The AI adaptation loop ends at a release recommendation and evidence report.
 The maintainer still makes the final release approval and owns publish, push,
 tag, app-store, or package-registry actions.
 
 The final response should state whether the work is ready, blocked, or needs a
-maintainer decision; point to both report paths; and list only the remaining
+maintainer decision; point to the report path; and list only the remaining
 blocking risks.

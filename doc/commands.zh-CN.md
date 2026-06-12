@@ -21,7 +21,7 @@ AI 驱动适配是主要端到端链路。内置的 `skills/fluoh` 工作流会�
 先在 AI agent 中安装或刷新 skill：
 
 ```text
-从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。
+运行 `fluoh skill --json`，把返回的 localPath 安装为 fluoh skill，并覆盖已有安装。仅在尚未安装 fluoh 时，才使用 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 作为初始来源。
 ```
 
 然后用一句话把目标交给 AI agent：
@@ -129,7 +129,7 @@ emulator/simulator 启动。
 | `fluoh run <platform>` | `lib/src/workflow/commands/run_command.dart` | 准备平台、通过 `flutter run` 启动并诊断 App。 |
 | `fluoh attach <platform>` | `lib/src/workflow/commands/attach_command.dart` | 把 Flutter 调试工具 attach 到 `flutterRunSession`、VM Service URI 或 device id。 |
 | `fluoh drive <platform>` | `lib/src/workflow/commands/drive_command.dart` | 在 OHOS、Android 和 iOS target 上执行移动端自动化场景和证据校验。 |
-| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | 根据 trace manifest 和 automation JSON 创建本地忽略的中英双版 AI 适配报告。 |
+| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | 根据 trace manifest 和 automation JSON 创建本地忽略的 AI 适配报告。 |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断环境、项目、SDK 和工具状态。 |
 | `fluoh devices` | `lib/src/platform/platform_target_commands.dart` | 列出已连接的 Flutter target，包括 OHOS、Android、iOS、Web 和当前 host 支持的桌面 target。 |
 | `fluoh emulators` | `lib/src/platform/platform_target_commands.dart` | 列出并启动 OHOS、Android 和 iOS 的本地 emulator/simulator；桌面和 Web 平台不提供 emulator。 |
@@ -165,12 +165,11 @@ emulator/simulator 启动。
   JSON 对象会包含 `traceError`。多条命令复用同一个 `--trace-dir` 时，会在同一个
   session manifest 中追加多次 invocation。
 - 本地 AI report 是 `.fluoh/reports/` 下的忽略证据。skill helper `new_report.py`
-  会写入 `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md`；
+  会写入 `.fluoh/reports/<report-group>/report-<timestamp>.md`；
   `<report-group>` 在提供 `--package` 时是 package slug，否则是 scope slug。
   summary helper `new_summary.py` 会写入
-  `.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md`。
-  时间戳使用本地 24 小时时间，精确到秒；如果同名文件已存在，helper 会在 `.md`
-  前追加 `-2`、`-3` 等后缀。
+  `.fluoh/reports/<scope-slug>/summary-<timestamp>.md`。时间戳使用 Unix epoch
+  毫秒整数。
 - 本地 trace manifest 是 `.fluoh/traces/` 下的忽略证据。使用 `--trace` 时，项目或
   多目标命令写入 `.fluoh/traces/<trace-id>/trace.json`；单个 package 目标写入
   `.fluoh/traces/<package-slug>/<trace-id>/trace.json`。自动生成的 trace id 为
@@ -222,6 +221,8 @@ OHOS build/run 证据、OHOS device/emulator 发现、已有平台回归检查�
 当底层命令支持 trace 输出时，`build`、`run`、`drive` 和 `report create` 命令会共用同一个
 `.fluoh/traces/<scope>/adaptation` session。`--json` 会输出一个带
 `changed: false` 和 `applied: false` 的机器可读对象，方便 AI agent 在请求修改命令前完成适配范围确认。
+JSON 同时包含 `automationRunbook` 和 `deliveryGate`，用于定义修复循环、终态、最终检查命令、
+报告检查命令，以及 AI 声明 `ready` 前必须满足的条件。
 
 `plan package` 对当前 FlutterOH Package 分支执行同样的只读规划。它读取
 Package `fluoh.yaml`，报告分支与工作区状态、已选择 SDK、上游和 release 元数据、
@@ -230,7 +231,8 @@ device/emulator 发现、统一平台自动化、已有平台 example 回归、h
 release 检查的命令队列。当底层命令支持 trace 输出时，`verify`、`build`、`run`、`drive`
 和 `report create` 命令会共用同一个 `.fluoh/traces/<package>/adaptation` session。计划让
 Android、iOS 和 OHOS 的实现细节分别落在平台步骤里，上层通过同一个 `plan package`
-合约调用。
+合约调用。它的交付 gate 要求最终 `package check` 带 `--report <report-path>` 执行，避免
+报告认证失败只降级成非阻断 warning。
 
 ### `fluoh flutter <args>` 和 `fluohf <args>`
 
@@ -636,15 +638,14 @@ runtime permission 需要在每个支持平台覆盖 grant、deny 和行为不�
 run、runtime 和 integration test diagnostic。`--trace` 和 `--trace-dir <path>` 使用与
 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
 
-`fluoh report create` 默认把英文主报告写到 Git 忽略的
-`.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.md`，并在旁边生成中文伴随报告
-`.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md`；也可以用
-`--output` 指定英文主报告路径，此时中文报告会以 `.zh-CN` companion 形式写在同目录。
+`fluoh report create` 默认把 canonical Markdown 报告写到 Git 忽略的
+`.fluoh/reports/<scope>/report-<timestamp>.md`；也可以用
+`--output` 指定报告路径。
 它接受一个或多个 `--trace-dir` 以及保存下来的 `--automation-json` 文件，提取命令行、
 覆盖 gate、交互证据、diagnostics 和 fluoh feedback candidates，然后写入 package check
-和交接流程需要的标准 AI 报告章节。`--json` 用 `report` 输出英文路径，并在
-`reports.en` 和 `reports.zh-CN` 下输出双语报告路径。该命令只拥有本地报告创建和发布建议；最终发布批准以及
-publish、push、tag、应用商店或 registry 动作仍由维护者负责。
+和交接流程需要的标准 AI 报告章节。`--json` 只用 `report` 输出报告路径。该命令只拥有
+本地报告创建和发布建议；最终发布批准以及 publish、push、tag、应用商店或 registry
+动作仍由维护者负责。
 
 `fluoh package version` 更新 `fluoh.yaml` 中当前 Package 的发布元数据。
 用 `--bump patch|minor|major` 递增 FlutterOH 适配 Package 版本，用
@@ -671,8 +672,9 @@ section id 和 template version 的 `fluoh:generated` marker，因此后续模�
 JSON 对象，包含 Package 元数据、当前分支、manifest 分支、分支是否匹配、工作树脏状态摘要、
 证据路径、后续命令应复用的 trace 目录和下一步命令。当当前 Package 已有 trace 时，
 handoff 会复用 `.fluoh/traces/<package>/` 下最新的 trace 目录；否则默认使用
-`.fluoh/traces/<package>/adaptation`。它不修改仓库。AI 任务需要恢复、转交，或确认分支是否可以进入最终 verify、
-drive 证据、报告创建或 `package check` 时使用它。
+`.fluoh/traces/<package>/adaptation`。已有报告时，下一步 `package check` 命令会带
+`--report <latest-report-path>`。它不修改仓库。AI 任务需要恢复、转交，或确认分支是否可以进入最终
+verify、drive 证据、报告创建或 `package check` 时使用它。
 
 `fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送
@@ -680,7 +682,7 @@ tag。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前
 `--json` 会输出 tag、warning、认证状态和验证结果。Check 默认不要求设备或 AI report
 证据；没有提供认证报告时只输出非阻断 warning。需要 AI/CI 认证交付时，传
 `--report <path>` 强制检查已完成的
-`.fluoh/reports/<scope>/ai-report-...md`。认证报告必须是 `ready`，完成所有交付 checklist，包含通过的
+`.fluoh/reports/<scope>/report-<timestamp>.md`。认证报告必须是 `ready`，完成所有交付 checklist，包含通过的
 `fluoh verify` 证据，包含通过的 OHOS build 或 run 证据，交互 readiness 证据可以来自已通过的
 `fluoh drive --json`、有 Commands 表支撑的 `flutter test integration_test -d <device>`，或
 带工具可读证据的 `manual-assisted`，包含 `Automation Coverage` 章节和完整必需自动化 gate 集合，且所有 gate 行都是 ready/covered/passed/notApplicable，

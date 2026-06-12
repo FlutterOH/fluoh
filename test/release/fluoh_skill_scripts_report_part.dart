@@ -376,6 +376,9 @@ package:
       final packageSuggestedCommands = [
         'fluoh verify --package share_plus --json --trace-dir $sharePlusTraceDir',
         'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir $sharePlusTraceDir',
+        'fluoh drive ohos --package share_plus --json --trace-dir $sharePlusTraceDir',
+        if (Platform.isMacOS)
+          'fluoh drive ios --package share_plus --json --trace-dir $sharePlusTraceDir',
         if (Platform.isLinux)
           'fluoh build linux --package share_plus --json --trace-dir $sharePlusTraceDir',
         'fluoh run web --package share_plus --json --trace-dir $sharePlusTraceDir',
@@ -393,8 +396,22 @@ package:
         ),
       );
       expect(
+        stringList(report['finalCheckCommands']),
+        contains(
+          'fluoh drive ohos --package share_plus --json --trace-dir $sharePlusTraceDir',
+        ),
+      );
+      if (Platform.isMacOS) {
+        expect(
+          stringList(report['finalCheckCommands']),
+          contains(
+            'fluoh drive ios --package share_plus --json --trace-dir $sharePlusTraceDir',
+          ),
+        );
+      }
+      expect(
         stringList(report['deliveryChecks']),
-        contains(contains('.fluoh/reports/share_plus/ai-report-...md')),
+        contains(contains('.fluoh/reports/share_plus/report-<timestamp>.md')),
       );
       expect(stringList(report['notes']), isEmpty);
       expect(
@@ -465,8 +482,10 @@ package:
         containsAll([
           'fluoh verify --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh drive ohos --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh drive android --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh package handoff --package share_plus --json',
-          'fluoh package check --package share_plus --json',
+          'fluoh package check --package share_plus --report <report-path> --json',
         ]),
       );
       expect(
@@ -475,9 +494,11 @@ package:
           'git diff --check',
           'fluoh verify --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh drive ohos --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh drive android --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh package status --package share_plus',
           'fluoh package handoff --package share_plus --json',
-          'fluoh package check --package share_plus --json',
+          'fluoh package check --package share_plus --report <report-path> --json',
         ]),
       );
       expect(
@@ -550,7 +571,7 @@ package:
       );
       expect(
         stringList(selected['deliveryChecks']),
-        contains(contains('.fluoh/reports/<name>/ai-report-...md')),
+        contains(contains('.fluoh/reports/<name>/report-<timestamp>.md')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -610,7 +631,7 @@ package:
   );
 
   test(
-    'new_report creates report files and never overwrites',
+    'new_report creates a canonical timestamped report',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -646,8 +667,7 @@ package:
         return File(result.stdout.toString().trim());
       }
 
-      final first = await createReport();
-      final second = await createReport();
+      final report = await createReport();
       final defaultResult = await Process.run('python3', [
         reportScript,
         root.path,
@@ -662,33 +682,31 @@ package:
         reason: defaultResult.stderr.toString(),
       );
       final defaultReport = File(defaultResult.stdout.toString().trim());
-      final firstZh = File(
-        first.path.replaceFirst(RegExp(r'\.md$'), '.zh-CN.md'),
-      );
-      final secondZh = File(
-        second.path.replaceFirst(RegExp(r'\.md$'), '.zh-CN.md'),
-      );
-      final defaultReportZh = File(
-        defaultReport.path.replaceFirst(RegExp(r'\.md$'), '.zh-CN.md'),
-      );
 
-      expect(first.path, isNot(second.path));
-      expect(first.existsSync(), isTrue);
-      expect(second.existsSync(), isTrue);
+      expect(report.existsSync(), isTrue);
       expect(defaultReport.existsSync(), isTrue);
-      expect(firstZh.existsSync(), isTrue);
-      expect(secondZh.existsSync(), isTrue);
-      expect(defaultReportZh.existsSync(), isTrue);
+      expect(
+        File(
+          report.path.replaceFirst(RegExp(r'\.md$'), '.zh-CN.md'),
+        ).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(
+          defaultReport.path.replaceFirst(RegExp(r'\.md$'), '.zh-CN.md'),
+        ).existsSync(),
+        isFalse,
+      );
       expect(
         defaultReport.path,
-        contains('${root.path}/.fluoh/reports/camera/ai-report-'),
+        contains('${root.path}/.fluoh/reports/camera/report-'),
       );
       expect(
-        first.uri.pathSegments.last,
-        matches(RegExp(r'^ai-report-\d{8}-\d{6}(?:-\d+)?\.md$')),
+        report.uri.pathSegments.last,
+        matches(RegExp(r'^report-\d+\.md$')),
       );
-      expect(first.uri.pathSegments.last, isNot(contains('camera-plugin')));
-      final content = await first.readAsString();
+      expect(report.uri.pathSegments.last, isNot(contains('camera-plugin')));
+      final content = await report.readAsString();
       expect(content, contains('- Scope: camera plugin'));
       expect(content, contains('- Package: camera'));
       expect(content, contains('- Upstream version: 0.11.0'));
@@ -701,18 +719,12 @@ package:
       expect(content, contains('OHOS build evidence recorded'));
       expect(content, contains('Functional interaction evidence recorded'));
       expect(content, contains('Release recommendation: ready'));
-      final zhContent = await firstZh.readAsString();
-      expect(zhContent, contains('# fluoh AI 适配报告'));
-      expect(zhContent, contains('- Scope: camera plugin'));
-      expect(zhContent, contains('- Package: camera'));
-      expect(zhContent, contains('## Adaptation Responsibility / 适配责任边界'));
-      expect(zhContent, contains('Release recommendation: ready'));
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
 
   test(
-    'new_summary creates monorepo summary reports and never overwrites',
+    'new_summary creates a canonical timestamped monorepo summary',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -727,10 +739,10 @@ sdk:
       );
       await cameraReportDirectory.create(recursive: true);
       await File(
-        '${cameraReportDirectory.path}/ai-report-camera-20260525-153045.md',
+        '${cameraReportDirectory.path}/report-1781092800122.md',
       ).writeAsString('old report name');
       await File(
-        '${cameraReportDirectory.path}/ai-report-20260526-153045.md',
+        '${cameraReportDirectory.path}/report-1781092800123.md',
       ).writeAsString('new report name');
 
       Future<File> createSummary() async {
@@ -748,30 +760,27 @@ sdk:
         return File(result.stdout.toString().trim());
       }
 
-      final first = await createSummary();
-      final second = await createSummary();
+      final summary = await createSummary();
 
-      expect(first.path, isNot(second.path));
-      expect(first.existsSync(), isTrue);
-      expect(second.existsSync(), isTrue);
+      expect(summary.existsSync(), isTrue);
       expect(
-        first.path,
+        summary.path,
         contains('${root.path}/.fluoh/reports/flutter-packages/summary-'),
       );
       expect(
-        first.uri.pathSegments.last,
-        matches(RegExp(r'^summary-\d{8}-\d{6}(?:-\d+)?\.md$')),
+        summary.uri.pathSegments.last,
+        matches(RegExp(r'^summary-\d+\.md$')),
       );
-      final content = await first.readAsString();
+      final content = await summary.readAsString();
       expect(content, contains('# fluoh Monorepo Summary'));
       expect(content, contains('- Scope: flutter packages'));
       expect(content, contains('- Packages: camera, share_plus'));
       expect(content, contains('| camera |'));
       expect(
         content,
-        contains('.fluoh/reports/camera/ai-report-20260526-153045.md'),
+        contains('.fluoh/reports/camera/report-1781092800123.md'),
       );
-      expect(content, isNot(contains('ai-report-camera-20260525-153045.md')));
+      expect(content, isNot(contains('report-1781092800122.md')));
       expect(content, contains('| share_plus |'));
       expect(content, contains('## Package Matrix'));
       expect(content, contains('## Fluoh Feedback'));

@@ -71,14 +71,19 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(output, contains('automation-evidence-flow.md'));
     expect(output, contains('source-maintenance-flow.md'));
     expect(output, contains('report-template.md'));
-    expect(output, contains('report-template.zh-CN.md'));
     expect(output, contains('interaction-scenario-template.md'));
     expect(
       output,
       contains(
-        'Install the fluoh skill from '
-        'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, '
-        'overwriting any existing installation.',
+        'Run `fluoh skill --json`, install the returned localPath as the fluoh '
+        'skill, and overwrite any existing installation.',
+      ),
+    );
+    expect(
+      output,
+      contains(
+        'Use https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only '
+        'when fluoh is not installed yet.',
       ),
     );
     expect(output, contains('fluoh skill --json'));
@@ -160,9 +165,10 @@ void _registerFluohCommandRunnerSkillTests() {
       report,
       containsPair(
         'installPrompt',
-        'Install the fluoh skill from '
-            'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, '
-            'overwriting any existing installation.',
+        'Run `fluoh skill --json`, install the returned localPath as the fluoh '
+            'skill, and overwrite any existing installation. Use '
+            'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only '
+            'when fluoh is not installed yet.',
       ),
     );
     expect(report, containsPair('upgradeCommand', 'fluoh upgrade'));
@@ -263,7 +269,6 @@ void _registerFluohCommandRunnerSkillTests() {
         'automationEvidenceFlow',
         'sourceMaintenanceFlow',
         'reportTemplate',
-        'reportTemplateZhCn',
         'interactionScenarioTemplate',
       ]),
     );
@@ -308,16 +313,6 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(
       reportTemplate['path'],
       allOf(isA<String>(), contains('report-template.md')),
-    );
-    final reportTemplateZhCn =
-        references['reportTemplateZhCn'] as Map<String, Object?>;
-    expect(
-      reportTemplateZhCn['relativePath'],
-      'references/report-template.zh-CN.md',
-    );
-    expect(
-      reportTemplateZhCn['path'],
-      allOf(isA<String>(), contains('report-template.zh-CN.md')),
     );
     final scenarioTemplate =
         references['interactionScenarioTemplate'] as Map<String, Object?>;

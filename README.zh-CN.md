@@ -37,7 +37,7 @@
 在 AI agent 中安装内置 skill：
 
 ```text
-从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。
+运行 `fluoh skill --path`，把打印的路径安装为 fluoh skill，并覆盖已有安装。仅在尚未安装 fluoh 时，才使用 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 作为初始来源。
 ```
 
 然后按 App 或 Package 场景输入一句话：

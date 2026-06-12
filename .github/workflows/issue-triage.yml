@@ -159,7 +159,7 @@ jobs:
             addWhen('area:project', /\bfluoh\s+create\b|\bfluoh\s+deps\b|\bcreate\s+(?:a\s+)?flutter project|project creation|project deps|project dependenc/);
             addWhen('area:deps', /\bfluoh\s+deps\b|\bdeps\s+(check|fix|get|upgrade)\b|dependency|dependencies|pubspec|dependency_overrides/);
             addWhen('area:package', /\bfluoh\s+package\b|package adaptation|package workflow|package create|package sync|package release/);
-            addWhen('area:workflow', /\bfluoh\s+(plan|verify|build|run|attach|drive|report)\b|\b(plan|verify|build|run|attach|drive|report)\s+(app|package|ohos|android|ios|web|linux|windows|macos|all)\b|adaptation plan|automation evidence|trace-dir|ai report/);
+            addWhen('area:workflow', /\bfluoh\s+(plan|verify|build|run|attach|drive|report)\b|\b(plan|verify|build|run|attach|drive|report)\s+(app|package|ohos|android|ios|web|linux|windows|macos|all)\b|adaptation plan|automation evidence|trace-dir|adaptation report|delivery report/);
             addWhen('area:devices', /\bfluoh\s+(devices|emulators)\b|\bdevices?\b|\bemulators?\b|simulator|connected target|auto-emulator/);
             addWhen('area:schema', /\bfluoh\.yaml\b|\bschema\b|machine output|"schema"|"exitcode"|--json/);
             addWhen('area:platform', /\bfluohf\b|\bfluoh\s+flutter\b|ohos platform|openharmony platform|openharmony|hap|hdc|deveco|signing|permission profile|build profile/);

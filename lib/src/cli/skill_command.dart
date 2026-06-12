@@ -30,8 +30,9 @@ const fluohSkillDefaultPrompt =
 
 /// Prompt for installing the bundled fluoh skill.
 const fluohSkillInstallPrompt =
-    'Install the fluoh skill from $fluohSkillUrl, overwriting any existing '
-    'installation.';
+    'Run `fluoh skill --json`, install the returned localPath as the fluoh '
+    'skill, and overwrite any existing installation. Use $fluohSkillUrl only '
+    'when fluoh is not installed yet.';
 
 /// Prompt for updating the bundled fluoh skill.
 const fluohSkillUpgradePrompt =
@@ -42,8 +43,8 @@ const _fluohSkillScripts = {
     relativePath: 'scripts/preflight.py',
     arguments: ['<workspace>'],
     description:
-        'Inspect the workspace and return routing, commands, and '
-        'delivery checks as JSON.',
+        'Inspect the workspace and return routing, command queues, '
+        'automation runbook, and delivery gates as JSON.',
   ),
   'newReport': _FluohSkillScript(
     relativePath: 'scripts/new_report.py',
@@ -119,10 +120,6 @@ const _fluohSkillReferences = {
   'reportTemplate': _FluohSkillReference(
     relativePath: 'references/report-template.md',
     description: 'Structured AI delivery report template.',
-  ),
-  'reportTemplateZhCn': _FluohSkillReference(
-    relativePath: 'references/report-template.zh-CN.md',
-    description: 'Chinese structured AI delivery report template.',
   ),
   'interactionScenarioTemplate': _FluohSkillReference(
     relativePath: 'references/interaction-scenario-template.md',
@@ -213,7 +210,7 @@ class SkillCommand extends FluohCommand<int> {
         '${style.label('References')} app-project-flow.md, '
         'package-adaptation-flow.md, automation-evidence-flow.md, '
         'source-maintenance-flow.md, report-template.md, '
-        'report-template.zh-CN.md, interaction-scenario-template.md',
+        'interaction-scenario-template.md',
       );
     } else {
       _output.warning('Bundled local skill path was not found.');
@@ -227,9 +224,13 @@ class SkillCommand extends FluohCommand<int> {
     );
     _output.blank();
     _output.write(
-      'First-time setup: ask your AI agent to install from GitHub, then use '
-      '${style.code(r'$fluoh')} to adapt an app or package, or precheck a '
-      'FlutterOH Source change.',
+      'Install source: prefer the local path from '
+      '${style.code('fluoh skill --path')} when fluoh is installed; use '
+      '$fluohSkillUrl only before the CLI is available.',
+    );
+    _output.write(
+      'Then use ${style.code(r'$fluoh')} to adapt an app or package, or '
+      'precheck a FlutterOH Source change.',
     );
     _output.write(
       'Local or upgrade setup: run ${style.code('fluoh skill --json')}, install '

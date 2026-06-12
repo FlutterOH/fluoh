@@ -279,7 +279,7 @@ package:
 
       final backedReport = await _writeMinimalIntegrationReport(
         root,
-        fileName: 'backed.md',
+        fileName: 'report-1780401600401.md',
         includeFlutterIntegrationCommand: true,
       );
       final backedResult = await Process.run('python3', [
@@ -295,7 +295,7 @@ package:
 
       final runOnlyReport = await _writeMinimalIntegrationReport(
         root,
-        fileName: 'run-only.md',
+        fileName: 'report-1780401600402.md',
         includeFlutterIntegrationCommand: false,
       );
       final runOnlyResult = await Process.run('python3', [
@@ -476,7 +476,7 @@ package:
   );
 
   test(
-    'simulates a complete AI adaptation evidence flow',
+    'simulates a complete AI adaptation repair and delivery flow',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -503,6 +503,9 @@ package:
       await Directory(
         '${root.path}/packages/camera/camera/example/ohos',
       ).create(recursive: true);
+      await Directory(
+        '${root.path}/packages/camera/camera/example/web',
+      ).create(recursive: true);
 
       final preflight = await runPreflight(root, fluohCommand: fluoh.path);
       final project = preflight['project'] as Map<String, Object?>;
@@ -510,10 +513,61 @@ package:
           (project['packages'] as List<Object?>).single as Map<String, Object?>;
       final examplePlatforms =
           package['examplePlatforms'] as Map<String, Object?>;
+      final commandQueue = (preflight['commandQueue'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final automationRunbook =
+          preflight['automationRunbook'] as Map<String, Object?>;
+      final checkpointPolicy =
+          automationRunbook['checkpointPolicy'] as Map<String, Object?>;
+      final deliveryGate = preflight['deliveryGate'] as Map<String, Object?>;
       expect(project['kind'], 'package-repository');
       expect(project['selectedPackage'], 'camera');
       expect(examplePlatforms['android'], isTrue);
       expect(examplePlatforms['ohos'], isTrue);
+      expect(examplePlatforms['web'], isTrue);
+      expect(
+        commandQueue.map((item) => item['command']).toList(),
+        containsAllInOrder([
+          'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+          'fluoh package handoff --package camera --json',
+          'fluoh package check --package camera --report <report-path> --json',
+        ]),
+      );
+      expect(automationRunbook['mode'], 'autonomous-to-delivery');
+      expect(checkpointPolicy['mode'], 'auto-local-commits');
+      expect(
+        stringList(checkpointPolicy['commitPhases']),
+        containsAll([
+          'implementation',
+          'tests and example verification',
+          'delivery report handoff',
+        ]),
+      );
+      expect(deliveryGate['status'], 'active');
+      expect(
+        stringList(deliveryGate['finalCheckCommands']),
+        containsAll([
+          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh package check --package camera --report <report-path> --json',
+        ]),
+      );
+      expect(
+        stringList(deliveryGate['readyRequires']),
+        contains(
+          contains(
+            'fluoh package check --package camera --report <report-path> --json',
+          ),
+        ),
+      );
       expect(
         preflight['sessionInspectCommand'],
         'python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>',
@@ -652,7 +706,8 @@ package:
       ]);
       expect(reportResult.exitCode, 0, reason: reportResult.stderr.toString());
       final report = File(reportResult.stdout.toString().trim());
-      await report.writeAsString('''
+      final repairedReportContent =
+          '''
 # fluoh AI Report
 
 - Scope: camera
@@ -666,16 +721,17 @@ package:
 ## Summary
 
 - Adaptation flow simulated from preflight through functional evidence and report validation.
+- The first ready report intentionally failed automation coverage validation; the simulated AI loop repaired the coverage gate, reran report validation, and continued to handoff/check evidence.
 
 ## Changes
 
-- Added OHOS package verification evidence and Android AI-assisted permission scenario evidence.
+- Added OHOS package verification evidence, Web regression evidence, and Android AI-assisted permission scenario evidence.
 
 ## Public API / Compatibility
 
 - Public Dart API changes: none
 - Dependency constraint changes: none
-- Non-OHOS regression risk: Android example run and permission-denied fallback checked
+- Non-OHOS regression risk: Android example run, Web example run, and permission-denied fallback checked
 
 ## Commands
 
@@ -683,11 +739,15 @@ package:
 | --- | --- | --- | --- |
 | `python3 skills/fluoh/scripts/preflight.py ${root.path} --package camera` | 0 | passed | package repository detected, camera selected |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, and tests passed in simulated evidence |
+| `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed debug HAP built |
 | `fluoh run ohos --package camera --auto-emulator --json` | 0 | passed | debug signing prepared, flutter run launched, session evidence recorded |
 | `fluoh run android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
-| `fluoh drive android --package camera --scenario ${scenario.path} --json` | 0 | passed | automation coverage gates ready |
+| `fluoh run web --package camera --json` | 0 | passed | Web example smoke and regression check passed |
+| `fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation` | 0 | passed | mobile automation coverage gates ready; Android scenario ${scenario.path} passed |
 | `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
-| `fluoh package check --package camera --json` | 0 | passed | release metadata validated |
+| `python3 skills/fluoh/scripts/check_report.py .fluoh/reports/camera/report-1780401600301.md` | 0 | passed | repaired report passed delivery validation |
+| `fluoh package handoff --package camera --json` | 0 | passed | latest report and next commands surfaced |
+| `fluoh package check --package camera --report .fluoh/reports/camera/report-1780401600301.md --json` | 0 | passed | release metadata validated |
 
 ## Delivery Checklist
 
@@ -707,8 +767,11 @@ package:
 | --- | --- | --- | --- | --- | --- |
 | OHOS | passed | passed | absent | emulator-5554 | flutterRunSession and signing-preparation evidence |
 | Android | passed | passed | absent | emulator-5554 | flutterRunSession and VM Service evidence |
+| Web | passed | passed | absent | Chrome | Web example run evidence |
 | iOS | not present | not present | absent | no target | example ios directory absent |
 | macOS | not present | not present | absent | no target | example macos directory absent |
+| Linux | not present | not present | absent | no target | example linux directory absent |
+| Windows | not present | not present | absent | no target | example windows directory absent |
 
 ## Automation Coverage
 
@@ -757,6 +820,8 @@ No fluoh feedback: diagnostics were actionable and no tool or Source gap was fou
 - Git status summary: simulated temp workspace only
 - Files intentionally left uncommitted: ${scenario.path}, ${report.path}, ${sessionFile.path}
 - Files that must not be committed: local session logs
+- Local checkpoint commits recorded: generated baseline abc0001, selected-SDK baseline abc0002, implementation abc0003, tests and example verification abc0004, release metadata abc0005, delivery report handoff abc0006
+- Push, release, tag, force-push, and destructive Git operations: not run
 
 ## Release Decision
 
@@ -764,7 +829,52 @@ Release recommendation: ready
 
 Reason:
 The simulated AI flow completed preflight, build/run evidence, non-visual interaction evidence, session inspection, and package check evidence.
-''');
+''';
+
+      final unrepairedReportContent = repairedReportContent
+          .replaceFirst(
+            '- readyForAutomation: true',
+            '- readyForAutomation: false',
+          )
+          .replaceFirst(
+            '- qualityGateSummary: ready=8, notReady=0',
+            '- qualityGateSummary: ready=7, notReady=1',
+          )
+          .replaceFirst(
+            '| scenario-evidence-assertions | readyForReview | scenario uses VM/session/log evidence |',
+            '| scenario-evidence-assertions | blocked | missing log assertion before AI repair |',
+          );
+      await report.writeAsString(unrepairedReportContent);
+
+      final failedCheck = await Process.run('python3', [
+        checkReportScript,
+        report.path,
+      ]);
+      expect(failedCheck.exitCode, 1);
+      final failedCheckJson =
+          jsonDecode(failedCheck.stdout.toString()) as Map<String, Object?>;
+      expect(failedCheckJson, containsPair('ok', false));
+      final failedErrors = stringList(failedCheckJson['errors']);
+      expect(
+        failedErrors,
+        contains(
+          'Automation Coverage has unresolved gates: scenario-evidence-assertions (blocked).',
+        ),
+      );
+      expect(
+        failedErrors,
+        contains(
+          'Automation Coverage must record readyForAutomation: true for ready reports.',
+        ),
+      );
+      expect(
+        failedErrors,
+        contains(
+          'Automation Coverage must record qualityGateSummary with zero notReady gates for ready reports.',
+        ),
+      );
+
+      await report.writeAsString(repairedReportContent);
 
       final check = await Process.run('python3', [
         checkReportScript,
@@ -775,12 +885,15 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
           jsonDecode(check.stdout.toString()) as Map<String, Object?>;
       expect(checkJson, containsPair('ok', true));
       expect(checkJson, containsPair('recommendation', 'ready'));
-      expect(checkJson, containsPair('commandRows', 7));
-      expect(checkJson, containsPair('passedCommandRows', 7));
+      expect(checkJson, containsPair('commandRows', 11));
+      expect(checkJson, containsPair('passedCommandRows', 11));
       expect(checkJson, containsPair('automationCoverageRows', 8));
       expect(checkJson, containsPair('readyAutomationCoverageRows', 8));
       expect(checkJson, containsPair('interactionRows', 1));
       expect(checkJson, containsPair('passedInteractionRows', 1));
+      expect(checkJson, containsPair('passedOhosBuild', true));
+      expect(checkJson, containsPair('passedOhosRun', true));
+      expect(checkJson, containsPair('passedAutomation', true));
       expect(checkJson['errors'], isEmpty);
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,

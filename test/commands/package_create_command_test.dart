@@ -183,7 +183,7 @@ void _expectImplementationGuide(
     'ohos.runtime_crash',
     'ohos.install_failed',
     '.fluoh/reports/',
-    'YYYYMMDD-HHMMSS',
+    'report-<timestamp>.md',
     'Release recommendation:',
     'changed files',
     'build, run, integration-test',
@@ -191,10 +191,11 @@ void _expectImplementationGuide(
     'git status --short --ignored=matching',
     'git config --local --get user.name',
     '--git-author-name',
+    'approved adaptation scope authorizes small local checkpoint commits',
+    'git diff --cached',
+    'delivery report handoff',
     'implementation checkpoint',
     'release metadata checkpoint',
-    'staged paths, commit message',
-    'self-review',
   ]);
   if (packages.length > 1) {
     _expectContainsAll(content, [

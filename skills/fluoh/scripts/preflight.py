@@ -21,8 +21,10 @@ from typing import Any
 
 from preflight_guidance import (
     adapt_plan_command,
+    automation_runbook,
     command_arg,
     command_queue,
+    delivery_gate,
     delivery_checks,
     feedback_command,
     flutter_package_output,
@@ -377,6 +379,39 @@ def regression_commands_for_platform(
     ]
 
 
+def drive_command(
+    platform: str,
+    trace_dir: str,
+    package_name: str | None = None,
+) -> str:
+    package_part = f" --package {package_name}" if package_name else ""
+    return f"fluoh drive {platform}{package_part} --json --trace-dir {trace_dir}"
+
+
+def host_supports_drive_platform(platform: str) -> bool:
+    if platform in {"ohos", "android"}:
+        return True
+    if platform == "ios":
+        return sys.platform == "darwin"
+    return False
+
+
+def mobile_drive_commands(
+    platforms: dict[str, Any],
+    trace_dir: str,
+    package_name: str | None = None,
+) -> list[str]:
+    commands: list[str] = []
+    for platform in ("ohos", "android", "ios"):
+        if platform == "ohos":
+            enabled = True
+        else:
+            enabled = bool(platforms.get(platform))
+        if enabled and host_supports_drive_platform(platform):
+            commands.append(drive_command(platform, trace_dir, package_name))
+    return commands
+
+
 def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
     if top_level_key(content, "package"):
         package: dict[str, Any] = {"name": None, "path": None}
@@ -682,7 +717,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh deps fix",
             "fluoh deps get",
             *ohos_adaptation_commands(trace_dir),
-            f"fluoh drive all --json --trace-dir {trace_dir}",
+            *mobile_drive_commands(project["platformDirectories"], trace_dir),
             *app_platform_regression_commands(project, trace_dir),
             f"fluoh report create --scope {command_arg(project['name'] or 'app')} --trace-dir {trace_dir} --json",
         ]
@@ -694,35 +729,43 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh deps get",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             *ohos_adaptation_commands(trace_dir, package),
-            f"fluoh drive all --package {package} --json --trace-dir {trace_dir}",
+            *mobile_drive_commands(
+                selected_package_entry(project).get("examplePlatforms", {}),
+                trace_dir,
+                package,
+            ),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
-            f"fluoh package handoff --package {package} --json",
             f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
-            f"fluoh package check --package {package} --json",
+            f"fluoh package handoff --package {package} --json",
+            f"fluoh package check --package {package} --report <report-path> --json",
         ]
     if kind == "flutter-package":
         package = project["name"] or "<package-name>"
         output = flutter_package_output(project)
         upstream = shlex.quote(info["cwd"])
         trace_dir = f".fluoh/traces/{command_arg(package)}/adaptation"
+        create_base = (
+            f"fluoh package create {upstream} --repository-name {package} --output {output} "
+            "--repository <flutteroh-repo-url-or-path> "
+            "--git-author-name <name> --git-author-email <email> "
+            "--sdk <sdk-version-or-line> --package-path ."
+        )
         return [
             "Resolve package setup: "
             f"repository-name={package}, output={output}, repository=<flutteroh-repo-url-or-path>, "
             "git-author-name=<name>, git-author-email=<email>, sdk=<sdk-version-or-line>",
-            f"fluoh package create {upstream} --repository-name {package} --output {output} "
-            "--repository <flutteroh-repo-url-or-path> "
-            "--git-author-name <name> --git-author-email <email> "
-            "--sdk <sdk-version-or-line> --package-path .",
+            f"{create_base} --plan --json",
+            create_base,
             f"cd {output}",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             *ohos_adaptation_commands(trace_dir, package),
-            f"fluoh drive all --package {package} --json --trace-dir {trace_dir}",
+            *mobile_drive_commands({}, trace_dir, package),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
-            f"fluoh package handoff --package {package} --json",
             f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
-            f"fluoh package check --package {package} --json",
+            f"fluoh package handoff --package {package} --json",
+            f"fluoh package check --package {package} --report <report-path> --json",
         ]
     if kind == "dart-package":
         return [
@@ -741,6 +784,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
         return [
             "git diff --check",
             *ohos_adaptation_commands(trace_dir),
+            *mobile_drive_commands(project["platformDirectories"], trace_dir),
             *app_platform_regression_commands(project, trace_dir),
         ]
     if kind == "package-repository":
@@ -750,10 +794,15 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
             "git diff --check",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             *ohos_adaptation_commands(trace_dir, package),
+            *mobile_drive_commands(
+                selected_package_entry(project).get("examplePlatforms", {}),
+                trace_dir,
+                package,
+            ),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             f"fluoh package handoff --package {package} --json",
-            f"fluoh package check --package {package} --json",
+            f"fluoh package check --package {package} --report <report-path> --json",
         ]
     if kind == "flutter-package":
         return []
@@ -827,6 +876,10 @@ def main() -> int:
     info["commandQueue"] = command_queue(info["suggestedCommands"], info["project"])
     info["finalCheckCommands"] = final_check_commands(info)
     info["deliveryChecks"] = delivery_checks(info["project"])
+    info["automationRunbook"] = automation_runbook(info["project"])
+    info["deliveryGate"] = delivery_gate(
+        info["project"], info["finalCheckCommands"]
+    )
     info["reportCommand"] = report_command(info["project"])
     info["summaryCommand"] = summary_command(info["project"])
     info["reportCheckCommand"] = report_check_command()

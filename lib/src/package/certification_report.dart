@@ -17,6 +17,8 @@ const _interactionEvidenceMethods = {
   'manual-assisted',
 };
 
+final _canonicalReportFileNamePattern = RegExp(r'^report-\d+\.md$');
+
 /// Validation result for a fluoh AI package certification report.
 ///
 /// The report is optional for baseline release checks, but when a maintainer
@@ -128,6 +130,10 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
 }) async {
   final errors = <String>[];
   final warnings = <String>[];
+  final reportNameError = _canonicalReportFileNameError(report);
+  if (reportNameError != null) {
+    errors.add(reportNameError);
+  }
   if (!await report.exists()) {
     return PackageCertificationReportResult(
       reportPath: report.path,
@@ -144,7 +150,10 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       readyAutomationCoverageRows: 0,
       interactionRows: 0,
       passedInteractionRows: 0,
-      errors: ['Certification report does not exist: ${report.path}'],
+      errors: [
+        ...errors,
+        'Certification report does not exist: ${report.path}',
+      ],
       warnings: const [],
     );
   }
@@ -367,6 +376,17 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
     errors: errors,
     warnings: warnings,
   );
+}
+
+String? _canonicalReportFileNameError(File report) {
+  final name = report.uri.pathSegments.isEmpty
+      ? report.path
+      : report.uri.pathSegments.last;
+  if (_canonicalReportFileNamePattern.hasMatch(name)) {
+    return null;
+  }
+  return 'Certification report filename must match '
+      'report-<timestamp>.md using an integer timestamp.';
 }
 
 const _requiredSections = [

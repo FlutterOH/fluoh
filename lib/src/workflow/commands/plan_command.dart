@@ -277,6 +277,17 @@ Future<Map<String, Object?>> _buildAppAdaptationPlan(
             traceDir: traceDir,
           )
         : const <Map<String, Object?>>[],
+    'automationRunbook': _automationRunbook('app'),
+    'deliveryGate': _deliveryGate(
+      kind: 'app',
+      active: readyToPlan,
+      finalCheckCommands: readyToPlan
+          ? _appFinalCheckCommands(platforms, traceDir: traceDir)
+          : const <String>[],
+      reportCommand:
+          'fluoh report create --scope $scope '
+          '--trace-dir $traceDir --json',
+    ),
     'safety': _adaptationSafety(),
   };
 }
@@ -306,6 +317,14 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
       },
       'sdk': {'selected': '<sdk-version-or-line>', 'source': 'placeholder'},
       'queue': const <Map<String, Object?>>[],
+      'automationRunbook': _automationRunbook('package'),
+      'deliveryGate': _deliveryGate(
+        kind: 'package',
+        active: false,
+        finalCheckCommands: const <String>[],
+        reportCommand:
+            'fluoh report create --scope <name> --package <name> --trace-dir .fluoh/traces/<name>/adaptation --json',
+      ),
       'safety': _adaptationSafety(),
     };
   }
@@ -359,6 +378,19 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
       'examplePlatforms': platforms,
     },
     'queue': _packageAdaptationQueue(scope, traceDir, platforms),
+    'automationRunbook': _automationRunbook('package'),
+    'deliveryGate': _deliveryGate(
+      kind: 'package',
+      active: true,
+      finalCheckCommands: _packageFinalCheckCommands(
+        scope,
+        platforms,
+        traceDir: traceDir,
+      ),
+      reportCommand:
+          'fluoh report create --scope $scope --package $scope --trace-dir $traceDir --json',
+      packageName: scope,
+    ),
     'safety': _adaptationSafety(),
   };
 }
@@ -404,12 +436,13 @@ List<Map<String, Object?>> _appAdaptationQueue(
       evidence: 'pubspec dependency rewrite summary',
     ),
     ..._ohosAdaptationQueue(traceDir: traceDir),
-    _queueItem(
-      phase: 'automation',
-      command: 'fluoh drive all --json --trace-dir $traceDir',
-      mutating: true,
-      evidence: 'automation coverage policy, scenarios, and repair queue',
-    ),
+    for (final command in _mobileDriveCommands(platforms, traceDir: traceDir))
+      _queueItem(
+        phase: 'automation',
+        command: command,
+        mutating: true,
+        evidence: 'automation coverage policy, scenarios, and repair queue',
+      ),
   ];
   for (final platform in const [
     'android',
@@ -470,13 +503,17 @@ List<Map<String, Object?>> _packageAdaptationQueue(
       evidence: 'pub get, analysis, tests, and trace manifest',
     ),
     ..._ohosAdaptationQueue(packageName: packageName, traceDir: traceDir),
-    _queueItem(
-      phase: 'automation',
-      command:
-          'fluoh drive all --package $packageName --json --trace-dir $traceDir',
-      mutating: true,
-      evidence: 'automation coverage policy, scenarios, and repair queue',
-    ),
+    for (final command in _mobileDriveCommands(
+      platforms,
+      packageName: packageName,
+      traceDir: traceDir,
+    ))
+      _queueItem(
+        phase: 'automation',
+        command: command,
+        mutating: true,
+        evidence: 'automation coverage policy, scenarios, and repair queue',
+      ),
   ];
   for (final platform in const [
     'android',
@@ -509,14 +546,6 @@ List<Map<String, Object?>> _packageAdaptationQueue(
     )
     ..add(
       _queueItem(
-        phase: 'handoff',
-        command: 'fluoh package handoff --package $packageName --json',
-        mutating: false,
-        evidence: 'branch state, reports, traces, and next commands',
-      ),
-    )
-    ..add(
-      _queueItem(
         phase: 'report',
         command:
             'fluoh report create --scope $packageName --package $packageName --trace-dir $traceDir --json',
@@ -526,10 +555,19 @@ List<Map<String, Object?>> _packageAdaptationQueue(
     )
     ..add(
       _queueItem(
-        phase: 'release-check',
-        command: 'fluoh package check --package $packageName --json',
+        phase: 'handoff',
+        command: 'fluoh package handoff --package $packageName --json',
         mutating: false,
-        evidence: 'release gate JSON',
+        evidence: 'branch state, reports, traces, and next commands',
+      ),
+    )
+    ..add(
+      _queueItem(
+        phase: 'release-check',
+        command:
+            'fluoh package check --package $packageName --report <report-path> --json',
+        mutating: false,
+        evidence: 'release gate JSON with certification report validation',
       ),
     );
   return items;
@@ -548,12 +586,16 @@ Map<String, Object?> _queueItem({
     'mutating': mutating,
     'requiresApproval': requiresApproval || mutating,
     'expectedEvidence': evidence,
+    'mustCompleteForDelivery': _mustCompleteForDelivery(command, phase),
+    'failureAction': _failureAction(command),
   };
 }
 
 Map<String, Object?> _adaptationSafety() {
   return {
     'requiresConfirmationBeforeMutation': true,
+    'autoCheckpointCommits': true,
+    'scopeApprovalAuthorizesLocalCommits': true,
     'willNotRunWithoutSeparateApproval': [
       'release',
       'push',
@@ -562,6 +604,233 @@ Map<String, Object?> _adaptationSafety() {
       'public API breaks',
     ],
   };
+}
+
+Map<String, Object?> _automationRunbook(String kind) {
+  return {
+    'mode': 'autonomous-to-delivery',
+    'commandSource': 'queue',
+    'loop':
+        'run, parse, fix, rerun until deliveryGate is satisfied or an explicit blocker remains',
+    'executionRules': [
+      'Run queue commands in order after the approved adaptation scope.',
+      'Parse every --json result before editing or deciding the next step.',
+      'Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.',
+      'Do not stop after setup, verify, build, run, or screenshot-only smoke evidence.',
+      'Do not skip drive, handoff, report creation, report check, or package check when they are applicable.',
+      'Create local checkpoint commits after completed phases when command evidence is clean.',
+      'Do not push, release, force-push, or run destructive Git commands without separate maintainer approval.',
+    ],
+    'checkpointPolicy': {
+      'mode': 'auto-local-commits',
+      'scopeApprovalAuthorizesCommits': true,
+      'commitPhases': [
+        'generated baseline',
+        'selected SDK baseline',
+        'implementation',
+        'tests and example verification',
+        'release metadata',
+        'delivery report handoff',
+      ],
+      'beforeCommit': [
+        "run the phase's relevant verification command",
+        'review git status --short and git diff --check',
+        'stage only intentional tracked files for the phase',
+        'exclude .fluoh reports, traces, caches, credentials, signing secrets, and machine-local paths',
+      ],
+      'afterCommit': [
+        'record the commit hash in the AI report Local State section',
+        'continue to the next queue phase',
+      ],
+    },
+    'repairLoop': {
+      'onFailure': [
+        'classify the failure as fluoh CLI, Source data, AI skill, local environment, upstream package, or project/package implementation',
+        'read diagnostics, stdoutTail, stderrTail, trace, feedbackCandidates, and traceError',
+        'fix the smallest owned issue',
+        'rerun the failed command or printed nextCommand',
+        'collect feedback candidates into the report when traces report them',
+      ],
+      'stopOnlyWhen': [
+        'deliveryGate.readyRequires is satisfied',
+        'deliveryGate.blockedWhen contains the remaining blocker',
+        'a maintainer decision listed in deliveryGate.needsMaintainerDecision is required',
+      ],
+    },
+    'adaptationKind': kind,
+  };
+}
+
+Map<String, Object?> _deliveryGate({
+  required String kind,
+  required bool active,
+  required List<String> finalCheckCommands,
+  required String reportCommand,
+  String? packageName,
+}) {
+  final commonReadyRequires = [
+    'all queue items marked mustCompleteForDelivery passed or have a concrete blocker recorded',
+    'finalCheckCommands ran after the last implementation edit',
+    'canonical report exists under .fluoh/reports/',
+    'reportCheckCommand passes against the canonical report',
+    'the final response states exactly one terminal state and only remaining blocking risks',
+  ];
+  return {
+    'active': active,
+    'status': active ? 'active' : 'blocked',
+    'terminalStates': ['ready', 'blocked', 'needs-maintainer-decision'],
+    'finalCheckCommands': finalCheckCommands,
+    'reportCommand': reportCommand,
+    'reportCheckCommand':
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
+    'requiresReportCheckPass': active,
+    'readyRequires': active
+        ? [
+            ...commonReadyRequires,
+            if (kind == 'app') ...[
+              'OHOS build and run evidence are recorded, or the final report records the exact local blocker',
+              'interaction evidence uses integration_test, real fluoh drive JSON, or tool-readable manual-assisted evidence',
+            ],
+            if (kind == 'package') ...[
+              'fluoh package handoff --package ${packageName ?? '<name>'} --json reports current branch evidence',
+              'fluoh package check --package ${packageName ?? '<name>'} --report <report-path> --json passes, or the report clearly records why this needs maintainer decision',
+            ],
+          ]
+        : ['plan is readyToPlan before mutating files or claiming delivery'],
+    'blockedWhen': [
+      'a required local toolchain, SDK, signing, device, emulator, or host platform is unavailable after running the diagnostic command',
+      'the selected upstream package cannot be made compatible with the selected FlutterOH SDK without maintainer approval',
+      'automation evidence cannot be made tool-readable with the available device or emulator',
+    ],
+    'needsMaintainerDecision': [
+      'release, publish, push, tag, force-push, or destructive Git operation',
+      'public API break, upstream downgrade, SDK line change, release version override, or signing policy decision',
+    ],
+  };
+}
+
+bool _mustCompleteForDelivery(String command, String phase) {
+  if (command.startsWith('Resolve package setup') ||
+      command.startsWith('cd ') ||
+      command.contains('--dry-run') ||
+      command.contains('--plan')) {
+    return false;
+  }
+  return const {
+    'deps',
+    'docs',
+    'doctor',
+    'verify',
+    'ohos',
+    'automation',
+    'regression',
+    'report',
+    'handoff',
+    'release-check',
+  }.contains(phase);
+}
+
+String _failureAction(String command) {
+  if (command.contains('--dry-run') || command.contains('--plan')) {
+    return 'inspect the plan output before running the mutating command';
+  }
+  if (command.contains(' package handoff ')) {
+    return 'fix the reported branch, dirty tree, trace, or report gap before continuing';
+  }
+  if (command.contains(' package check ')) {
+    return 'fix the release gate finding, rerun the failed command, then rerun package check';
+  }
+  if (command.contains(' report create ')) {
+    return 'create or update the report, then run the report check command';
+  }
+  return 'parse JSON diagnostics, make the smallest fix, and rerun this command or its nextCommand';
+}
+
+List<String> _appFinalCheckCommands(
+  Map<String, bool> platforms, {
+  required String traceDir,
+}) {
+  return [
+    'git diff --check',
+    for (final item in _ohosAdaptationQueue(traceDir: traceDir))
+      item['command']! as String,
+    ..._mobileDriveCommands(platforms, traceDir: traceDir),
+    for (final platform in const [
+      'android',
+      'ios',
+      'macos',
+      'linux',
+      'web',
+      'windows',
+    ])
+      if (platforms[platform] == true) _regressionCommand(platform, traceDir),
+  ];
+}
+
+List<String> _packageFinalCheckCommands(
+  String packageName,
+  Map<String, bool> platforms, {
+  required String traceDir,
+}) {
+  return [
+    'git diff --check',
+    'fluoh verify --package $packageName --json --trace-dir $traceDir',
+    for (final item in _ohosAdaptationQueue(
+      packageName: packageName,
+      traceDir: traceDir,
+    ))
+      item['command']! as String,
+    ..._mobileDriveCommands(
+      platforms,
+      packageName: packageName,
+      traceDir: traceDir,
+    ),
+    for (final platform in const [
+      'android',
+      'ios',
+      'macos',
+      'linux',
+      'web',
+      'windows',
+    ])
+      if (platforms[platform] == true)
+        _packageRegressionCommand(platform, packageName, traceDir),
+    'fluoh package status --package $packageName',
+    'fluoh package handoff --package $packageName --json',
+    'fluoh package check --package $packageName --report <report-path> --json',
+  ];
+}
+
+List<String> _mobileDriveCommands(
+  Map<String, bool> platforms, {
+  String? packageName,
+  required String traceDir,
+}) {
+  final commands = <String>[];
+  for (final platform in const ['ohos', 'android', 'ios']) {
+    if (!_shouldDriveMobilePlatform(platform, platforms)) {
+      continue;
+    }
+    commands.add(
+      'fluoh drive $platform'
+      '${packageName == null ? '' : ' --package $packageName'}'
+      ' --json --trace-dir $traceDir',
+    );
+  }
+  return commands;
+}
+
+bool _shouldDriveMobilePlatform(String platform, Map<String, bool> platforms) {
+  if (platform == 'ohos') {
+    return true;
+  }
+  if (platform == 'android') {
+    return platforms['android'] == true;
+  }
+  if (platform == 'ios') {
+    return platforms['ios'] == true && Platform.isMacOS;
+  }
+  return false;
 }
 
 List<Map<String, Object?>> _ohosAdaptationQueue({

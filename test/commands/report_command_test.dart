@@ -2,23 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/fluoh.dart';
-import 'package:fluoh/src/workflow/commands/report_command.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
-  test('availableReportOutput avoids overwriting existing report files', () {
-    final root = Directory.systemTemp.createTempSync('fluoh_report_output_');
-    addTearDown(() => root.deleteSync(recursive: true));
-    final first = File('${root.path}/ai-report-20260610-120000.md');
-    final second = File('${root.path}/ai-report-20260610-120000-2.md');
-    first.writeAsStringSync('first');
-    second.writeAsStringSync('second');
-
-    expect(availableReportOutput(first.path).path, endsWith('-3.md'));
-  });
-
   test('report create uses an explicit output path exactly', () async {
     final environment = await createTestEnvironment();
     final output = File(
@@ -26,10 +14,6 @@ void main() {
     );
     await output.parent.create(recursive: true);
     await output.writeAsString('old english');
-    final zhOutput = File(
-      '${environment.workingDirectory.path}/reports/custom.zh-CN.md',
-    );
-    await zhOutput.writeAsString('old chinese');
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -53,23 +37,14 @@ void main() {
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('report', output.path));
-    final reports = report['reports'] as Map<String, Object?>;
-    expect(reports, containsPair('en', output.path));
-    expect(reports, containsPair('zh-CN', zhOutput.path));
+    expect(report, isNot(contains('reports')));
     expect(
       File(
         '${environment.workingDirectory.path}/reports/custom-2.md',
       ).existsSync(),
       isFalse,
     );
-    expect(
-      File(
-        '${environment.workingDirectory.path}/reports/custom.zh-CN-2.md',
-      ).existsSync(),
-      isFalse,
-    );
     expect(await output.readAsString(), contains('# fluoh AI Report'));
-    expect(await zhOutput.readAsString(), contains('# fluoh AI 适配报告'));
     expect(stderr, isEmpty);
   });
 
@@ -183,15 +158,11 @@ void main() {
       expect(report, containsPair('ok', true));
       expect(report, containsPair('changed', true));
       expect(report, containsPair('report', output.path));
-      final reports = report['reports'] as Map<String, Object?>;
-      expect(reports, containsPair('en', output.path));
-      expect(reports, containsPair('zh-CN', contains('.zh-CN.md')));
+      expect(report, isNot(contains('reports')));
       expect(report, containsPair('scope', 'camera'));
       expect(report['commandRows'], 3);
       expect(report['automationRows'], 1);
       expect(report['interactionRows'], 1);
-      final zhOutput = File(reports['zh-CN'] as String);
-      expect(zhOutput.existsSync(), isTrue);
       final content = output.readAsStringSync();
       expect(content, contains('# fluoh AI Report'));
       expect(content, contains('## Adaptation Responsibility'));
@@ -203,11 +174,6 @@ void main() {
         content,
         contains('Release recommendation: needs-maintainer-decision'),
       );
-      final zhContent = zhOutput.readAsStringSync();
-      expect(zhContent, contains('# fluoh AI 适配报告'));
-      expect(zhContent, contains('## Adaptation Responsibility / 适配责任边界'));
-      expect(zhContent, contains('人工批准只发生在最终发布前'));
-      expect(zhContent, contains('automation-scenario-camera-permission'));
       expect(stderr, isEmpty);
     },
   );
@@ -272,8 +238,7 @@ void main() {
 
     final payload = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(payload, containsPair('automationRows', 1));
-    final reports = payload['reports'] as Map<String, Object?>;
-    expect(File(reports['zh-CN'] as String).existsSync(), isTrue);
+    expect(payload, isNot(contains('reports')));
     final content = output.readAsStringSync();
     expect(content, contains('flutter test integration_test -d <device>'));
     expect(
@@ -484,7 +449,11 @@ name: root_workspace
     expect(payload, containsPair('ok', true));
     expect(payload, containsPair('scope', 'camera'));
     final reportPath = payload['report'] as String;
-    expect(reportPath, contains('/.fluoh/reports/camera/ai-report-'));
+    expect(reportPath, contains('/.fluoh/reports/camera/report-'));
+    expect(
+      File(reportPath).uri.pathSegments.last,
+      matches(RegExp(r'^report-\d+\.md$')),
+    );
     final content = File(reportPath).readAsStringSync();
     expect(content, contains('- Scope: camera'));
     expect(content, contains('- Package: camera'));
@@ -515,6 +484,10 @@ name: "root_workspace" # keep comment out of the scope
     expect(payload, containsPair('scope', 'root_workspace'));
     final reportPath = payload['report'] as String;
     expect(reportPath, contains('/.fluoh/reports/root_workspace/'));
+    expect(
+      File(reportPath).uri.pathSegments.last,
+      matches(RegExp(r'^report-\d+\.md$')),
+    );
     expect(stderr, isEmpty);
   });
 

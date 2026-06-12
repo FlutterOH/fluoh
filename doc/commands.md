@@ -23,7 +23,7 @@ detailed agent routing, report wording, and repair ordering live in
 Start by installing or refreshing the skill in the agent:
 
 ```text
-Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.
+Run `fluoh skill --json`, install the returned localPath as the fluoh skill, and overwrite any existing installation. Use https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only when fluoh is not installed yet.
 ```
 
 Then give the agent the goal in one short request:
@@ -135,7 +135,7 @@ inventory and launch helpers: `devices` owns connected target discovery, and
 | `fluoh run <platform>` | `lib/src/workflow/commands/run_command.dart` | Prepare the platform, launch with `flutter run`, and diagnose an app. |
 | `fluoh attach <platform>` | `lib/src/workflow/commands/attach_command.dart` | Attach Flutter debug tooling to a `flutterRunSession`, VM Service URI, or device id. |
 | `fluoh drive <platform>` | `lib/src/workflow/commands/drive_command.dart` | Run mobile app automation scenarios and evidence checks on OHOS, Android, and iOS targets. |
-| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | Create ignored local English and Chinese AI adaptation reports from trace manifests and automation JSON. |
+| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | Create an ignored local AI adaptation report from trace manifests and automation JSON. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose environment, native tools, and optional project state. |
 | `fluoh devices` | `lib/src/platform/platform_target_commands.dart` | List connected Flutter targets, including OHOS, Android, iOS, Web, and host-supported desktop targets. |
 | `fluoh emulators` | `lib/src/platform/platform_target_commands.dart` | List and launch local emulators and simulators for OHOS, Android, and iOS; desktop and Web platforms do not provide emulators. |
@@ -183,12 +183,11 @@ inventory and launch helpers: `devices` owns connected target discovery, and
   accumulates related command invocations in one session manifest.
 - Local AI reports are ignored evidence under `.fluoh/reports/`. The skill
   helper `new_report.py` writes
-  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md`, where
+  `.fluoh/reports/<report-group>/report-<timestamp>.md`, where
   `<report-group>` is the package slug when `--package` is supplied and is
   otherwise the scope slug. The summary helper `new_summary.py` writes
-  `.fluoh/reports/<scope-slug>/summary-YYYYMMDD-HHMMSS.md`. Timestamps use local
-  24-hour time to seconds; when a file already exists, the helpers append `-2`,
-  `-3`, and so on before `.md`.
+  `.fluoh/reports/<scope-slug>/summary-<timestamp>.md`. Timestamps are Unix
+  epoch milliseconds.
 - Local trace manifests are ignored evidence under `.fluoh/traces/`. With
   `--trace`, project or multi-target commands write
   `.fluoh/traces/<trace-id>/trace.json`; a single package target writes
@@ -252,7 +251,10 @@ evidence, and report creation. `build`, `run`, `drive`, and `report create` comm
 share one `.fluoh/traces/<scope>/adaptation` session when the underlying
 command supports trace output. `--json` writes a single machine-readable object
 with `changed: false` and `applied: false`, so AI agents can use it for scope
-confirmation before requesting mutating commands.
+confirmation before requesting mutating commands. The JSON also includes
+`automationRunbook` and `deliveryGate`, which define the repair loop, terminal
+states, final check commands, report check command, and conditions that must be
+met before an AI agent can claim `ready`.
 
 `plan package` does the same read-only planning for the current
 FlutterOH package branch. It reads package `fluoh.yaml`, reports branch and
@@ -263,7 +265,10 @@ automation, existing-platform example regressions, handoff, report creation,
 and release checks. `verify`, `build`, `run`, `drive`, and `report create` commands
 share one `.fluoh/traces/<package>/adaptation` session when supported. The plan
 keeps Android, iOS, and OHOS implementation work behind platform-specific steps
-while the upper-level queue is called through one `plan package` contract.
+while the upper-level queue is called through one `plan package` contract. Its
+delivery gate requires the final `package check` to run with
+`--report <report-path>` so report certification failures cannot be reduced to
+non-blocking warnings.
 
 ### `fluoh flutter <args>` and `fluohf <args>`
 
@@ -704,9 +709,11 @@ manifest branch, branch match state, dirty-state summary, evidence paths, the
 trace directory that follow-up commands should reuse, and next commands. When a
 current-package trace exists, handoff reuses the latest trace directory under
 `.fluoh/traces/<package>/`; otherwise it defaults to
-`.fluoh/traces/<package>/adaptation`. It does not modify the repository. Use it
-when an AI task needs to resume, transfer, or confirm whether the branch is ready
-for final verify, drive evidence, report creation, or `package check`.
+`.fluoh/traces/<package>/adaptation`. When a report exists, the next
+`package check` command includes `--report <latest-report-path>`. It does not
+modify the repository. Use it when an AI task needs to resume, transfer, or
+confirm whether the branch is ready for final verify, drive evidence, report
+creation, or `package check`.
 
 `fluoh package sync` fetches upstream branches and tags, fast-forwards the
 upstream branch recorded in Package `upstream.git.branch`, resolves the package
@@ -833,19 +840,16 @@ integration-test diagnostics where available. `--trace` and
 `--trace-dir <path>` follow the same local AI diagnostic trace contract as
 `fluoh verify`.
 
-`fluoh report create` writes a git-ignored English Markdown report under
-`.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.md` and a Chinese companion
-under `.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md` unless
-`--output` is provided. With `--output`, the exact path is used for the English
-canonical report and a `.zh-CN` companion is created next to it. It accepts one
-or more `--trace-dir` values and saved
+`fluoh report create` writes a git-ignored canonical Markdown report under
+`.fluoh/reports/<scope>/report-<timestamp>.md` unless `--output` is
+provided. With `--output`, the exact path is used for the canonical report. It
+accepts one or more `--trace-dir` values and saved
 `--automation-json` files, extracts command rows, coverage gates, interaction
 evidence, diagnostics, and fluoh feedback candidates, then writes the standard
 AI report sections needed by package check and handoff workflows. `--json`
-reports the English path as `report`, plus both localized paths under
-`reports.en` and `reports.zh-CN`. The command owns only local report
-composition and release recommendation; the maintainer still owns final release
-approval and any publish, push, tag, store, or registry action.
+reports the path as `report`. The command owns only local report composition
+and release recommendation; the maintainer still owns final release approval
+and any publish, push, tag, store, or registry action.
 
 `fluoh package version` updates the release metadata for the current package
 in `fluoh.yaml`. Use `--bump patch|minor|major` to increment the FlutterOH
@@ -863,7 +867,7 @@ name against the current branch. `--json` prints tags, warnings, certification
 state, and verification results. Checks do not require device or AI report evidence by
 default; they print a non-blocking warning when no certification report is
 provided. Use `--report <path>` to require a
-completed `.fluoh/reports/<scope>/ai-report-...md` before passing the check. Certification
+completed `.fluoh/reports/<scope>/report-<timestamp>.md` before passing the check. Certification
 reports must be `ready`, complete every delivery checklist item, include passed
 `fluoh verify` evidence, include passed OHOS build or run evidence, include
 interaction readiness evidence from a passed `fluoh drive --json`, a backed

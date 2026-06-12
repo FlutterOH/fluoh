@@ -38,6 +38,8 @@ REQUIRED_AUTOMATION_COVERAGE_GATES = (
     "behavior-paths",
 )
 
+REPORT_FILENAME_PATTERN = re.compile(r"^report-\d+\.md$")
+
 
 PLACEHOLDER_PATTERNS = (
     r"\|\s*`?\.\.\.`?\s*\|",
@@ -45,6 +47,12 @@ PLACEHOLDER_PATTERNS = (
     r"^\s*-\s*\.\.\.\s*$",
     r"\bn/a\s*\|\s*n/a\s*\|\s*\.\.\.",
 )
+
+
+def report_filename_error(path: Path) -> str | None:
+    if REPORT_FILENAME_PATTERN.match(path.name):
+        return None
+    return "Report filename must match report-<timestamp>.md using an integer timestamp."
 
 
 def read_text(path: Path) -> str:
@@ -461,12 +469,15 @@ def placeholder_hits(content: str) -> list[str]:
 def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
+    filename_error = report_filename_error(path)
+    if filename_error:
+        errors.append(filename_error)
     if not path.is_file():
         return {
             "schema": 1,
             "ok": False,
             "report": str(path),
-            "errors": [f"Report file does not exist: {path}"],
+            "errors": [*errors, f"Report file does not exist: {path}"],
             "warnings": [],
         }
 
@@ -678,7 +689,7 @@ def main() -> int:
     )
     parser.add_argument(
         "report",
-        help="Path to .fluoh/reports/<scope>/ai-report-...md",
+        help="Path to .fluoh/reports/<scope>/report-<timestamp>.md",
     )
     parser.add_argument(
         "--require-ohos-run",

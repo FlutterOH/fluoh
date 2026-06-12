@@ -88,30 +88,31 @@ def infer_branch(root: Path, package: str, sdk: str) -> str:
     return ""
 
 
-def unique_report_path(output_root: Path, name: str) -> Path:
-    candidate = output_root / f"{name}.md"
-    if not candidate.exists():
-        return candidate
-    for index in range(2, 1000):
-        candidate = output_root / f"{name}-{index}.md"
-        if not candidate.exists():
-            return candidate
-    raise RuntimeError(f"Could not create a unique summary path for {name}")
+def report_sort_key(report: Path) -> tuple[int, str]:
+    match = re.match(r"^report-(\d+)\.md$", report.name)
+    return (int(match.group(1)) if match else 0, report.name)
+
+
+def is_package_report(name: str) -> bool:
+    return bool(re.match(r"^report-\d+\.md$", name))
+
+
+def package_reports(report_glob: Path) -> list[Path]:
+    if not report_glob.is_dir():
+        return []
+    reports = [
+        report
+        for report in report_glob.glob("report-*.md")
+        if is_package_report(report.name)
+    ]
+    return sorted(reports, key=report_sort_key)
 
 
 def package_row(root: Path, package: str, sdk: str) -> dict[str, str]:
     name = package.strip()
     branch = infer_branch(root, name, sdk)
     report_glob = root / ".fluoh" / "reports" / slug(name)
-    reports = (
-        sorted(
-            report
-            for report in report_glob.glob("ai-report-*.md")
-            if re.match(r"^ai-report-\d{8}-\d{6}(?:-\d+)?\.md$", report.name)
-        )
-        if report_glob.is_dir()
-        else []
-    )
+    reports = package_reports(report_glob)
     return {
         "package": name,
         "branch": branch or "<branch>",
@@ -215,8 +216,8 @@ def main() -> int:
         else root / ".fluoh" / "reports" / slug(scope)
     )
     output_root.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
-    report_path = unique_report_path(output_root, f"summary-{timestamp}")
+    timestamp = str(int(datetime.now().astimezone().timestamp() * 1000))
+    report_path = output_root / f"summary-{timestamp}.md"
     sdk = args.sdk or infer_sdk(root)
     report_path.write_text(
         build_summary(root, scope, args.package, sdk),

@@ -162,7 +162,8 @@ dependencyPolicy:
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
         'fluoh run ohos --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
-        'fluoh drive all --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh drive ohos --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh drive android --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh run android --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh run web --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh report create --scope example_app --trace-dir .fluoh/traces/example_app/adaptation --json',
@@ -211,8 +212,37 @@ dependencyPolicy:
           containsPair('phase', 'report'),
           containsPair('requiresApproval', true),
           containsPair('expectedEvidence', 'local AI report path'),
+          containsPair('mustCompleteForDelivery', true),
+          containsPair('failureAction', contains('report check')),
         ),
       ),
+    );
+    final automationRunbook = plan['automationRunbook'] as Map<String, Object?>;
+    expect(automationRunbook, containsPair('mode', 'autonomous-to-delivery'));
+    final appCheckpointPolicy =
+        automationRunbook['checkpointPolicy'] as Map<String, Object?>;
+    expect(appCheckpointPolicy, containsPair('mode', 'auto-local-commits'));
+    expect(
+      appCheckpointPolicy,
+      containsPair('scopeApprovalAuthorizesCommits', true),
+    );
+    expect(
+      stringList(appCheckpointPolicy['commitPhases']),
+      containsAll(['implementation', 'delivery report handoff']),
+    );
+    final deliveryGate = plan['deliveryGate'] as Map<String, Object?>;
+    expect(deliveryGate, containsPair('status', 'active'));
+    expect(
+      stringList(deliveryGate['finalCheckCommands']),
+      containsAll([
+        'git diff --check',
+        'fluoh drive ohos --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh drive android --json --trace-dir .fluoh/traces/example_app/adaptation',
+      ]),
+    );
+    expect(
+      stringList(deliveryGate['readyRequires']),
+      contains(contains('reportCheckCommand passes')),
     );
     expect(stderr, isEmpty);
   });
@@ -289,12 +319,13 @@ dependencyPolicy:
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
         'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive all --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh package handoff --package camera --json',
         'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
-        'fluoh package check --package camera --json',
+        'fluoh package handoff --package camera --json',
+        'fluoh package check --package camera --report <report-path> --json',
       ]),
     );
     expect(
@@ -317,9 +348,46 @@ dependencyPolicy:
             'fluoh package handoff --package camera --json',
           ),
           containsPair('requiresApproval', false),
+          containsPair('mustCompleteForDelivery', true),
         ),
       ),
     );
+    final safety = plan['safety'] as Map<String, Object?>;
+    expect(safety, containsPair('autoCheckpointCommits', true));
+    expect(safety, containsPair('scopeApprovalAuthorizesLocalCommits', true));
+    expect(
+      stringList(safety['willNotRunWithoutSeparateApproval']),
+      isNot(contains('commit')),
+    );
+    final automationRunbook = plan['automationRunbook'] as Map<String, Object?>;
+    final checkpointPolicy =
+        automationRunbook['checkpointPolicy'] as Map<String, Object?>;
+    expect(checkpointPolicy, containsPair('mode', 'auto-local-commits'));
+    expect(
+      stringList(checkpointPolicy['commitPhases']),
+      containsAll(['release metadata', 'delivery report handoff']),
+    );
+    final deliveryGate = plan['deliveryGate'] as Map<String, Object?>;
+    expect(deliveryGate, containsPair('status', 'active'));
+    expect(
+      stringList(deliveryGate['finalCheckCommands']),
+      containsAll([
+        'git diff --check',
+        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh package handoff --package camera --json',
+        'fluoh package check --package camera --report <report-path> --json',
+      ]),
+    );
+    expect(
+      stringList(deliveryGate['needsMaintainerDecision']),
+      allOf(contains(contains('release')), isNot(contains(contains('commit')))),
+    );
     expect(stderr, isEmpty);
   });
+}
+
+List<String> stringList(Object? value) {
+  return (value as List<Object?>).cast<String>();
 }

@@ -3,6 +3,13 @@
 Use this workflow when the user asks to make an existing Flutter app support
 OHOS.
 
+## End-to-End Contract
+
+Use `scripts/preflight.py` or `fluoh plan app --json` as the machine runbook.
+The app adaptation is not complete after SDK setup, dependency rewrite, HAP
+build, launch, or a screenshot. Continue until the delivery gate is satisfied,
+an explicit blocker remains, or a maintainer decision is required.
+
 ## Commands
 
 ```sh
@@ -13,11 +20,13 @@ fluoh deps fix --dry-run
 fluoh deps fix
 fluoh deps get
 fluoh doctor --platform ohos --project --json --strict
-fluoh build ohos --auto-sign --json
+fluoh build ohos --auto-sign --json --trace-dir <trace-dir>
 fluoh devices --platform ohos --json
 fluoh emulators --platform ohos --json
-fluoh run ohos --auto-emulator --json
-fluoh run ohos --device-id <id> --json
+fluoh run ohos --auto-emulator --json --trace-dir <trace-dir>
+fluoh drive ohos --json --trace-dir <trace-dir>
+fluoh report create --scope <scope> --trace-dir <trace-dir> --json
+python3 <skill-dir>/scripts/check_report.py <report-path>
 ```
 
 ## Rules
@@ -33,6 +42,9 @@ fluoh run ohos --device-id <id> --json
   package implementations inside the app project unless asked.
 - Prefer `fluoh run ohos --auto-emulator --json` so fluoh starts a
   local DevEco emulator before falling back to connected devices.
+- Every failing JSON command enters the repair loop: parse diagnostics and log
+  tails, inspect trace feedback candidates, patch the smallest owned issue,
+  rerun the failed command or its `nextCommand`, and record the result.
 - When `integration_test/` exists, `fluoh run ohos ...` executes it on the
   selected OHOS target after the launch smoke check.
 - For explicit real runs, use `--device-id <id>` from
@@ -43,6 +55,9 @@ fluoh run ohos --device-id <id> --json
   highest API versions before claiming broad compatibility.
 - A signed HAP build is build-only evidence when no local target can be
   started.
+- Create small local checkpoint commits after completed phases with clean
+  command evidence. Push, release, force-push, and destructive Git commands
+  still require separate maintainer approval.
 
 ## Evidence
 
@@ -51,3 +66,8 @@ device or emulator id, `flutterRunSession` path, `flutter run` result,
 integration-test result when present, runtime logs, and any remaining
 environment blockers in the completion report. HAP paths are build-only
 evidence unless the run came from an explicit debug-tool flow.
+
+Before the final response, run the preflight or plan `finalCheckCommands`,
+create the canonical report under `.fluoh/reports/`, run `check_report.py`
+against that report, and state exactly one final state: `ready`, `blocked`, or
+`needs maintainer decision`.
