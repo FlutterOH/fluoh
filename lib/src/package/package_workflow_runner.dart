@@ -5,17 +5,17 @@ import 'package:args/command_runner.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
-import '../platform/ohos/build_profile_signing.dart';
-import '../platform/ohos/device_runner.dart';
-import '../platform/ohos/debug_signer.dart';
-import '../platform/ohos/resource_layout.dart';
 import '../sdk/flutter_runner.dart';
+import '../workflow/platform_build_preparation.dart';
+import '../workflow/platform_run_preparation.dart';
 import '../workflow/platform_workflow_policy.dart';
 import '../workflow/workflow_result.dart';
 import 'flutter_example_runner.dart';
 import 'manifest/package_manifest.dart';
 import 'manifest/pubspec_package.dart';
 import 'package_examples.dart';
+
+part 'package_workflow_steps.dart';
 
 /// Runs the package verification workflow for one package entry.
 Future<WorkflowTargetResult> runPackageWorkflow({
@@ -27,6 +27,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
   required TerminalOutput output,
   String usage = '',
   String? buildExampleTarget,
+  String? runExampleTarget,
   bool buildExampleDebug = false,
   bool buildExampleForSimulator = false,
   bool autoSignExample = false,
@@ -340,149 +341,51 @@ Future<WorkflowTargetResult> runPackageWorkflow({
   }
 
   if (buildExampleTarget != null) {
-    final buildArguments = [
-      'build',
-      buildExampleTarget,
-      if (buildExampleTarget == 'ios' && buildExampleForSimulator)
-        '--simulator',
-      if (buildExampleDebug) '--debug',
-      if (buildExampleTarget == 'ios' && !buildExampleForSimulator)
-        '--no-codesign',
-    ];
-    OhosBuildProfileSigningSession? signingSession;
-    OhosDebugSigningMaterial? signingMaterial;
-    var signedHaps = <File>[];
+    final buildPolicy = platformWorkflowPolicy(
+      _platformForExampleTarget(buildExampleTarget),
+    );
+    final buildArguments = buildPolicy.buildExampleArguments(
+      debug: buildExampleDebug,
+      forSimulator: buildExampleForSimulator,
+    );
+    var installableArtifactPaths = <String>[];
     String? signingMode;
-    final ohosDirectory = Directory('${example.path}/ohos');
-    if (buildExampleTarget == 'hap') {
-      await stabilizeOhosResourceLayout(ohosDirectory);
+    if (autoSignExample && !buildPolicy.supportsAutoSign) {
+      throw UsageException(
+        'Automatic signing is not supported for this build target.',
+        usage,
+      );
+    }
+    final buildPreparation = await preparePlatformBuild(
+      platform: buildPolicy.platform,
+      environment: environment,
+      projectDirectory: example,
+      displayPath: examplePath,
+      displayLabel: package.name,
+      output: output,
+      usage: usage,
+      autoSign: autoSignExample,
+      nextCommandForDiagnostic: (code) => _buildNextCommandForDiagnosticCode(
+        code: code,
+        packageName: package.name,
+        policy: buildPolicy,
+        debug: buildExampleDebug,
+        autoSign: autoSignExample,
+      ),
+    );
+    steps.addAll(buildPreparation.steps);
+    if (!buildPreparation.passed) {
+      steps.add(buildPreparation.failureStep!);
+      return WorkflowTargetResult.package(
+        packageName: package.name,
+        exitCode: 1,
+        steps: steps,
+        preset: preset,
+        phase: phase,
+      );
     }
     if (autoSignExample) {
-      if (buildExampleTarget != 'hap') {
-        throw UsageException(
-          'Automatic OHOS signing only supports the OHOS build target.',
-          usage,
-        );
-      }
-      if (!await ohosDirectory.exists()) {
-        const reason = 'Missing OHOS example project.';
-        steps.add(
-          _ohosDiagnosticStep(
-            name: 'ohos-auto-sign',
-            packageName: package.name,
-            path: examplePath,
-            command: 'prepare OHOS debug signing',
-            code: 'ohos.ohos_project_missing',
-            message: reason,
-            reason: '$reason Expected $examplePath/ohos.',
-            details: {'expectedPath': '$examplePath/ohos'},
-          ),
-        );
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: 1,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
-      }
-      output.step('Preparing temporary OHOS debug signing for ${package.name}');
-      try {
-        signingMaterial = await prepareOhosDebugSigning(
-          environment: environment,
-          ohosDirectory: ohosDirectory,
-          output: output,
-          usage: usage,
-        );
-      } on UsageException catch (error) {
-        steps.add(
-          _ohosDiagnosticStep(
-            name: 'ohos-auto-sign',
-            packageName: package.name,
-            path: examplePath,
-            command: 'prepare OHOS debug signing',
-            code: 'ohos.toolchain_missing',
-            message: 'Could not locate the local OpenHarmony toolchain.',
-            reason: error.message,
-            details: {'error': error.message},
-          ),
-        );
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: 1,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
-      } on Object catch (error) {
-        steps.add(
-          _ohosDiagnosticStep(
-            name: 'ohos-auto-sign',
-            packageName: package.name,
-            path: examplePath,
-            command: 'prepare OHOS debug signing',
-            code: error is OhosSigningException
-                ? 'ohos.signing_profile_failed'
-                : 'ohos.auto_sign_failed',
-            message: 'OHOS automatic debug signing failed.',
-            reason: error.toString(),
-            details: {'error': error.toString()},
-          ),
-        );
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: 1,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
-      }
-      try {
-        signingSession = await applyTemporaryOhosSigning(
-          ohosDirectory: ohosDirectory,
-          config: signingMaterial.signingConfig,
-        );
-      } on Object catch (error) {
-        steps.add(
-          _ohosDiagnosticStep(
-            name: 'ohos-auto-sign',
-            packageName: package.name,
-            path: examplePath,
-            command: 'patch OHOS build-profile signing',
-            code: 'ohos.build_profile_patch_failed',
-            message: 'Could not patch OHOS build-profile signing.',
-            reason: error.toString(),
-            details: {
-              ..._signingDetails(signingMaterial),
-              'error': error.toString(),
-            },
-          ),
-        );
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: 1,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
-      }
       signingMode = 'build-profile';
-      steps.add(
-        WorkflowStepResult(
-          name: 'ohos-auto-sign',
-          path: examplePath,
-          command: 'prepare OHOS debug signing',
-          status: 'passed',
-          exitCode: 0,
-          details: _signingDetails(signingMaterial),
-        ),
-      );
-      if (signingMaterial.permissionProfile.restrictedPermissions.isNotEmpty) {
-        output.detail(
-          'Restricted permissions: '
-          '${signingMaterial.permissionProfile.restrictedPermissions.join(', ')}',
-        );
-      }
     }
     late SelectedToolResult exampleBuild;
     SelectedToolResult? firstFailedIosBuild;
@@ -505,7 +408,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       );
       exampleBuildExitCode = exampleBuild.exitCode;
       if (exampleBuildExitCode != 0 &&
-          buildExampleTarget == 'ios' &&
+          buildPolicy.retriesStalePrecompiledHeaderBuildCache &&
           _isStaleIosPrecompiledHeaderFailure(exampleBuild)) {
         firstFailedIosBuild = exampleBuild;
         output.step(
@@ -548,34 +451,13 @@ Future<WorkflowTargetResult> runPackageWorkflow({
           exampleBuildExitCode = exampleBuild.exitCode;
         }
       }
-      if (exampleBuildExitCode != 0 && signingMaterial != null) {
-        output.step('Signing generated unsigned OHOS HAP for ${package.name}');
-        try {
-          signedHaps = await signGeneratedUnsignedHaps(
-            environment: environment,
-            exampleDirectory: example,
-            signingMaterial: signingMaterial,
-            output: output,
-            modifiedAfter: buildStartedAt,
-            usage: usage,
-          );
-        } on Object catch (error) {
-          steps.add(
-            _ohosDiagnosticStep(
-              name: 'ohos-direct-sign',
-              packageName: package.name,
-              path: examplePath,
-              command: 'sign generated unsigned OHOS HAP',
-              code: 'ohos.direct_sign_failed',
-              message: 'Could not directly sign generated unsigned OHOS HAP.',
-              reason: error.toString(),
-              details: {
-                ..._signingDetails(signingMaterial),
-                ..._commandOutputDetails(exampleBuild),
-                'error': error.toString(),
-              },
-            ),
-          );
+      if (exampleBuildExitCode != 0) {
+        final recovery = await buildPreparation.recoverFailedBuild(
+          buildResult: exampleBuild,
+          modifiedAfter: buildStartedAt,
+        );
+        if (recovery.failureStep != null) {
+          steps.add(recovery.failureStep!);
           return WorkflowTargetResult.package(
             packageName: package.name,
             exitCode: 1,
@@ -584,45 +466,26 @@ Future<WorkflowTargetResult> runPackageWorkflow({
             phase: phase,
           );
         }
-        if (signedHaps.isNotEmpty) {
-          output.warning(
-            'Flutter HAP build failed during Hvigor signing; '
-            'fluoh signed the generated unsigned HAP directly.',
-          );
-          signingMode = 'direct-sign-fallback';
+        if (recovery.recovered) {
+          steps.addAll(recovery.steps);
+          installableArtifactPaths = recovery.artifactPaths;
+          signingMode = recovery.signingMode;
           exampleBuildExitCode = 0;
-          steps.add(
-            WorkflowStepResult(
-              name: 'ohos-direct-sign',
-              path: examplePath,
-              command: 'sign generated unsigned OHOS HAP',
-              status: 'passed',
-              exitCode: 0,
-              details: {
-                ..._signingDetails(signingMaterial),
-                'signedHaps': _hapPaths(signedHaps),
-              },
-            ),
-          );
         }
       }
       if (exampleBuildExitCode == 0) {
-        if (buildExampleTarget == 'hap') {
-          await stabilizeOhosResourceLayout(ohosDirectory);
+        final artifacts = await buildPreparation
+            .collectSuccessfulBuildArtifacts(modifiedAfter: buildStartedAt);
+        if (artifacts.artifactPaths.isNotEmpty) {
+          installableArtifactPaths = artifacts.artifactPaths;
         }
-        signedHaps = await findInstallableOhosHaps(
-          exampleDirectory: example,
-          modifiedAfter: buildStartedAt,
-        );
       }
     } finally {
-      if (signingSession != null) {
-        await signingSession.restore();
-        output.detail('Restored $examplePath/ohos/build-profile.json5');
-      }
+      await buildPreparation.restoreIfNeeded();
     }
     final buildDetails = <String, Object?>{
-      if (signedHaps.isNotEmpty) 'installableHaps': _hapPaths(signedHaps),
+      if (installableArtifactPaths.isNotEmpty)
+        'installableHaps': installableArtifactPaths,
       if (retriedAfterClean) 'retryAfterClean': true,
       if (firstFailedIosBuild != null)
         'firstFailure': _commandOutputDetails(firstFailedIosBuild),
@@ -640,6 +503,11 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         result: exampleBuild,
         effectiveExitCode: exampleBuildExitCode,
         details: buildDetails,
+        nextCommand: buildPolicy.buildCommand(
+          packageName: package.name,
+          debug: buildExampleDebug,
+          autoSign: autoSignExample,
+        ),
       ),
     );
     if (exampleBuildExitCode != 0) {
@@ -657,133 +525,43 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     output.success(
       'Example $buildExampleTarget build passed for ${package.name}',
     );
-
-    if (runExample && buildExampleTarget == 'hap') {
-      if (!await ohosDirectory.exists()) {
-        const reason = 'Missing OHOS example project';
-        steps.add(
-          _ohosDiagnosticStep(
-            name: 'example-run-ohos',
-            packageName: package.name,
-            path: examplePath,
-            command: 'hdc install -r <hap> && hdc shell aa start',
-            code: 'ohos.ohos_project_missing',
-            message: reason,
-            reason: '$reason. Expected $examplePath/ohos',
-            details: {'expectedPath': '$examplePath/ohos'},
-          ),
-        );
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: 1,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
-      }
-      final runResult = await runOhosHapsOnDevice(
-        environment: environment,
-        ohosDirectory: ohosDirectory,
-        haps: signedHaps,
-        output: output,
-        deviceId: deviceId,
-        startEmulator: startEmulator,
-        emulatorName: emulatorName,
-        deviceTimeout: deviceTimeout,
-        logDuration: logDuration,
-        usage: usage,
+  }
+  final effectiveRunExampleTarget = runExampleTarget ?? buildExampleTarget;
+  if (runExample && effectiveRunExampleTarget != null) {
+    final runPlatform = platformWorkflowPolicy(
+      _platformForExampleTarget(effectiveRunExampleTarget),
+    );
+    final preparation = await preparePlatformRun(
+      platform: runPlatform.platform,
+      environment: environment,
+      projectDirectory: example,
+      displayPath: examplePath,
+      output: output,
+      usage: usage,
+      autoSign: autoSignExample,
+      doctorNextCommand: runPlatform.doctorCommand(project: true),
+      buildNextCommand: runPlatform.buildCommand(
+        packageName: package.name,
+        autoSign: autoSignExample,
+      ),
+    );
+    steps.addAll(preparation.steps);
+    if (!preparation.passed) {
+      steps.add(preparation.failureStep!);
+      return WorkflowTargetResult.package(
+        packageName: package.name,
+        exitCode: 1,
+        steps: steps,
+        preset: preset,
+        phase: phase,
       );
-      final reasonParts = [
-        if (runResult.reason != null) runResult.reason!,
-        if (runResult.logFile != null) 'hilog: ${runResult.logFile!.path}',
-        if (runResult.findings.isNotEmpty)
-          'findings: ${runResult.findings.join(' | ')}',
-      ];
-      final runDetails = <String, Object?>{
-        if (runResult.targetId != null) 'targetId': runResult.targetId,
-        if (runResult.launchInfo != null)
-          'launchInfo': {
-            'bundleName': runResult.launchInfo!.bundleName,
-            'moduleName': runResult.launchInfo!.moduleName,
-            'abilityName': runResult.launchInfo!.abilityName,
-          },
-        if (runResult.logFile != null) 'hilog': runResult.logFile!.path,
-        if (runResult.findings.isNotEmpty) 'findings': runResult.findings,
-      };
-      steps.add(
-        WorkflowStepResult(
-          name: 'example-run-ohos',
-          path: examplePath,
-          command: [
-            'hdc',
-            if (deviceId != null && deviceId.trim().isNotEmpty) '-t $deviceId',
-            'install -r',
-            '<hap>',
-            '&&',
-            'hdc',
-            'shell aa start',
-          ].join(' '),
-          status: runResult.passed ? 'passed' : 'failed',
-          exitCode: runResult.exitCode,
-          reason: reasonParts.isEmpty ? null : reasonParts.join('\n'),
-          details: runDetails,
-          diagnostics: runResult.diagnostics
-              .map(
-                (diagnostic) => WorkflowDiagnostic(
-                  code: diagnostic.code,
-                  severity: diagnostic.severity,
-                  message: diagnostic.message,
-                  details: diagnostic.details,
-                  nextCommand: _nextCommandForDiagnosticCode(
-                    diagnostic.code,
-                    package.name,
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      );
-      if (!runResult.passed) {
-        output.failure('Example OHOS run failed for ${package.name}');
-        if (runResult.reason != null) {
-          output.detail(runResult.reason!);
-        }
-        if (runResult.logFile != null) {
-          output.detail('Hilog saved to ${runResult.logFile!.path}');
-        }
-        for (final finding in runResult.findings) {
-          output.detail(finding);
-        }
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: runResult.exitCode,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
-      }
-      if (runResult.logFile != null) {
-        output.detail('Hilog saved to ${runResult.logFile!.path}');
-      }
-      output.success('Example OHOS run passed for ${package.name}');
-      if (exampleHasIntegrationTests) {
-        steps.add(
-          _ohosManualAssistedIntegrationStep(
-            name: 'example-integration-ohos',
-            path: examplePath,
-            logFile: runResult.logFile,
-            targetId: runResult.targetId,
-          ),
-        );
-        output.next(
-          'Complete the OHOS interaction manually, then verify logs or app status before marking interaction evidence passed',
-        );
-      }
-    } else if (runExample) {
-      final runResult = await runFlutterExampleOnDevice(
+    }
+    final FlutterExampleRunResult runResult;
+    try {
+      runResult = await runFlutterExampleOnDevice(
         environment: environment,
         exampleDirectory: example,
-        buildExampleTarget: buildExampleTarget,
+        buildExampleTarget: effectiveRunExampleTarget,
         output: output,
         stdout: stdout,
         stderr: stderr,
@@ -795,176 +573,169 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         runDuration: logDuration,
         usage: usage,
       );
-      final runDetails = <String, Object?>{
-        ...runResult.details,
-        'platform': runResult.platform,
-        if (runResult.target != null) 'target': runResult.target!.toJson(),
-        if (runResult.emulator != null)
-          'emulator': runResult.emulator!.toJson(),
-        if (runResult.outputLog != null) 'outputLog': runResult.outputLog!.path,
-      };
-      steps.add(
-        WorkflowStepResult(
-          name: 'example-run-${runResult.platform}',
-          path: examplePath,
-          command: runResult.command,
-          status: runResult.passed ? 'passed' : 'failed',
-          exitCode: runResult.exitCode,
-          reason: runResult.reason,
-          details: runDetails,
-          diagnostics: runResult.diagnostics
-              .map(
-                (diagnostic) => WorkflowDiagnostic(
-                  code: diagnostic.code,
-                  severity: diagnostic.severity,
-                  message: diagnostic.message,
-                  details: diagnostic.details,
-                  nextCommand: _nextCommandForDiagnosticCode(
-                    diagnostic.code,
-                    package.name,
-                  ),
+    } finally {
+      await preparation.restoreIfNeeded();
+    }
+    final runDetails = <String, Object?>{
+      ...runResult.details,
+      ...preparation.details,
+      'platform': runResult.platform,
+      if (runResult.target != null) 'targetId': runResult.target!.id,
+      if (runResult.target != null) 'target': runResult.target!.toJson(),
+      if (runResult.emulator != null) 'emulator': runResult.emulator!.toJson(),
+      if (runResult.outputLog != null) 'outputLog': runResult.outputLog!.path,
+    };
+    steps.add(
+      WorkflowStepResult(
+        name: 'example-run-${runResult.platform}',
+        path: examplePath,
+        command: runResult.command,
+        status: runResult.passed ? 'passed' : 'failed',
+        exitCode: runResult.exitCode,
+        reason: runResult.reason,
+        details: runDetails,
+        diagnostics: runResult.diagnostics
+            .map(
+              (diagnostic) => WorkflowDiagnostic(
+                code: diagnostic.code,
+                severity: diagnostic.severity,
+                message: diagnostic.message,
+                details: diagnostic.details,
+                nextCommand: _nextCommandForDiagnosticCode(
+                  diagnostic.code,
+                  package.name,
                 ),
-              )
-              .toList(),
-        ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+    if (!runResult.passed) {
+      output.failure(
+        'Example ${runResult.platform} run failed for ${package.name}',
       );
-      if (!runResult.passed) {
-        output.failure(
-          'Example ${runResult.platform} run failed for ${package.name}',
-        );
-        if (runResult.reason != null) {
-          output.detail(runResult.reason!);
-        }
-        if (runResult.outputLog != null) {
-          output.detail(
-            'Flutter run output saved to ${runResult.outputLog!.path}',
-          );
-        }
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: runResult.exitCode,
-          steps: steps,
-          preset: preset,
-          phase: phase,
-        );
+      if (runResult.reason != null) {
+        output.detail(runResult.reason!);
       }
       if (runResult.outputLog != null) {
         output.detail(
           'Flutter run output saved to ${runResult.outputLog!.path}',
         );
       }
-      output.success(
-        'Example ${runResult.platform} run passed for ${package.name}',
+      return WorkflowTargetResult.package(
+        packageName: package.name,
+        exitCode: runResult.exitCode,
+        steps: steps,
+        preset: preset,
+        phase: phase,
       );
+    }
+    if (runResult.outputLog != null) {
+      output.detail('Flutter run output saved to ${runResult.outputLog!.path}');
+    }
+    output.success(
+      'Example ${runResult.platform} run passed for ${package.name}',
+    );
 
-      final targetId = runResult.target?.id;
-      if (exampleHasIntegrationTests && targetId != null) {
-        final integrationArguments = [
-          'test',
-          'integration_test',
-          '-d',
-          targetId,
-        ];
-        final integrationTest = await _runToolCommand(
-          environment: environment,
-          directory: example,
-          displayPath: examplePath,
+    final targetId = runResult.target?.id;
+    if (exampleHasIntegrationTests && targetId != null) {
+      final integrationArguments = ['test', 'integration_test', '-d', targetId];
+      final integrationTest = await _runToolCommand(
+        environment: environment,
+        directory: example,
+        displayPath: examplePath,
+        flutter: true,
+        arguments: integrationArguments,
+        stdout: stdout,
+        stderr: stderr,
+        output: output,
+        usage: usage,
+      );
+      steps.add(
+        _commandStep(
+          name: 'example-integration-${runResult.platform}',
+          packageName: package.name,
+          path: examplePath,
           flutter: true,
           arguments: integrationArguments,
-          stdout: stdout,
-          stderr: stderr,
-          output: output,
-          usage: usage,
-        );
-        steps.add(
-          _commandStep(
-            name: 'example-integration-${runResult.platform}',
+          result: integrationTest,
+          nextCommand: _packageRunNextCommand(
             packageName: package.name,
-            path: examplePath,
-            flutter: true,
-            arguments: integrationArguments,
-            result: integrationTest,
-            nextCommand: _packageRunNextCommand(
-              packageName: package.name,
-              platform: runResult.platform,
-              deviceId: deviceId,
-              startEmulator: startEmulator,
-              emulatorName: emulatorName,
-            ),
-            details: {
-              'platform': runResult.platform,
-              'targetId': targetId,
-              'interactionEvidence': {
-                'method': 'integration_test',
-                'status': integrationTest.exitCode == 0 ? 'passed' : 'failed',
-                'testDirectory': '$examplePath/integration_test',
-              },
-            },
+            platform: runResult.platform,
+            deviceId: deviceId,
+            startEmulator: startEmulator,
+            emulatorName: emulatorName,
           ),
-        );
-        if (integrationTest.exitCode != 0) {
-          output.failure(
-            'Example ${runResult.platform} integration tests failed for ${package.name}',
-          );
-          return WorkflowTargetResult.package(
-            packageName: package.name,
-            exitCode: integrationTest.exitCode,
-            steps: steps,
-            preset: preset,
-            phase: phase,
-          );
-        }
-        output.success(
-          'Example ${runResult.platform} integration tests passed for ${package.name}',
-        );
-      } else if (exampleHasIntegrationTests) {
-        steps.add(
-          WorkflowStepResult(
-            name: 'example-integration-${runResult.platform}',
-            path: examplePath,
-            command: 'flutter test integration_test -d <device>',
-            status: 'skipped',
-            reason: 'run target did not expose a device id',
-            details: {
-              'platform': runResult.platform,
-              'interactionEvidence': {
-                'status': 'blocked',
-                'method': 'integration_test',
-                'reason': 'missing target id',
-                'testDirectory': '$examplePath/integration_test',
-              },
+          details: {
+            'platform': runResult.platform,
+            'targetId': targetId,
+            'interactionEvidence': {
+              'method': 'integration_test',
+              'status': integrationTest.exitCode == 0 ? 'passed' : 'failed',
+              'testDirectory': '$examplePath/integration_test',
             },
-          ),
+          },
+        ),
+      );
+      if (integrationTest.exitCode != 0) {
+        output.failure(
+          'Example ${runResult.platform} integration tests failed for ${package.name}',
         );
-        output.skipped(
-          'Skipping ${runResult.platform} integration tests for ${package.name}: missing target id',
-        );
-      } else {
-        final reason = exampleHasIntegrationTestDirectory
-            ? 'no integration test files'
-            : 'no integration_test directory';
-        steps.add(
-          WorkflowStepResult(
-            name: 'example-integration-${runResult.platform}',
-            path: examplePath,
-            command: targetId == null
-                ? 'flutter test integration_test -d <device>'
-                : 'flutter test integration_test -d $targetId',
-            status: 'skipped',
-            reason: reason,
-            details: {
-              'platform': runResult.platform,
-              'interactionEvidence': {
-                'status': 'not-present',
-                'reason': reason,
-              },
-            },
-          ),
-        );
-        output.skipped(
-          'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
+        return WorkflowTargetResult.package(
+          packageName: package.name,
+          exitCode: integrationTest.exitCode,
+          steps: steps,
+          preset: preset,
+          phase: phase,
         );
       }
+      output.success(
+        'Example ${runResult.platform} integration tests passed for ${package.name}',
+      );
+    } else if (exampleHasIntegrationTests) {
+      steps.add(
+        WorkflowStepResult(
+          name: 'example-integration-${runResult.platform}',
+          path: examplePath,
+          command: 'flutter test integration_test -d <device>',
+          status: 'skipped',
+          reason: 'run target did not expose a device id',
+          details: {
+            'platform': runResult.platform,
+            'interactionEvidence': {
+              'status': 'blocked',
+              'method': 'integration_test',
+              'reason': 'missing target id',
+              'testDirectory': '$examplePath/integration_test',
+            },
+          },
+        ),
+      );
+      output.skipped(
+        'Skipping ${runResult.platform} integration tests for ${package.name}: missing target id',
+      );
+    } else {
+      final reason = exampleHasIntegrationTestDirectory
+          ? 'no integration test files'
+          : 'no integration_test directory';
+      steps.add(
+        WorkflowStepResult(
+          name: 'example-integration-${runResult.platform}',
+          path: examplePath,
+          command: targetId == null
+              ? 'flutter test integration_test -d <device>'
+              : 'flutter test integration_test -d $targetId',
+          status: 'skipped',
+          reason: reason,
+          details: {
+            'platform': runResult.platform,
+            'interactionEvidence': {'status': 'not-present', 'reason': reason},
+          },
+        ),
+      );
+      output.skipped(
+        'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
+      );
     }
   }
 
@@ -975,403 +746,4 @@ Future<WorkflowTargetResult> runPackageWorkflow({
     preset: preset,
     phase: phase,
   );
-}
-
-WorkflowStepResult _integrationDiscoveryStep({
-  required String name,
-  required String path,
-  required String packageName,
-}) {
-  return WorkflowStepResult(
-    name: name,
-    path: path,
-    command: 'flutter test integration_test -d <device>',
-    status: 'skipped',
-    reason: 'requires a platform run target',
-    details: {
-      'testDirectory': '$path/integration_test',
-      'interactionEvidence': {
-        'status': 'available',
-        'method': 'integration_test',
-        'execution': 'run fluoh run with a concrete platform and device',
-      },
-      'suggestedCommands': integrationDiscoveryRunCommands(
-        packageName: packageName,
-      ),
-      'manualAssistedFallback': {
-        'when':
-            'system UI, permissions, pickers, external apps, or OHOS runner gaps block automatic execution',
-        'requiredEvidence':
-            'record user steps plus tool-verified logs, session status, stable text, semantics, or app log markers',
-      },
-    },
-  );
-}
-
-WorkflowStepResult _ohosManualAssistedIntegrationStep({
-  required String name,
-  required String path,
-  File? logFile,
-  String? targetId,
-}) {
-  return WorkflowStepResult(
-    name: name,
-    path: path,
-    command: 'flutter test integration_test -d <ohos-device>',
-    status: 'skipped',
-    reason:
-        'OHOS integration_test automation is not available; manual-assisted interaction evidence is required.',
-    details: {
-      'testDirectory': '$path/integration_test',
-      'targetId': ?targetId,
-      'hilog': ?logFile?.path,
-      'interactionEvidence': {
-        'status': 'manual-required',
-        'method': 'manual-assisted',
-        'platform': 'ohos',
-        'requiredUserAction':
-            'complete the integration scenario on the OHOS emulator or device',
-        'verification':
-            'after user action, verify app state through hilog, stable text, semantic labels, test keys, or structured app logs',
-      },
-      'reportMethod': 'manual-assisted',
-      'reportRequirement':
-          'write an Interaction Evidence row with result passed only after tool-readable evidence confirms the user-completed flow',
-    },
-  );
-}
-
-WorkflowStepResult _commandStep({
-  required String name,
-  required String packageName,
-  required String path,
-  required bool flutter,
-  required List<String> arguments,
-  required SelectedToolResult result,
-  int? effectiveExitCode,
-  Map<String, Object?> details = const {},
-  String? nextCommand,
-}) {
-  final exitCode = effectiveExitCode ?? result.exitCode;
-  return WorkflowStepResult(
-    name: name,
-    path: path,
-    command: '${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')}',
-    status: exitCode == 0 ? 'passed' : 'failed',
-    exitCode: exitCode,
-    details: {
-      ...details,
-      if (result.exitCode != exitCode) 'originalExitCode': result.exitCode,
-      if (result.exitCode != exitCode) ..._commandOutputDetails(result),
-    },
-    diagnostics: _diagnosticsForCommandStep(
-      name: name,
-      flutter: flutter,
-      arguments: arguments,
-      result: result,
-      effectiveExitCode: exitCode,
-      packageName: packageName,
-      nextCommand: nextCommand,
-    ),
-  );
-}
-
-List<WorkflowDiagnostic> _diagnosticsForCommandStep({
-  required String name,
-  required bool flutter,
-  required List<String> arguments,
-  required SelectedToolResult result,
-  required int effectiveExitCode,
-  required String packageName,
-  String? nextCommand,
-}) {
-  if (effectiveExitCode == 0) {
-    return const [];
-  }
-  final command = '${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')}';
-  final sdkConstraint = _dartSdkConstraintFailure(result);
-  final isPubGetStep = name == 'package-pub-get' || name == 'example-pub-get';
-  final code = switch (name) {
-    _ when isPubGetStep && sdkConstraint != null =>
-      'dart.sdk_constraint_unsatisfied',
-    'package-pub-get' || 'example-pub-get' => 'dart.pub_get_failed',
-    'package-analyze' || 'example-analyze' => 'dart.analysis_failed',
-    'package-test' || 'example-test' => 'dart.test_failed',
-    'example-integration-android' => 'android.integration_test_failed',
-    'example-integration-ios' => 'ios.integration_test_failed',
-    'example-integration-macos' => 'macos.integration_test_failed',
-    'example-integration-linux' => 'linux.integration_test_failed',
-    'example-integration-web' => 'web.integration_test_failed',
-    'example-integration-windows' => 'windows.integration_test_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'hap' =>
-      'ohos.hap_build_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'apk' =>
-      'android.apk_build_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'ios' =>
-      'ios.build_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'macos' =>
-      'macos.build_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'linux' =>
-      'linux.build_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'web' =>
-      'web.build_failed',
-    _
-        when arguments.length >= 2 &&
-            arguments[0] == 'build' &&
-            arguments[1] == 'windows' =>
-      'windows.build_failed',
-    _ => 'command.failed',
-  };
-  final message = switch (code) {
-    'dart.sdk_constraint_unsatisfied' =>
-      'Package SDK constraint is higher than the selected Dart SDK.',
-    'dart.pub_get_failed' => 'Dependency resolution failed.',
-    'dart.analysis_failed' => 'Static analysis failed.',
-    'dart.test_failed' => 'Tests failed.',
-    'android.integration_test_failed' => 'Android integration tests failed.',
-    'ios.integration_test_failed' => 'iOS integration tests failed.',
-    'macos.integration_test_failed' => 'macOS integration tests failed.',
-    'linux.integration_test_failed' => 'Linux integration tests failed.',
-    'web.integration_test_failed' => 'Web integration tests failed.',
-    'windows.integration_test_failed' => 'Windows integration tests failed.',
-    'ohos.hap_build_failed' => 'OHOS HAP build failed.',
-    'android.apk_build_failed' => 'Android APK build failed.',
-    'ios.build_failed' => 'iOS build failed.',
-    'macos.build_failed' => 'macOS build failed.',
-    'linux.build_failed' => 'Linux build failed.',
-    'web.build_failed' => 'Web build failed.',
-    'windows.build_failed' => 'Windows build failed.',
-    _ => 'Command failed.',
-  };
-  return [
-    WorkflowDiagnostic(
-      code: code,
-      message: message,
-      details: {
-        'command': command,
-        'exitCode': effectiveExitCode,
-        'sdkConstraint': ?sdkConstraint,
-        if (code == 'dart.sdk_constraint_unsatisfied')
-          'adaptationPolicy': _lowSdkCompatibilityPolicy(packageName),
-        ..._commandOutputDetails(result),
-      },
-      nextCommand:
-          nextCommand ?? _nextCommandForDiagnosticCode(code, packageName),
-    ),
-  ];
-}
-
-Map<String, Object?> _lowSdkCompatibilityPolicy(String packageName) {
-  return {
-    'defaultAction': 'adapt-selected-upstream-to-selected-sdk',
-    'keepSelectedUpstream': true,
-    'adjustPackageForSelectedSdk': true,
-    'upstreamDowngradeRequiresApproval': true,
-    'suggestedEdits': [
-      'Update pubspec.yaml environment.sdk only when the selected Dart SDK can support the package after code changes.',
-      'Patch package and example configuration for the selected FlutterOH SDK.',
-      'Replace Dart language, SDK API, or dependency usage that requires a newer Dart SDK.',
-      'Rerun fluoh verify --package $packageName --json after each compatibility edit.',
-    ],
-  };
-}
-
-String? _suggestedEnvironmentSdkConstraint(String dartVersion) {
-  final match = RegExp(r'^(\d+)\.(\d+)\.').firstMatch(dartVersion);
-  if (match == null) {
-    return null;
-  }
-  final major = int.tryParse(match.group(1)!);
-  final minor = int.tryParse(match.group(2)!);
-  if (major == null || minor == null) {
-    return null;
-  }
-  return '>=$major.$minor.0 <${major + 1}.0.0';
-}
-
-Map<String, Object?>? _dartSdkConstraintFailure(SelectedToolResult result) {
-  final output = result.combinedOutput;
-  final current = RegExp(
-    r'The current Dart SDK version is\s+([^\s.]+(?:\.[^\s.]+)*)\.',
-  ).firstMatch(output);
-  final required = RegExp(
-    r'requires SDK version\s+(.+?),\s+version solving failed',
-  ).firstMatch(output);
-  if (current == null || required == null) {
-    return null;
-  }
-  final suggestedFlutter = RegExp(
-    r'Try using the Flutter SDK version:\s*([^\s.]+(?:\.[^\s.]+)*)',
-  ).firstMatch(output);
-  final currentVersion = current.group(1);
-  return {
-    'currentDartVersion': currentVersion,
-    'requiredDartConstraint': required.group(1),
-    if (currentVersion != null)
-      'suggestedEnvironmentSdkConstraint': _suggestedEnvironmentSdkConstraint(
-        currentVersion,
-      ),
-    if (suggestedFlutter != null)
-      'suggestedFlutterSdkVersion': suggestedFlutter.group(1),
-  };
-}
-
-WorkflowStepResult _ohosDiagnosticStep({
-  required String name,
-  required String packageName,
-  required String path,
-  required String command,
-  required String code,
-  required String message,
-  required String reason,
-  Map<String, Object?> details = const {},
-}) {
-  return WorkflowStepResult(
-    name: name,
-    path: path,
-    command: command,
-    status: 'failed',
-    exitCode: 1,
-    reason: reason,
-    diagnostics: [
-      WorkflowDiagnostic(
-        code: code,
-        message: message,
-        details: details,
-        nextCommand: _nextCommandForDiagnosticCode(code, packageName),
-      ),
-    ],
-  );
-}
-
-String? _nextCommandForDiagnosticCode(String code, String packageName) {
-  final baseline = 'fluoh verify --package $packageName';
-  return switch (code) {
-    'dart.sdk_constraint_unsatisfied' => '$baseline --json',
-    'dart.pub_get_failed' => 'fluoh deps get',
-    'dart.analysis_failed' ||
-    'dart.test_failed' ||
-    'command.failed' => '$baseline --json',
-    _ => _platformPackageRepairCommand(code, packageName),
-  };
-}
-
-String? _platformPackageRepairCommand(String code, String packageName) {
-  final separator = code.indexOf('.');
-  if (separator <= 0) {
-    return null;
-  }
-  final platform = code.substring(0, separator);
-  if (!workflowPlatformNames.contains(platform)) {
-    return null;
-  }
-  return platformWorkflowPolicy(
-    platform,
-  ).packageRepairCommand(code, packageName);
-}
-
-String _packageRunNextCommand({
-  required String packageName,
-  required String platform,
-  required String? deviceId,
-  required bool startEmulator,
-  required String? emulatorName,
-}) {
-  return platformWorkflowPolicy(platform).runCommand(
-    packageName: packageName,
-    deviceId: deviceId,
-    startEmulator: startEmulator,
-    emulatorName: emulatorName,
-  );
-}
-
-Map<String, Object?> _signingDetails(OhosDebugSigningMaterial signingMaterial) {
-  final profile = signingMaterial.permissionProfile;
-  return {
-    'bundleName': profile.bundleName,
-    'requestedPermissions': profile.requestedPermissions,
-    'restrictedPermissions': profile.restrictedPermissions,
-    'apl': profile.apl,
-    'signingConfig': signingMaterial.signingConfig.name,
-    'profile': signingMaterial.signingConfig.profile,
-  };
-}
-
-List<String> _hapPaths(List<File> haps) {
-  return [for (final hap in haps) hap.path];
-}
-
-bool _isStaleIosPrecompiledHeaderFailure(SelectedToolResult result) {
-  final output = result.combinedOutput.toLowerCase();
-  return output.contains('precompiled header') &&
-      output.contains('has been modified since');
-}
-
-Map<String, Object?> _commandOutputDetails(SelectedToolResult result) {
-  return {
-    if (result.stdout.trim().isNotEmpty) 'stdoutTail': result.stdout,
-    if (result.stderr.trim().isNotEmpty) 'stderrTail': result.stderr,
-    if (result.combinedOutput.trim().isNotEmpty)
-      'outputTail': result.combinedOutput,
-  };
-}
-
-Future<SelectedToolResult> _runToolCommand({
-  required FluohEnvironment environment,
-  required Directory directory,
-  required String displayPath,
-  required bool flutter,
-  required List<String> arguments,
-  required OutputWriter stdout,
-  required OutputWriter stderr,
-  required TerminalOutput output,
-  required String usage,
-}) async {
-  final commandEnvironment = FluohEnvironment(
-    homeDirectory: environment.homeDirectory,
-    workingDirectory: directory,
-    processEnvironment: environment.processEnvironment,
-  );
-
-  output.step(
-    'Running ${flutter ? 'flutter' : 'dart'} ${arguments.join(' ')} in '
-    '$displayPath',
-  );
-  return flutter
-      ? runSelectedFlutterResult(
-          environment: commandEnvironment,
-          arguments: arguments,
-          workingDirectory: directory,
-          stdout: stdout,
-          stderr: stderr,
-          output: output,
-          usage: usage,
-        )
-      : runSelectedDartResult(
-          environment: commandEnvironment,
-          arguments: arguments,
-          workingDirectory: directory,
-          stdout: stdout,
-          stderr: stderr,
-          output: output,
-          usage: usage,
-        );
 }

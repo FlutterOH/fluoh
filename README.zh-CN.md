@@ -31,8 +31,8 @@
 
 ### AI 优先
 
-大多数 App 或 Package 适配，建议先在 AI agent 中使用内置 skill。把目标交给
-AI，它会搞定从环境准备、项目检查、代码适配、自动验证到本地报告的完整流程。
+适配 App 或 Package 时，可以优先使用 fluoh AI skill。它会先确认适配范围，
+再完成代码调整、运行验证，并生成本地报告。
 
 在 AI agent 中安装内置 skill：
 
@@ -46,11 +46,11 @@ AI，它会搞定从环境准备、项目检查、代码适配、自动验证到
 使用 $fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。
 使用 $fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。
 使用 $fluoh，继续适配 <package-name> 到 OHOS。
+使用 $fluoh，预检查这个 FlutterOH Source 变更。
 ```
 
-动手修改前，AI agent 会先说明适配范围、改动计划和验证方式；确认后继续执行。
-[skill](skills/fluoh/SKILL.md) 是 AI 入口；
-[命令参考](doc/commands.zh-CN.md) 说明完整 CLI 命令面。
+AI 流程见 [skill](skills/fluoh/SKILL.md)；CLI 行为见
+[命令参考](doc/commands.zh-CN.md)。
 
 ### 安装 fluoh
 
@@ -84,18 +84,14 @@ fluoh build ohos --auto-sign
 
 ### 新建 Flutter App
 
-先用 FlutterOH SDK 创建项目，再进入生成的项目根目录继续：
+先用 FlutterOH SDK 创建项目：
 
 ```sh
 fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos
 cd demo_app
-fluoh deps check
-fluoh deps fix --dry-run
-fluoh deps fix
-fluoh deps get
-fluoh doctor --platform ohos --project
-fluoh build ohos --auto-sign
 ```
+
+然后执行已有 App 部分从 `fluoh deps check` 开始的命令。
 
 ### Package 维护者
 
@@ -107,10 +103,14 @@ fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 cd <flutteroh-repo-name>
 fluoh verify --package <name>
 fluoh run ohos --package <name> --auto-emulator
+fluoh attach ohos --session-file <session-file>
 fluoh package status --package <name>
 ```
 
-在生成仓库中追加另一个 Package 分支：
+`fluoh attach` 会复用 Flutter run session，优先连接 VM Service URI；如果
+session 没有提供 URI，则退回使用目标设备 id。
+
+需要时，在生成仓库中追加另一个 Package 分支：
 
 ```sh
 fluoh package queue <package-path>...
@@ -118,7 +118,7 @@ fluoh package add <package-path>
 fluoh verify --package <name>
 ```
 
-通过已选择的 FlutterOH SDK 运行 Flutter：
+使用已选择的 FlutterOH SDK 执行 Flutter 命令：
 
 ```sh
 fluohf pub get

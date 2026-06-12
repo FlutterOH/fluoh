@@ -102,6 +102,13 @@ Rules:
 - Extend package tests or examples when behavior changes.
 - Example apps are functional harnesses: expose operations, expected results,
   pass/fail status, and failure hints for automated or AI-assisted checks.
+- `fluoh run ohos --package <name> ...` owns the OHOS Flutter platform loop:
+  debug signing preparation, `flutter run`, run/session diagnostics, and
+  `example/integration_test/` execution on the selected target when present.
+  Use `fluoh attach ohos --session-file <path>` for Flutter debug attach when
+  a live session exposes a VM Service URI or target id.
+  Use hdc/hilog through `fluoh drive --scenario` or lower-level debug
+  diagnostics, not as the primary run path.
 
 ## Platform Regression
 

@@ -124,19 +124,19 @@ def session_file_for(scope: str, platform: str) -> str:
 
 
 def session_command_for(platform: str, package: str, app: bool, scope: str) -> str:
-    if platform == "ohos":
-        return "not supported for ohos run"
     return run_command_for(platform, package, app, session_file_for(scope, platform))
 
 
 def session_inspect_command_for(platform: str, scope: str) -> str:
-    if platform == "ohos":
-        return "not supported for ohos run"
     session_file = session_file_for(scope, platform)
     return (
         f"python3 <skill-dir>/scripts/inspect_session.py {session_file} "
         f"--wait 30 --expect-platform {platform}"
     )
+
+
+def session_attach_command_for(platform: str, scope: str) -> str:
+    return f"fluoh attach {platform} --session-file {session_file_for(scope, platform)}"
 
 
 def target_requirement_for(platform: str) -> str:
@@ -170,6 +170,10 @@ def build_scenario(
             scope,
         ),
         "Session inspect command, when supported": session_inspect_command_for(
+            platform,
+            scope,
+        ),
+        "Session attach command, when supported": session_attach_command_for(
             platform,
             scope,
         ),

@@ -16,8 +16,9 @@ fluoh drive <platform> --package <name> --scenario <path> --json
 fluoh drive all --package <name> --trace-dir .fluoh/traces/<name>/mobile-automation --json
 ```
 
-For live Flutter attach evidence on supported platforms, write and inspect a
-live `flutterRunSession` JSON file:
+For platform launch evidence, write and inspect a `flutterRunSession` JSON file.
+Pass `--require-vm-service` only when the platform run is expected to expose a
+Flutter VM Service:
 
 ```sh
 fluoh run android --package <name> \
@@ -25,9 +26,20 @@ fluoh run android --package <name> \
 python3 <skill-dir>/scripts/inspect_session.py \
   .fluoh/run-sessions/<name>/android-session.json --wait 30 \
   --expect-platform android --require-vm-service
+fluoh attach android \
+  --session-file .fluoh/run-sessions/<name>/android-session.json \
+  --require-vm-service
 ```
 
 Use the preflight `scenarioCommand` and `sessionInspectCommand` when available.
+OHOS run writes the same `flutterRunSession` file contract as the other
+platforms: command, process id, target id and metadata, launch state, output
+log, and VM Service URI when Flutter exposes one. `fluoh attach <platform>`
+uses the same session file and falls back to the target id only when strict VM
+Service attach is not required. Use `integration_test/` as
+the release gate when available, and use `fluoh drive --scenario` only for
+flows that are not encoded as integration tests. hdc/hilog output is scenario
+or debug-tool evidence, not the primary `fluoh run` contract.
 
 ## Evidence Rules
 
@@ -37,7 +49,8 @@ Use the preflight `scenarioCommand` and `sessionInspectCommand` when available.
   with structured actions.
 - Use manual-assisted interaction only as a fallback when automation cannot
   operate or observe the target, and only mark it passed after tool-readable
-  evidence verifies the user-completed flow.
+  evidence verifies the user-completed flow. It is an operation mode, not a
+  human-only approval.
 - Do not judge visual correctness unless the package is specifically visual.
 - Do not rely on screenshot recognition as the primary assertion. Screenshots
   and recordings are supporting artifacts only.

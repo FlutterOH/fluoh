@@ -106,8 +106,9 @@ void main() {
       );
       expect(
         platformWorkflowPolicy('ohos').integrationTestDiagnosticCode,
-        'integration_test.failed',
+        'ohos.integration_test_failed',
       );
+      expect(platformWorkflowPolicy('ohos').supportsSessionFile, isTrue);
       expect(
         platformWorkflowPolicy('android').automationEvidenceItems,
         contains('flutterRunSession JSON'),
@@ -118,6 +119,55 @@ void main() {
       );
     },
   );
+
+  test('owns package run prebuild targets per platform policy', () {
+    expect(platformWorkflowPolicy('ohos').buildTarget, 'hap');
+    expect(platformWorkflowPolicy('ohos').runPrebuildTarget, isNull);
+    expect(platformWorkflowPolicy('android').runPrebuildTarget, 'apk');
+    expect(platformWorkflowPolicy('ios').runPrebuildTarget, 'ios');
+  });
+
+  test('owns package example build arguments per platform policy', () {
+    expect(
+      platformWorkflowPolicy(
+        'ohos',
+      ).buildExampleArguments(debug: true, forSimulator: false),
+      ['build', 'hap', '--debug'],
+    );
+    expect(
+      platformWorkflowPolicy(
+        'android',
+      ).buildExampleArguments(debug: true, forSimulator: false),
+      ['build', 'apk', '--debug'],
+    );
+    expect(
+      platformWorkflowPolicy(
+        'ios',
+      ).buildExampleArguments(debug: true, forSimulator: false),
+      ['build', 'ios', '--debug', '--no-codesign'],
+    );
+    expect(
+      platformWorkflowPolicy(
+        'ios',
+      ).buildExampleArguments(debug: true, forSimulator: true),
+      ['build', 'ios', '--simulator', '--debug'],
+    );
+  });
+
+  test('owns scenario auto-foreground support per platform policy', () {
+    expect(
+      platformWorkflowPolicy('ohos').supportsScenarioAutoForeground,
+      isTrue,
+    );
+    expect(
+      platformWorkflowPolicy('android').supportsScenarioAutoForeground,
+      isTrue,
+    );
+    expect(
+      platformWorkflowPolicy('ios').supportsScenarioAutoForeground,
+      isFalse,
+    );
+  });
 
   test('suggests integration discovery runs without web-server targets', () {
     final commands = integrationDiscoveryRunCommands(packageName: 'camera');

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Inspect a fluoh live Flutter run session JSON file."""
+"""Inspect a fluoh Flutter run session JSON file."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import time
 from pathlib import Path
 from typing import Any
@@ -92,8 +93,35 @@ def age_seconds(path: Path) -> float | None:
         return None
 
 
-def attach_hints(session: dict[str, Any]) -> list[str]:
+def fluoh_attach_command(
+    path: Path,
+    session: dict[str, Any],
+    *,
+    require_vm_service: bool,
+) -> str | None:
+    platform = session.get("platform")
+    if not isinstance(platform, str) or not platform:
+        return None
+    parts = ["fluoh", "attach", platform, "--session-file", str(path)]
+    if require_vm_service:
+        parts.append("--require-vm-service")
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def attach_hints(
+    path: Path,
+    session: dict[str, Any],
+    *,
+    require_vm_service: bool,
+) -> list[str]:
     hints: list[str] = []
+    attach_command = fluoh_attach_command(
+        path,
+        session,
+        require_vm_service=require_vm_service,
+    )
+    if attach_command:
+        hints.append(f"Attach with fluoh: {attach_command}")
     uri = session.get("vmServiceUri")
     if isinstance(uri, str) and uri:
         hints.append(f"Attach to Flutter VM Service: {uri}")
@@ -101,9 +129,28 @@ def attach_hints(session: dict[str, Any]) -> list[str]:
     output_log = session.get("outputLog")
     if isinstance(output_log, str) and output_log:
         hints.append(f"Inspect run output log: {output_log}")
+    if session.get("platform") == "ohos":
+        ohos = session.get("ohos")
+        if isinstance(ohos, dict):
+            hilog = ohos.get("hilog")
+            if isinstance(hilog, str) and hilog:
+                hints.append(f"Inspect OHOS hilog: {hilog}")
+        hints.append("Use integration_test/ or fluoh drive scenario evidence for functional OHOS assertions.")
     if session.get("platform") in {"macos", "linux", "web", "windows"}:
         hints.append("Desktop and Web runs can be checked through host process logs and Flutter debug state.")
     return hints
+
+
+def session_target_id(session: dict[str, Any]) -> str | None:
+    target_id = session.get("targetId")
+    if isinstance(target_id, str) and target_id:
+        return target_id
+    target = session.get("target")
+    if isinstance(target, dict):
+        target_id = target.get("id")
+        if isinstance(target_id, str) and target_id:
+            return target_id
+    return None
 
 
 def recommendation(session: dict[str, Any]) -> str:
@@ -159,12 +206,22 @@ def build_report(
                 "processId": session.get("processId"),
                 "launchDetected": session.get("launchDetected"),
                 "vmServiceUri": session.get("vmServiceUri"),
+                "targetId": session_target_id(session),
                 "target": session.get("target"),
                 "emulator": session.get("emulator"),
                 "outputLog": session.get("outputLog"),
                 "updatedAt": session.get("updatedAt"),
                 "recommendation": recommendation(session),
-                "attachHints": attach_hints(session),
+                "attachCommand": fluoh_attach_command(
+                    path,
+                    session,
+                    require_vm_service=require_vm_service,
+                ),
+                "attachHints": attach_hints(
+                    path,
+                    session,
+                    require_vm_service=require_vm_service,
+                ),
             }
         )
     else:
@@ -186,7 +243,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--expect-platform",
-        choices=("android", "ios", "macos", "linux", "web", "windows"),
+        choices=("ohos", "android", "ios", "macos", "linux", "web", "windows"),
         default="",
         help="Fail when the session platform differs",
     )

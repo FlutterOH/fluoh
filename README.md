@@ -31,10 +31,9 @@
 
 ### AI First
 
-For most app or package adaptation work, start with the bundled skill in your
-AI agent. Give AI the goal and it will handle the full path from environment
-setup, project inspection, code adaptation, and automated verification to the
-local report.
+For most app or package adaptations, use the bundled fluoh AI skill. After
+confirming the scope, it updates the project or package, runs verification, and
+writes a local report.
 
 Install the bundled skill in your AI agent:
 
@@ -48,12 +47,11 @@ Then ask the agent for the workflow you need:
 Use $fluoh to install fluoh if needed and adapt this Flutter project for OHOS.
 Use $fluoh to adapt <upstream-git-url> for FlutterOH.
 Use $fluoh to continue adapting <package-name> for OHOS.
+Use $fluoh to precheck this FlutterOH Source change.
 ```
 
-Before making changes, the agent will explain the adaptation scope, change plan,
-and verification path, then continue after confirmation.
-The [skill](skills/fluoh/SKILL.md) is the AI entry point; the
-[command reference](doc/commands.md) documents the full CLI surface.
+See the [skill](skills/fluoh/SKILL.md) for the AI workflow and the
+[command reference](doc/commands.md) for CLI behavior.
 
 ### Install fluoh
 
@@ -87,19 +85,14 @@ Review the `fluoh deps fix --dry-run` output before applying `fluoh deps fix`.
 
 ### New Flutter App
 
-Create the project with a FlutterOH SDK, then continue from the generated
-project root:
+Create the project with a FlutterOH SDK:
 
 ```sh
 fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos
 cd demo_app
-fluoh deps check
-fluoh deps fix --dry-run
-fluoh deps fix
-fluoh deps get
-fluoh doctor --platform ohos --project
-fluoh build ohos --auto-sign
 ```
+
+Then run the existing-app commands starting at `fluoh deps check`.
 
 ### Package Maintainers
 
@@ -112,10 +105,14 @@ fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
 cd <flutteroh-repo-name>
 fluoh verify --package <name>
 fluoh run ohos --package <name> --auto-emulator
+fluoh attach ohos --session-file <session-file>
 fluoh package status --package <name>
 ```
 
-Add another package branch from the generated repository:
+`fluoh attach` reuses the Flutter run session, preferring the VM Service URI and
+falling back to the target device id when the session does not expose one.
+
+Add another package branch from the generated repository when needed:
 
 ```sh
 fluoh package queue <package-path>...

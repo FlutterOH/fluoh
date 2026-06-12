@@ -11,6 +11,12 @@ const _requiredAutomationCoverageGates = {
   'behavior-paths',
 };
 
+const _interactionEvidenceMethods = {
+  'integration_test',
+  'ai-assisted',
+  'manual-assisted',
+};
+
 /// Validation result for a fluoh AI package certification report.
 ///
 /// The report is optional for baseline release checks, but when a maintainer
@@ -214,10 +220,52 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       'Certification report must include passed fluoh run ohos evidence.',
     );
   }
-  final hasAutomate = passedCommandRows.any(_isAutomationEvidence);
-  if (!hasAutomate) {
+  final interactionRows = _interactionRows(content);
+  final passedInteractionRows = [
+    for (final row in interactionRows)
+      if (row.passed) row,
+  ];
+  final passedManualAssistedWithoutToolEvidence = [
+    for (final row in passedInteractionRows)
+      if (row.method == 'manual-assisted' && !_hasToolReadableEvidence(row))
+        row,
+  ];
+  if (passedManualAssistedWithoutToolEvidence.isNotEmpty) {
     errors.add(
-      'Certification report must include passed fluoh drive --json evidence.',
+      'Passed manual-assisted interaction evidence must include '
+      'tool-readable confirmation such as logs, meaningful session state '
+      'beyond launch, stable text, semantics, test keys, command JSON, hilog, '
+      'or app log markers.',
+    );
+  }
+  // A prose note under fluoh run is launch evidence; release gating needs the
+  // concrete flutter test command row that produced the integration result.
+  final passedIntegrationTestWithoutCommandEvidence = [
+    for (final row in passedInteractionRows)
+      if (row.method == 'integration_test' &&
+          !_isIntegrationTestEvidence(row, passedCommandRows))
+        row,
+  ];
+  if (passedIntegrationTestWithoutCommandEvidence.isNotEmpty) {
+    errors.add(
+      'Passed integration_test interaction evidence must cite and be backed '
+      'by a passed flutter test integration_test command row.',
+    );
+  }
+  final hasIntegrationTestEvidence = passedInteractionRows.any(
+    (row) => _isIntegrationTestEvidence(row, passedCommandRows),
+  );
+  final hasManualAssistedToolEvidence = passedInteractionRows.any(
+    (row) => row.method == 'manual-assisted' && _hasToolReadableEvidence(row),
+  );
+  final hasAutomate = passedCommandRows.any(_isAutomationEvidence);
+  if (!hasAutomate &&
+      !hasIntegrationTestEvidence &&
+      !hasManualAssistedToolEvidence) {
+    errors.add(
+      'Certification report must include passed fluoh drive --json, '
+      'integration_test, or manual-assisted tool-readable interaction '
+      'evidence.',
     );
   }
 
@@ -272,11 +320,6 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
     );
   }
 
-  final interactionRows = _interactionRows(content);
-  final passedInteractionRows = [
-    for (final row in interactionRows)
-      if (row.passed) row,
-  ];
   final interactionSection = _sectionContent(
     content,
     '## Interaction Evidence',
@@ -527,6 +570,110 @@ bool _isAutomationEvidence(_CommandRow row) {
       !_containsShellToken(command, '-n');
 }
 
+bool _isIntegrationTestEvidence(
+  _InteractionRow row,
+  List<_CommandRow> passedCommandRows,
+) {
+  if (row.method != 'integration_test' || !row.passed) {
+    return false;
+  }
+  if (!_mentionsIntegrationTestCommand(row.evidenceText)) {
+    return false;
+  }
+  return passedCommandRows.any(_isIntegrationTestCommandEvidence);
+}
+
+bool _isIntegrationTestCommandEvidence(_CommandRow row) {
+  final command = row.command;
+  return _containsCommand(command, 'flutter test') &&
+      RegExp(r'(^|\s)integration_test(?:\s|$|/)').hasMatch(command);
+}
+
+bool _mentionsIntegrationTestCommand(String value) {
+  final normalized = value.toLowerCase();
+  return RegExp(
+    r'flutter\s+test\s+.*integration_test(?:\s|$|/)',
+  ).hasMatch(normalized);
+}
+
+bool _hasToolReadableEvidence(_InteractionRow row) {
+  final normalized = row.evidenceText.toLowerCase();
+  final hasToolMarker = const [
+    'flutterrunsession',
+    'vm service',
+    'session file',
+    'session state',
+    'session json',
+    'output log',
+    'outputlog',
+    'stdout',
+    'stderr',
+    'hilog',
+    'log marker',
+    'app log',
+    'assertlog',
+    'assertsession',
+    'asserttext',
+    'waittext',
+    'visible text',
+    'visible status',
+    'stable text',
+    'semantic label',
+    'semantics',
+    'test key',
+    'testkey',
+    'component state',
+    'command json',
+    'trace.json',
+    'trace manifest',
+    'trace file',
+    'diagnostics[]',
+    'diagnostic code',
+  ].any(normalized.contains);
+  if (!hasToolMarker) {
+    return false;
+  }
+  if (_isLaunchOnlyEvidence(normalized) &&
+      !_hasFunctionalToolEvidence(normalized)) {
+    return false;
+  }
+  return true;
+}
+
+bool _isLaunchOnlyEvidence(String normalized) {
+  return const [
+    'launched=true',
+    'launchdetected true',
+    'launchdetected=true',
+    'launched the example',
+    'launch evidence only',
+    'app launched',
+    'flutter run launched',
+  ].any(normalized.contains);
+}
+
+bool _hasFunctionalToolEvidence(String normalized) {
+  return const [
+    'hilog',
+    'log marker',
+    'app log',
+    'assertlog',
+    'assertsession',
+    'asserttext',
+    'waittext',
+    'visible text',
+    'visible status',
+    'stable text',
+    'semantic label',
+    'semantics',
+    'test key',
+    'testkey',
+    'component state',
+    'diagnostics[]',
+    'diagnostic code',
+  ].any(normalized.contains);
+}
+
 bool _containsCommand(String command, String expected) {
   return command == expected || command.startsWith('$expected ');
 }
@@ -587,11 +734,13 @@ class _InteractionRow {
   const _InteractionRow({
     required this.method,
     required this.resultText,
+    required this.evidenceText,
     required this.row,
   });
 
   final String method;
   final String resultText;
+  final String evidenceText;
   final String row;
 
   bool get passed {
@@ -606,14 +755,15 @@ class _InteractionRow {
       return null;
     }
     final method = columns[1].toLowerCase();
-    if (!const {
-      'integration_test',
-      'ai-assisted',
-      'manual-assisted',
-    }.contains(method)) {
+    if (!_interactionEvidenceMethods.contains(method)) {
       return null;
     }
-    return _InteractionRow(method: method, resultText: columns[4], row: line);
+    return _InteractionRow(
+      method: method,
+      resultText: columns[4],
+      evidenceText: columns[5],
+      row: line,
+    );
   }
 }
 

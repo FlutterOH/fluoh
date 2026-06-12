@@ -11,12 +11,10 @@
 
 ## 端到端工作流
 
-AI 驱动适配是主要端到端链路。内置的 `skills/fluoh` 工作流是交给 AI 的入口：
-它会判断当前目录是 App 项目还是 Package 适配仓库，然后驱动确定性的 `fluoh`
-命令。命令负责可审计步骤：`sdk use` 选择 SDK、维护稳定 IDE 链接并创建默认
-OHOS 平台；`deps` 替换 FlutterOH 依赖；`doctor` 诊断环境和项目；
-`build` 执行 build-only 检查；`run` 或 `drive` 负责目标选择、启动、日志、
-UI 自动化和 JSON 失败路由。
+AI 驱动适配是主要端到端链路。内置的 `skills/fluoh` 工作流会判断工作区类型、
+确认最终适配范围，然后执行 `fluoh` 命令。本文档定义这些命令契约；
+详细 agent 路由、报告措辞和修复顺序由 `skills/fluoh/SKILL.md` 和
+`skills/fluoh/references/` 维护。
 
 ### AI 驱动适配
 
@@ -32,45 +30,24 @@ UI 自动化和 JSON 失败路由。
 使用 $fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。
 使用 $fluoh，把 <upstream-git-url> 按 SDK 3.35 适配为 FlutterOH Package。
 使用 $fluoh，继续适配 <package-name> 到 OHOS。
+使用 $fluoh，预检查这个 FlutterOH Source 变更。
 ```
 
-skill 会在 `fluoh --version` 失败时安装 CLI：优先使用
-`dart pub global activate fluoh`，如果 Dart 不可用且是 macOS，则回退到 Homebrew。
-如果 CLI 已经安装，AI agent 可以用下面命令发现本地内置 skill 路径和 helper script
-命令：
+CLI 缺失时，skill 会处理安装。AI agent 可以用下面命令查看本地内置 skill 路径、
+辅助脚本和报告模板：
 
 ```text
 运行 `fluoh skill --json`，把返回的 localPath 安装为 skill，必要时重载 skills。
 ```
 
-JSON 结果也会暴露 preflight、创建报告、检查报告、创建功能场景的 helper script argv，
-以及报告模板和交互场景模板的 reference 路径。
-
-实现代码前，AI agent 必须先检查 preflight 的 `upgradeChecks`。schema blocker
-会暂停流程，直到当前安装的 `fluoh` 能读取这些 metadata。Package 仓库如果生成文档缺失或
-状态过期，应先运行 `fluoh package docs refresh --dry-run`；
-当工作树干净且不是 review-only 请求时，再运行 `fluoh package docs refresh`。如果
-preflight 因 dry-run 失败而无法判断生成文档是否最新，应先修复 dry-run。
-
-全自动适配必须先完成适配范围确认。用户的初始请求只授权 CLI 安装或定位、只读
-preflight 和适配信息收集，不等于已经批准修改项目、Package、Source、本地 Git 或实现代码。
-CLI 准备和只读 preflight 完成后，AI agent 在修改项目、Package、
-Source 文件、本地 Git 配置、checkpoint commit 或实现代码前，必须先展示最终确认清单。
-确认清单展示后必须等待用户明确批准。确认清单包括适配类型、工作目录、必要时的输出目录、
-SDK 版本或版本线、必要时的 Package name 和 path、FlutterOH repository URL 或 path、
-可能创建提交时使用的 Git author 身份、即将执行的写操作或文件改动，以及 release、push、
-force-push、破坏性 Git 命令等需要单独批准的操作。只有用户已经在当前任务中明确确认过
-同一份已解析适配范围，AI agent 才能跳过这次暂停。
-
-skill 版本跟随 `fluoh` CLI Package 版本。用 `fluoh upgrade` 更新 CLI 后，内置
-skill 文件也会更新；已复制 skill 的 AI agent 应重新运行 `fluoh skill --json`，
-再覆盖安装或重载返回的路径。AI agent 完成前会写入
-`.fluoh/reports/<scope>/ai-report-...md`，报告内包含交付清单。发布前应复核
-diff、报告和只能在设备上验证的行为。
+AI agent 会用只读 preflight 收集并展示最终范围，等待用户确认后再修改文件。
+release、push、force-push、破坏性 Git 操作和发布到外部服务仍是单独的维护者决策。
+skill 版本跟随 CLI Package 版本；执行 `fluoh upgrade` 后，应重新安装或重载
+`fluoh skill --json` 返回的路径。
 
 ### 手动让 App 项目支持 OHOS
 
-在已有 Flutter 项目中，如果不使用 AI agent，可以直接执行下面的命令链路，让项目能在
+在已有 Flutter 项目中，如果不使用 AI agent，可以直接执行下面的命令，让项目在
 OHOS 上构建或运行：
 
 ```sh
@@ -90,17 +67,17 @@ fluoh drive all --json
 ```
 
 项目没有 `ohos/` 目录时，`fluoh sdk use` 默认会创建它。只有平台目录由其他流程维护时才使用
-`--no-init-ohos`。如果没有可用设备或模拟器，把
-`fluoh build ohos --auto-sign --json` 作为 build-only 证据，并根据 JSON
-diagnostic 里的 `nextCommand` 继续处理本机环境。
+`--no-init-ohos`。如果没有可用设备或模拟器，可以把
+`fluoh build ohos --auto-sign --json` 作为 build-only 证据，并根据 JSON diagnostic
+里的 `nextCommand` 继续处理本机环境。
 
 ## 命令面
 
-根帮助把 CLI 工具命令放在 `Core` 分组（`skill`、`doctor`、`flutter`、`clean`
+根帮助把 CLI 工具命令放在 `Fluoh` 分组（`skill`、`doctor`、`flutter`、`clean`
 和 `upgrade`），随后把 `SDK & Metadata` 放在项目工作流前面，因为 SDK 和 Source
 状态通常会先卡住适配流程。`Project` 放顶层 App 项目命令：`create` 和 `deps`。
 `Package` 放 `package` 仓库命令组。`Workflow` 放共享执行和证据命令，顺序是
-`plan`、`verify`、`build`、`run`、`drive` 和 `report`。`Devices` 放 target
+`plan`、`verify`、`build`、`run`、`attach`、`drive` 和 `report`。`Devices` 放 target
 inventory 和启动辅助：`devices` 负责已连接 target 发现，`emulators` 负责
 emulator/simulator 启动。
 
@@ -147,11 +124,12 @@ emulator/simulator 启动。
 | `fluoh package docs refresh` | `lib/src/package/commands/package_docs_command.dart` | 刷新 Package 仓库生成文档。 |
 | `fluoh package check` | `lib/src/package/commands/package_release_command.dart` | 运行发布前检查，不创建 tag。 |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | 完成 FlutterOH Package release。 |
-| `fluoh verify` | `lib/src/workflow/commands/workflow_commands.dart` | 为项目或 Package 仓库运行 pub get、分析和测试。 |
-| `fluoh build <platform>` | `lib/src/workflow/commands/workflow_commands.dart` | 构建项目或 Package example。 |
-| `fluoh run <platform>` | `lib/src/workflow/commands/workflow_commands.dart` | 构建、安装、启动并诊断 App。 |
-| `fluoh drive <platform>` | `lib/src/workflow/commands/workflow_commands.dart` | 在 OHOS、Android 和 iOS target 上执行移动端自动化场景和证据校验。 |
-| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | 根据 trace manifest 和 automation JSON 创建本地忽略的 AI 适配报告。 |
+| `fluoh verify` | `lib/src/workflow/commands/verify_command.dart` | 为项目或 Package 仓库运行 pub get、分析和测试。 |
+| `fluoh build <platform>` | `lib/src/workflow/commands/build_command.dart` | 构建项目或 Package example。 |
+| `fluoh run <platform>` | `lib/src/workflow/commands/run_command.dart` | 准备平台、通过 `flutter run` 启动并诊断 App。 |
+| `fluoh attach <platform>` | `lib/src/workflow/commands/attach_command.dart` | 把 Flutter 调试工具 attach 到 `flutterRunSession`、VM Service URI 或 device id。 |
+| `fluoh drive <platform>` | `lib/src/workflow/commands/drive_command.dart` | 在 OHOS、Android 和 iOS target 上执行移动端自动化场景和证据校验。 |
+| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | 根据 trace manifest 和 automation JSON 创建本地忽略的中英双版 AI 适配报告。 |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | 诊断环境、项目、SDK 和工具状态。 |
 | `fluoh devices` | `lib/src/platform/platform_target_commands.dart` | 列出已连接的 Flutter target，包括 OHOS、Android、iOS、Web 和当前 host 支持的桌面 target。 |
 | `fluoh emulators` | `lib/src/platform/platform_target_commands.dart` | 列出并启动 OHOS、Android 和 iOS 的本地 emulator/simulator；桌面和 Web 平台不提供 emulator。 |
@@ -480,7 +458,7 @@ release 状态默认跳过，除非本次命令使用了 `--all-release-statuses
 保持严格要求。
 
 这些命令的 AI 实现循环由 `skills/fluoh/SKILL.md` 负责路由，详细流程放在
-`skills/fluoh/references/` 中维护。用户文档只保留简短入口，所有 AI agent 都使用同一套工作流面。
+`skills/fluoh/references/` 中维护。用户文档只保留简短入口，所有 AI agent 都使用同一个维护入口。
 
 ### 适配流程
 
@@ -506,51 +484,26 @@ release 状态默认跳过，除非本次命令使用了 `--all-release-statuses
    `fluoh.yaml`。
 10. `fluoh source sync` 从 release tags 导入逐 Package Source Manifest。
 
-`fluoh package create <upstream>` clone upstream 仓库，选择一个 Package，配置
-`upstream` 和 `origin`，创建 `ohos/3.35/camera` 这类 FlutterOH Package 分支，配置
-FlutterOH SDK，写入 `fluoh.yaml`、`FLUOH.md`、`FLUOH_CHANGELOG.md` 和 agent
-指令，然后暂存生成文件。如果选中的 Package 已有 Flutter example，命令会给该 example
-新增 OHOS 平台、写入 example SDK 配置，并暂存 example 变更。生成的引导会要求维护者先
-建立已选择 SDK 基线并修复非 OHOS 平台回归，再实现 OHOS 代码。
-生成的 agent 指令也会要求 AI 在维护者要求本地提交时，按已完成且已验证的 checkpoint
-拆分小的本地 commit。
-不传 `--package-path` 时，命令只选择 upstream 仓库根目录 Package，不表示适配 monorepo
-中的全部 Package。适配 monorepo 时，为 upstream 仓库创建一份 FlutterOH 适配仓库，不要为每个
-Package 分别建仓；为当前要创建的 Package 分支传一个 `--package-path <subdir>`。要在同一仓库继续适配
-另一个 Package，从生成仓库中运行 `fluoh package add <package-path>`；它会在保留原 monorepo 布局的同时，
-基于该 Package 选中的 release/ref 创建独立 Package 分支。默认情况下，package create/add 会选择所选 Package 最新有效 upstream release
-tag；需要指定 Package 版本时传 `--upstream-version`，只有 release tags 无法识别目标快照时才用
-`--upstream-ref`。传入显式 target 时，所选 Package path 会在该 target 上解析；即使 upstream
-default branch 已经移动或删除历史 Package path，也仍可适配该历史版本。
-命令始终要求 `--repository-name <repository-name>`。`--repository-name` 只决定未传
-`--output` 时的默认输出目录，以及省略 `--repository` 时的默认 FlutterOH origin URL。
-它不会写入 Package `fluoh.yaml`；Package 身份来自 `package.name`。只选择一个子目录
-Package path 且遗漏 `--repository-name` 时，usage error 会根据 path 给出候选建议，
-但命令仍要求显式传入该参数。
-生成的 `fluoh.yaml` 会在 `repository`、`upstream`、Package 路径、`version` 和
-`status` 等维护者常改字段旁提供注释。它不会创建 commit。可用参数包括
-`--package-path`、`--upstream-version`、`--upstream-ref`、`--output`、
-`--repository-name`、`--sdk`、`--repository`、`--git-author-name`、`--git-author-email`、
-`--org`、`--plan` 和 `--json`。Git 作者参数只配置新仓库
-本地 Git `user.name` 和 `user.email`，供后续适配 commit 使用，不写入被跟踪文件。
-`--org` 用于覆盖给已有 example 新增 OHOS 平台时传给 `flutter create` 的 organization；
-不传时，fluoh 会从现有 Android、iOS 或 macOS example 元数据中推断。`--plan` 会把 upstream clone 到临时目录，解析所选 Package、SDK、输出路径、repository
-URL、目标分支和 Git author；临时 clone 会优先使用默认分支 shallow clone 加 shallow
-tag fetch 来选择 release tag，只在需要时回退到 partial 或 full clone。解析完成后会删除临时 clone；它不会创建目标仓库、配置 SDK link、
-写文件、stage 文件或 commit。`--json` 只支持和 `--plan` 一起使用，并输出一个机器可读
-plan 对象，供 AI 最终适配范围确认使用。plan 对象包含 `warnings[]`；AI agent 在创建仓库前必须
-检查它。例如 `package.dart_sdk_incompatible` 会报告所选 upstream Package 需要更高 Dart
-SDK，并在可用时给出当前 SDK 兼容的最新 upstream tag，作为诊断参考。默认策略是保留所选
-upstream target，把 package pubspec、example 配置和 Dart 代码适配到当前选择的 FlutterOH
-SDK，然后重新 verify。已知当前 Dart SDK 版本时，JSON warning 会包含
-`policy.suggestedEnvironmentSdkConstraint`。只有维护者明确批准旧 upstream baseline 时，才能使用
-较旧 tag。`package.default_branch_version_unreleased` 表示默认分支声明的 Package
-版本不同于当前选中的最新 release tag；warning 会记录选中的 release ref/version 和默认
-分支版本。AI 适配默认继续使用选中的 release tag，只有维护者明确批准适配未发布的默认分支
-快照时，才使用 `--upstream-ref <branch>`。所选 Package 如果是带 `default_package` 声明、但没有 OHOS 平台的
-federated app-facing plugin，plan 还会包含 `implementationRecommendation`：
-Source 路由仍指向 app-facing Package，同时说明 `<package>_ohos` 实现 Package
-以及需要修改的 app-facing pubspec 条目。
+`fluoh package create <upstream>` clone upstream 仓库，选择一个 Package，创建
+`ohos/3.35/camera` 这类 FlutterOH 分支，配置 SDK 和 remote，写入
+`fluoh.yaml`、生成文档、changelog 脚手架和 agent 指令，然后暂存生成文件。
+如果选中的 Package 已有 Flutter example，命令会新增 OHOS 平台文件和 example SDK
+配置。它不会创建 commit。
+不传 `--package-path` 时，只选择 upstream 仓库根目录 Package。适配 monorepo 时，
+为 upstream 仓库保留一份适配仓库，并用 `fluoh package add <package-path>` 增加后续
+Package 分支。`package create` 和 `package add` 默认选择所选 Package 最新有效 upstream release tag；
+指定 Package 版本用 `--upstream-version`，只有 release tags 无法识别目标快照时才用
+`--upstream-ref`。
+命令始终要求 `--repository-name <repository-name>`；它用于推导默认输出目录和默认
+FlutterOH origin URL，Package 身份仍来自 `package.name`。
+可用参数包括 `--package-path`、`--upstream-version`、`--upstream-ref`、`--output`、
+`--repository-name`、`--sdk`、`--repository`、`--git-author-name`、
+`--git-author-email`、`--org`、`--plan` 和 `--json`。Git 作者参数只配置新仓库的本地
+Git 身份；`--org` 用于覆盖给 example 新增 OHOS 平台时传给 `flutter create` 的
+organization。
+`--plan --json` 只在临时目录完成 clone 和解析，输出单个机器可读 plan 对象；不会创建仓库、
+写文件、stage 文件或 commit。plan 包含 `warnings[]`，用于报告 Dart SDK 不兼容、
+默认分支未发布版本、federated implementation 推荐等情况。
 
 `fluoh package discover <upstream> --json` 会把 upstream 仓库 shallow clone 到临时目录，
 扫描非 example 的 `pubspec.yaml`，并报告 `flutter.plugin.platforms` 未声明
@@ -636,82 +589,62 @@ Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_fail
 `windows.build_failed`。`--trace` 和
 `--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
 
-`fluoh run ohos|android|ios|macos|linux|web|windows` 会构建、安装、启动并诊断当前项目或所选 Package
-example。OHOS 当前项目和 Package example 会签名 HAP、用 `hdc` 安装、启动 ability、采集短
-hilog，并通过 JSON diagnostics 报告运行时 crash 或 Flutter channel 运行时错误。Android、iOS、macOS、Linux、Web 和 Windows 当前项目与
-Package example 会通过已选择 SDK 的 `flutter run` 启动，把 run-smoke 输出保存到
-`$FLUOH_HOME/cache/package-runs`，并在存在 `integration_test/` 且有具体 target 时继续运行
-`flutter test integration_test -d <device>`。Web run 使用 Chrome 等浏览器 target。如果
-`flutter run` 输出 VM Service 或 debug service URI，`--json` 会在 run step 的
-`details.vmServiceUri` 返回它，方便 AI agent 或外部工具 attach。Android、iOS、macOS、Linux、Web 或 Windows run
-可以传 `--session-file <path>`，在 App 仍运行时写入实时 `flutterRunSession` JSON 文件；
-文件会更新进程 id、target、`vmServiceUri`、启动状态、最终状态和输出日志路径。AI agent 可以用
-`python3 <skill-dir>/scripts/inspect_session.py <session-file> --wait 30 --expect-platform <platform>`
-检查这个文件，等待启动、读取 VM Service URI，并决定 attach、查看日志或转入失败排查。已有目标时用
-`--device-id <id>`，要指定本地 emulator/simulator 时用 `--emulator <name>`，要优先启动本地
-emulator/simulator 并且只在没有模拟器时回退到已连接真机，则用 `--auto-emulator`。OHOS
-自动模拟器选择会优先选择本地 DevEco 模拟器中可识别的最高 API 版本，无法识别 API 时按名称稳定
-排序选择。iOS 自动 simulator 选择会优先 iPhone，再选较新的 iOS runtime，并在启动后等待
-`xcrun simctl bootstatus <udid> -b` 完成，再选择 Flutter run target。当 OHOS run 没有发现
-已连接 target 时，diagnostics 会保持不自动启动模拟器的默认行为，
-除非已传 `--auto-emulator` 或 `--emulator`；同时给出 target 选择建议：自动化证据优先使用本地
-DevEco 模拟器；只有没有模拟器时才使用已连接真机。若本地有多个 OHOS 模拟器且能识别 API 信息，
-diagnostic 会建议最低和最高 API 版本都测一遍。
-run-smoke 成功只表示 App 已启动。需要点击 UI、处理权限弹窗、选择文件、调用相机、定位、
-播放媒体、deep link 或外部 App 的流程，必须有功能场景证据：优先用平台 runner 支持的
-`integration_test`，否则用 AI 在 emulator 或真机上执行交互。人工操作只能作为
-`manual-assisted` 证据，并且需要 fluoh 可读取的日志、session 状态、稳定文本、语义标签、test key、
-组件状态、命令 JSON、hilog 或 App 日志标记支撑。验收标准应是功能行为，不是视觉布局；
-AI 辅助验证不能依赖识图能力。如果没有交互流程，报告必须写明
+`fluoh run ohos|android|ios|macos|linux|web|windows` 会先准备平台，再通过已选择 SDK 的
+`flutter run` 启动当前项目或所选 Package example。OHOS 与其他平台走同一条 Flutter run 路径；
+`--auto-sign` 只增加临时 debug 签名准备和恢复。Android、iOS 的签名、设备、
+emulator/simulator 前置条件也使用同一套 run-preparation 和 target-selection 层。Web run
+使用 Chrome 等浏览器 target。
+当存在 `integration_test/` 且有具体 target 时，`fluoh run` 会继续在同一 target 上运行
+`flutter test integration_test -d <device>`。Release 报告应单独记录这条已通过的测试命令，
+因为普通 `fluoh run --json` 行只表示启动证据。
+`--session-file <path>` 会写入 `flutterRunSession`，包含进程、target、启动、日志以及可用时的
+VM Service URI。`fluoh attach` 可以复用该 session，也可以直接接收
+`--vm-service-uri <uri>` 或 `--device-id <id>`。它优先执行
+`flutter attach --debug-uri <uri>`，除非设置 `--require-vm-service`，否则可回退到
+`flutter attach -d <targetId>`。
+run 和 drive 共用 target 参数：`--device-id <id>` 使用已有 target，`--emulator <name>`
+指定本地 emulator/simulator，`--auto-emulator` 优先使用本地 emulator/simulator，再回退到已连接设备。
+
+run-smoke 成功只证明 App 已启动。需要 UI、权限、文件、相机、定位、媒体、deep link 或外部
+App 的流程，还需要功能验证证据，来源可以是已通过的 `integration_test`、`fluoh drive`
+或带工具可读证据的 `manual-assisted`。manual-assisted 是操作方式，仍需要日志、session 状态、
+稳定文本、语义标签、test key、命令 JSON、hilog 或 App 日志标记支撑。如果没有交互流程，报告必须写明
 `No interaction required: <reason>`。
 
-交互场景放在 `.fluoh/scenarios/<package>/<platform>-<name>.md`，使用内置
-`skills/fluoh/references/interaction-scenario-template.md`。场景 Markdown 可以包含 fenced YAML，
-写明 `kind: fluoh.automationScenario`、`platform`、`steps`，以及可选的 `coverage`
-元数据。`fluoh drive --scenario <path>` 会在 OHOS、Android 或 iOS App 启动后执行该场景。
-支持动作以模板为准，包括文本断言、日志断言、权限允许和拒绝、App 启动、等待、支持平台上的文本输入，
-以及平台特定的 reset 或 tap 行为。
+交互场景放在 `.fluoh/scenarios/<package>/<platform>-<name>.md`，并以
+`skills/fluoh/references/interaction-scenario-template.md` 作为动作契约。场景 Markdown
+可以包含 fenced YAML，写明 `kind: fluoh.automationScenario`、`platform`、`steps`
+和可选 `coverage` 元数据。
 
-`fluoh drive --dry-run --json` 和真实运行都会输出 `automation.coveragePolicy`，
-用于让 AI 和报告在 Package 标记 ready 前发现缺失测试、缺失场景行、权限覆盖缺口、缺失负向/错误路径、
-缺失工具可读断言和 blocked 交接。稳定的覆盖字段包括 `scenarioCoverage`、`coverageSummary`、
-`inventory`、`capabilityCoverage`、`manifestPermissionCoverage`、`pathCoverage`、
-`scenarioEvidence`、`qualityGates` 和 `repairLoop`。Package 测试缺口会以
-`type: testCoverage` 修复项出现，并带具体测试路径和命令；能力、manifest permission、行为路径和断言缺口会以
-`type: scenarioCoverage`、`type: permissionCoverage`、`type: pathCoverage`
-或 `type: scenarioEvidence` 出现。详细修复顺序属于 skill reference 和 report template，不放在命令面文档里展开。
+`fluoh drive all|ohos|android|ios` 是移动端 target 启动、交互场景和证据校验封装。
+它复用 `fluoh run` 的 target 选择，默认优先使用本地 emulator/simulator，可针对当前项目、
+一个 Package 或全部 Package 运行。dry-run 和真实运行 JSON 都包含
+`deliveryRecommendation`、`repairPlan`、`repairQueue` 和
+`automation.coveragePolicy`；真实运行还会输出 workflow `targets` 以及记录启动/session
+证据和 replay 材料的 `automation` 对象。稳定覆盖字段包括 `scenarioCoverage`、
+`coverageSummary`、`inventory`、`capabilityCoverage`、`manifestPermissionCoverage`、
+`pathCoverage`、`scenarioEvidence`、`qualityGates` 和 `repairLoop`。详细修复顺序属于
+skill 和 report template。
 
-对于 runtime permission，不能只抽样测一个权限。每个支持平台上每个暴露或可请求权限都需要覆盖 grant、
-deny 和行为不同的 error 路径，或用带原因的 `notApplicable`/`blocked` 行明确说明。
-`scenarioEvidence` 要求 `assertText`、`waitText`、`assertLog` 或 `assertSession`
-等工具可读验证动作；只点击按钮或权限弹窗不能作为 release-ready 证据。
+runtime permission 需要在每个支持平台覆盖 grant、deny 和行为不同的 error 路径，或用带原因的
+`notApplicable`/`blocked` 行说明。iOS 自动化可用内置 XCTest runner；需要指定 Xcode 时设置
+`FLUOH_XCODEBUILD`，只有必须强制权限驱动时才设置 `FLUOH_IOS_PERMISSION_DRIVER`。
 
-iOS 自动化优先使用内置 XCTest runner 匹配可见 App UI，并在可行时点击系统权限弹窗。runner 会在
-`$FLUOH_HOME/cache/automation/ios-xctest` 生成临时 Xcode 工程并运行 `xcodebuild test`；
-当前 Xcode 工具链需要显式路径时可设置 `FLUOH_XCODEBUILD`。如果 XCTest 不可用，应在报告中记录
-Xcode/工具链 blocker，而不是把它当作 Package 已修复。`FLUOH_IOS_PERMISSION_DRIVER`
-可以强制为 `xctest`、`xcuitest` 或 `simctl`；只有在接受 simulator privacy 状态修改作为证据而不是弹窗 UI 点击时才使用 `simctl`。
+当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、
+`ios.run_failed`、`macos.run_failed`、`linux.run_failed`、`web.run_failed` 和
+`windows.run_failed` 等平台 diagnostic；Package example 则在可判断时继续使用更细的设备、
+run、runtime 和 integration test diagnostic。`--trace` 和 `--trace-dir <path>` 使用与
+`fluoh verify` 相同的本地 AI diagnostic trace 契约。
 
-当前项目 run 的 JSON 失败会包含 `ohos.run_failed`、`android.run_failed`、`ios.run_failed`、`macos.run_failed`、`linux.run_failed`、`web.run_failed` 和 `windows.run_failed` 等平台 diagnostic；
-Package example 则在可判断时继续使用更细的安装、启动、runtime 和 integration test diagnostic。
-`--trace` 和 `--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
-
-`fluoh drive all|ohos|android|ios` 是面向 AI 的移动端 target
-启动、交互场景和证据校验封装。它复用 `fluoh run` 的 target 选择和运行行为，
-默认优先使用本地 emulator/simulator，可针对当前项目、一个 Package 或全部 Package 运行。
-dry-run 和真实运行 JSON 都包含 `deliveryRecommendation`、`repairPlan` 和 `repairQueue`；
-真实运行还会输出普通 workflow `targets` 以及 `automation` 对象，记录 target 选择、App 启动、
-session 证据、`nextCommand` 路由和可 replay/debug 的本地材料。Android 和 iOS 自动化默认把
-`flutterRunSession` 写到 `.fluoh/run-sessions/automation`，内容包含进程 id、target、启动状态、
-可用时的 VM Service URI 和输出日志路径。OHOS 自动化记录可安装 HAP、启动 ability、target id、
-hilog 路径和现有 OHOS runner 的 runtime findings。
-
-`fluoh report create` 默认把 Markdown 报告写到忽略的
-`.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.md`，也可以用 `--output`
-指定路径。它接受一个或多个 `--trace-dir` 以及保存下来的 `--automation-json` 文件，
-提取命令行、覆盖 gate、交互证据、diagnostics 和 fluoh feedback candidates，然后写入
-package check 和交接流程需要的标准 AI 报告章节。`--json` 会输出报告路径和行数统计。
-该命令只拥有本地报告创建，不单独认证 ready 状态。
+`fluoh report create` 默认把英文主报告写到 Git 忽略的
+`.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.md`，并在旁边生成中文伴随报告
+`.fluoh/reports/<scope>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md`；也可以用
+`--output` 指定英文主报告路径，此时中文报告会以 `.zh-CN` companion 形式写在同目录。
+它接受一个或多个 `--trace-dir` 以及保存下来的 `--automation-json` 文件，提取命令行、
+覆盖 gate、交互证据、diagnostics 和 fluoh feedback candidates，然后写入 package check
+和交接流程需要的标准 AI 报告章节。`--json` 用 `report` 输出英文路径，并在
+`reports.en` 和 `reports.zh-CN` 下输出双语报告路径。该命令只拥有本地报告创建和发布建议；最终发布批准以及
+publish、push、tag、应用商店或 registry 动作仍由维护者负责。
 
 `fluoh package version` 更新 `fluoh.yaml` 中当前 Package 的发布元数据。
 用 `--bump patch|minor|major` 递增 FlutterOH 适配 Package 版本，用
@@ -748,8 +681,9 @@ tag。使用 `--package <name>` 可校验请求的 Package 名是否匹配当前
 证据；没有提供认证报告时只输出非阻断 warning。需要 AI/CI 认证交付时，传
 `--report <path>` 强制检查已完成的
 `.fluoh/reports/<scope>/ai-report-...md`。认证报告必须是 `ready`，完成所有交付 checklist，包含通过的
-`fluoh verify` 证据，包含通过的 OHOS build 或 run 证据，包含通过的 `fluoh drive --json`
-证据，包含 `Automation Coverage` 章节和完整必需自动化 gate 集合，且所有 gate 行都是 ready/covered/passed/notApplicable，
+`fluoh verify` 证据，包含通过的 OHOS build 或 run 证据，交互 readiness 证据可以来自已通过的
+`fluoh drive --json`、有 Commands 表支撑的 `flutter test integration_test -d <device>`，或
+带工具可读证据的 `manual-assisted`，包含 `Automation Coverage` 章节和完整必需自动化 gate 集合，且所有 gate 行都是 ready/covered/passed/notApplicable，
 并包含通过的交互证据或明确的 `No interaction required: <reason>`。当 CI 或 AI 交接必须证明真机或模拟器上的 OHOS run 已通过，
 而不是只有 build-only 证据时，再加 `--require-ohos-run`。
 
@@ -775,7 +709,7 @@ Package 是否依赖该 default package，以及实现 Package 是否存在并�
 | `$FLUOH_HOME/sources.lock.json` | `lib/src/source/` 中的 Source 运行时；Source 状态变更、首次默认 Source 初始化，以及 load-index 检查发现过期或需要 SDK 元数据来安装已选择的 SDK 时重建 |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`、`sdk remove`、按需执行的 Flutter wrapper |
 | `$FLUOH_HOME/cache/` | 可清理运行产物，例如 OHOS debug signing 材料和 Package run log |
-| 项目 `.fluoh/run-sessions/` | `drive` 和 `run --session-file` 的实时 Flutter run session 证据 |
+| 项目 `.fluoh/run-sessions/` | `drive` 和 `run --session-file` 的 Flutter run session 证据 |
 | 项目或 Package `.fluoh/reports/` | `report create` 和 AI 交接报告产物 |
 | 项目 `fluoh.yaml` | `create`、`sdk use`、`deps check`、`deps fix`、`deps upgrade` |
 | 项目 `pubspec.yaml` | `deps fix`、`deps upgrade` |

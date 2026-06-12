@@ -88,8 +88,7 @@ class ReportCreateCommand extends FluohCommand<int> {
       ..addOption(
         'output',
         valueHelp: 'path',
-        help:
-            'Report path. Defaults to .fluoh/reports/<scope>/ai-report-....md.',
+        help: 'English report path. A .zh-CN companion is created next to it.',
       )
       ..addMultiOption(
         'trace-dir',
@@ -123,7 +122,7 @@ class ReportCreateCommand extends FluohCommand<int> {
 
   @override
   String get description =>
-      'Create an AI adaptation report from trace and automation JSON.';
+      'Create AI adaptation reports from trace and automation JSON.';
 
   @override
   Future<int> run() async {
@@ -137,9 +136,11 @@ class ReportCreateCommand extends FluohCommand<int> {
       automationPaths: argResults!.multiOption('automation-json'),
       recommendation: argResults!.option('recommendation') ?? 'blocked',
     );
-    final output = _resolveReportOutput(scope);
-    await output.parent.create(recursive: true);
-    await output.writeAsString(report.content);
+    final outputs = _resolveReportOutputs(scope);
+    await outputs.english.parent.create(recursive: true);
+    await outputs.chinese.parent.create(recursive: true);
+    await outputs.english.writeAsString(report.englishContent);
+    await outputs.chinese.writeAsString(report.chineseContent);
     if (argResults!.flag('json')) {
       writeMachineOutput(
         stdout,
@@ -148,7 +149,11 @@ class ReportCreateCommand extends FluohCommand<int> {
         exitCode: 0,
         fields: {
           'changed': true,
-          'report': output.path,
+          'report': outputs.english.path,
+          'reports': {
+            'en': outputs.english.path,
+            'zh-CN': outputs.chinese.path,
+          },
           'scope': scope,
           'commandRows': report.commandRows,
           'automationRows': report.automationRows,
@@ -156,10 +161,15 @@ class ReportCreateCommand extends FluohCommand<int> {
         },
       );
     } else {
-      _output.success('Report created');
-      _output.info('Report: ${_output.style.path(output.path)}');
+      _output.success('Reports created');
+      _output.info(
+        'English report: ${_output.style.path(outputs.english.path)}',
+      );
+      _output.info(
+        'Chinese report: ${_output.style.path(outputs.chinese.path)}',
+      );
       _output.next(
-        'Run python3 <skill-dir>/scripts/check_report.py ${output.path}',
+        'Run python3 <skill-dir>/scripts/check_report.py ${outputs.english.path}',
       );
     }
     return 0;
@@ -192,20 +202,35 @@ class ReportCreateCommand extends FluohCommand<int> {
     return 'app';
   }
 
-  File _resolveReportOutput(String scope) {
+  _ReportOutputs _resolveReportOutputs(String scope) {
     final output = argResults!.option('output')?.trim();
     if (output != null && output.isNotEmpty) {
       final file = File(output);
-      return file.isAbsolute
+      final english = file.isAbsolute
           ? file
           : File('${environment.workingDirectory.path}/$output');
+      return _ReportOutputs(
+        english: english,
+        chinese: File(_localizedReportPath(english.path)),
+      );
     }
     final slug = _slug(scope);
     final stamp = _timestamp(DateTime.now());
-    return availableReportOutput(
+    final english = availableReportOutput(
       '${environment.workingDirectory.path}/.fluoh/reports/$slug/ai-report-$stamp.md',
     );
+    return _ReportOutputs(
+      english: english,
+      chinese: availableReportOutput(_localizedReportPath(english.path)),
+    );
   }
+}
+
+class _ReportOutputs {
+  const _ReportOutputs({required this.english, required this.chinese});
+
+  final File english;
+  final File chinese;
 }
 
 /// Returns a report file path that does not overwrite an existing file.
@@ -223,6 +248,15 @@ File availableReportOutput(String path) {
       return candidate;
     }
   }
+}
+
+String _localizedReportPath(String path) {
+  final separator = path.lastIndexOf(Platform.pathSeparator);
+  final dot = path.lastIndexOf('.');
+  if (dot <= separator) {
+    return '$path.zh-CN';
+  }
+  return '${path.substring(0, dot)}.zh-CN${path.substring(dot)}';
 }
 
 Future<_ComposedReport> _composeReport({
@@ -249,7 +283,63 @@ Future<_ComposedReport> _composeReport({
   final interactionRows = _interactionRows(automation);
   final feedbackRows = _feedbackRows(traces);
   final packageValue = packageName?.isNotEmpty == true ? packageName! : '';
-  final content = [
+  final generatedAt = DateTime.now().toIso8601String();
+  return _ComposedReport(
+    englishContent: _englishReportContent(
+      environment: environment,
+      scope: scope,
+      packageValue: packageValue,
+      generatedAt: generatedAt,
+      recommendation: recommendation,
+      traceCount: traces.length,
+      automationCount: automation.length,
+      commandRows: commandRows,
+      automationRows: automationRows,
+      automationGatesReady: automationGatesReady,
+      interactionRows: interactionRows,
+      feedbackRows: feedbackRows,
+      automation: automation,
+      traces: traces,
+    ),
+    chineseContent: _chineseReportContent(
+      environment: environment,
+      scope: scope,
+      packageValue: packageValue,
+      generatedAt: generatedAt,
+      recommendation: recommendation,
+      traceCount: traces.length,
+      automationCount: automation.length,
+      commandRows: commandRows,
+      automationRows: automationRows,
+      automationGatesReady: automationGatesReady,
+      interactionRows: interactionRows,
+      feedbackRows: feedbackRows,
+      automation: automation,
+      traces: traces,
+    ),
+    commandRows: commandRows.length,
+    automationRows: automationRows.length,
+    interactionRows: interactionRows.length,
+  );
+}
+
+String _englishReportContent({
+  required FluohEnvironment environment,
+  required String scope,
+  required String packageValue,
+  required String generatedAt,
+  required String recommendation,
+  required int traceCount,
+  required int automationCount,
+  required List<_CommandEvidence> commandRows,
+  required List<String> automationRows,
+  required bool automationGatesReady,
+  required List<String> interactionRows,
+  required List<String> feedbackRows,
+  required List<Map<String, Object?>> traces,
+  required List<Map<String, Object?>> automation,
+}) {
+  return [
     '# fluoh AI Report',
     '',
     '- Scope: $scope',
@@ -257,12 +347,20 @@ Future<_ComposedReport> _composeReport({
     '- Package: $packageValue',
     '- Upstream version:',
     '- FlutterOH SDK:',
-    '- Date: ${DateTime.now().toIso8601String()}',
+    '- Date: $generatedAt',
     '- Recommendation: $recommendation',
     '',
     '## Summary',
     '',
-    '- Report composed from ${traces.length} trace manifest(s) and ${automation.length} automation JSON file(s).',
+    '- Report composed from $traceCount trace manifest(s) and $automationCount automation JSON file(s).',
+    '- AI owns adaptation changes, command execution, evidence collection, report composition, and the release recommendation.',
+    '- The maintainer owns the final publish, push, tag, store, or release approval decision.',
+    '',
+    '## Adaptation Responsibility',
+    '',
+    '- AI automation completes implementation, verification, repair loops, platform evidence, and release readiness recommendation.',
+    '- Human approval is reserved for the final release decision after reviewing the machine-readable evidence.',
+    '- `manual-assisted` means a person operated the device or emulator, but pass/fail still requires tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers.',
     '',
     '## Changes',
     '',
@@ -290,7 +388,7 @@ Future<_ComposedReport> _composeReport({
     '- [ ] OHOS build evidence recorded.',
     '- [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.',
     '- [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.',
-    '- [${automationGatesReady ? 'x' : ' '}] Real `fluoh drive --json` evidence recorded, with no unresolved ready-blocking gates.',
+    '- [${automationGatesReady ? 'x' : ' '}] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.',
     '- [${interactionRows.isEmpty ? ' ' : 'x'}] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.',
     '- [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.',
     '- [ ] Remaining risks and release decision are explicit.',
@@ -356,26 +454,158 @@ Future<_ComposedReport> _composeReport({
     '',
     'Release recommendation: $recommendation',
     '',
-    'Reason: composed report requires final human/agent review before release certification.',
+    'Reason: AI-generated evidence and recommendation still require final maintainer release approval before publishing.',
     '',
   ].join('\n');
-  return _ComposedReport(
-    content: content,
-    commandRows: commandRows.length,
-    automationRows: automationRows.length,
-    interactionRows: interactionRows.length,
-  );
+}
+
+String _chineseReportContent({
+  required FluohEnvironment environment,
+  required String scope,
+  required String packageValue,
+  required String generatedAt,
+  required String recommendation,
+  required int traceCount,
+  required int automationCount,
+  required List<_CommandEvidence> commandRows,
+  required List<String> automationRows,
+  required bool automationGatesReady,
+  required List<String> interactionRows,
+  required List<String> feedbackRows,
+  required List<Map<String, Object?>> traces,
+  required List<Map<String, Object?>> automation,
+}) {
+  return [
+    '# fluoh AI 适配报告',
+    '',
+    '- Scope: $scope',
+    '- Repository: ${environment.workingDirectory.path}',
+    '- Package: $packageValue',
+    '- Upstream version:',
+    '- FlutterOH SDK:',
+    '- Date: $generatedAt',
+    '- Recommendation: $recommendation',
+    '',
+    '## Summary / 摘要',
+    '',
+    '- 本报告由 $traceCount 个 trace manifest 和 $automationCount 个 automation JSON 文件生成。',
+    '- AI 负责自动适配、命令执行、证据采集、报告生成和发布建议。',
+    '- 维护者只负责最终 publish、push、tag、应用商店提交或 release 批准。',
+    '',
+    '## Adaptation Responsibility / 适配责任边界',
+    '',
+    '- AI 自动化负责实现修改、验证、修复循环、平台证据和 release readiness recommendation。',
+    '- 人工批准只发生在最终发布前，依据机器可读证据做决定。',
+    '- `manual-assisted` 表示人工操作了设备或模拟器，但通过/失败仍必须由日志、超出启动状态的有效 session 状态、稳定文本、语义、test key、命令 JSON、hilog 或 App 日志标记等工具可读证据确认。',
+    '',
+    '## Changes / 变更',
+    '',
+    '- 请复核 git diff 中的实现和项目文件变更。',
+    '',
+    '## Public API / Compatibility / 公共 API / 兼容性',
+    '',
+    '- Public Dart API changes:',
+    '- Dependency constraint changes:',
+    '- Non-OHOS regression risk:',
+    '',
+    '## Commands / 命令',
+    '',
+    '| Command | Exit | Result | Notes |',
+    '| --- | --- | --- | --- |',
+    if (commandRows.isEmpty)
+      '| `fluoh verify --json` | n/a | blocked | 未提供 trace 或 automation 命令证据。 |'
+    else
+      ...commandRows.map((row) => row.toMarkdownRow()),
+    '',
+    '## Delivery Checklist / 交付检查清单',
+    '',
+    '- [ ] 已复核 diff；已排除无关文件、本地路径、生成缓存、凭据和私有 token。',
+    '- [${commandRows.isEmpty ? ' ' : 'x'}] 命令表包含 exit code，并且证据足以复现判断。',
+    '- [ ] OHOS build 证据已记录。',
+    '- [ ] OHOS run 证据已记录，或明确记录了缺少设备/模拟器的 blocker。',
+    '- [ ] 相关时已记录 Android、iOS、macOS、Linux、Web 和 Windows 回归检查。',
+    '- [${automationGatesReady ? 'x' : ' '}] 交互自动化证据来自已通过的 `flutter test integration_test -d <device>` 命令或真实 `fluoh drive --json`，并且没有未解决的 ready-blocking gate。',
+    '- [${interactionRows.isEmpty ? ' ' : 'x'}] 权限、文件、相机、定位、媒体、deep link、外部 App 或其他设备流程的功能交互证据已记录。',
+    '- [ ] 已复核公共 API、依赖约束和非 OHOS 回归风险。',
+    '- [ ] 剩余风险和发布决定已明确。',
+    '',
+    '## Platform Matrix / 平台矩阵',
+    '',
+    '| Platform | Build | Run | Integration test | Target | Evidence / blocker |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ..._platformRows(commandRows),
+    '',
+    '## Automation Coverage / 自动化覆盖',
+    '',
+    ..._automationSummaryLines(automation),
+    '',
+    '| Gate | Status | Evidence / blocker |',
+    '| --- | --- | --- |',
+    if (automationRows.isEmpty)
+      '| coverage-inventory | blocked | 未提供 automation JSON。 |'
+    else
+      ...automationRows,
+    '',
+    '## Interaction Evidence / 交互证据',
+    '',
+    if (interactionRows.isEmpty)
+      'No interaction required: report create 未收到已通过的场景证据。'
+    else ...[
+      '| Scenario | Method | Platform | Target | Result | Evidence / blocker |',
+      '| --- | --- | --- | --- | --- | --- |',
+      ...interactionRows,
+    ],
+    '',
+    '## Diagnostics / 诊断',
+    '',
+    ..._diagnosticLines(traces, automation),
+    '',
+    '## Fluoh Feedback / fluoh 反馈',
+    '',
+    if (feedbackRows.isEmpty)
+      'No fluoh feedback: 未提供 trace feedback candidates。'
+    else ...[
+      '| ID | Owner | Category | Evidence | Proposed fluoh change | Status |',
+      '| --- | --- | --- | --- | --- | --- |',
+      ...feedbackRows,
+    ],
+    '',
+    '## Signing / 签名',
+    '',
+    '- Mode:',
+    '- Generated HAPs:',
+    '- Hilog:',
+    '',
+    '## Remaining Risks / 剩余风险',
+    '',
+    '- 声明 ready 前必须完成所有未勾选交付项。',
+    '',
+    '## Local State / 本地状态',
+    '',
+    '- Git status summary:',
+    '- Files intentionally left uncommitted:',
+    '- Files that must not be committed:',
+    '',
+    '## Release Decision / 发布决定',
+    '',
+    'Release recommendation: $recommendation',
+    '',
+    'Reason: AI 已生成证据和发布建议；正式发布前仍需要维护者最终批准。',
+    '',
+  ].join('\n');
 }
 
 class _ComposedReport {
   const _ComposedReport({
-    required this.content,
+    required this.englishContent,
+    required this.chineseContent,
     required this.commandRows,
     required this.automationRows,
     required this.interactionRows,
   });
 
-  final String content;
+  final String englishContent;
+  final String chineseContent;
   final int commandRows;
   final int automationRows;
   final int interactionRows;

@@ -1,0 +1,313 @@
+part of 'release_artifacts_test.dart';
+
+void _registerReleaseArtifactsDocsTests() {
+  test('documents public README entry points in both languages', () {
+    final readme = File('README.md').readAsStringSync();
+    final chineseReadme = File('README.zh-CN.md').readAsStringSync();
+    final readmeHero = File(
+      'doc/assets/svg/readme-hero.svg',
+    ).readAsStringSync();
+    final chineseReadmeHero = File(
+      'doc/assets/svg/readme-hero.zh-CN.svg',
+    ).readAsStringSync();
+    final contributing = File('CONTRIBUTING.md').readAsStringSync();
+    final chineseContributing = File(
+      'CONTRIBUTING.zh-CN.md',
+    ).readAsStringSync();
+
+    expectContainsAll(readme, [
+      'href="README.zh-CN.md">简体中文',
+      'href="skills/fluoh/SKILL.md">Skill',
+      'href="doc/commands.md">Commands',
+      'href="doc/schema.md">Schema',
+      'href="CONTRIBUTING.md">Contributing',
+      'AI%20skill-skills%2Ffluoh',
+      'Adapt Flutter apps and packages to OHOS with AI.',
+      'fluoh AI adaptation prompt preview',
+      '## Quick Start',
+      '### AI First',
+      '### Install fluoh',
+      '### Existing Flutter App',
+      '### New Flutter App',
+      '### Package Maintainers',
+      'Install the fluoh skill from https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh, overwriting any existing installation.',
+      'Use \$fluoh to install fluoh if needed and adapt this Flutter project for OHOS.',
+      'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
+      'Use \$fluoh to continue adapting <package-name> for OHOS.',
+      'Use \$fluoh to precheck this FlutterOH Source change.',
+      'fluoh verify --package <name>',
+      'fluoh package status --package <name>',
+      'fluoh package queue <package-path>...',
+      'fluoh package add <package-path>',
+      'dart pub global activate fluoh',
+      'cd path/to/existing_app',
+      'fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos',
+      'cd demo_app',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'brew install FlutterOH/fluoh/fluoh',
+      'fluoh sdk use 3.35 --pub-get',
+      'fluoh deps check',
+      'fluoh deps fix --dry-run',
+      'fluoh deps fix',
+      'fluoh deps get',
+      'fluoh doctor --platform ohos --project',
+      'fluoh build ohos --auto-sign',
+      'Start by discovering the upstream package',
+      'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
+      'fluoh package discover',
+      'fluoh package queue',
+      'fluoh package add',
+      'fluoh verify',
+      'fluoh run ohos --package <name> --auto-emulator',
+      'fluoh package status',
+      'fluohf pub get',
+      'fluohf run',
+      'fluohf build hap',
+      'https://github.com/FlutterOH/source.git',
+      '[Command reference](doc/commands.md)',
+      '[Source schema](doc/schema.md)',
+      '[Contributing and release workflow](CONTRIBUTING.md)',
+    ]);
+    expectContainsNone(readme, [
+      'fluoh source package',
+      'fluoh source use',
+      '--repository git@github.com:FlutterOH/package.git',
+      'dart pub publish --dry-run',
+      'git tag v0.1.0',
+      'doc/ai-adaptation',
+      '## Why fluoh',
+      '## AI Workflows',
+      '## Common Workflows',
+      '### Daily Loop',
+      '## Maintenance Workflows',
+      '--no-init-ohos',
+      '--json',
+      'fluoh drive all',
+      'bundled skill path',
+      'update instructions',
+      'fluoh upgrade',
+    ]);
+    expect(readme, isNot(contains('brew tap FlutterOH/tap')));
+    expect(
+      readme.indexOf('### AI First'),
+      lessThan(readme.indexOf('### Install fluoh')),
+    );
+
+    expectContainsAll(chineseReadme, [
+      'href="README.md">English',
+      'href="skills/fluoh/SKILL.md">Skill',
+      'href="doc/commands.zh-CN.md">命令',
+      'href="doc/schema.zh-CN.md">Schema',
+      'href="CONTRIBUTING.zh-CN.md">贡献指南',
+      'AI%20skill-skills%2Ffluoh',
+      '用 AI 将 Flutter App 和 Package 适配到 OHOS',
+      'fluoh AI 适配提示预览',
+      '## 快速开始',
+      '### AI 优先',
+      '### 安装 fluoh',
+      '### 已有 Flutter App',
+      '### 新建 Flutter App',
+      '### Package 维护者',
+      '从 https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh 安装 fluoh skill，如果已存在则覆盖安装。',
+      '使用 \$fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。',
+      '使用 \$fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。',
+      '使用 \$fluoh，继续适配 <package-name> 到 OHOS。',
+      '使用 \$fluoh，预检查这个 FlutterOH Source 变更。',
+      'fluoh verify --package <name>',
+      'fluoh package status --package <name>',
+      'fluoh package queue <package-path>...',
+      'fluoh package add <package-path>',
+      'dart pub global activate fluoh',
+      'cd path/to/existing_app',
+      'fluoh create --sdk 3.35 demo_app --platforms=android,ios,ohos',
+      'cd demo_app',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'brew install FlutterOH/fluoh/fluoh',
+      'fluoh sdk use 3.35 --pub-get',
+      'fluoh deps check',
+      'fluoh deps fix --dry-run',
+      'fluoh deps fix',
+      'fluoh deps get',
+      'fluoh doctor --platform ohos --project',
+      'fluoh build ohos --auto-sign',
+      '先发现 upstream 包',
+      'fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>',
+      'fluoh package discover',
+      'fluoh package queue',
+      'fluoh package add',
+      'fluoh verify',
+      'fluoh run ohos --package <name> --auto-emulator',
+      'fluoh package status',
+      'fluohf pub get',
+      'fluohf run',
+      'fluohf build hap',
+      'https://github.com/FlutterOH/source.git',
+      '[命令参考](doc/commands.zh-CN.md)',
+      '[Source schema](doc/schema.zh-CN.md)',
+      '[贡献和发布流程](CONTRIBUTING.zh-CN.md)',
+    ]);
+    expectContainsNone(chineseReadme, [
+      'fluoh source package',
+      'fluoh source use',
+      '--repository git@github.com:FlutterOH/package.git',
+      'dart pub publish --dry-run',
+      'git tag v0.1.0',
+      'doc/ai-adaptation',
+      '## 为什么用 fluoh',
+      '## AI 工作流',
+      '## 常见工作流',
+      '### 日常循环',
+      '## 维护工作流',
+      '--no-init-ohos',
+      '--json',
+      'fluoh drive all',
+      '内置 skill 路径',
+      '更新说明',
+      'fluoh upgrade',
+    ]);
+    expect(chineseReadme, isNot(contains('brew tap FlutterOH/tap')));
+    expect(
+      chineseReadme.indexOf('### AI 优先'),
+      lessThan(chineseReadme.indexOf('### 安装 fluoh')),
+    );
+
+    expectContainsAll(readmeHero, [
+      'fluoh AI adaptation prompt',
+      'Tell AI the goal. fluoh runs the workflow.',
+      'Apps and packages follow one verified command path.',
+      'Use \$fluoh to add OHOS to this Flutter project.',
+      'install',
+      'detect project',
+      'pin SDK',
+      'fix deps',
+      'build/run',
+      'save report',
+    ]);
+    expectContainsAll(chineseReadmeHero, [
+      'fluoh AI 适配对话',
+      '告诉 AI 目标，fluoh 负责执行。',
+      'App 和 Package 都走同一套可验证命令链路。',
+      '用 \$fluoh 让当前 Flutter 项目支持 OHOS。',
+      '安装工具',
+      '识别项目',
+      '固定 SDK',
+      '替换依赖',
+      '构建运行',
+      '保存报告',
+    ]);
+
+    expectContainsAll(contributing, [
+      'dart pub publish --dry-run',
+      'dart pub global activate --source path . --overwrite',
+      'dart pub global activate fluoh --overwrite',
+      'dart pub global deactivate fluoh',
+      'export PATH="\$HOME/.pub-cache/bin:\$PATH"',
+      'Conventional Commits',
+      'git tag v0.1.0',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'fluoh package create',
+      '--repository https://github.com/FlutterOH/package.git',
+      'fluoh package sync',
+      'fluoh verify',
+      'fluoh package version',
+      'fluoh package release',
+      'fluoh source sync',
+      'FLUOH_CHANGELOG.md',
+    ]);
+    expectContainsNone(contributing, [
+      'feat(implementation)',
+      'fluoh package adapt',
+      'fluoh source package',
+      'gh auth login',
+    ]);
+
+    expectContainsAll(chineseContributing, [
+      'dart pub publish --dry-run',
+      'dart pub global activate --source path . --overwrite',
+      'dart pub global activate fluoh --overwrite',
+      'dart pub global deactivate fluoh',
+      'export PATH="\$HOME/.pub-cache/bin:\$PATH"',
+      'Conventional Commits',
+      'git tag v0.1.0',
+      'brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git',
+      'fluoh package create',
+      '--repository https://github.com/FlutterOH/package.git',
+      'fluoh package sync',
+      'fluoh verify',
+      'fluoh package version',
+      'fluoh package release',
+      'fluoh source sync',
+      'FLUOH_CHANGELOG.md',
+    ]);
+    expectContainsNone(chineseContributing, [
+      'feat(implementation)',
+      'fluoh package adapt',
+      'fluoh source package',
+      'gh auth login',
+    ]);
+  });
+
+  test('documents schema ownership and source file layout', () {
+    final schema = File('doc/schema.md').readAsStringSync();
+    final chineseSchema = File('doc/schema.zh-CN.md').readAsStringSync();
+
+    expectContainsAll(schema, [
+      '# Schema Design',
+      '[简体中文](schema.zh-CN.md)',
+      'lib/src/schema/',
+      '| Project |',
+      '| Package |',
+      '| Source |',
+      '| Manifest |',
+      'manifests/<name>/fluoh.yaml',
+      'kind: source',
+      'kind: manifest',
+      'ohos/3.35',
+      'repository.git.branch',
+      'package.release.version',
+      'upstreamVersion',
+      'package.sdks.<sdkLine>.releases',
+      '`config.json`',
+      '`sources.lock.json`',
+      '"fingerprint"',
+      '"packageRoutes"',
+      'FlutterOH/source',
+    ]);
+    expectContainsNone(schema, [
+      'repository.git.ref',
+      'manifests[].packages',
+      'repositories/<repository>/fluoh.yaml',
+      'CompatibilityMatrix',
+      'fluoh_schema',
+    ]);
+
+    expectContainsAll(chineseSchema, [
+      '# Schema 设计',
+      '[English](schema.md)',
+      '| Project |',
+      '| Package |',
+      '| Source |',
+      '| Manifest |',
+      'manifests/<name>/fluoh.yaml',
+      'kind: source',
+      'kind: manifest',
+      'ohos/3.35',
+      'repository.git.branch',
+      'package.release.version',
+      'upstreamVersion',
+      'package.sdks.<sdkLine>.releases',
+      '`config.json`',
+      '`sources.lock.json`',
+      '"fingerprint"',
+      '"packageRoutes"',
+      'FlutterOH/source',
+    ]);
+    expectContainsNone(chineseSchema, [
+      'repository.git.ref',
+      'manifests[].packages',
+      'repositories/<repository>/fluoh.yaml',
+      'CompatibilityMatrix',
+      'fluoh_schema',
+    ]);
+  });
+}

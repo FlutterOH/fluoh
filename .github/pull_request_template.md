@@ -14,7 +14,7 @@
 - [ ] SDK, Source, or Flutter wrapper workflow
 - [ ] Project creation or dependency workflow
 - [ ] Package repository workflow
-- [ ] App workflow: plan, verify, build, run, drive, or report
+- [ ] App workflow: plan, verify, build, run, attach, drive, or report
 - [ ] Devices, emulators, or platform tooling
 - [ ] Doctor, clean, upgrade, or skill command
 - [ ] Pubspec, Source, package, or release metadata

@@ -23,10 +23,12 @@ contract.
 - `scripts/preflight.py`: read-only workspace classifier. It reports
   `upgradeChecks`, `suggestedCommands`, `finalCheckCommands`,
   `deliveryChecks`, `reportCommand`, `summaryCommand`,
-  `scenarioCommand`, and `sessionInspectCommand`.
-- `scripts/new_report.py`: creates
+  `scenarioCommand`, `sessionInspectCommand`, and `sessionAttachCommand`.
+- `scripts/new_report.py`: creates the English canonical report
   `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md` from
-  `references/report-template.md`.
+  `references/report-template.md` and a Chinese companion
+  `.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md` from
+  `references/report-template.zh-CN.md`.
 - `scripts/new_summary.py`: creates a monorepo summary report for
   multi-package work.
 - `scripts/check_report.py`: fails when the report is missing required
@@ -34,10 +36,12 @@ contract.
 - `scripts/collect_feedback.py`: summarizes trace feedback candidates for the
   report.
 - `scripts/new_scenario.py`: creates a local interaction scenario from
-  `references/interaction-scenario-template.md`.
-- `scripts/inspect_session.py`: reads a live `flutterRunSession` JSON file
-  from `fluoh run --session-file` and reports launch state, VM Service URI,
-  output logs, attach hints, and the recommended next step.
+  `references/interaction-scenario-template.md`, including the
+  `Session attach command` field.
+- `scripts/inspect_session.py`: reads a `flutterRunSession` JSON file from
+  `fluoh run --session-file` and reports launch state, VM Service URI when
+  available, output or hilog logs, `fluoh attach` hints, and the recommended
+  next step.
 
 ## Request Routing
 
@@ -151,8 +155,8 @@ When using `scripts/preflight.py`, route by the returned JSON:
   handle schema migration and generated-doc refresh blockers before
   implementation edits. Generated `README.md`, `FLUOH.md`, and `AGENTS.md`
   sections are tool-owned; do not edit inside `fluoh:generated` blocks by hand.
-- `reportCommand`, `summaryCommand`, `scenarioCommand`, and
-  `sessionInspectCommand`: prefer these exact helper commands over
+- `reportCommand`, `summaryCommand`, `scenarioCommand`,
+  `sessionInspectCommand`, and `sessionAttachCommand`: prefer these exact helper commands over
   reconstructing paths manually.
 
 ## JSON Diagnostics
@@ -195,16 +199,23 @@ Use this loop for app and package work:
 7. Write and check the report before the final response.
 
 Launch success is smoke evidence. Release-ready interaction evidence must come
-from `integration_test`, `fluoh drive --scenario <path> --json`, or
-manual-assisted tool-readable verification with a concrete blocker or result.
+from a passed `flutter test integration_test -d <device>` command row, real
+`fluoh drive --scenario <path> --json`, or manual-assisted tool-readable
+verification with a concrete blocker or result. `manual-assisted` is an
+operation mode, not a human-only pass; a passed row must still cite logs,
+session state, stable text, semantics, test keys, command JSON, hilog, or app
+log markers. When `integration_test/` exists, platform run commands, including
+OHOS, must execute it and the report must record the resulting test command
+and result in the Commands table.
 Do not rely on screenshot recognition as the primary assertion.
 
 ## Completion Report
 
-Before the final response, create a local report under:
+Before the final response, create English and Chinese local reports under:
 
 ```text
 .fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.md
+.fluoh/reports/<report-group>/ai-report-YYYYMMDD-HHMMSS.zh-CN.md
 ```
 
 For package work, `<report-group>` is normally the package name slug. For
@@ -227,8 +238,12 @@ automation coverage gates, interaction evidence, diagnostics, Fluoh Feedback,
 remaining risks, and release recommendation. Mark every applicable Delivery
 Checklist item as done, or leave it unchecked and explain the blocker. A ready
 recommendation requires all applicable checklist items to be done and
-`check_report.py` to pass.
+`check_report.py` to pass against the English canonical report.
+
+The AI adaptation loop ends at a release recommendation and evidence report.
+The maintainer still makes the final release approval and owns publish, push,
+tag, app-store, or package-registry actions.
 
 The final response should state whether the work is ready, blocked, or needs a
-maintainer decision; point to the report path; and list only the remaining
+maintainer decision; point to both report paths; and list only the remaining
 blocking risks.

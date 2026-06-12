@@ -160,6 +160,15 @@ class FluohCommandRunner extends CommandRunner<int> {
         output: _output,
       ),
     );
+    addCommand(
+      AttachCommand(
+        environment: env,
+        stdout: _stdout,
+        stderr: _stderr,
+        output: _output,
+        inheritStdio: stdout == null && stderr == null,
+      ),
+    );
     addCommand(PlanCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
       PackageCommand(
@@ -469,7 +478,7 @@ bool _createCommandRequestsJson(List<String> arguments) {
 }
 
 const _topLevelCommandSections = [
-  CommandUsageSection('Core', [
+  CommandUsageSection('Fluoh', [
     'skill',
     'doctor',
     'flutter',
@@ -484,6 +493,7 @@ const _topLevelCommandSections = [
     'verify',
     'build',
     'run',
+    'attach',
     'drive',
     'report',
   ]),
@@ -513,6 +523,7 @@ bool _usesSourceConfiguration(ArgResults results) {
         'verify',
         'build',
         'run',
+        'attach',
         'drive',
         'report',
         'package',

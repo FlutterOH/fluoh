@@ -154,6 +154,36 @@ def is_automation_evidence(row: dict[str, str]) -> bool:
     )
 
 
+def is_integration_test_command_evidence(row: dict[str, str]) -> bool:
+    command = row["command"]
+    return (
+        command_contains(command, "flutter test")
+        and re.search(r"(^|\s)integration_test(?:\s|$|/)", command) is not None
+    )
+
+
+def mentions_integration_test_command(value: str) -> bool:
+    normalized = value.lower()
+    return (
+        re.search(r"flutter\s+test\s+.*integration_test(?:\s|$|/)", normalized)
+        is not None
+    )
+
+
+def is_integration_test_evidence(
+    row: dict[str, str], passed_command_rows: list[dict[str, str]]
+) -> bool:
+    return (
+        row["method"].lower() == "integration_test"
+        and interaction_row_passed(row)
+        and mentions_integration_test_command(row.get("evidence", ""))
+        and any(
+            is_integration_test_command_evidence(command)
+            for command in passed_command_rows
+        )
+    )
+
+
 def contains_shell_token(command: str, token: str) -> bool:
     return re.search(rf"(^|\s){re.escape(token)}(\s|$)", command) is not None
 
@@ -188,6 +218,7 @@ def interaction_rows(content: str) -> list[dict[str, str]]:
                     "platform": columns[2],
                     "target": columns[3],
                     "result": columns[4],
+                    "evidence": columns[5],
                     "row": line,
                 }
             )
@@ -272,6 +303,83 @@ def automation_coverage_row_ready(row: dict[str, str]) -> bool:
 
 def interaction_row_passed(row: dict[str, str]) -> bool:
     return row["result"].lower() == "passed"
+
+
+def manual_assisted_tool_readable(row: dict[str, str]) -> bool:
+    evidence = row.get("evidence", "").lower()
+    markers = (
+        "flutterrunsession",
+        "vm service",
+        "session file",
+        "session state",
+        "session json",
+        "output log",
+        "outputlog",
+        "stdout",
+        "stderr",
+        "hilog",
+        "log marker",
+        "app log",
+        "assertlog",
+        "assertsession",
+        "asserttext",
+        "waittext",
+        "visible text",
+        "visible status",
+        "stable text",
+        "semantic label",
+        "semantics",
+        "test key",
+        "testkey",
+        "component state",
+        "command json",
+        "trace.json",
+        "trace manifest",
+        "trace file",
+        "diagnostics[]",
+        "diagnostic code",
+    )
+    if not any(marker in evidence for marker in markers):
+        return False
+    if is_launch_only_evidence(evidence) and not has_functional_tool_evidence(evidence):
+        return False
+    return True
+
+
+def is_launch_only_evidence(evidence: str) -> bool:
+    markers = (
+        "launched=true",
+        "launchdetected true",
+        "launchdetected=true",
+        "launched the example",
+        "launch evidence only",
+        "app launched",
+        "flutter run launched",
+    )
+    return any(marker in evidence for marker in markers)
+
+
+def has_functional_tool_evidence(evidence: str) -> bool:
+    markers = (
+        "hilog",
+        "log marker",
+        "app log",
+        "assertlog",
+        "assertsession",
+        "asserttext",
+        "waittext",
+        "visible text",
+        "visible status",
+        "stable text",
+        "semantic label",
+        "semantics",
+        "test key",
+        "testkey",
+        "component state",
+        "diagnostics[]",
+        "diagnostic code",
+    )
+    return any(marker in evidence for marker in markers)
 
 
 def split_markdown_row(line: str) -> list[str]:
@@ -407,8 +515,6 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
             "Ready reports must include passed fluoh run ohos evidence."
         )
     passed_automation = any(is_automation_evidence(row) for row in passed_command_rows)
-    if recommendation == "ready" and not passed_automation:
-        errors.append("Ready reports must include passed fluoh drive --json evidence.")
 
     coverage_rows = automation_coverage_rows(content)
     coverage_status = automation_coverage_status(content)
@@ -468,6 +574,43 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     passed_interactions = [
         row for row in concrete_interactions if interaction_row_passed(row)
     ]
+    manual_assisted_without_tool_evidence = [
+        row
+        for row in passed_interactions
+        if row["method"].lower() == "manual-assisted"
+        and not manual_assisted_tool_readable(row)
+    ]
+    if manual_assisted_without_tool_evidence:
+        errors.append(
+            "Passed manual-assisted interaction evidence must include tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers."
+        )
+    # A prose note under fluoh run is launch evidence; release gating needs the
+    # concrete flutter test command row that produced the integration result.
+    integration_test_without_command_evidence = [
+        row
+        for row in passed_interactions
+        if row["method"].lower() == "integration_test"
+        and not is_integration_test_evidence(row, passed_command_rows)
+    ]
+    if integration_test_without_command_evidence:
+        errors.append(
+            "Passed integration_test interaction evidence must cite and be backed by a passed flutter test integration_test command row."
+        )
+    passed_integration_test = any(
+        is_integration_test_evidence(row, passed_command_rows)
+        for row in passed_interactions
+    )
+    passed_manual_assisted = any(
+        row["method"].lower() == "manual-assisted"
+        and manual_assisted_tool_readable(row)
+        for row in passed_interactions
+    )
+    if recommendation == "ready" and not (
+        passed_automation or passed_integration_test or passed_manual_assisted
+    ):
+        errors.append(
+            "Ready reports must include passed fluoh drive --json, integration_test, or manual-assisted tool-readable interaction evidence."
+        )
     interaction_section = section_content(content, "## Interaction Evidence")
     no_interaction_required = re.search(
         r"^\s*No interaction required\s*:\s*\S.+$",
@@ -509,6 +652,8 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         "passedOhosBuild": passed_ohos_build,
         "passedOhosRun": passed_ohos_run,
         "passedAutomation": passed_automation,
+        "passedIntegrationTest": passed_integration_test,
+        "passedManualAssisted": passed_manual_assisted,
         "coveragePolicyStatus": coverage_status["coveragePolicyStatus"],
         "readyForAutomation": coverage_status["readyForAutomation"],
         "qualityGateSummary": coverage_status["qualityGateSummary"],

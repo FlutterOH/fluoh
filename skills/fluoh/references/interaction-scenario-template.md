@@ -16,6 +16,7 @@ is specifically visual.
 - Related command:
 - Session file command, when supported:
 - Session inspect command, when supported:
+- Session attach command, when supported:
 
 ## Preconditions
 

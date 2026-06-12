@@ -132,14 +132,23 @@ def build_report(
 
 
 def unique_report_path(output_root: Path, name: str) -> Path:
-    candidate = output_root / f"{name}.md"
+    return unique_path(output_root / f"{name}.md")
+
+
+def unique_path(candidate: Path) -> Path:
     if not candidate.exists():
         return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
     for index in range(2, 1000):
-        candidate = output_root / f"{name}-{index}.md"
-        if not candidate.exists():
-            return candidate
-    raise RuntimeError(f"Could not create a unique report path for {name}")
+        next_candidate = candidate.with_name(f"{stem}-{index}{suffix}")
+        if not next_candidate.exists():
+            return next_candidate
+    raise RuntimeError(f"Could not create a unique report path for {candidate.name}")
+
+
+def localized_report_path(report_path: Path, locale: str) -> Path:
+    return report_path.with_name(f"{report_path.stem}.{locale}{report_path.suffix}")
 
 
 def default_output_root(root: Path, scope: str, package: str) -> Path:
@@ -176,6 +185,11 @@ def main() -> int:
         default="",
         help="Template path. Defaults to references/report-template.md.",
     )
+    parser.add_argument(
+        "--zh-template",
+        default="",
+        help="Chinese template path. Defaults to references/report-template.zh-CN.md.",
+    )
     args = parser.parse_args()
 
     root = Path(args.path).expanduser().resolve()
@@ -190,6 +204,13 @@ def main() -> int:
     )
     if not template_path.is_file():
         parser.error(f"Report template does not exist: {template_path}")
+    zh_template_path = (
+        Path(args.zh_template).expanduser().resolve()
+        if args.zh_template
+        else skill_root / "references" / "report-template.zh-CN.md"
+    )
+    if not zh_template_path.is_file():
+        parser.error(f"Chinese report template does not exist: {zh_template_path}")
 
     output_root = (
         Path(args.output_root).expanduser().resolve()
@@ -206,6 +227,7 @@ def main() -> int:
 
     output_root.mkdir(parents=True, exist_ok=True)
     report_path = unique_report_path(output_root, report_name)
+    zh_report_path = unique_path(localized_report_path(report_path, "zh-CN"))
     content = build_report(
         read_text(template_path),
         root,
@@ -215,7 +237,17 @@ def main() -> int:
         args.sdk,
         args.recommendation,
     )
+    zh_content = build_report(
+        read_text(zh_template_path),
+        root,
+        scope,
+        args.package,
+        args.upstream_version,
+        args.sdk,
+        args.recommendation,
+    )
     report_path.write_text(content, encoding="utf-8")
+    zh_report_path.write_text(zh_content, encoding="utf-8")
     print(report_path)
     return 0
 

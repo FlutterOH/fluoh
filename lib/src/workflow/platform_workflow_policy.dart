@@ -15,6 +15,12 @@ abstract class PlatformWorkflowPolicy {
   /// Flutter build target for this platform.
   String get buildTarget;
 
+  /// Flutter build target to run before launching a package example.
+  ///
+  /// Platforms that rely on `flutter run` as the launch primitive can return
+  /// `null` and perform any required preparation through run preparation.
+  String? get runPrebuildTarget => buildTarget;
+
   /// Whether `fluoh run` targets the local host/browser instead of a device.
   bool get isDesktopRunPlatform => false;
 
@@ -24,14 +30,24 @@ abstract class PlatformWorkflowPolicy {
   /// Whether this platform accepts `--auto-sign`.
   bool get supportsAutoSign => false;
 
-  /// Whether project runs use the OHOS-specific HAP install/launch workflow.
-  bool get usesOhosProjectRunner => false;
-
-  /// Whether builds need OHOS resource layout stabilization.
-  bool get stabilizesOhosResourceLayout => false;
+  /// Whether builds need resource layout stabilization before/after execution.
+  bool get stabilizesResourceLayoutBeforeBuild => false;
 
   /// Whether Flutter builds should pass `--no-codesign`.
   bool get buildWithoutCodesign => false;
+
+  /// Flutter build arguments for a package example on this platform.
+  List<String> buildExampleArguments({
+    required bool debug,
+    required bool forSimulator,
+  }) {
+    return [
+      'build',
+      buildTarget,
+      if (debug) '--debug',
+      if (buildWithoutCodesign) '--no-codesign',
+    ];
+  }
 
   /// Whether package example builds should target an iOS simulator artifact.
   bool buildExampleForSimulator({
@@ -40,6 +56,12 @@ abstract class PlatformWorkflowPolicy {
   }) {
     return false;
   }
+
+  /// Whether automation scenarios can foreground the app before UI actions.
+  bool get supportsScenarioAutoForeground => false;
+
+  /// Whether a stale precompiled header failure should trigger build clean/retry.
+  bool get retriesStalePrecompiledHeaderBuildCache => false;
 
   /// Diagnostic code for a Flutter integration-test failure.
   String get integrationTestDiagnosticCode =>
@@ -199,16 +221,16 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
   String get buildTarget => 'hap';
 
   @override
-  bool get supportsSessionFile => false;
+  String? get runPrebuildTarget => null;
 
   @override
   bool get supportsAutoSign => true;
 
   @override
-  bool get usesOhosProjectRunner => true;
+  bool get supportsScenarioAutoForeground => true;
 
   @override
-  bool get stabilizesOhosResourceLayout => true;
+  bool get stabilizesResourceLayoutBeforeBuild => true;
 
   @override
   String regressionCommand({String? packageName, required String traceDir}) {
@@ -230,17 +252,13 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
   }
 
   @override
-  String get integrationTestDiagnosticCode => 'integration_test.failed';
-
-  @override
   List<String> get automationEvidenceItems => const ['OHOS hilog runtime scan'];
 
   @override
   Map<String, Object?> get automationMetadata => const {
     'ohos': {
-      'sessionFile': null,
       'debugEvidence':
-          'installable HAP, launch ability metadata, target id, hilog file, and runtime findings',
+          'flutterRunSession with target id, VM Service URI when available, output log, and optional hdc/hilog scenario evidence',
     },
   };
 
@@ -257,7 +275,10 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
       'direct_sign_failed',
       'no_installable_hap',
       'install_failed',
+      'integration_test_failed',
       'launch_failed',
+      'launch_missing',
+      'run_failed',
       'runtime_crash',
       'device_missing',
     }.contains(suffix)) {
@@ -266,6 +287,7 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
     if (const {
       'toolchain_missing',
       'auto_sign_failed',
+      'devices_failed',
       'hdc_connection_failed',
       'hdc_targets_failed',
       'hdc_target_unavailable',
@@ -292,6 +314,8 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
     }
     if (const {
       'hap_build_failed',
+      'integration_test_failed',
+      'launch_missing',
       'launch_timeout',
       'run_failed',
       'runtime_crash',
@@ -336,6 +360,9 @@ class _AndroidWorkflowPolicy extends PlatformWorkflowPolicy {
 
   @override
   String get buildTarget => 'apk';
+
+  @override
+  bool get supportsScenarioAutoForeground => true;
 
   @override
   String regressionCommand({String? packageName, required String traceDir}) {
@@ -395,12 +422,29 @@ class _IosWorkflowPolicy extends PlatformWorkflowPolicy {
   bool get buildWithoutCodesign => true;
 
   @override
+  List<String> buildExampleArguments({
+    required bool debug,
+    required bool forSimulator,
+  }) {
+    return [
+      'build',
+      buildTarget,
+      if (forSimulator) '--simulator',
+      if (debug) '--debug',
+      if (!forSimulator) '--no-codesign',
+    ];
+  }
+
+  @override
   bool buildExampleForSimulator({
     required String? deviceId,
     required bool startEmulator,
   }) {
     return deviceId == null && startEmulator;
   }
+
+  @override
+  bool get retriesStalePrecompiledHeaderBuildCache => true;
 
   @override
   List<String> get automationEvidenceItems => const [
@@ -580,6 +624,7 @@ List<String> integrationDiscoveryRunCommands({String? packageName}) {
 const _runRepairDiagnostics = {
   'build_failed',
   'apk_build_failed',
+  'launch_missing',
   'launch_timeout',
   'run_failed',
   'runtime_crash',

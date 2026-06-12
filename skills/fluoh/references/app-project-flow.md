@@ -33,6 +33,8 @@ fluoh run ohos --device-id <id> --json
   package implementations inside the app project unless asked.
 - Prefer `fluoh run ohos --auto-emulator --json` so fluoh starts a
   local DevEco emulator before falling back to connected devices.
+- When `integration_test/` exists, `fluoh run ohos ...` executes it on the
+  selected OHOS target after the launch smoke check.
 - For explicit real runs, use `--device-id <id>` from
   `fluoh devices --platform ohos --json`.
 - Use `--emulator <name>` only when selected from
@@ -45,5 +47,7 @@ fluoh run ohos --device-id <id> --json
 ## Evidence
 
 Record the commands, exit codes, selected SDK, dependency changes, signing mode,
-device or emulator id, HAP path, install or launch result, runtime logs, and any
-remaining environment blockers in the completion report.
+device or emulator id, `flutterRunSession` path, `flutter run` result,
+integration-test result when present, runtime logs, and any remaining
+environment blockers in the completion report. HAP paths are build-only
+evidence unless the run came from an explicit debug-tool flow.

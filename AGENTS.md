@@ -17,7 +17,7 @@
 - `lib/src/sdk/`: SDK listing, installation, removal, selection, and Flutter wrapper commands.
 - `lib/src/platform/`: cross-platform target discovery, emulator/simulator helpers, and OHOS toolchain helpers.
 - `lib/src/deps/`: project dependency analysis, policy, plan, pubspec rewrite helpers, and top-level `deps` command entry points.
-- `lib/src/workflow/commands/`: workflow command entry points for `plan`, `verify`, `build`, `run`, `drive`, and `report`.
+- `lib/src/workflow/commands/`: workflow command entry points for `plan`, `verify`, `build`, `run`, `attach`, `drive`, and `report`.
 - `lib/src/workflow/`: shared workflow result models, automation scenarios, and platform automation helpers.
 - `lib/src/clean/`: cleanup of tool-owned cache artifacts.
 - `lib/src/package/`: package repository create, sync, and release workflows.
@@ -76,7 +76,7 @@ Top-level commands are wired in `lib/src/cli/fluoh_command_runner.dart`. Keep th
 - SDK and Metadata commands: `sdk` and `source`.
 - Project commands: `create` and `deps`.
 - Package commands: `package` owns package repository lifecycle, handoff, and release tasks.
-- Workflow commands: `plan`, `verify`, `build`, `run`, `drive`, and `report`.
+- Workflow commands: `plan`, `verify`, `build`, `run`, `attach`, `drive`, and `report`.
 - Device commands: `devices` and `emulators`.
 
 State must have one owner. Do not bypass these owners in command implementations or tests:

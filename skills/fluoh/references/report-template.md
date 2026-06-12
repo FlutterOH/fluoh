@@ -15,6 +15,12 @@
 
 - ...
 
+## Adaptation Responsibility
+
+- AI owns adaptation implementation, project/package rewrites, command execution, evidence collection, report composition, and release recommendation.
+- The maintainer owns final release approval and any publish, push, tag, store, or release action.
+- `manual-assisted` means a person operated a device or emulator, but pass/fail still requires tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers.
+
 ## Changes
 
 - ...
@@ -38,7 +44,7 @@
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
-- [ ] Real `fluoh drive --json` evidence recorded, with no unresolved ready-blocking gates.
+- [ ] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
@@ -99,11 +105,16 @@ completion checks, and the `validation` rerun hint. Include
 Use `No interaction required: <reason>` only when the package has no
 device-side interaction flow such as permission, picker, camera, location,
 media, deep link, external app, or host-specific behavior.
-Otherwise include at least one concrete row. Use `manual-assisted` when the
-user had to operate a device or emulator, and mark it passed only after
-tool-readable evidence such as logs, session status, stable text, semantic
-labels, or app log markers confirms the result. Scenario notes should live
-under `.fluoh/scenarios/<package-or-scope>/`.
+Otherwise include at least one concrete row. Use `integration_test` when the
+flow is encoded under `integration_test/`; the Commands table must include the
+passed `flutter test integration_test -d <device>` command row, whether the
+test was run directly or by `fluoh run`. Use `manual-assisted` only when the
+user had to operate a device or emulator during adaptation, and mark it passed
+only after recording what was checked plus the environment, target id, visible
+status, log marker, meaningful session state beyond launch, stable text,
+semantics, test keys, command JSON, hilog, app log marker, or other
+tool-readable confirmation.
+Scenario notes should live under `.fluoh/scenarios/<package-or-scope>/`.
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
@@ -125,8 +136,9 @@ the local trace-evidence issue here.
 ## Signing
 
 - Mode:
-- Generated HAPs:
-- Hilog:
+- Generated HAPs (build-only when applicable):
+- Run session / output log:
+- Hilog (drive/debug scenarios only):
 
 ## Remaining Risks
 

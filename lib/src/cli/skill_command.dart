@@ -25,8 +25,8 @@ const fluohSkillUpgradeCommand = 'fluoh upgrade';
 
 /// Default agent prompt for using the fluoh skill.
 const fluohSkillDefaultPrompt =
-    'Use \$fluoh to install fluoh if needed and adapt this Flutter project or '
-    'package for OHOS.';
+    'Use \$fluoh to install fluoh if needed, adapt this Flutter project or '
+    'package for OHOS, or precheck this FlutterOH Source change.';
 
 /// Prompt for installing the bundled fluoh skill.
 const fluohSkillInstallPrompt =
@@ -99,9 +99,30 @@ const _fluohSkillScripts = {
   ),
 };
 const _fluohSkillReferences = {
+  'appProjectFlow': _FluohSkillReference(
+    relativePath: 'references/app-project-flow.md',
+    description: 'AI workflow for adapting an existing Flutter app project.',
+  ),
+  'packageAdaptationFlow': _FluohSkillReference(
+    relativePath: 'references/package-adaptation-flow.md',
+    description: 'AI workflow for adapting third-party Flutter packages.',
+  ),
+  'automationEvidenceFlow': _FluohSkillReference(
+    relativePath: 'references/automation-evidence-flow.md',
+    description:
+        'Automation, integration test, and manual-assisted evidence workflow.',
+  ),
+  'sourceMaintenanceFlow': _FluohSkillReference(
+    relativePath: 'references/source-maintenance-flow.md',
+    description: 'FlutterOH Source check and maintenance workflow.',
+  ),
   'reportTemplate': _FluohSkillReference(
     relativePath: 'references/report-template.md',
     description: 'Structured AI delivery report template.',
+  ),
+  'reportTemplateZhCn': _FluohSkillReference(
+    relativePath: 'references/report-template.zh-CN.md',
+    description: 'Chinese structured AI delivery report template.',
   ),
   'interactionScenarioTemplate': _FluohSkillReference(
     relativePath: 'references/interaction-scenario-template.md',
@@ -117,6 +138,7 @@ const fluohSkillExamplePrompts = [
       'OHOS.',
   'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
   'Use \$fluoh to continue adapting <package-name> for OHOS.',
+  'Use \$fluoh to precheck this FlutterOH Source change.',
 ];
 
 /// Shows bundled AI skill metadata.
@@ -188,8 +210,10 @@ class SkillCommand extends FluohCommand<int> {
         'collect_feedback.py, check_report.py',
       );
       _output.write(
-        '${style.label('References')} report-template.md, '
-        'interaction-scenario-template.md',
+        '${style.label('References')} app-project-flow.md, '
+        'package-adaptation-flow.md, automation-evidence-flow.md, '
+        'source-maintenance-flow.md, report-template.md, '
+        'report-template.zh-CN.md, interaction-scenario-template.md',
       );
     } else {
       _output.warning('Bundled local skill path was not found.');
@@ -204,7 +228,8 @@ class SkillCommand extends FluohCommand<int> {
     _output.blank();
     _output.write(
       'First-time setup: ask your AI agent to install from GitHub, then use '
-      '${style.code(r'$fluoh')} to adapt an app or package.',
+      '${style.code(r'$fluoh')} to adapt an app or package, or precheck a '
+      'FlutterOH Source change.',
     );
     _output.write(
       'Local or upgrade setup: run ${style.code('fluoh skill --json')}, install '

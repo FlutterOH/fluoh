@@ -82,7 +82,7 @@ class _UnsupportedAutomationScenarioPlatformDriver
       status: 'failed',
       reason: 'platform ${context.scenario.platform} is not supported',
       repairHints: [
-        'Run $nextCommand without --scenario and collect manual-assisted evidence.',
+        'Run $nextCommand without --scenario and collect manual-assisted tool-readable evidence.',
       ],
     );
   }
