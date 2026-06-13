@@ -214,6 +214,10 @@ void _registerWorkflowCommandsPackageTests() {
     await _writeWorkflowOhosProject(
       Directory('${environment.workingDirectory.path}/example'),
     );
+    final buildProfile = File(
+      '${environment.workingDirectory.path}/example/ohos/build-profile.json5',
+    );
+    final originalBuildProfile = await buildProfile.readAsString();
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -260,6 +264,7 @@ void _registerWorkflowCommandsPackageTests() {
       details,
       containsPair('stderrTail', contains('Connect server failed')),
     );
+    expect(await buildProfile.readAsString(), originalBuildProfile);
     expect(stderr, isEmpty);
   });
 
@@ -298,6 +303,10 @@ void _registerWorkflowCommandsPackageTests() {
     await _writeWorkflowOhosProject(
       Directory('${environment.workingDirectory.path}/example'),
     );
+    final buildProfile = File(
+      '${environment.workingDirectory.path}/example/ohos/build-profile.json5',
+    );
+    final originalBuildProfile = await buildProfile.readAsString();
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -351,6 +360,7 @@ void _registerWorkflowCommandsPackageTests() {
       details,
       containsPair('stderrTail', contains('Connect server failed')),
     );
+    expect(await buildProfile.readAsString(), originalBuildProfile);
     expect(stderr, isEmpty);
   });
 
@@ -384,6 +394,10 @@ void _registerWorkflowCommandsPackageTests() {
     await _writeWorkflowOhosProject(
       Directory('${environment.workingDirectory.path}/example'),
     );
+    final buildProfile = File(
+      '${environment.workingDirectory.path}/example/ohos/build-profile.json5',
+    );
+    final originalBuildProfile = await buildProfile.readAsString();
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -449,6 +463,7 @@ void _registerWorkflowCommandsPackageTests() {
       session,
       containsPair('vmServiceUri', 'http://127.0.0.1:23456/ohos=/'),
     );
+    expect(await buildProfile.readAsString(), originalBuildProfile);
     expect(stderr, isEmpty);
   });
 

@@ -541,9 +541,7 @@ const fd2 = crypto.randomBytes(16);
 const salt = crypto.randomBytes(16);
 const workKey = crypto.randomBytes(16);
 const rootMaterial = xor([fd0, fd1, fd2, component]);
-const rootMaterialText = Array.from(
-  new Int8Array(rootMaterial.buffer, rootMaterial.byteOffset, rootMaterial.byteLength),
-).toString();
+const rootMaterialText = Buffer.from(rootMaterial).toString();
 const rootKey = crypto.pbkdf2Sync(
   rootMaterialText,
   salt,
@@ -559,6 +557,10 @@ writeOne(path.join(material, 'ac'), salt);
 writeOne(path.join(material, 'ce'), encrypt(rootKey, workKey));
 process.stdout.write(encrypt(workKey, Buffer.from(plain, 'utf8')).toString('hex'));
 ''';
+
+/// Exposes the password material generator for regression tests.
+String get debugSigningPasswordMaterialScriptForTesting =>
+    _passwordMaterialScript;
 
 Future<void> _runChecked(
   String executable,
