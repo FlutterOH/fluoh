@@ -142,12 +142,12 @@ Future<_ToolRun> _runTool(
     timeout,
     onTimeout: () async {
       timedOut = true;
-      process.kill();
+      await _terminateToolProcess(process);
       try {
         return await process.exitCode.timeout(const Duration(seconds: 5));
       } on TimeoutException {
         if (!Platform.isWindows) {
-          process.kill(ProcessSignal.sigkill);
+          await _terminateToolProcess(process, ProcessSignal.sigkill);
         }
         return 124;
       }
@@ -166,8 +166,62 @@ Future<_ToolRun> _runTool(
     command: '$executable ${arguments.join(' ')}',
     exitCode: timedOut ? 124 : exitCode,
     stdout: stdoutBuffer.toString(),
-    stderr: timedOut && stderrBuffer.toString().trim().isEmpty
-        ? 'Command timed out.'
+    stderr: timedOut
+        ? _toolTimeoutStderr(stderrBuffer.toString())
+        : stderrBuffer.toString(),
+  );
+}
+
+Future<_ToolRun> _runToolToFile(
+  String executable,
+  List<String> arguments, {
+  required Map<String, String> environment,
+  required Directory workingDirectory,
+  required File outputFile,
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  await outputFile.parent.create(recursive: true);
+  final process = await Process.start(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory.path,
+    environment: environment,
+  );
+  final stderrBuffer = StringBuffer();
+  final outputSink = outputFile.openWrite();
+  final stdoutDone = process.stdout.pipe(outputSink);
+  final stderrDone = _collectToolOutput(process.stderr, stderrBuffer);
+  var timedOut = false;
+  final exitCode = await process.exitCode.timeout(
+    timeout,
+    onTimeout: () async {
+      timedOut = true;
+      await _terminateToolProcess(process);
+      try {
+        return await process.exitCode.timeout(const Duration(seconds: 5));
+      } on TimeoutException {
+        if (!Platform.isWindows) {
+          await _terminateToolProcess(process, ProcessSignal.sigkill);
+        }
+        return 124;
+      }
+    },
+  );
+  try {
+    await Future.wait([
+      stdoutDone,
+      stderrDone,
+    ]).timeout(const Duration(seconds: 2));
+  } on TimeoutException {
+    // The process has been signalled; return a timeout diagnostic instead of
+    // blocking the automation loop on unclosed pipes.
+  }
+  return _ToolRun(
+    command: '$executable ${arguments.join(' ')}',
+    exitCode: timedOut ? 124 : exitCode,
+    stdout: '',
+    stderr: timedOut
+        ? _toolTimeoutStderr(stderrBuffer.toString())
         : stderrBuffer.toString(),
   );
 }
@@ -178,6 +232,65 @@ Future<void> _collectToolOutput(
 ) async {
   await for (final chunk in stream.transform(utf8.decoder)) {
     buffer.write(chunk);
+  }
+}
+
+String _toolTimeoutStderr(String stderr) {
+  if (stderr.trim().isEmpty) {
+    return 'Command timed out.';
+  }
+  if (stderr.contains('Command timed out.')) {
+    return stderr;
+  }
+  final separator = stderr.endsWith('\n') ? '' : '\n';
+  return '$stderr${separator}Command timed out.';
+}
+
+Future<void> _terminateToolProcess(
+  Process process, [
+  ProcessSignal signal = ProcessSignal.sigterm,
+]) async {
+  process.kill(signal);
+  if (Platform.isWindows) {
+    return;
+  }
+
+  for (final pid in await _toolProcessDescendantPids(process.pid)) {
+    Process.killPid(pid, signal);
+  }
+}
+
+Future<List<int>> _toolProcessDescendantPids(int rootPid) async {
+  try {
+    final result = await Process.run('ps', const ['-axo', 'pid=,ppid=']);
+    if (result.exitCode != 0) {
+      return const [];
+    }
+    final childrenByParent = <int, List<int>>{};
+    for (final line in result.stdout.toString().split('\n')) {
+      final fields = line.trim().split(RegExp(r'\s+'));
+      if (fields.length != 2) {
+        continue;
+      }
+      final pid = int.tryParse(fields[0]);
+      final parentPid = int.tryParse(fields[1]);
+      if (pid == null || parentPid == null || pid <= 0) {
+        continue;
+      }
+      childrenByParent.putIfAbsent(parentPid, () => <int>[]).add(pid);
+    }
+
+    final descendants = <int>[];
+    final queue = <int>[rootPid];
+    while (queue.isNotEmpty) {
+      final parentPid = queue.removeAt(0);
+      final children = childrenByParent[parentPid] ?? const <int>[];
+      descendants.addAll(children);
+      queue.addAll(children);
+    }
+    return descendants.reversed.toList(growable: false);
+  } on Object {
+    return const [];
   }
 }
 

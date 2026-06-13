@@ -233,8 +233,10 @@ bool _shouldAutoForegroundScenarioApp(
     'assertText',
     'allowPermission',
     'denyPermission',
+    'captureScreenshot',
     'inputText',
     'press',
+    'screenshot',
   };
   return uiActions.contains(action.action);
 }

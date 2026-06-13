@@ -273,7 +273,7 @@ Future<String?> _toolVersion(
   List<String> arguments, {
   required Map<String, String> environment,
   String? Function(String output)? parser,
-  Duration timeout = const Duration(seconds: 3),
+  Duration timeout = const Duration(seconds: 5),
 }) async {
   if (executable == null) {
     return null;
@@ -292,7 +292,7 @@ Future<String?> _commandVersion(
   List<String> arguments, {
   required Map<String, String> environment,
   String? Function(String output)? parser,
-  Duration timeout = const Duration(seconds: 3),
+  Duration timeout = const Duration(seconds: 5),
 }) async {
   final result = await _runTool(
     executable,

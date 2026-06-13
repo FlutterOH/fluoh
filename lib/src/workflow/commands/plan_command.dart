@@ -14,6 +14,9 @@ import '../../schema/yaml_utils.dart';
 import '../../sdk/sdk_project_config.dart';
 import '../platform_workflow_policy.dart';
 
+const _reportCheckCommand =
+    'python3 <skill-dir>/scripts/check_report.py <report-path>';
+
 /// Top-level `fluoh plan` command group.
 class PlanCommand extends FluohCommand<int> {
   /// Creates the plan command group.
@@ -277,7 +280,7 @@ Future<Map<String, Object?>> _buildAppAdaptationPlan(
             traceDir: traceDir,
           )
         : const <Map<String, Object?>>[],
-    'automationRunbook': _automationRunbook('app'),
+    'automationRunbook': _automationRunbook('app', active: readyToPlan),
     'deliveryGate': _deliveryGate(
       kind: 'app',
       active: readyToPlan,
@@ -317,7 +320,7 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
       },
       'sdk': {'selected': '<sdk-version-or-line>', 'source': 'placeholder'},
       'queue': const <Map<String, Object?>>[],
-      'automationRunbook': _automationRunbook('package'),
+      'automationRunbook': _automationRunbook('package', active: false),
       'deliveryGate': _deliveryGate(
         kind: 'package',
         active: false,
@@ -378,7 +381,7 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
       'examplePlatforms': platforms,
     },
     'queue': _packageAdaptationQueue(scope, traceDir, platforms),
-    'automationRunbook': _automationRunbook('package'),
+    'automationRunbook': _automationRunbook('package', active: true),
     'deliveryGate': _deliveryGate(
       kind: 'package',
       active: true,
@@ -455,14 +458,24 @@ List<Map<String, Object?>> _appAdaptationQueue(
     if (platforms[platform] != true) {
       continue;
     }
-    items.add(
-      _queueItem(
-        phase: 'regression',
-        command: _regressionCommand(platform, traceDir),
-        mutating: true,
-        evidence: '$platform regression smoke evidence',
-      ),
-    );
+    final policy = platformWorkflowPolicy(platform);
+    items
+      ..add(
+        _queueItem(
+          phase: 'doctor',
+          command: policy.doctorCommand(strict: true),
+          mutating: false,
+          evidence: '${policy.label} toolchain diagnostic JSON',
+        ),
+      )
+      ..add(
+        _queueItem(
+          phase: 'regression',
+          command: _regressionCommand(platform, traceDir),
+          mutating: true,
+          evidence: '$platform functional regression evidence',
+        ),
+      );
   }
   items.add(
     _queueItem(
@@ -471,6 +484,14 @@ List<Map<String, Object?>> _appAdaptationQueue(
           'fluoh report create --scope $scope --trace-dir $traceDir --json',
       mutating: true,
       evidence: 'local AI report path',
+    ),
+  );
+  items.add(
+    _queueItem(
+      phase: 'report-check',
+      command: _reportCheckCommand,
+      mutating: false,
+      evidence: 'canonical report validation JSON',
     ),
   );
   return items;
@@ -526,14 +547,24 @@ List<Map<String, Object?>> _packageAdaptationQueue(
     if (platforms[platform] != true) {
       continue;
     }
-    items.add(
-      _queueItem(
-        phase: 'regression',
-        command: _packageRegressionCommand(platform, packageName, traceDir),
-        mutating: true,
-        evidence: '$platform package example regression evidence',
-      ),
-    );
+    final policy = platformWorkflowPolicy(platform);
+    items
+      ..add(
+        _queueItem(
+          phase: 'doctor',
+          command: policy.doctorCommand(strict: true),
+          mutating: false,
+          evidence: '${policy.label} toolchain diagnostic JSON',
+        ),
+      )
+      ..add(
+        _queueItem(
+          phase: 'regression',
+          command: _packageRegressionCommand(platform, packageName, traceDir),
+          mutating: true,
+          evidence: '$platform package example functional evidence',
+        ),
+      );
   }
   items
     ..add(
@@ -551,6 +582,14 @@ List<Map<String, Object?>> _packageAdaptationQueue(
             'fluoh report create --scope $packageName --package $packageName --trace-dir $traceDir --json',
         mutating: true,
         evidence: 'local AI report path',
+      ),
+    )
+    ..add(
+      _queueItem(
+        phase: 'report-check',
+        command: _reportCheckCommand,
+        mutating: false,
+        evidence: 'canonical report validation JSON',
       ),
     )
     ..add(
@@ -606,17 +645,54 @@ Map<String, Object?> _adaptationSafety() {
   };
 }
 
-Map<String, Object?> _automationRunbook(String kind) {
+List<Map<String, Object?>> _qualityGates(String kind, {required bool active}) {
+  final adaptationKind = kind == 'app' ? 'app' : 'package';
+  return [
+    {
+      'id': 'functional-test-baseline',
+      'requiredForReady': active,
+      'description':
+          'Before final verification, inspect existing $adaptationKind tests '
+          'and integration tests against public API, platform interfaces, '
+          'example flows, permissions, and behavior paths; add or repair '
+          'missing functional tests before claiming ready.',
+    },
+    {
+      'id': 'complete-existing-platform-matrix',
+      'requiredForReady': active,
+      'description':
+          'Do not validate only OHOS. Run functional verification for OHOS '
+          'and every existing non-OHOS platform directory when the current '
+          'host/toolchain supports it; otherwise record the diagnostic '
+          'command, unsupported environment reason, and remaining blocker in '
+          'the report.',
+    },
+    {
+      'id': 'behavior-evidence-not-smoke',
+      'requiredForReady': active,
+      'description':
+          'Ready evidence must validate library behavior through package '
+          'tests, integration_test, real fluoh drive JSON, or manual-assisted '
+          'tool-readable assertions; build, launch, screenshot, or run-all '
+          'smoke evidence is insufficient alone.',
+    },
+  ];
+}
+
+Map<String, Object?> _automationRunbook(String kind, {required bool active}) {
   return {
     'mode': 'autonomous-to-delivery',
     'commandSource': 'queue',
     'loop':
         'run, parse, fix, rerun until deliveryGate is satisfied or an explicit blocker remains',
+    'qualityGates': _qualityGates(kind, active: active),
     'executionRules': [
       'Run queue commands in order after the approved adaptation scope.',
+      'Before final verification, inspect whether existing tests cover the package or app behavior; add or repair missing functional tests before running the final test matrix.',
       'Parse every --json result before editing or deciding the next step.',
       'Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.',
       'Do not stop after setup, verify, build, run, or screenshot-only smoke evidence.',
+      'Do not focus only on OHOS; every existing platform must have functional evidence or an explicit unsupported-host/toolchain diagnostic blocker.',
       'Do not skip drive, handoff, report creation, report check, or package check when they are applicable.',
       'Create local checkpoint commits after completed phases when command evidence is clean.',
       'Do not push, release, force-push, or run destructive Git commands without separate maintainer approval.',
@@ -669,6 +745,9 @@ Map<String, Object?> _deliveryGate({
   String? packageName,
 }) {
   final commonReadyRequires = [
+    'existing tests and integration tests were reviewed against public API, platform interfaces, example flows, permissions, and behavior paths before final verification; missing or weak functional tests were added or a concrete blocker is recorded',
+    'functional evidence validates the library or app behavior, not only build, launch, screenshot, or run-all smoke',
+    'OHOS and every existing non-OHOS platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons',
     'all queue items marked mustCompleteForDelivery passed or have a concrete blocker recorded',
     'finalCheckCommands ran after the last implementation edit',
     'canonical report exists under .fluoh/reports/',
@@ -681,8 +760,7 @@ Map<String, Object?> _deliveryGate({
     'terminalStates': ['ready', 'blocked', 'needs-maintainer-decision'],
     'finalCheckCommands': finalCheckCommands,
     'reportCommand': reportCommand,
-    'reportCheckCommand':
-        'python3 <skill-dir>/scripts/check_report.py <report-path>',
+    'reportCheckCommand': _reportCheckCommand,
     'requiresReportCheckPass': active,
     'readyRequires': active
         ? [
@@ -725,6 +803,7 @@ bool _mustCompleteForDelivery(String command, String phase) {
     'automation',
     'regression',
     'report',
+    'report-check',
     'handoff',
     'release-check',
   }.contains(phase);
@@ -739,6 +818,9 @@ String _failureAction(String command) {
   }
   if (command.contains(' package check ')) {
     return 'fix the release gate finding, rerun the failed command, then rerun package check';
+  }
+  if (command.contains('check_report.py')) {
+    return 'fix report validation failures, update the report evidence, then rerun report check';
   }
   if (command.contains(' report create ')) {
     return 'create or update the report, then run the report check command';
@@ -763,7 +845,11 @@ List<String> _appFinalCheckCommands(
       'web',
       'windows',
     ])
-      if (platforms[platform] == true) _regressionCommand(platform, traceDir),
+      if (platforms[platform] == true) ...[
+        platformWorkflowPolicy(platform).doctorCommand(strict: true),
+        _regressionCommand(platform, traceDir),
+      ],
+    _reportCheckCommand,
   ];
 }
 
@@ -793,9 +879,12 @@ List<String> _packageFinalCheckCommands(
       'web',
       'windows',
     ])
-      if (platforms[platform] == true)
+      if (platforms[platform] == true) ...[
+        platformWorkflowPolicy(platform).doctorCommand(strict: true),
         _packageRegressionCommand(platform, packageName, traceDir),
+      ],
     'fluoh package status --package $packageName',
+    _reportCheckCommand,
     'fluoh package handoff --package $packageName --json',
     'fluoh package check --package $packageName --report <report-path> --json',
   ];

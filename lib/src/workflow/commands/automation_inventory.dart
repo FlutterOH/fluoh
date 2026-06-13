@@ -3,11 +3,10 @@ part of 'workflow_commands.dart';
 Future<_AutomationInventory> _automationInventory({
   required FluohEnvironment environment,
   required String? packageName,
-  required bool all,
 }) async {
   final manifest = await _readOptionalPackageManifest(environment);
   if (manifest == null) {
-    if (packageName != null || all) {
+    if (packageName != null) {
       return _AutomationInventory(
         status: 'unresolved',
         targetKind: 'package',

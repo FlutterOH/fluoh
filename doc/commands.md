@@ -252,9 +252,13 @@ share one `.fluoh/traces/<scope>/adaptation` session when the underlying
 command supports trace output. `--json` writes a single machine-readable object
 with `changed: false` and `applied: false`, so AI agents can use it for scope
 confirmation before requesting mutating commands. The JSON also includes
-`automationRunbook` and `deliveryGate`, which define the repair loop, terminal
-states, final check commands, report check command, and conditions that must be
-met before an AI agent can claim `ready`.
+`automationRunbook` and `deliveryGate` for the repair loop, terminal states,
+final check commands, report check command, and conditions that must be met
+before an AI agent can claim `ready`. Ready requires reviewing existing tests
+and `integration_test/` coverage before final verification, adding or repairing
+missing functional tests, and collecting functional evidence for OHOS plus every
+existing platform directory supported by the current host/toolchain. Unsupported
+platforms require exact diagnostic evidence and a recorded skip reason.
 
 `plan package` does the same read-only planning for the current
 FlutterOH package branch. It reads package `fluoh.yaml`, reports branch and
@@ -764,27 +768,43 @@ inside a Git worktree, so agents can detect generated files or lockfile changes
 left by `pub get` before committing. Reuse one `--trace-dir` across an
 adaptation loop to accumulate command invocations in one session.
 
-`fluoh build ohos|android|ios|macos|linux|web|windows` builds the current Flutter project or
-the selected package example. iOS builds automatically add `--no-codesign`.
-OHOS builds can use `--auto-sign` to generate a temporary local debug signing
-profile from the project's or example's requested permissions, patch
+`fluoh build all|ohos|android|ios|macos|linux|web|windows` builds the current
+Flutter project or the selected package example. `all` expands to the workflow
+platform directories that already exist in the current project root or selected
+package `example/`, runs them in order, and records every selected platform
+result instead of stopping after the first failed platform. Use a concrete
+platform argument to diagnose or intentionally create coverage for a missing
+platform directory. iOS builds automatically add `--no-codesign`. OHOS builds
+can use `--auto-sign` to generate a temporary local debug signing profile from
+the project's or example's requested permissions, patch
 `ohos/build-profile.json5` for that build, and restore the original file after
-the build. If Flutter leaves a fresh unsigned HAP after Hvigor signing fails,
-`fluoh` directly signs that HAP and reports `signingMode:
+the build. With `build all --auto-sign`, automatic signing is applied only to
+platforms that support it. If Flutter leaves a fresh unsigned HAP after Hvigor
+signing fails, `fluoh` directly signs that HAP and reports `signingMode:
 direct-sign-fallback` plus the installable HAP paths. JSON failures use
 platform-specific diagnostic codes such as `ohos.hap_build_failed`,
 `android.apk_build_failed`, `ios.build_failed`, `macos.build_failed`,
 `linux.build_failed`, `web.build_failed`, and `windows.build_failed` for
 both projects and package examples. `--trace` and `--trace-dir <path>` follow
-the same local AI diagnostic trace contract as `fluoh verify`.
+the same local AI diagnostic trace contract as `fluoh verify`. JSON output is
+a factual evidence summary, not a release-readiness decision. It includes
+`workflowEvidence.classification: buildOnly`, `observedEvidence`,
+`collectedEvidenceKinds`, `notCollectedEvidenceKinds`,
+`workflowContinuations`, and a `toolCommands` entry for the follow-up run smoke
+command when builds pass. `collectedEvidenceKinds` records collected command
+results or artifacts; `observedEvidence` records whether they passed, failed,
+were skipped, or were blocked.
 
-`fluoh run ohos|android|ios|macos|linux|web|windows` prepares the platform and
-launches the current project or selected package example through the selected
-SDK's `flutter run`. OHOS uses the same Flutter run path as the other
-platforms; `--auto-sign` only adds temporary debug signing preparation and
-restoration. Android and iOS signing, device, emulator, and simulator
-prerequisites use the same run-preparation and target-selection layers. Web
-runs use browser targets such as Chrome.
+`fluoh run all|ohos|android|ios|macos|linux|web|windows` prepares the platform
+and launches the current project or selected package example through the
+selected SDK's `flutter run`. `all` expands to the existing workflow platform
+directories in the current project root or selected package `example/`, runs
+them in order, and keeps collecting later platform results after an earlier
+platform fails. OHOS uses the same Flutter run path as the other platforms;
+temporary debug signing preparation and restoration are applied for OHOS runs.
+Android and iOS signing, device, emulator, and simulator prerequisites use the
+same run-preparation and target-selection layers. Web runs use browser targets
+such as Chrome.
 When `integration_test/` exists and a concrete target is available, `fluoh run`
 also runs `flutter test integration_test -d <device>` on that target. Release
 reports should record that passed test command row separately because a plain
@@ -797,7 +817,23 @@ It prefers `flutter attach --debug-uri <uri>` and falls back to
 Target options are shared across run and drive: use `--device-id <id>` for an
 existing target, `--emulator <name>` for a specific local emulator or
 simulator, or `--auto-emulator` to prefer local emulators/simulators before
-falling back to connected devices.
+falling back to connected devices. `run all` accepts `--auto-emulator`, but
+`--device-id`, `--emulator`, and `--session-file` are single-platform options.
+JSON output includes `workflowEvidence.classification: launchSmoke`,
+`observedEvidence`, `collectedEvidenceKinds`, `notCollectedEvidenceKinds`,
+`workflowContinuations`, and factual interaction evidence observed by that run
+command. `collectedEvidenceKinds` may include failed command results; the
+pass/fail state is recorded in `observedEvidence`. When mobile platforms launch
+successfully, the
+`workflowEvidence.toolCommands` list includes the matching `fluoh drive ...
+--dry-run --json` command so AI agents can plan taps, gestures, permission
+grant/deny paths, screenshots, and result assertions instead of treating launch
+as complete.
+For `observedEvidence.interaction.status`, `integrationTestEvidenceFailed`
+takes precedence over any passed integration-test rows in the same matrix, and
+`partialIntegrationTestEvidence` means only some targets produced passed
+integration-test evidence. In both cases, continue the repair or evidence loop
+instead of treating the run as release-ready.
 
 Run-smoke success only proves launch. Workflows that need UI interaction,
 permissions, files, camera, location, media, deep links, or external apps need
@@ -806,6 +842,10 @@ functional evidence from a passed `integration_test`, `fluoh drive`, or
 it still requires logs, session status, stable text, semantic labels, test keys,
 command JSON, hilog, or app log markers. If no interaction is required, the
 report must state `No interaction required: <reason>`.
+Package adaptations must not validate only OHOS. Existing Android, iOS, macOS,
+Linux, Web, and Windows package/example platform directories are also required
+functional test targets when the current host and toolchain support them;
+unsupported targets must be recorded with the diagnostic command and blocker.
 
 Interaction scenarios live under
 `.fluoh/scenarios/<package>/<platform>-<name>.md` and use
@@ -816,15 +856,26 @@ metadata.
 
 `fluoh drive all|ohos|android|ios` is the mobile automation wrapper for target
 launch, interaction scenarios, and evidence checks. It follows `fluoh run`
-target selection, defaults to local emulator/simulator preference, and can run
-the current project, one selected package, or every package. Dry-run and
-real-run JSON include `deliveryRecommendation`, `repairPlan`, `repairQueue`,
-and `automation.coveragePolicy`; real runs also include workflow `targets` and
-an `automation` object with launch/session evidence and replay artifacts. The
+target selection, expands `all` to existing OHOS, Android, and iOS platform
+directories, defaults to local emulator/simulator preference, and can run the
+current project or the current or selected package branch. Dry-run and real-run
+JSON include `deliveryRecommendation`, `repairPlan`, `repairQueue`, and
+`automation.coveragePolicy`; real runs also include workflow `targets` and an
+`automation` object with launch/session evidence and replay artifacts. The
 stable coverage fields are `scenarioCoverage`, `coverageSummary`, `inventory`,
 `capabilityCoverage`, `manifestPermissionCoverage`, `pathCoverage`,
 `scenarioEvidence`, `qualityGates`, and `repairLoop`. Detailed repair ordering
 belongs in the skill and report template.
+Real drive runs the same launch and available `integration_test/` steps first;
+scenarios execute only for targets whose run and integration-test steps passed.
+
+Executable scenarios support `captureScreenshot` and `screenshot` as supporting
+observation actions. Android saves `adb exec-out screencap -p`, iOS saves
+`xcrun simctl io <target> screenshot`, and OHOS saves a `snapshot_display`
+artifact received through `hdc file recv`. The action result records the local
+path and byte count. Screenshots are evidence artifacts; functional pass/fail
+should still be backed by tool-readable assertions such as `assertText`,
+`assertLog`, `assertSession`, or integration-test output.
 
 Runtime permissions require explicit grant, deny, and differing error-path
 coverage on each supported platform, or a reasoned `notApplicable` or `blocked`

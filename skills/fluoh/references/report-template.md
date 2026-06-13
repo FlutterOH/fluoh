@@ -41,15 +41,23 @@
 
 - [ ] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.
 - [ ] Commands table includes exit codes and enough evidence to reproduce the decision.
+- [ ] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [ ] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
-- [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
+- [ ] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 - [ ] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
 
 ## Platform Matrix
+
+For each platform directory that exists in the package/app or example, record
+passed functional evidence: build/run plus `integration_test`, `fluoh drive`, or
+tool-readable manual-assisted assertions when behavior requires interaction.
+Use `not present` only when the platform directory is absent. Use `skipped` only
+with the exact unsupported host/toolchain diagnostic command and blocker.
 
 | Platform | Build | Run | Integration test | Target | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |

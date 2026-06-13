@@ -35,7 +35,6 @@ class VerifyCommand extends FluohCommand<int> {
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
-    _validatePackageSelection(argResults!, usageException);
     final json = argResults!.flag('json');
     final output = _outputFor(json, _output);
     final stdout = json ? (_) {} : _stdout;
@@ -44,7 +43,6 @@ class VerifyCommand extends FluohCommand<int> {
     final results = await _runPackageOrProject(
       environment: environment,
       packageName: _trimmedOption(argResults!, 'package'),
-      all: argResults!.flag('all'),
       output: output,
       stdout: stdout,
       stderr: stderr,

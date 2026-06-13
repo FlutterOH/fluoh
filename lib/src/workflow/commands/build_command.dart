@@ -52,38 +52,53 @@ class BuildCommand extends FluohCommand<int> {
       allowed: _buildRunPlatforms,
       label: 'build',
     );
-    _validatePackageSelection(argResults!, usageException);
-    final policy = platformWorkflowPolicy(platform);
-    if (argResults!.flag('auto-sign') && !policy.supportsAutoSign) {
+    final packageName = _trimmedOption(argResults!, 'package');
+    final requestedAllPlatforms = platform == _allWorkflowPlatform;
+    if (argResults!.flag('auto-sign') &&
+        !requestedAllPlatforms &&
+        !platformWorkflowPolicy(platform).supportsAutoSign) {
       usageException(
         'Use --auto-sign only with platforms that support automatic signing.',
       );
     }
+    final platforms = await _workflowPlatformsFromArgument(
+      platform,
+      environment: environment,
+      packageName: packageName,
+      candidates: _buildRunPlatforms,
+      usage: usage,
+    );
     final json = argResults!.flag('json');
     final output = _outputFor(json, _output);
     final stdout = json ? (_) {} : _stdout;
     final stderr = json ? (_) {} : _stderr;
-    final invocation = _PackageWorkflowInvocation(
-      phase: '$platform-build',
-      buildExampleTarget: policy.buildTarget,
-      debug: argResults!.flag('debug'),
-      autoSign: policy.supportsAutoSign && argResults!.flag('auto-sign'),
-    );
-    final results = await _runPackageOrProject(
-      environment: environment,
-      packageName: _trimmedOption(argResults!, 'package'),
-      all: argResults!.flag('all'),
-      output: output,
-      stdout: stdout,
-      stderr: stderr,
-      usage: usage,
-      invocationForPackage: (_) => invocation,
-      projectInvocation: _ProjectWorkflowInvocation.build(
-        platform: platform,
+    final results = <WorkflowTargetResult>[];
+    for (final currentPlatform in platforms) {
+      final policy = platformWorkflowPolicy(currentPlatform);
+      final autoSign = policy.supportsAutoSign && argResults!.flag('auto-sign');
+      final invocation = _PackageWorkflowInvocation(
+        phase: '$currentPlatform-build',
+        buildExampleTarget: policy.buildTarget,
         debug: argResults!.flag('debug'),
-        autoSign: policy.supportsAutoSign && argResults!.flag('auto-sign'),
-      ),
-    );
+        autoSign: autoSign,
+      );
+      results.addAll(
+        await _runPackageOrProject(
+          environment: environment,
+          packageName: packageName,
+          output: output,
+          stdout: stdout,
+          stderr: stderr,
+          usage: usage,
+          invocationForPackage: (_) => invocation,
+          projectInvocation: _ProjectWorkflowInvocation.build(
+            platform: currentPlatform,
+            debug: argResults!.flag('debug'),
+            autoSign: autoSign,
+          ),
+        ),
+      );
+    }
     final traceResult = await _printWorkflowJson(
       json: json,
       stdout: _stdout,
@@ -92,6 +107,15 @@ class BuildCommand extends FluohCommand<int> {
       arguments: argResults!.arguments,
       results: results,
       traceOptions: _traceOptionsFrom(argResults!),
+      extraFields: {
+        'workflowEvidence': _buildOnlyEvidence(
+          platforms: platforms,
+          results: results,
+          packageName: packageName,
+          requestedAllPlatforms: requestedAllPlatforms,
+          autoEmulator: false,
+        ),
+      },
     );
     final exitCode = _firstFailure(results);
     if (!json) {

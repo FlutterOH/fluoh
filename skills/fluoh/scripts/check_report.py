@@ -38,6 +38,12 @@ REQUIRED_AUTOMATION_COVERAGE_GATES = (
     "behavior-paths",
 )
 
+REQUIRED_READY_CHECKLIST_PHRASES = (
+    "Existing package/app tests, example tests",
+    "Missing or weak functional tests",
+    "Every existing Android, iOS, macOS, Linux, Web, and Windows platform",
+)
+
 REPORT_FILENAME_PATTERN = re.compile(r"^report-\d+\.md$")
 
 
@@ -502,6 +508,19 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         errors.append("Ready reports must complete every delivery checklist item.")
     elif unchecked:
         warnings.append("Some delivery checklist items are not complete.")
+    if recommendation == "ready":
+        checklist_text = [item["text"] for item in checklist]
+        missing_checklist = [
+            phrase
+            for phrase in REQUIRED_READY_CHECKLIST_PHRASES
+            if not any(phrase in item for item in checklist_text)
+        ]
+        if missing_checklist:
+            errors.append(
+                "Ready reports must include delivery checklist items for: "
+                + ", ".join(missing_checklist)
+                + "."
+            )
 
     rows = command_rows(content)
     evidence_rows = [

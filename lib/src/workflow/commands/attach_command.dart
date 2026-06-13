@@ -78,7 +78,7 @@ class AttachCommand extends FluohCommand<int> {
     final platform = _platformArgument(
       argResults!,
       usageException,
-      allowed: _buildRunPlatforms,
+      allowed: _attachPlatforms,
       label: 'attach',
     );
     final json = argResults!.flag('json');

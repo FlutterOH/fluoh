@@ -17,6 +17,12 @@ const _interactionEvidenceMethods = {
   'manual-assisted',
 };
 
+const _requiredReadyChecklistPhrases = [
+  'Existing package/app tests, example tests',
+  'Missing or weak functional tests',
+  'Every existing Android, iOS, macOS, Linux, Web, and Windows platform',
+];
+
 final _canonicalReportFileNamePattern = RegExp(r'^report-\d+\.md$');
 
 /// Validation result for a fluoh AI package certification report.
@@ -189,6 +195,18 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       errors.add(
         'Certification reports must complete every delivery checklist item.',
       );
+    }
+    if (recommendation == 'ready') {
+      final missingChecklistPhrases = [
+        for (final phrase in _requiredReadyChecklistPhrases)
+          if (!checklist.any((item) => item.text.contains(phrase))) phrase,
+      ];
+      if (missingChecklistPhrases.isNotEmpty) {
+        errors.add(
+          'Ready certification reports must include delivery checklist items '
+          'for: ${missingChecklistPhrases.join(', ')}.',
+        );
+      }
     }
   }
 

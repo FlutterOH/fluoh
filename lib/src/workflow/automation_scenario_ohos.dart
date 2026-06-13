@@ -12,6 +12,7 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
     'assertLog',
     'assertSession',
     'assertText',
+    'captureScreenshot',
     'clearAppData',
     'denyPermission',
     'drag',
@@ -19,6 +20,7 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
     'launchApp',
     'press',
     'resetPermission',
+    'screenshot',
     'swipe',
     'tap',
     'tapText',
@@ -30,6 +32,7 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
   List<String> get evidenceMethods => const [
     'hdc shell uitest',
     'OHOS UI dump',
+    'hdc shell snapshot_display',
     'OHOS hilog',
     'launch ability metadata',
   ];
@@ -162,6 +165,78 @@ class _OhosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
             result,
             result.command,
             details: {'gesture': coordinates.toJson()},
+          );
+        });
+      case 'captureScreenshot':
+      case 'screenshot':
+        return _withOhosToolchain(action, context, (hdcRun) async {
+          final selection = await _scenarioScreenshotFile(
+            context,
+            action,
+            defaultExtension: 'jpeg',
+          );
+          if (selection.failure != null) {
+            return selection.failure!;
+          }
+          final file = selection.file!;
+          final remotePath =
+              '/data/local/tmp/fluoh-${_scenarioArtifactSlug(context.scenario.name)}-step-${action.index}.jpeg';
+          final capture = await hdcRun([
+            'shell',
+            'snapshot_display',
+            '-f',
+            remotePath,
+          ]);
+          if (capture.exitCode != 0) {
+            return _failedAction(
+              action,
+              'Could not capture OHOS screenshot',
+              command: capture.command,
+              details: {
+                'path': file.path,
+                'remotePath': remotePath,
+                ...capture.toDetails(),
+              },
+              repairHints: action.repairHints,
+            );
+          }
+          final recv = await hdcRun(['file', 'recv', remotePath, file.path]);
+          if (recv.exitCode == 0) {
+            final fileFailure = await _screenshotFileFailure(
+              action,
+              file,
+              command: recv.command,
+              platform: 'OHOS',
+              details: {
+                'remotePath': remotePath,
+                'capture': capture.toDetails(),
+              },
+            );
+            if (fileFailure != null) {
+              return fileFailure;
+            }
+            return _passedAction(
+              action,
+              command: recv.command,
+              details: await _screenshotDetails(
+                file,
+                method: 'hdc shell snapshot_display',
+                remotePath: remotePath,
+                extra: {'capture': capture.toDetails()},
+              ),
+            );
+          }
+          return _failedAction(
+            action,
+            'Could not receive OHOS screenshot',
+            command: recv.command,
+            details: {
+              'path': file.path,
+              'remotePath': remotePath,
+              'capture': capture.toDetails(),
+              ...recv.toDetails(),
+            },
+            repairHints: action.repairHints,
           );
         });
       case 'swipe':

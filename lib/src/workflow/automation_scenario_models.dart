@@ -101,6 +101,7 @@ class AutomationScenarioAction {
     this.permission,
     this.bundleId,
     this.abilityName,
+    this.outputPath,
     this.timeout = const Duration(seconds: 5),
     this.optional = false,
     this.repairHints = const [],
@@ -151,6 +152,9 @@ class AutomationScenarioAction {
   /// OHOS ability name for launch actions.
   final String? abilityName;
 
+  /// Local file path for actions that capture artifacts.
+  final String? outputPath;
+
   /// Polling timeout for wait/assert actions.
   final Duration timeout;
 
@@ -178,6 +182,7 @@ class AutomationScenarioAction {
       if (permission != null) 'permission': permission,
       if (bundleId != null) 'bundleId': bundleId,
       if (abilityName != null) 'abilityName': abilityName,
+      if (outputPath != null) 'outputPath': outputPath,
       if (timeout != const Duration(seconds: 5))
         'timeoutSeconds': timeout.inSeconds,
       if (optional) 'optional': true,

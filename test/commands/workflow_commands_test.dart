@@ -156,6 +156,20 @@ void main() {
   }
 }
 
+Future<void> _writeWorkflowPlatformDirectories(Directory project) async {
+  for (final platform in const [
+    'ohos',
+    'android',
+    'ios',
+    'macos',
+    'linux',
+    'web',
+    'windows',
+  ]) {
+    await Directory('${project.path}/$platform').create(recursive: true);
+  }
+}
+
 Future<void> _writeWorkflowOhosProject(Directory project) async {
   final ohos = Directory('${project.path}/ohos');
   await Directory('${ohos.path}/AppScope').create(recursive: true);
@@ -510,6 +524,7 @@ exit 0
   final fakeHdc = File('${root.path}/fake_hdc');
   await _writeExecutable(fakeHdc, '''
 #!/usr/bin/env python3
+import os
 import sys
 
 log_path = ${jsonEncode(hdcLog.path)}
@@ -604,6 +619,16 @@ if "uitest" in args and "keyEvent" in args:
 
 if "hilog" in args:
     sys.stdout.write(hilog_stdout)
+    raise SystemExit(0)
+
+if "snapshot_display" in args:
+    raise SystemExit(0)
+
+if "file" in args and "recv" in args:
+    local_path = args[-1]
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    with open(local_path, "wb") as out:
+        out.write(b"fake-ohos-screenshot")
     raise SystemExit(0)
 
 raise SystemExit(1)
@@ -740,6 +765,10 @@ case "\$*" in
   "shell input swipe 10 20 30 40 250")
     exit 0
     ;;
+  "exec-out screencap -p")
+    printf "%s" "fake-android-screenshot"
+    exit 0
+    ;;
   "logcat -d -t 200")
     printf "%s\\n" ${_shellSingleQuote(logcat)}
     exit 0
@@ -805,6 +834,12 @@ ${iosAppInstalled ? '''
     ;;
   simctl\\ launch\\ ios-sim\\ *)
     printf "%s\\n" "com.example.camera: 12345"
+    exit 0
+    ;;
+  simctl\\ io\\ ios-sim\\ screenshot\\ *)
+    for output_path in "\$@"; do :; done
+    mkdir -p "\$(dirname "\$output_path")"
+    printf "%s" "fake-ios-screenshot" > "\$output_path"
     exit 0
     ;;
   "simctl privacy ios-sim reset camera com.example.camera")

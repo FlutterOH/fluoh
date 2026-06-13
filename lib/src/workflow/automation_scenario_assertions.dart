@@ -84,6 +84,147 @@ Future<AutomationScenarioActionResult> _waitAction(
   );
 }
 
+const _scenarioScreenshotDirectory = '.fluoh/evidence/screenshots';
+
+Future<_ScenarioScreenshotFileSelection> _scenarioScreenshotFile(
+  _ScenarioExecutionContext context,
+  AutomationScenarioAction action, {
+  required String defaultExtension,
+}) async {
+  final configured = action.outputPath?.trim();
+  final path = configured == null || configured.isEmpty
+      ? '$_scenarioScreenshotDirectory/${_scenarioArtifactSlug(context.scenario.platform)}-${_scenarioArtifactSlug(context.scenario.name)}-step-${action.index}.$defaultExtension'
+      : configured;
+  if (configured != null &&
+      configured.isNotEmpty &&
+      _isAbsoluteScenarioOutputPath(configured)) {
+    return _ScenarioScreenshotFileSelection.failure(
+      _invalidScreenshotOutputPath(action, configured),
+    );
+  }
+  final normalizedPath = _normalizeRelativeScenarioPath(path);
+  if (normalizedPath == null || !_isScreenshotEvidencePath(normalizedPath)) {
+    return _ScenarioScreenshotFileSelection.failure(
+      _invalidScreenshotOutputPath(action, path),
+    );
+  }
+  final localPath = normalizedPath.replaceAll('/', Platform.pathSeparator);
+  final file = File(
+    '${context.environment.workingDirectory.path}${Platform.pathSeparator}$localPath',
+  );
+  await file.parent.create(recursive: true);
+  return _ScenarioScreenshotFileSelection.file(file);
+}
+
+class _ScenarioScreenshotFileSelection {
+  const _ScenarioScreenshotFileSelection._({this.file, this.failure});
+
+  factory _ScenarioScreenshotFileSelection.file(File file) {
+    return _ScenarioScreenshotFileSelection._(file: file);
+  }
+
+  factory _ScenarioScreenshotFileSelection.failure(
+    AutomationScenarioActionResult failure,
+  ) {
+    return _ScenarioScreenshotFileSelection._(failure: failure);
+  }
+
+  final File? file;
+  final AutomationScenarioActionResult? failure;
+}
+
+AutomationScenarioActionResult _invalidScreenshotOutputPath(
+  AutomationScenarioAction action,
+  String outputPath,
+) {
+  return _failedAction(
+    action,
+    'Screenshot outputPath must be a relative path under $_scenarioScreenshotDirectory.',
+    details: {
+      'outputPath': outputPath,
+      'allowedDirectory': _scenarioScreenshotDirectory,
+    },
+    repairHints: [
+      ...action.repairHints,
+      'Use a relative path such as $_scenarioScreenshotDirectory/<name>.png.',
+    ],
+  );
+}
+
+bool _isAbsoluteScenarioOutputPath(String path) {
+  return File(path).isAbsolute || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
+}
+
+String? _normalizeRelativeScenarioPath(String path) {
+  final parts = <String>[];
+  for (final rawSegment in path.replaceAll('\\', '/').split('/')) {
+    final segment = rawSegment.trim();
+    if (segment.isEmpty || segment == '.') {
+      continue;
+    }
+    if (segment == '..') {
+      if (parts.isEmpty) {
+        return null;
+      }
+      parts.removeLast();
+      continue;
+    }
+    parts.add(segment);
+  }
+  return parts.isEmpty ? null : parts.join('/');
+}
+
+bool _isScreenshotEvidencePath(String path) {
+  return path.startsWith('$_scenarioScreenshotDirectory/');
+}
+
+Future<Map<String, Object?>> _screenshotDetails(
+  File file, {
+  required String method,
+  String? remotePath,
+  Map<String, Object?> extra = const {},
+}) async {
+  final stat = await file.stat();
+  return {
+    'method': method,
+    'path': file.path,
+    'bytes': stat.size,
+    'remotePath': ?remotePath,
+    ...extra,
+  };
+}
+
+Future<AutomationScenarioActionResult?> _screenshotFileFailure(
+  AutomationScenarioAction action,
+  File file, {
+  required String command,
+  required String platform,
+  Map<String, Object?> details = const {},
+}) async {
+  final exists = await file.exists();
+  final bytes = exists ? await file.length() : 0;
+  if (exists && bytes > 0) {
+    return null;
+  }
+  return _failedAction(
+    action,
+    exists
+        ? '$platform screenshot file is empty'
+        : '$platform screenshot file was not created',
+    command: command,
+    details: {'path': file.path, 'bytes': bytes, ...details},
+    repairHints: action.repairHints,
+  );
+}
+
+String _scenarioArtifactSlug(String value) {
+  final normalized = value
+      .trim()
+      .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+      .replaceAll(RegExp(r'^[-._]+|[-._]+$'), '');
+  return normalized.isEmpty ? 'scenario' : normalized;
+}
+
 Future<String?> _readOptionalFile(File? file) async {
   if (file == null || !await file.exists()) {
     return null;

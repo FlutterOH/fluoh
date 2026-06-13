@@ -12,9 +12,11 @@ class _IosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
     'assertLog',
     'assertSession',
     'assertText',
+    'captureScreenshot',
     'denyPermission',
     'drag',
     'resetPermission',
+    'screenshot',
     'swipe',
     'tap',
     'tapText',
@@ -25,6 +27,7 @@ class _IosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
   @override
   List<String> get evidenceMethods => const [
     'xcrun simctl',
+    'xcrun simctl io screenshot',
     'XCTest action project',
     'flutterRunSession JSON',
     'Flutter run output log',
@@ -43,6 +46,9 @@ class _IosAutomationScenarioDriver extends _AutomationScenarioPlatformDriver {
         return _tapIosPermission(action, context, allow: true);
       case 'denyPermission':
         return _tapIosPermission(action, context, allow: false);
+      case 'captureScreenshot':
+      case 'screenshot':
+        return _captureIosScreenshot(action, context);
       case 'tap':
         return _runIosCoordinateAction(action, context);
       case 'swipe':

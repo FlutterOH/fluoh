@@ -168,6 +168,22 @@ void main() {
       expect(content, contains('## Adaptation Responsibility'));
       expect(content, contains('## Platform Matrix'));
       expect(content, contains('## Automation Coverage'));
+      expect(
+        content,
+        contains(
+          'Existing package/app tests, example tests, and `integration_test/` were inspected',
+        ),
+      );
+      expect(
+        content,
+        contains('Missing or weak functional tests were added or repaired'),
+      );
+      expect(
+        content,
+        contains(
+          'Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked',
+        ),
+      );
       expect(content, contains('automation-scenario-camera-permission'));
       expect(content, contains('fluoh.automation.retry'));
       expect(

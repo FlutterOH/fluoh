@@ -1,17 +1,11 @@
 part of 'workflow_commands.dart';
 
 void _addPackageSelectionOptions(ArgParser parser) {
-  parser
-    ..addOption(
-      'package',
-      valueHelp: 'name',
-      help: 'Package to use. Defaults to the current package branch.',
-    )
-    ..addFlag(
-      'all',
-      negatable: false,
-      help: 'Run every target in the current project or package branch.',
-    );
+  parser.addOption(
+    'package',
+    valueHelp: 'name',
+    help: 'Package to use. Defaults to the current package branch.',
+  );
 }
 
 void _addTraceOptions(ArgParser parser) {
@@ -27,13 +21,6 @@ void _addTraceOptions(ArgParser parser) {
       valueHelp: 'path',
       help: 'Write the AI diagnostic trace to a specific directory.',
     );
-}
-
-void _validatePackageSelection(ArgResults results, UsageError usageException) {
-  if (results.flag('all') &&
-      (results.option('package')?.trim().isNotEmpty ?? false)) {
-    usageException('Use only one of --all or --package.');
-  }
 }
 
 TraceOptions _traceOptionsFrom(ArgResults results) {

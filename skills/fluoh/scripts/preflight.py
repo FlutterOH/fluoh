@@ -92,6 +92,46 @@ def run(command: list[str], cwd: Path, timeout: int = 20) -> dict[str, Any]:
         }
 
 
+def fluoh_setup_status(fluoh: dict[str, Any]) -> dict[str, Any]:
+    if fluoh.get("ok") is True:
+        return {
+            "status": "ready",
+            "classification": "working",
+            "hints": [],
+        }
+    stderr = str(fluoh.get("stderr") or "")
+    stdout = str(fluoh.get("stdout") or "")
+    combined = f"{stdout}\n{stderr}"
+    hints = [
+        "Run CLI setup before following commandQueue.",
+        "Do not classify fluoh launcher failures as package implementation failures.",
+    ]
+    classification = "unavailable"
+    if (
+        "update_engine_version.sh" in combined
+        or "engine.stamp.tmp" in combined
+        or "engine.realm" in combined
+    ):
+        classification = "dart-pub-shim-flutter-cache-permission"
+        hints.extend(
+            [
+                "The fluoh executable appears to be a Dart pub global shim using Flutter's dart wrapper.",
+                "Use a native/Homebrew fluoh executable, set FLUOH_BIN to a working fluoh, or pass --fluoh-command with a local checkout command.",
+                "When validating the fluoh repository itself, use dart run bin/fluoh.dart.",
+            ]
+        )
+    elif "No such file" in combined or "not found" in combined:
+        classification = "missing-executable"
+        hints.append(
+            "Install fluoh, or set FLUOH_BIN/--fluoh-command to the executable path."
+        )
+    return {
+        "status": "needs-cli-setup",
+        "classification": classification,
+        "hints": hints,
+    }
+
+
 def fluoh_command_args(value: str) -> list[str]:
     command = shlex.split(value)
     if not command:
@@ -720,6 +760,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             *mobile_drive_commands(project["platformDirectories"], trace_dir),
             *app_platform_regression_commands(project, trace_dir),
             f"fluoh report create --scope {command_arg(project['name'] or 'app')} --trace-dir {trace_dir} --json",
+            report_check_command(),
         ]
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
@@ -737,6 +778,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
+            report_check_command(),
             f"fluoh package handoff --package {package} --json",
             f"fluoh package check --package {package} --report <report-path> --json",
         ]
@@ -764,6 +806,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
+            report_check_command(),
             f"fluoh package handoff --package {package} --json",
             f"fluoh package check --package {package} --report <report-path> --json",
         ]
@@ -786,6 +829,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
             *ohos_adaptation_commands(trace_dir),
             *mobile_drive_commands(project["platformDirectories"], trace_dir),
             *app_platform_regression_commands(project, trace_dir),
+            report_check_command(),
         ]
     if kind == "package-repository":
         package = project["selectedPackage"] or "<name>"
@@ -801,6 +845,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
             ),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
+            report_check_command(),
             f"fluoh package handoff --package {package} --json",
             f"fluoh package check --package {package} --report <report-path> --json",
         ]
@@ -859,12 +904,14 @@ def main() -> int:
     command_cwd = root if root.is_dir() else Path.cwd()
     requested_package = args.package.strip() or None
     fluoh_command = fluoh_command_args(args.fluoh_command)
+    fluoh_result = run([*fluoh_command, "--version"], command_cwd)
     info: dict[str, Any] = {
         "schema": 1,
         "cwd": str(root),
         "pathExists": root.exists(),
         "pathIsDirectory": root.is_dir(),
-        "fluoh": run([*fluoh_command, "--version"], command_cwd),
+        "fluoh": fluoh_result,
+        "fluohSetup": fluoh_setup_status(fluoh_result),
         "project": project_info(root, requested_package=requested_package),
         "git": git_state(root),
     }

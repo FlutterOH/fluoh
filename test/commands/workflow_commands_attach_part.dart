@@ -1,6 +1,32 @@
 part of 'workflow_commands_test.dart';
 
 void _registerWorkflowCommandsAttachTests() {
+  test('attach rejects all platform shortcut', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['attach', 'all', '--device-id', 'test-device', '--dry-run', '--json'],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 64);
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('exitCode', 64));
+    final error = report['error'] as Map<String, Object?>;
+    expect(
+      error,
+      containsPair('message', contains('Unsupported attach platform "all"')),
+    );
+    expect(error['message'], isNot(contains('Expected one of: all')));
+  });
+
   test('attach uses VM Service URI from a run session', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(

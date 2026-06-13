@@ -70,6 +70,10 @@ AutomationScenarioAction _readScenarioAction(
         optionalString(json, 'appId') ??
         optionalString(json, 'packageName'),
     abilityName: optionalString(json, 'abilityName'),
+    outputPath:
+        optionalString(json, 'outputPath') ??
+        optionalString(json, 'path') ??
+        optionalString(json, 'file'),
     timeout: Duration(seconds: timeoutSeconds),
     optional: json['optional'] == true,
     repairHints: [

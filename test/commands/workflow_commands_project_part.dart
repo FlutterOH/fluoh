@@ -266,6 +266,15 @@ void _registerWorkflowCommandsProjectTests() {
       environment.homeDirectory,
       environment.workingDirectory,
       flutterStdout: _ohosFlutterRunStdoutByCommand,
+      flutterSideEffects: {
+        'test integration_test -d emulator-5554':
+            '''
+if ! grep -q "debug-profile.p7b" "${environment.workingDirectory.path}/ohos/build-profile.json5"; then
+  echo "missing signing profile for integration_test" >&2
+  exit 42
+fi
+''',
+      },
     );
     final hdcLog = File('${environment.homeDirectory.path}/hdc.log');
     final devEco = await _writeWorkflowDevEcoFixture(
@@ -284,6 +293,10 @@ void _registerWorkflowCommandsProjectTests() {
     );
     await writeFlutterProjectFixture(environment.workingDirectory);
     await _writeWorkflowOhosProject(environment.workingDirectory);
+    final buildProfile = File(
+      '${environment.workingDirectory.path}/ohos/build-profile.json5',
+    );
+    final originalBuildProfile = await buildProfile.readAsString();
     await _writeProjectSdkConfig(environment.workingDirectory);
     await Directory(
       '${environment.workingDirectory.path}/integration_test',
@@ -365,6 +378,7 @@ void _registerWorkflowCommandsProjectTests() {
     final evidence = details['interactionEvidence'] as Map<String, Object?>;
     expect(evidence, containsPair('method', 'integration_test'));
     expect(evidence, containsPair('status', 'passed'));
+    expect(await buildProfile.readAsString(), originalBuildProfile);
     expect(stderr, isEmpty);
   });
 

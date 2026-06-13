@@ -503,8 +503,8 @@ the local trace-evidence issue here.
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
-      final report = File('${root.path}/legacy-report.md');
-      await report.writeAsString('# legacy report\n');
+      final report = File('${root.path}/custom-report.md');
+      await report.writeAsString('# custom report\n');
 
       final check = await Process.run('python3', [
         checkReportScript,
@@ -596,6 +596,9 @@ the local trace-evidence issue here.
 ## Delivery Checklist
 
 - [x] Diff reviewed.
+- [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 
 ## Platform Matrix
 
@@ -729,6 +732,9 @@ Ready.
 ## Delivery Checklist
 
 - [x] Diff reviewed.
+- [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 
 ## Platform Matrix
 

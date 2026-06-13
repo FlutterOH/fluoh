@@ -222,7 +222,10 @@ OHOS build/run 证据、OHOS device/emulator 发现、已有平台回归检查�
 `.fluoh/traces/<scope>/adaptation` session。`--json` 会输出一个带
 `changed: false` 和 `applied: false` 的机器可读对象，方便 AI agent 在请求修改命令前完成适配范围确认。
 JSON 同时包含 `automationRunbook` 和 `deliveryGate`，用于定义修复循环、终态、最终检查命令、
-报告检查命令，以及 AI 声明 `ready` 前必须满足的条件。
+报告检查命令，以及 AI 声明 `ready` 前必须满足的条件。Ready 要求先审查已有 test 和
+`integration_test/` 是否覆盖功能；缺失时补齐或修复功能测试；同时为 OHOS 和当前
+host/toolchain 支持的所有已有平台目录收集功能证据。环境不支持的平台必须记录具体 diagnostic
+证据和跳过原因。
 
 `plan package` 对当前 FlutterOH Package 分支执行同样的只读规划。它读取
 Package `fluoh.yaml`，报告分支与工作区状态、已选择 SDK、上游和 release 元数据、
@@ -581,21 +584,30 @@ JSON 模式仍只向 stdout 输出一个对象，并只在对象里加入本地 
 变化并在提交前复核。一个适配循环内复用同一个 `--trace-dir` 可以把多条命令追加到同一个
 session。
 
-`fluoh build ohos|android|ios|macos|linux|web|windows` 构建当前 Flutter 项目或所选 Package example。iOS
-构建会自动加入 `--no-codesign`。OHOS 构建可用 `--auto-sign` 根据项目或 example 申请的权限
-生成临时本地 debug 签名 profile，为本次构建 patch `ohos/build-profile.json5`，并在构建后恢复原文件。
-如果 Hvigor 签名失败但 Flutter 留下了新的 unsigned HAP，`fluoh` 会直接签这个 HAP，并在 JSON
+`fluoh build all|ohos|android|ios|macos|linux|web|windows` 构建当前 Flutter
+项目或所选 Package example。`all` 会展开为当前项目根目录或所选 Package `example/` 中已经
+存在的平台目录，按顺序执行这些适用 workflow platform，并记录每个平台结果，不会因为某个平台失败
+就跳过后续平台。需要诊断缺失平台目录或明确补齐某个平台时，使用具体平台参数。iOS 构建会自动加入
+`--no-codesign`。OHOS 构建可用 `--auto-sign` 根据项目或 example 申请的权限生成临时本地 debug
+签名 profile，为本次构建 patch `ohos/build-profile.json5`，并在构建后恢复原文件。`build all --auto-sign`
+只会把自动签名应用到支持该能力的平台。如果 Hvigor 签名失败但 Flutter 留下了新的 unsigned HAP，`fluoh` 会直接签这个 HAP，并在 JSON
 中报告 `signingMode: direct-sign-fallback` 和可安装 HAP 路径。JSON 失败会对当前项目和
 Package example 都使用平台化 diagnostic code，例如 `ohos.hap_build_failed`、
 `android.apk_build_failed`、`ios.build_failed`、`macos.build_failed`、`linux.build_failed`、`web.build_failed` 和
 `windows.build_failed`。`--trace` 和
-`--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。
+`--trace-dir <path>` 使用与 `fluoh verify` 相同的本地 AI diagnostic trace 契约。JSON
+输出的是事实证据摘要，不是 release-ready 判定。它包含
+`workflowEvidence.classification: buildOnly`、`observedEvidence`、
+`collectedEvidenceKinds`、`notCollectedEvidenceKinds`、`workflowContinuations`，
+并在 build 通过时通过 `toolCommands` 给出后续 run smoke 命令。`collectedEvidenceKinds`
+只表示命令结果或 artifact 已被收集；是否通过、失败、跳过或阻塞以 `observedEvidence` 为准。
 
-`fluoh run ohos|android|ios|macos|linux|web|windows` 会先准备平台，再通过已选择 SDK 的
-`flutter run` 启动当前项目或所选 Package example。OHOS 与其他平台走同一条 Flutter run 路径；
-`--auto-sign` 只增加临时 debug 签名准备和恢复。Android、iOS 的签名、设备、
-emulator/simulator 前置条件也使用同一套 run-preparation 和 target-selection 层。Web run
-使用 Chrome 等浏览器 target。
+`fluoh run all|ohos|android|ios|macos|linux|web|windows` 会先准备平台，再通过已选择 SDK
+的 `flutter run` 启动当前项目或所选 Package example。`all` 会展开为当前项目根目录或所选
+Package `example/` 中已经存在的平台目录，按顺序执行这些适用 workflow platform，并在前面平台
+失败后继续收集后续平台结果。OHOS 与其他平台走同一条 Flutter run 路径；OHOS run 会应用临时
+debug 签名准备和恢复。Android、iOS 的签名、设备、emulator/simulator 前置条件也使用同一套
+run-preparation 和 target-selection 层。Web run 使用 Chrome 等浏览器 target。
 当存在 `integration_test/` 且有具体 target 时，`fluoh run` 会继续在同一 target 上运行
 `flutter test integration_test -d <device>`。Release 报告应单独记录这条已通过的测试命令，
 因为普通 `fluoh run --json` 行只表示启动证据。
@@ -606,12 +618,26 @@ VM Service URI。`fluoh attach` 可以复用该 session，也可以直接接收
 `flutter attach -d <targetId>`。
 run 和 drive 共用 target 参数：`--device-id <id>` 使用已有 target，`--emulator <name>`
 指定本地 emulator/simulator，`--auto-emulator` 优先使用本地 emulator/simulator，再回退到已连接设备。
+`run all` 可以使用 `--auto-emulator`，但 `--device-id`、`--emulator` 和
+`--session-file` 都是单平台选项。
+JSON 会输出 `workflowEvidence.classification: launchSmoke`、`observedEvidence`、
+`collectedEvidenceKinds`、`notCollectedEvidenceKinds`、`workflowContinuations`，以及该
+run 命令实际观察到的交互证据摘要。`collectedEvidenceKinds` 也可能包含失败的命令结果；
+通过、失败、跳过或阻塞状态以 `observedEvidence` 为准。移动端平台启动成功后，`workflowEvidence.toolCommands`
+会给出匹配的 `fluoh drive ... --dry-run --json` 命令，让 AI 继续规划点击、滑动、
+权限 grant/deny 路径、截图和结果断言，而不是把启动当成交付完成。
+对 `observedEvidence.interaction.status`，`integrationTestEvidenceFailed`
+优先于同一矩阵里的其它通过行；`partialIntegrationTestEvidence` 表示只有部分 target
+产出了通过的 integration-test 证据。两种情况都必须继续修复或补证据，不能当作 release-ready。
 
 run-smoke 成功只证明 App 已启动。需要 UI、权限、文件、相机、定位、媒体、deep link 或外部
 App 的流程，还需要功能验证证据，来源可以是已通过的 `integration_test`、`fluoh drive`
 或带工具可读证据的 `manual-assisted`。manual-assisted 是操作方式，仍需要日志、session 状态、
 稳定文本、语义标签、test key、命令 JSON、hilog 或 App 日志标记支撑。如果没有交互流程，报告必须写明
 `No interaction required: <reason>`。
+Package 适配不能只验证 OHOS。已有 Android、iOS、macOS、Linux、Web、Windows package/example
+平台目录在当前 host 和 toolchain 支持时也必须作为功能测试目标；环境不支持的 target 必须记录
+diagnostic 命令和阻塞原因。
 
 交互场景放在 `.fluoh/scenarios/<package>/<platform>-<name>.md`，并以
 `skills/fluoh/references/interaction-scenario-template.md` 作为动作契约。场景 Markdown
@@ -619,14 +645,22 @@ App 的流程，还需要功能验证证据，来源可以是已通过的 `integ
 和可选 `coverage` 元数据。
 
 `fluoh drive all|ohos|android|ios` 是移动端 target 启动、交互场景和证据校验封装。
-它复用 `fluoh run` 的 target 选择，默认优先使用本地 emulator/simulator，可针对当前项目、
-一个 Package 或全部 Package 运行。dry-run 和真实运行 JSON 都包含
+它复用 `fluoh run` 的 target 选择，`all` 会展开为已经存在的 OHOS、Android、iOS 平台目录，
+默认优先使用本地 emulator/simulator，可针对当前项目或当前/指定 Package 分支运行。dry-run 和真实运行 JSON 都包含
 `deliveryRecommendation`、`repairPlan`、`repairQueue` 和
 `automation.coveragePolicy`；真实运行还会输出 workflow `targets` 以及记录启动/session
 证据和 replay 材料的 `automation` 对象。稳定覆盖字段包括 `scenarioCoverage`、
 `coverageSummary`、`inventory`、`capabilityCoverage`、`manifestPermissionCoverage`、
 `pathCoverage`、`scenarioEvidence`、`qualityGates` 和 `repairLoop`。详细修复顺序属于
 skill 和 report template。
+真实 drive 会先执行同一套启动和可用的 `integration_test/` 步骤；只有 run 与
+integration-test 都通过的 target 才会继续执行 scenario。
+
+可执行 scenario 支持 `captureScreenshot` 和 `screenshot` 作为辅助观察动作。
+Android 会保存 `adb exec-out screencap -p`，iOS 会保存 `xcrun simctl io <target>
+screenshot`，OHOS 会保存 `snapshot_display` 并通过 `hdc file recv` 拉取到本地。
+动作结果会记录本地路径和字节数。截图是证据产物；功能是否通过仍应由 `assertText`、
+`assertLog`、`assertSession` 或 integration-test 输出等工具可读断言支撑。
 
 runtime permission 需要在每个支持平台覆盖 grant、deny 和行为不同的 error 路径，或用带原因的
 `notApplicable`/`blocked` 行说明。iOS 自动化可用内置 XCTest runner；需要指定 Xcode 时设置

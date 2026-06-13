@@ -13,12 +13,14 @@ class _AndroidAutomationScenarioDriver
     'assertLog',
     'assertSession',
     'assertText',
+    'captureScreenshot',
     'clearAppData',
     'denyPermission',
     'drag',
     'inputText',
     'launchApp',
     'press',
+    'screenshot',
     'swipe',
     'tap',
     'tapText',
@@ -30,6 +32,7 @@ class _AndroidAutomationScenarioDriver
   List<String> get evidenceMethods => const [
     'adb shell input',
     'uiautomator window dump',
+    'adb exec-out screencap -p',
     'Android logcat',
     'flutterRunSession JSON',
   ];
@@ -119,6 +122,52 @@ class _AndroidAutomationScenarioDriver
           result,
           'adb ${args.join(' ')}',
           details: {'gesture': coordinates.toJson()},
+        );
+      case 'captureScreenshot':
+      case 'screenshot':
+        final selection = await _scenarioScreenshotFile(
+          context,
+          action,
+          defaultExtension: 'png',
+        );
+        if (selection.failure != null) {
+          return selection.failure!;
+        }
+        final file = selection.file!;
+        final args = ['-s', context.targetId!, 'exec-out', 'screencap', '-p'];
+        final result = await _runToolToFile(
+          adb.path,
+          args,
+          environment: context.environment.processEnvironment,
+          workingDirectory: context.environment.workingDirectory,
+          outputFile: file,
+          timeout: action.timeout,
+        );
+        if (result.exitCode == 0) {
+          final fileFailure = await _screenshotFileFailure(
+            action,
+            file,
+            command: result.command,
+            platform: 'Android',
+          );
+          if (fileFailure != null) {
+            return fileFailure;
+          }
+          return _passedAction(
+            action,
+            command: result.command,
+            details: await _screenshotDetails(
+              file,
+              method: 'adb exec-out screencap -p',
+            ),
+          );
+        }
+        return _failedAction(
+          action,
+          'Could not capture Android screenshot',
+          command: result.command,
+          details: {'path': file.path, ...result.toDetails()},
+          repairHints: action.repairHints,
         );
       case 'swipe':
       case 'drag':

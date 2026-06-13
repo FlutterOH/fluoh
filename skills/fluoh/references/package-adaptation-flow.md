@@ -10,8 +10,8 @@ verification, HAP build, app launch, or a screenshot. Continue until exactly
 one delivery state is justified:
 
 - `ready`: implementation, package tests, OHOS build/run, applicable
-  interaction automation, existing-platform regressions, package handoff,
-  release check, canonical report, and `check_report.py` all pass.
+  interaction automation, existing-platform functional checks, package
+  handoff, release check, canonical report, and `check_report.py` all pass.
 - `needs maintainer decision`: code and evidence are as complete as the local
   environment allows, but release, publish, push, tag, signing policy, SDK
   line, upstream downgrade, public API break, or release version choice needs a
@@ -21,10 +21,25 @@ one delivery state is justified:
   command and the printed repair command or `nextCommand`.
 
 Use `scripts/preflight.py` or `fluoh plan package --json` as the machine
-runbook. Execute `commandQueue`/`queue` in order, parse every JSON result,
-follow diagnostics `nextCommand`, make the smallest owned fix, and rerun the
-failed command. Do not skip `drive`, `report create`, `package handoff`,
-`package check`, or `check_report.py` when applicable.
+runbook. If preflight reports `fluohSetup.status: needs-cli-setup`, fix the
+fluoh executable or launcher and rerun preflight before `commandQueue`. Execute
+`commandQueue`/`queue` in order, parse every JSON result, follow diagnostics
+`nextCommand`, make the smallest owned fix, and rerun the failed command. Do
+not skip `drive`, `report create`, `package handoff`, `package check`, or
+`check_report.py` when applicable.
+Treat `fluoh build all` and `fluoh run all` as matrix shortcuts for artifact
+and launch-smoke evidence across existing project or package example platform
+directories. Parse `workflowEvidence.observedEvidence`,
+`collectedEvidenceKinds`, `notCollectedEvidenceKinds`,
+`workflowContinuations`, and `toolCommands`; continue through `drive`,
+scenario repair, report creation, and report checks before recommending ready.
+
+Before final verification, inspect whether existing package tests, example
+tests, and `integration_test/` cover the library's public API, platform
+interfaces, permission flows, success paths, and denial/error paths. If they do
+not, add or repair focused functional tests first. Do not defer missing tests
+to the final report unless a concrete upstream, host, device, or toolchain
+blocker prevents the test from being written or run.
 
 ## Setup
 
@@ -147,8 +162,10 @@ Rules:
 
 ## Platform Regression
 
-Run existing-platform checks when corresponding example platform directories
-exist and local toolchains are available:
+Run existing-platform functional checks when corresponding example platform
+directories exist and local toolchains are available. Do not validate only
+OHOS unless every other existing platform is unsupported by the current host or
+toolchain and that diagnostic is recorded:
 
 ```sh
 fluoh doctor --platform android --json --strict
@@ -172,6 +189,14 @@ Use the per-platform `fluoh drive <platform> --package <name> --json` commands
 emitted by preflight or `fluoh plan package --json`. OHOS is part of the
 adaptation target; Android and iOS drive commands are included only when the
 example platform exists and the local host can run the target.
+When `fluoh run all --package <name> --json` is used as a shortcut, parse
+`workflowEvidence.toolCommands` and continue with the emitted `drive --dry-run`
+or platform-specific drive commands. Do not substitute launch smoke for taps,
+swipes, permission prompt handling, grant/deny assertions, or result checks.
+For every platform directory that exists in the package example, record either
+passed build/run/integration/drive evidence or the exact unsupported-host or
+toolchain diagnostic that prevents execution. A ready recommendation is not
+valid when a supported existing platform was skipped.
 
 ## Delivery Gate
 

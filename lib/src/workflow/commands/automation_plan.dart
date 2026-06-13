@@ -3,7 +3,7 @@ part of 'workflow_commands.dart';
 _AutomationPlan _automationPlan({
   required List<String> platforms,
   required String? packageName,
-  required bool all,
+  required bool requestedAllPlatforms,
   required String? deviceId,
   required String? emulatorName,
   required bool autoEmulator,
@@ -17,7 +17,7 @@ _AutomationPlan _automationPlan({
   return _AutomationPlan(
     platforms: platforms,
     packageName: packageName,
-    all: all,
+    requestedAllPlatforms: requestedAllPlatforms,
     deviceId: deviceId,
     emulatorName: emulatorName,
     autoEmulator: autoEmulator,
@@ -34,7 +34,7 @@ class _AutomationPlan {
   const _AutomationPlan({
     required this.platforms,
     required this.packageName,
-    required this.all,
+    required this.requestedAllPlatforms,
     required this.deviceId,
     required this.emulatorName,
     required this.autoEmulator,
@@ -48,7 +48,7 @@ class _AutomationPlan {
 
   final List<String> platforms;
   final String? packageName;
-  final bool all;
+  final bool requestedAllPlatforms;
   final String? deviceId;
   final String? emulatorName;
   final bool autoEmulator;
@@ -73,7 +73,6 @@ class _AutomationPlan {
         _AutomationCheckPlan(
           platform: platform,
           packageName: packageName,
-          all: all,
           deviceId: deviceId,
           emulatorName: emulatorName,
           autoEmulator: autoEmulator,
@@ -103,8 +102,8 @@ class _AutomationPlan {
       'kind': 'fluoh.mobileAutomation',
       'platforms': platforms,
       'targetSelection': {
+        if (requestedAllPlatforms) 'platform': _allWorkflowPlatform,
         if (packageName != null) 'package': packageName,
-        if (all) 'all': true,
       },
       'targeting': {
         'autoEmulator': autoEmulator,
@@ -141,13 +140,14 @@ class _AutomationPlan {
   }
 
   String _driveCommand({required bool dryRun}) {
-    final platform = platforms.length == 3 ? 'all' : platforms.single;
+    final platform = requestedAllPlatforms
+        ? _allWorkflowPlatform
+        : platforms.single;
     final parts = [
       'fluoh',
       'drive',
       platform,
       if (packageName != null) ...['--package', packageName!],
-      if (all) '--all',
       if (deviceId != null) ...['--device-id', deviceId!],
       if (emulatorName != null) ...['--emulator', emulatorName!],
       if (deviceId == null && emulatorName == null)

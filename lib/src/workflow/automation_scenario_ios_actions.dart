@@ -1,5 +1,65 @@
 part of 'automation_scenario.dart';
 
+Future<AutomationScenarioActionResult> _captureIosScreenshot(
+  AutomationScenarioAction action,
+  _ScenarioExecutionContext context,
+) async {
+  final xcrun = await _xcrun(context.environment.processEnvironment);
+  if (xcrun == null) {
+    return _failedAction(
+      action,
+      'xcrun was not found for iOS screenshot capture',
+      repairHints: [
+        ...action.repairHints,
+        'Install Xcode command line tools or set FLUOH_XCRUN.',
+      ],
+    );
+  }
+  final selection = await _scenarioScreenshotFile(
+    context,
+    action,
+    defaultExtension: 'png',
+  );
+  if (selection.failure != null) {
+    return selection.failure!;
+  }
+  final file = selection.file!;
+  final args = ['simctl', 'io', context.targetId!, 'screenshot', file.path];
+  final result = await _runTool(
+    xcrun.path,
+    args,
+    environment: context.environment.processEnvironment,
+    workingDirectory: context.environment.workingDirectory,
+    timeout: action.timeout,
+  );
+  if (result.exitCode == 0) {
+    final fileFailure = await _screenshotFileFailure(
+      action,
+      file,
+      command: result.command,
+      platform: 'iOS',
+    );
+    if (fileFailure != null) {
+      return fileFailure;
+    }
+    return _passedAction(
+      action,
+      command: result.command,
+      details: await _screenshotDetails(
+        file,
+        method: 'xcrun simctl io screenshot',
+      ),
+    );
+  }
+  return _failedAction(
+    action,
+    'Could not capture iOS screenshot',
+    command: result.command,
+    details: {'path': file.path, ...result.toDetails()},
+    repairHints: action.repairHints,
+  );
+}
+
 Future<AutomationScenarioActionResult> _runIosTextAction(
   AutomationScenarioAction action,
   _ScenarioExecutionContext context,

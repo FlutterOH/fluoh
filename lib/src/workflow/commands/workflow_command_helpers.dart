@@ -8,9 +8,81 @@ int _lastExitCode(List<WorkflowStepResult> steps) {
   return steps.last.exitCode ?? 1;
 }
 
-const _buildRunPlatforms = workflowPlatformNames;
+const _allWorkflowPlatform = 'all';
+
+const _buildRunPlatforms = [_allWorkflowPlatform, ...workflowPlatformNames];
+
+const _attachPlatforms = workflowPlatformNames;
 
 const _drivePlatforms = ['all', 'ohos', 'android', 'ios'];
+
+Future<List<String>> _workflowPlatformsFromArgument(
+  String platform, {
+  required FluohEnvironment environment,
+  required String? packageName,
+  required List<String> candidates,
+  required String usage,
+}) async {
+  if (platform != _allWorkflowPlatform) {
+    return [platform];
+  }
+  final root = await _workflowPlatformRoot(
+    environment: environment,
+    packageName: packageName,
+    usage: usage,
+  );
+  final selected = <String>[];
+  for (final candidate in candidates) {
+    if (candidate == _allWorkflowPlatform) {
+      continue;
+    }
+    if (await Directory('${root.directory.path}/$candidate').exists()) {
+      selected.add(candidate);
+    }
+  }
+  if (selected.isEmpty) {
+    throw UsageException(
+      'No applicable workflow platforms found for all in ${root.label}. '
+      'Add platform directories or run a specific platform.',
+      usage,
+    );
+  }
+  return selected;
+}
+
+Future<_WorkflowPlatformRoot> _workflowPlatformRoot({
+  required FluohEnvironment environment,
+  required String? packageName,
+  required String usage,
+}) async {
+  final manifest = await _readOptionalPackageManifest(environment);
+  if (manifest == null) {
+    if (packageName != null) {
+      throw UsageException(
+        'Current directory is not a package repository.',
+        usage,
+      );
+    }
+    return _WorkflowPlatformRoot(
+      directory: environment.workingDirectory,
+      label: 'current project',
+    );
+  }
+  final package = manifest.packageForName(packageName);
+  return _WorkflowPlatformRoot(
+    directory: Directory(
+      '${packageDirectory(environment.workingDirectory, package.path).path}/example',
+    ),
+    label: '${package.name} example',
+  );
+}
+
+class _WorkflowPlatformRoot {
+  const _WorkflowPlatformRoot({required this.directory, required this.label});
+
+  final Directory directory;
+  final String label;
+}
 
 String _platformArgument(
   ArgResults results,
@@ -48,6 +120,246 @@ int _firstFailure(List<WorkflowTargetResult> results) {
 
 String _passedMessage(String label, int count) {
   return count == 1 ? '$label passed' : '$label passed for $count runs';
+}
+
+Map<String, Object?> _buildOnlyEvidence({
+  required List<String> platforms,
+  required List<WorkflowTargetResult> results,
+  required String? packageName,
+  required bool requestedAllPlatforms,
+  required bool autoEmulator,
+}) {
+  final passed = _firstFailure(results) == 0;
+  final blockingDiagnostics = [if (!passed) 'repairFailedTargets'];
+  final notCollectedEvidenceKinds = ['launchSmoke', 'functionalInteraction'];
+  final workflowContinuations = ['coverageReview', 'reportCheck'];
+  return {
+    'schema': 1,
+    'kind': 'fluoh.workflowEvidence',
+    'classification': 'buildOnly',
+    'passed': passed,
+    'scope': _workflowEvidenceScope(
+      platforms: platforms,
+      packageName: packageName,
+      requestedAllPlatforms: requestedAllPlatforms,
+    ),
+    'observedEvidence': {
+      'build': {
+        'status': passed ? 'passed' : 'failed',
+        'targetCount': results.length,
+      },
+      'launch': {'status': 'notCollectedByThisCommand'},
+      'interaction': _interactionEvidenceSummary(results),
+    },
+    'collectedEvidenceKinds': const ['buildCommandResult'],
+    'notCollectedEvidenceKinds': notCollectedEvidenceKinds,
+    'workflowContinuations': workflowContinuations,
+    if (blockingDiagnostics.isNotEmpty)
+      'blockingDiagnostics': blockingDiagnostics,
+    'toolCommands': [
+      if (passed)
+        {
+          'purpose': 'collect launch smoke evidence',
+          'command': _runCommandFromEvidenceScope(
+            platforms: platforms,
+            packageName: packageName,
+            requestedAllPlatforms: requestedAllPlatforms,
+            autoEmulator: autoEmulator,
+          ),
+        },
+    ],
+  };
+}
+
+Map<String, Object?> _runSmokeEvidence({
+  required List<String> platforms,
+  required List<WorkflowTargetResult> results,
+  required String? packageName,
+  required bool requestedAllPlatforms,
+  required bool autoEmulator,
+}) {
+  final passed = _firstFailure(results) == 0;
+  final interactionEvidence = _interactionEvidenceSummary(results);
+  final hasPassedIntegrationEvidence =
+      interactionEvidence['status'] == 'integrationTestEvidencePresent';
+  final hasIntegrationCommandResult =
+      interactionEvidence['status'] != 'notCollectedByThisCommand';
+  final blockingDiagnostics = [if (!passed) 'repairFailedTargets'];
+  final notCollectedEvidenceKinds = [
+    if (!hasPassedIntegrationEvidence) 'functionalInteraction',
+  ];
+  final workflowContinuations = ['coverageReview', 'reportCheck'];
+  final mobilePlatforms = platforms
+      .where(_isDrivePlatform)
+      .toList(growable: false);
+  return {
+    'schema': 1,
+    'kind': 'fluoh.workflowEvidence',
+    'classification': 'launchSmoke',
+    'passed': passed,
+    'scope': _workflowEvidenceScope(
+      platforms: platforms,
+      packageName: packageName,
+      requestedAllPlatforms: requestedAllPlatforms,
+    ),
+    'observedEvidence': {
+      'launch': {
+        'status': passed ? 'passed' : 'failed',
+        'targetCount': results.length,
+      },
+      'interaction': interactionEvidence,
+    },
+    'collectedEvidenceKinds': [
+      'launchCommandResult',
+      if (hasIntegrationCommandResult) 'integrationTestCommandResult',
+    ],
+    'notCollectedEvidenceKinds': notCollectedEvidenceKinds,
+    'workflowContinuations': workflowContinuations,
+    if (blockingDiagnostics.isNotEmpty)
+      'blockingDiagnostics': blockingDiagnostics,
+    'toolCommands': [
+      if (passed && mobilePlatforms.isNotEmpty)
+        {
+          'purpose': 'plan functional interaction automation',
+          'command': _driveCommandFromEvidenceScope(
+            platforms: mobilePlatforms,
+            packageName: packageName,
+            requestedAllPlatforms: requestedAllPlatforms,
+            autoEmulator: autoEmulator,
+            dryRun: true,
+          ),
+        },
+    ],
+  };
+}
+
+Map<String, Object?> _workflowEvidenceScope({
+  required List<String> platforms,
+  required String? packageName,
+  required bool requestedAllPlatforms,
+}) {
+  return {
+    'platforms': platforms,
+    'package': ?packageName,
+    if (requestedAllPlatforms) 'requestedPlatform': _allWorkflowPlatform,
+  };
+}
+
+Map<String, Object?> _interactionEvidenceSummary(
+  List<WorkflowTargetResult> results,
+) {
+  final passedIntegrationCommands = <String>[];
+  final failedIntegrationCommands = <String>[];
+  final skippedIntegrationCommands = <String>[];
+  var passedIntegrationTargetCount = 0;
+  var failedIntegrationTargetCount = 0;
+  var skippedIntegrationTargetCount = 0;
+  var missingIntegrationTargetCount = 0;
+  for (final result in results) {
+    final integrationSteps = result.steps
+        .where((step) => step.name.contains('-integration-'))
+        .toList(growable: false);
+    if (integrationSteps.isEmpty) {
+      missingIntegrationTargetCount += 1;
+      continue;
+    }
+    var targetPassed = false;
+    var targetFailed = false;
+    for (final step in integrationSteps) {
+      if (step.status == 'passed') {
+        targetPassed = true;
+        passedIntegrationCommands.add(step.command);
+      } else if (step.status == 'failed') {
+        targetFailed = true;
+        failedIntegrationCommands.add(step.command);
+      } else {
+        skippedIntegrationCommands.add(step.command);
+      }
+    }
+    if (targetFailed) {
+      failedIntegrationTargetCount += 1;
+    } else if (targetPassed) {
+      passedIntegrationTargetCount += 1;
+    } else {
+      skippedIntegrationTargetCount += 1;
+    }
+  }
+  final status = failedIntegrationCommands.isNotEmpty
+      ? 'integrationTestEvidenceFailed'
+      : passedIntegrationCommands.isNotEmpty &&
+            passedIntegrationTargetCount == results.length
+      ? 'integrationTestEvidencePresent'
+      : passedIntegrationCommands.isNotEmpty
+      ? 'partialIntegrationTestEvidence'
+      : 'notCollectedByThisCommand';
+  return {
+    'status': status,
+    'targetCount': results.length,
+    'passedIntegrationTargetCount': passedIntegrationTargetCount,
+    'failedIntegrationTargetCount': failedIntegrationTargetCount,
+    'skippedIntegrationTargetCount': skippedIntegrationTargetCount,
+    'missingIntegrationTargetCount': missingIntegrationTargetCount,
+    'observableSourceKinds': const [
+      'flutter integration_test command result',
+      'fluoh drive scenario JSON',
+      'manual-assisted tool-readable logs, session state, stable text, semantics, test keys, command JSON, hilog, or app log markers',
+    ],
+    if (passedIntegrationCommands.isNotEmpty)
+      'passedIntegrationCommands': passedIntegrationCommands,
+    if (failedIntegrationCommands.isNotEmpty)
+      'failedIntegrationCommands': failedIntegrationCommands,
+    if (skippedIntegrationCommands.isNotEmpty)
+      'skippedIntegrationCommands': skippedIntegrationCommands,
+    'warning':
+        'Launch smoke evidence is not functional interaction evidence by itself.',
+  };
+}
+
+bool _isDrivePlatform(String platform) {
+  return platform == 'ohos' || platform == 'android' || platform == 'ios';
+}
+
+String _runCommandFromEvidenceScope({
+  required List<String> platforms,
+  required String? packageName,
+  required bool requestedAllPlatforms,
+  required bool autoEmulator,
+}) {
+  final platform = requestedAllPlatforms
+      ? _allWorkflowPlatform
+      : platforms.single;
+  final hasMobilePlatform = platforms.any(_isDrivePlatform);
+  final parts = [
+    'fluoh',
+    'run',
+    platform,
+    if (packageName != null) ...['--package', packageName],
+    if (autoEmulator || hasMobilePlatform) '--auto-emulator',
+    '--json',
+  ];
+  return parts.map(_workflowShellQuote).join(' ');
+}
+
+String _driveCommandFromEvidenceScope({
+  required List<String> platforms,
+  required String? packageName,
+  required bool requestedAllPlatforms,
+  required bool autoEmulator,
+  required bool dryRun,
+}) {
+  final platform = requestedAllPlatforms
+      ? _allWorkflowPlatform
+      : platforms.single;
+  final parts = [
+    'fluoh',
+    'drive',
+    platform,
+    if (packageName != null) ...['--package', packageName],
+    if (autoEmulator) '--auto-emulator',
+    if (dryRun) '--dry-run',
+    '--json',
+  ];
+  return parts.map(_workflowShellQuote).join(' ');
 }
 
 Future<_GitStatusSnapshot?> _gitStatusSnapshot(Directory repository) async {

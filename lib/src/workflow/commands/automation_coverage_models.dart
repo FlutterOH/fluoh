@@ -336,7 +336,6 @@ class _AutomationCheckPlan {
   const _AutomationCheckPlan({
     required this.platform,
     required this.packageName,
-    required this.all,
     required this.deviceId,
     required this.emulatorName,
     required this.autoEmulator,
@@ -346,7 +345,6 @@ class _AutomationCheckPlan {
 
   final String platform;
   final String? packageName;
-  final bool all;
   final String? deviceId;
   final String? emulatorName;
   final bool autoEmulator;
@@ -365,7 +363,6 @@ class _AutomationCheckPlan {
       'command': _automationRunCommand(
         platform: platform,
         packageName: packageName,
-        all: all,
         deviceId: deviceId,
         emulatorName: emulatorName,
         autoEmulator: autoEmulator,
@@ -394,7 +391,6 @@ class _AutomationCheckPlan {
 String _automationRunCommand({
   required String platform,
   required String? packageName,
-  required bool all,
   required String? deviceId,
   required String? emulatorName,
   required bool autoEmulator,
@@ -406,7 +402,6 @@ String _automationRunCommand({
     'run',
     platform,
     if (packageName != null) ...['--package', packageName],
-    if (all) '--all',
     if (deviceId != null) ...['--device-id', deviceId],
     if (emulatorName != null) ...['--emulator', emulatorName],
     if (deviceId == null &&

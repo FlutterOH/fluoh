@@ -377,6 +377,15 @@ void _registerWorkflowCommandsPackageTests() {
       environment.homeDirectory,
       environment.workingDirectory,
       flutterStdout: _ohosFlutterRunStdoutByCommand,
+      flutterSideEffects: {
+        'test integration_test -d emulator-5554':
+            '''
+if ! grep -q "debug-profile.p7b" "${environment.workingDirectory.path}/example/ohos/build-profile.json5"; then
+  echo "missing signing profile for integration_test" >&2
+  exit 42
+fi
+''',
+      },
     );
     final workflowEnvironment = FluohEnvironment(
       homeDirectory: environment.homeDirectory,
@@ -497,6 +506,10 @@ void _registerWorkflowCommandsPackageTests() {
     await _writeWorkflowOhosProject(
       Directory('${environment.workingDirectory.path}/example'),
     );
+    final buildProfile = File(
+      '${environment.workingDirectory.path}/example/ohos/build-profile.json5',
+    );
+    final originalBuildProfile = await buildProfile.readAsString();
     await Directory(
       '${environment.workingDirectory.path}/example/integration_test',
     ).create(recursive: true);
@@ -564,6 +577,7 @@ void _registerWorkflowCommandsPackageTests() {
     final evidence = details['interactionEvidence'] as Map<String, Object?>;
     expect(evidence, containsPair('method', 'integration_test'));
     expect(evidence, containsPair('status', 'passed'));
+    expect(await buildProfile.readAsString(), originalBuildProfile);
     expect(stderr, isEmpty);
   });
 
@@ -628,6 +642,23 @@ void _registerWorkflowCommandsPackageTests() {
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('ok', false));
+    final workflowEvidence = report['workflowEvidence'] as Map<String, Object?>;
+    final observedEvidence =
+        workflowEvidence['observedEvidence'] as Map<String, Object?>;
+    final interactionEvidence =
+        observedEvidence['interaction'] as Map<String, Object?>;
+    expect(
+      interactionEvidence,
+      containsPair('status', 'integrationTestEvidenceFailed'),
+    );
+    expect(
+      interactionEvidence['failedIntegrationCommands'],
+      contains('flutter test integration_test -d emulator-5554'),
+    );
+    expect(
+      workflowEvidence['collectedEvidenceKinds'],
+      contains('integrationTestCommandResult'),
+    );
     final targets = report['targets'] as List<Object?>;
     final target = targets.single as Map<String, Object?>;
     expect(

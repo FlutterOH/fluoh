@@ -127,12 +127,15 @@ Supported first-pass actions:
 
 - Android: `clearAppData`, `launchApp`, coordinate `tap`, `swipe`, `drag`,
   `tapText`, `waitText`, `assertText`, `allowPermission`, `denyPermission`,
-  `inputText`, `press`, `assertLog`, `assertSession`, `wait`.
-  Text actions match UIAutomator text, content description, resource id, or
-  resource id suffix.
-- iOS: `resetPermission`, coordinate `tap`, `swipe`, `drag`, `tapText`,
-  `waitText`, `assertText`, `allowPermission`, `denyPermission`, `assertLog`,
+  `inputText`, `press`, `captureScreenshot`/`screenshot`, `assertLog`,
   `assertSession`, `wait`.
+  Text actions match UIAutomator text, content description, resource id, or
+  resource id suffix. Screenshot actions save a local file under
+  `.fluoh/evidence/screenshots/`; custom `outputPath` values must be relative
+  paths that stay inside that directory.
+- iOS: `resetPermission`, coordinate `tap`, `swipe`, `drag`, `tapText`,
+  `waitText`, `assertText`, `allowPermission`, `denyPermission`,
+  `captureScreenshot`/`screenshot`, `assertLog`, `assertSession`, `wait`.
   `resetPermission` uses `xcrun simctl privacy` and requires `bundleId` plus
   `permission`. `tapText`, `waitText`, and `assertText` use the built-in XCTest
   runner to match app UI by label, identifier, or value. Coordinate `tap`,
@@ -154,7 +157,7 @@ Supported first-pass actions:
   package behavior as fixed.
 - OHOS: `clearAppData`, `launchApp`, coordinate `tap`, `swipe`, `drag`,
   `tapText`, `waitText`, `assertText`, `allowPermission`, `denyPermission`,
-  `assertLog`, and `wait`.
+  `captureScreenshot`/`screenshot`, `assertLog`, and `wait`.
   `assertLog` checks captured or live hilog.
   Text and permission actions use `uitest dumpLayout` visible/component text,
   original text, description, id, or key.
@@ -165,6 +168,8 @@ For Android and iOS, prefer visible text, semantic labels, or session status
 over post-action log markers whenever the scenario needs to prove a tap, swipe,
 permission result, or form submission changed app state. Use `assertLog` only
 when the relevant marker is guaranteed to be present in the captured run output.
+Use screenshots as supporting evidence for inspection or handoff, not as the
+primary pass/fail assertion unless the package is specifically visual.
 
 `coverage` metadata is included in `fluoh drive --dry-run --json` and real
 run JSON. Use it to make AI package adaptation auditable: every applicable

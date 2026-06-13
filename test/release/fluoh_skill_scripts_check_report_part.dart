@@ -753,9 +753,12 @@ package:
 
 - [x] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
+- [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
+- [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 - [x] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
@@ -948,9 +951,12 @@ $integrationCommand
 
 - [x] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
+- [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
+- [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 - [x] Interaction automation evidence recorded through integration_test or real fluoh drive JSON, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.

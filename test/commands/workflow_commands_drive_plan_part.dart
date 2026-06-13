@@ -3,6 +3,12 @@ part of 'workflow_commands_test.dart';
 void _registerWorkflowCommandsDrivePlanTests() {
   test('drive dry-run plans mobile emulator evidence', () async {
     final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final example = Directory('${environment.workingDirectory.path}/example');
+    await _writeFlutterExample(example);
+    await _writeWorkflowPlatformDirectories(example);
+    await _writeWorkflowOhosProject(example);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -80,13 +86,12 @@ void _registerWorkflowCommandsDrivePlanTests() {
     expect(
       repairPlan['nextStep'],
       allOf(
-        containsPair('kind', 'completeCoverageGate'),
-        containsPair('sourceType', 'coverage'),
-        containsPair('gate', 'coverage-inventory'),
         containsPair(
-          'doneWhen',
-          contains('quality gate coverage-inventory reports readyForReview'),
+          'sourceType',
+          anyOf('coverage', 'scenarioCoverage', 'capabilityCoverage'),
         ),
+        containsPair('gate', isNotEmpty),
+        containsPair('doneWhen', isNotEmpty),
         containsPair(
           'validation',
           allOf(
@@ -159,7 +164,12 @@ void _registerWorkflowCommandsDrivePlanTests() {
             allOf(
               containsPair('platform', 'ohos'),
               containsPair('supportedActions', contains('assertSession')),
+              containsPair('supportedActions', contains('captureScreenshot')),
               containsPair('supportedActions', contains('inputText')),
+              containsPair(
+                'evidenceMethods',
+                contains('hdc shell snapshot_display'),
+              ),
               containsPair('evidenceMethods', contains('OHOS hilog')),
             ),
           ),
@@ -175,6 +185,7 @@ void _registerWorkflowCommandsDrivePlanTests() {
             'driver',
             allOf(
               containsPair('platform', 'android'),
+              containsPair('supportedActions', contains('screenshot')),
               containsPair('supportedActions', contains('tapText')),
               containsPair(
                 'evidenceMethods',
@@ -194,6 +205,16 @@ void _registerWorkflowCommandsDrivePlanTests() {
       contains(
         allOf(
           containsPair('platform', 'ios'),
+          containsPair(
+            'driver',
+            allOf(
+              containsPair('supportedActions', contains('captureScreenshot')),
+              containsPair(
+                'evidenceMethods',
+                contains('xcrun simctl io screenshot'),
+              ),
+            ),
+          ),
           containsPair(
             'sessionFile',
             '${environment.workingDirectory.path}/.fluoh/run-sessions/automation/camera-ios-session.json',

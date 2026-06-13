@@ -93,24 +93,29 @@ class DriveCommand extends FluohCommand<int> {
       allowed: _drivePlatforms,
       label: 'drive',
     );
-    _validatePackageSelection(argResults!, usageException);
-    final platforms = _drivePlatformsFromArgument(platform);
+    final requestedAllPlatforms = platform == _allWorkflowPlatform;
+    final packageName = _trimmedOption(argResults!, 'package');
     final deviceId = _trimmedOption(argResults!, 'device-id');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
     final autoEmulator = deviceId == null && argResults!.flag('auto-emulator');
     if (deviceId != null && emulatorName != null) {
       usageException('Use only one of --device-id or --emulator.');
     }
-    if (deviceId != null && platforms.length != 1) {
+    if (deviceId != null && requestedAllPlatforms) {
       usageException('Use --device-id with one drive platform.');
     }
-    if (emulatorName != null && platforms.length != 1) {
+    if (emulatorName != null && requestedAllPlatforms) {
       usageException('Use --emulator with one drive platform.');
     }
+    final platforms = await _workflowPlatformsFromArgument(
+      platform,
+      environment: environment,
+      packageName: packageName,
+      candidates: _drivePlatforms,
+      usage: usage,
+    );
     final deviceTimeout = _durationOption('device-timeout');
     final logDuration = _durationOption('log-duration');
-    final packageName = _trimmedOption(argResults!, 'package');
-    final all = argResults!.flag('all');
     final sessionDirectory = _resolveOutputDirectory(
       environment.workingDirectory,
       argResults!.option('session-dir') ?? '.fluoh/run-sessions/automation',
@@ -124,12 +129,11 @@ class DriveCommand extends FluohCommand<int> {
     final inventory = await _automationInventory(
       environment: environment,
       packageName: packageName,
-      all: all,
     );
     final plan = _automationPlan(
       platforms: platforms,
       packageName: packageName,
-      all: all,
+      requestedAllPlatforms: requestedAllPlatforms,
       deviceId: deviceId,
       emulatorName: emulatorName,
       autoEmulator: autoEmulator,
@@ -165,10 +169,13 @@ class DriveCommand extends FluohCommand<int> {
     final results = <WorkflowTargetResult>[];
     for (final platform in platforms) {
       output.step('Automating ${_platformLabel(platform)} run');
+      final platformScenarios = _automationScenariosForPlatform(
+        scenarios,
+        platform,
+      );
       final platformResults = await _runPackageOrProject(
         environment: environment,
         packageName: packageName,
-        all: all,
         output: output,
         stdout: stdout,
         stderr: stderr,
@@ -194,12 +201,11 @@ class DriveCommand extends FluohCommand<int> {
       results.addAll(
         await _runAutomationScenariosForPlatform(
           platformResults,
-          scenarios: _automationScenariosForPlatform(scenarios, platform),
+          scenarios: platformScenarios,
           platform: platform,
           environment: environment,
           output: output,
           packageName: packageName,
-          all: all,
           deviceId: deviceId,
           emulatorName: emulatorName,
           autoEmulator: autoEmulator,

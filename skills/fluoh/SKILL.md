@@ -11,6 +11,15 @@ checks, package repository setup, build/run execution, signing, automation
 drivers, and JSON diagnostics. The agent owns code inspection, implementation,
 test updates, diagnostic routing, repair loops, and the completion report.
 
+Keep the tool/skill boundary explicit. `fluoh` commands provide hands and eyes:
+repeatable command execution, target selection, signing/setup shortcuts,
+device actions, screenshots and UI/log/session observations, artifact paths,
+diagnostics, and machine-readable tool commands. This skill is the brain: it
+decides what to inspect, what to fix, which evidence is sufficient, and what
+delivery state to report. No single build, run, screenshot, or matrix-smoke
+command means "fully tested" unless this skill has reviewed the functional
+evidence, coverage matrix, report, and release checks.
+
 Keep this file as the routing surface. Open the referenced workflow file only
 when the current request needs it.
 
@@ -91,22 +100,29 @@ contract.
    adapt a project/package, install the CLI without another confirmation. This
    setup step does not authorize project, package, Source, or Git state
    changes.
-3. Prefer Dart pub when `dart --version` works:
+3. If `fluoh --version` exists but fails with Flutter Dart cache startup
+   errors such as `update_engine_version.sh`, `engine.stamp.tmp`,
+   `engine.realm`, or `Operation not permitted`, classify it as a CLI launcher
+   or local sandbox issue, not a project/package issue. Prefer a native or
+   Homebrew `fluoh` executable, set `FLUOH_BIN` to a working executable, or
+   pass `--fluoh-command` to preflight. When validating the fluoh repository
+   itself, use `dart run bin/fluoh.dart`.
+4. Prefer Dart pub when `dart --version` works:
    `dart pub global activate fluoh`.
-4. If the Dart global install succeeds but `fluoh` is still not on `PATH`, use
+5. If the Dart global install succeeds but `fluoh` is still not on `PATH`, use
    `$HOME/.pub-cache/bin/fluoh` for this session and tell the user to add
    `$HOME/.pub-cache/bin` to `PATH`.
-5. For strict JSON automation, prefer the native/Homebrew executable when it is
+6. For strict JSON automation, prefer the native/Homebrew executable when it is
    available. Dart pub global shims are acceptable only after confirming a
    `--json` command starts stdout with `{`.
-6. On macOS, if Dart is unavailable or the Dart pub shim emits non-JSON startup
+7. On macOS, if Dart is unavailable or the Dart pub shim emits non-JSON startup
    text before JSON diagnostics, and Homebrew is available, run
    `brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git` and
    `brew install FlutterOH/fluoh/fluoh`. Do not use
    `brew tap FlutterOH/tap` unless that official tap repository is available.
-7. If neither Dart nor Homebrew can install the CLI, ask the user to install
+8. If neither Dart nor Homebrew can install the CLI, ask the user to install
    Dart or provide a `fluoh` executable path.
-8. After installation, run `fluoh --version`, then continue with preflight.
+9. After installation, run `fluoh --version`, then continue with preflight.
 
 ## Adaptation Scope Gate
 
@@ -146,6 +162,10 @@ approved.
 
 When using `scripts/preflight.py`, route by the returned JSON:
 
+- `fluohSetup`: when `status` is `needs-cli-setup`, fix the CLI executable or
+  launcher first, rerun preflight, and only then follow `commandQueue`. Do not
+  classify launcher or local sandbox failures as project/package
+  implementation failures.
 - Missing path, unknown project, or `dart-package`: do not edit. Ask for the
   project path, or create a package repository only when the user gave an
   upstream Git URL.
@@ -182,6 +202,19 @@ For every `--json` command:
 - Read `dirtyAfterVerify`, `workingTreeChanges`, `feedbackCandidates`, and
   `traceError`; classify findings as fluoh CLI, Source data, AI skill, local
   environment, upstream package, or user project follow-up.
+- Read `workflowEvidence` from `build` and `run` as factual tool output.
+  `classification: buildOnly` means only artifacts were built.
+  `classification: launchSmoke` means the app launched, not that UI behavior
+  passed. Use `observedEvidence`, `collectedEvidenceKinds`,
+  `notCollectedEvidenceKinds`, `workflowContinuations`, and `toolCommands` to
+  choose the next run smoke, `fluoh drive --dry-run`, scenario,
+  integration-test, report, or check action.
+  `collectedEvidenceKinds` means the command collected a result or artifact;
+  check `observedEvidence` before treating that result as passed evidence.
+  For `observedEvidence.interaction.status`,
+  `integrationTestEvidenceFailed` overrides any passed integration-test rows in
+  the same matrix, and `partialIntegrationTestEvidence` means only some targets
+  produced passed integration-test evidence. Neither status is release-ready.
 - Treat doctor, toolchain, and device diagnostics as local-environment work
   until the local diagnostic is clean.
 - Treat build failures, install failures, launch failures, runtime crashes,
@@ -193,19 +226,27 @@ For every `--json` command:
 Use this loop for app and package work:
 
 1. Run preflight and select exactly one package when selection is required.
-2. Run the suggested verify/build/run commands until diagnostics are clean or a
-   blocker is explicit.
-3. When an interactive flow, permission prompt, file picker, camera, location,
+2. Before final verification, inspect existing package/app tests,
+   `integration_test/`, examples, public API, platform interfaces,
+   permissions, and behavior paths. If the existing tests do not cover the
+   adapted library behavior, add or repair focused functional tests first.
+3. Run the suggested verify/build/run commands until diagnostics are clean or a
+   blocker is explicit. Clean build/run JSON is not the end of the workflow;
+   inspect `workflowEvidence.notCollectedEvidenceKinds` and
+   `workflowEvidence.workflowContinuations` and continue until functional
+   evidence, coverage review, report creation, and report checks are handled or
+   explicitly blocked.
+4. When an interactive flow, permission prompt, file picker, camera, location,
    media, deep link, external app callback, or lifecycle behavior matters, use
    `references/automation-evidence-flow.md`.
-4. Make the smallest implementation, scenario, test, or project-file change
+5. Make the smallest implementation, scenario, test, or project-file change
    needed for the next clean verification result.
-5. Rerun the exact failed command, or the printed rerun/validation command from
+6. Rerun the exact failed command, or the printed rerun/validation command from
    JSON diagnostics.
-6. Run `scripts/collect_feedback.py` on the trace session when feedback
+7. Run `scripts/collect_feedback.py` on the trace session when feedback
    candidates exist.
-7. Write and check the report before the final response.
-8. Run the report check command and fix every failure before claiming `ready`.
+8. Write and check the report before the final response.
+9. Run the report check command and fix every failure before claiming `ready`.
 
 Launch success is smoke evidence. Release-ready interaction evidence must come
 from a passed `flutter test integration_test -d <device>` command row, real
@@ -216,6 +257,18 @@ session state, stable text, semantics, test keys, command JSON, hilog, or app
 log markers. When `integration_test/` exists, platform run commands, including
 OHOS, must execute it and the report must record the resulting test command
 and result in the Commands table.
+When `fluoh run all` succeeds, use it only as platform launch-smoke coverage
+for the existing project or package example platform directories it selected.
+Continue with the printed `fluoh drive all --dry-run --json` or
+platform-specific `drive` commands, then add or repair scenarios until grant,
+deny, gestures, and result assertions are covered or explicitly blocked.
+Do not focus only on OHOS for package adaptations. Existing Android, iOS,
+macOS, Linux, Web, and Windows example/platform directories are in scope for
+functional verification. Run the platform commands when the current host and
+toolchain support them; otherwise record the exact diagnostic command, host or
+toolchain limitation, and skip reason in the report. A `ready` recommendation
+requires either passed functional evidence for each existing platform or a
+concrete unsupported-environment blocker.
 Do not rely on screenshot recognition as the primary assertion.
 
 ## Completion Report

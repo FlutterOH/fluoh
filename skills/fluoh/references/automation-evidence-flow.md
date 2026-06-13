@@ -16,6 +16,21 @@ fluoh drive <platform> --package <name> --scenario <path> --json
 fluoh drive all --package <name> --trace-dir .fluoh/traces/<name>/mobile-automation --json
 ```
 
+When a preceding `fluoh build` or `fluoh run` JSON contains
+`workflowEvidence`, use it as a factual evidence summary. `buildOnly` means
+only artifacts were built. `launchSmoke` means launch was exercised, not that
+functional behavior passed. Read `observedEvidence`, `collectedEvidenceKinds`,
+`notCollectedEvidenceKinds`, `workflowContinuations`, and `toolCommands`, then
+choose the next run smoke, `drive --dry-run`, scenario, integration-test,
+report, or check action. After `drive --dry-run` or real drive output, follow
+`automation.repairPlan.nextStep`.
+`collectedEvidenceKinds` records that a result or artifact exists; use
+`observedEvidence` to distinguish passed, failed, blocked, and skipped results.
+For `observedEvidence.interaction.status`, treat
+`integrationTestEvidenceFailed` as failed even when other targets passed, and
+treat `partialIntegrationTestEvidence` as incomplete evidence that still needs
+repair, drive coverage, or an explicit blocker.
+
 Use `drive all` only when every mobile target is intentionally in scope. For
 AI delivery gates, prefer the platform-specific commands emitted by preflight,
 `fluoh plan`, or `fluoh package handoff` so missing Android or iOS examples do
@@ -49,9 +64,18 @@ or debug-tool evidence, not the primary `fluoh run` contract.
 ## Evidence Rules
 
 - `fluoh run` launch success is smoke evidence only.
+- `fluoh run all` is a launch-smoke matrix shortcut, not full-platform
+  functional testing.
+- `workflowEvidence.classification: buildOnly` or `launchSmoke` is not a
+  readiness decision. Use `notCollectedEvidenceKinds` and
+  `workflowContinuations` to decide which evidence still needs collection or
+  review before claiming ready.
 - Prefer `integration_test/` when available.
 - Prefer `fluoh drive --scenario <path> --json` for AI-assisted scenarios
   with structured actions.
+- Real `fluoh drive` runs launch and available `integration_test/` evidence
+  before scenario actions. If launch or integration tests fail, fix that
+  failure first; do not treat a scenario as a substitute for existing tests.
 - Use manual-assisted interaction only as a fallback when automation cannot
   operate or observe the target, and only mark it passed after tool-readable
   evidence verifies the user-completed flow. It is an operation mode, not a
@@ -63,6 +87,11 @@ or debug-tool evidence, not the primary `fluoh run` contract.
   widget or component tree state, semantics tree, integration-test output,
   accessibility text, visible status text, semantic labels, stable test keys,
   command JSON, hilog, or app log markers.
+- Package adaptations must verify every existing platform directory, not only
+  OHOS. Treat Android, iOS, macOS, Linux, Web, and Windows as required when the
+  package/example declares them and the current host/toolchain can run them.
+  Record exact diagnostic evidence and skip reasons for unsupported hosts or
+  toolchains.
 
 ## Platform Support
 
@@ -70,13 +99,15 @@ or debug-tool evidence, not the primary `fluoh run` contract.
 platforms:
 
 - Android: text and coordinate taps, coordinate swipes and drags, permission
-  allow/deny prompts, text/log/session assertions, input text, and key presses.
+  allow/deny prompts, text/log/session assertions, input text, key presses, and
+  screenshot capture.
 - iOS: coordinate taps, swipes and drags, text taps/assertions, and permission
   prompt allow/deny clicks through the built-in XCTest runner when `bundleId`
-  is present, plus run-output log and session assertions. If Xcode or
-  `xcodebuild` is unavailable, record the environment blocker in the report.
+  is present, plus run-output log, session assertions, and simulator screenshot
+  capture. If Xcode or `xcodebuild` is unavailable, record the environment
+  blocker in the report.
 - OHOS: coordinate/text taps, coordinate swipes and drags, waits, permission
-  actions, and hilog assertions.
+  actions, screenshot capture, and hilog assertions.
 
 Read `diagnostics[].details.repairHints` before editing and rerun the same
 scenario command after exposing stable labels, semantics, status text, or log
@@ -89,6 +120,12 @@ upstream public API, example entry points, declared platform interfaces,
 manifest permissions, and platform feature classes. Every applicable row must
 have automation, `integration_test`, manual-assisted tool-readable evidence, or
 an explicit `notApplicable` or `blocked` reason.
+
+Start coverage review before final test execution. Inspect existing package
+tests, example tests, and `integration_test/` against the library behavior; if
+they do not cover public API calls, platform-channel arguments/results,
+permission grants and denials, success paths, and error paths, add or repair
+focused tests before running the final matrix.
 
 For runtime permissions, do not validate only one representative permission.
 Inventory every permission the package exposes on each supported platform, then

@@ -80,7 +80,8 @@ class RunCommand extends FluohCommand<int> {
       allowed: _buildRunPlatforms,
       label: 'run',
     );
-    _validatePackageSelection(argResults!, usageException);
+    final requestedAllPlatforms = platform == _allWorkflowPlatform;
+    final packageName = _trimmedOption(argResults!, 'package');
     if (_trimmedOption(argResults!, 'device-id') != null &&
         _trimmedOption(argResults!, 'emulator') != null) {
       usageException('Use only one of --device-id or --emulator.');
@@ -98,15 +99,32 @@ class RunCommand extends FluohCommand<int> {
     final deviceId = _trimmedOption(argResults!, 'device-id');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
     final autoEmulator = argResults!.flag('auto-emulator');
-    final policy = platformWorkflowPolicy(platform);
+    if (requestedAllPlatforms && deviceId != null) {
+      usageException('Use --device-id with one run platform.');
+    }
+    if (requestedAllPlatforms && emulatorName != null) {
+      usageException('Use --emulator with one run platform.');
+    }
     final sessionFilePath = _trimmedOption(argResults!, 'session-file');
-    if (sessionFilePath != null && !policy.supportsSessionFile) {
+    if (sessionFilePath != null && requestedAllPlatforms) {
+      usageException(
+        'Use --session-file with one run platform and one run target at a time.',
+      );
+    }
+    final platforms = await _workflowPlatformsFromArgument(
+      platform,
+      environment: environment,
+      packageName: packageName,
+      candidates: _buildRunPlatforms,
+      usage: usage,
+    );
+    if (sessionFilePath != null &&
+        platforms.any(
+          (platform) => !platformWorkflowPolicy(platform).supportsSessionFile,
+        )) {
       usageException(
         'Use --session-file only with run platforms that support session evidence.',
       );
-    }
-    if (sessionFilePath != null && argResults!.flag('all')) {
-      usageException('Use --session-file with one run target at a time.');
     }
     final sessionFile = sessionFilePath == null
         ? null
@@ -116,42 +134,47 @@ class RunCommand extends FluohCommand<int> {
     final stdout = json ? (_) {} : _stdout;
     final stderr = json ? (_) {} : _stderr;
     final startEmulator = autoEmulator || emulatorName != null;
-    final invocation = _PackageWorkflowInvocation(
-      phase: '$platform-run',
-      buildExampleTarget: policy.runPrebuildTarget,
-      runExampleTarget: policy.buildTarget,
-      debug: true,
-      buildExampleForSimulator: policy.buildExampleForSimulator(
-        deviceId: deviceId,
-        startEmulator: startEmulator,
-      ),
-      autoSign: policy.supportsAutoSign,
-      runExample: true,
-      deviceId: deviceId,
-      startEmulator: startEmulator,
-      emulatorName: emulatorName,
-      sessionFile: sessionFile,
-    );
-    final results = await _runPackageOrProject(
-      environment: environment,
-      packageName: _trimmedOption(argResults!, 'package'),
-      all: argResults!.flag('all'),
-      output: output,
-      stdout: stdout,
-      stderr: stderr,
-      usage: usage,
-      invocationForPackage: (_) => invocation,
-      projectInvocation: _ProjectWorkflowInvocation.run(
-        platform: platform,
+    final results = <WorkflowTargetResult>[];
+    for (final currentPlatform in platforms) {
+      final policy = platformWorkflowPolicy(currentPlatform);
+      final invocation = _PackageWorkflowInvocation(
+        phase: '$currentPlatform-run',
+        buildExampleTarget: policy.runPrebuildTarget,
+        runExampleTarget: policy.buildTarget,
+        debug: true,
+        buildExampleForSimulator: policy.buildExampleForSimulator(
+          deviceId: deviceId,
+          startEmulator: startEmulator,
+        ),
+        autoSign: policy.supportsAutoSign,
+        runExample: true,
         deviceId: deviceId,
         startEmulator: startEmulator,
         emulatorName: emulatorName,
         sessionFile: sessionFile,
-        autoSign: policy.supportsAutoSign,
-      ),
-      deviceTimeout: deviceTimeout,
-      logDuration: logDuration,
-    );
+      );
+      results.addAll(
+        await _runPackageOrProject(
+          environment: environment,
+          packageName: packageName,
+          output: output,
+          stdout: stdout,
+          stderr: stderr,
+          usage: usage,
+          invocationForPackage: (_) => invocation,
+          projectInvocation: _ProjectWorkflowInvocation.run(
+            platform: currentPlatform,
+            deviceId: deviceId,
+            startEmulator: startEmulator,
+            emulatorName: emulatorName,
+            sessionFile: sessionFile,
+            autoSign: policy.supportsAutoSign,
+          ),
+          deviceTimeout: deviceTimeout,
+          logDuration: logDuration,
+        ),
+      );
+    }
     final traceResult = await _printWorkflowJson(
       json: json,
       stdout: _stdout,
@@ -160,6 +183,15 @@ class RunCommand extends FluohCommand<int> {
       arguments: argResults!.arguments,
       results: results,
       traceOptions: _traceOptionsFrom(argResults!),
+      extraFields: {
+        'workflowEvidence': _runSmokeEvidence(
+          platforms: platforms,
+          results: results,
+          packageName: packageName,
+          requestedAllPlatforms: requestedAllPlatforms,
+          autoEmulator: autoEmulator,
+        ),
+      },
     );
     final exitCode = _firstFailure(results);
     if (!json) {

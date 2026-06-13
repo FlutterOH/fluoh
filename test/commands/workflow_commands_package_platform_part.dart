@@ -36,6 +36,12 @@ void _registerWorkflowCommandsPackagePlatformTests() {
     await _writeFlutterExample(
       Directory('${environment.workingDirectory.path}/example'),
     );
+    await Directory(
+      '${environment.workingDirectory.path}/example/integration_test',
+    ).create(recursive: true);
+    await File(
+      '${environment.workingDirectory.path}/example/integration_test/app_test.dart',
+    ).writeAsString('void main() {}\n');
     await _writeWorkflowOhosProject(
       Directory('${environment.workingDirectory.path}/example'),
     );
@@ -73,6 +79,8 @@ steps:
   - action: allowPermission
   - action: assertText
     labels: [PermissionStatus.granted]
+  - action: captureScreenshot
+    outputPath: .fluoh/evidence/screenshots/camera-ohos-granted.jpeg
   - action: assertLog
     contains: "sample_permissions_ohos: requestPermissions"
   - action: assertSession
@@ -122,6 +130,20 @@ steps:
       (step) => step['name'] == 'automation-scenario-ohos-ohos-permission',
     );
     expect(scenarioStep, containsPair('status', 'passed'));
+    final integrationStep = steps.singleWhere(
+      (step) => step['name'] == 'example-integration-ohos',
+    );
+    expect(
+      integrationStep,
+      containsPair('command', 'flutter test integration_test -d emulator-5554'),
+    );
+    expect(integrationStep, containsPair('status', 'passed'));
+    final integrationDetails =
+        integrationStep['details'] as Map<String, Object?>;
+    final interactionEvidence =
+        integrationDetails['interactionEvidence'] as Map<String, Object?>;
+    expect(interactionEvidence, containsPair('method', 'integration_test'));
+    expect(interactionEvidence, containsPair('status', 'passed'));
     final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
     final actions = (scenarioDetails['actions'] as List<Object?>)
         .cast<Map<String, Object?>>();
@@ -137,6 +159,7 @@ steps:
       'tapText',
       'allowPermission',
       'assertText',
+      'captureScreenshot',
       'assertLog',
       'assertSession',
     ]);
@@ -144,6 +167,25 @@ steps:
       (action) => action['action'] == 'wait',
     );
     expect(waitAction['details'], containsPair('waitSeconds', 0));
+    final screenshotAction = actions.singleWhere(
+      (action) => action['action'] == 'captureScreenshot',
+    );
+    final screenshotDetails =
+        screenshotAction['details'] as Map<String, Object?>;
+    final screenshotPath = screenshotDetails['path'] as String;
+    expect(
+      screenshotPath,
+      '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ohos-granted.jpeg',
+    );
+    expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
+    expect(File(screenshotPath).existsSync(), isTrue);
+    final workflowInvocations = File(
+      '${environment.workingDirectory.path}/package_workflow_invocations.txt',
+    ).readAsStringSync();
+    expect(
+      workflowInvocations,
+      contains('flutter test integration_test -d emulator-5554'),
+    );
     final invocations = hdcLog.readAsStringSync();
     expect(
       invocations,
@@ -187,6 +229,18 @@ steps:
       ),
     );
     expect(invocations, contains('-t emulator-5554 shell hilog -x -z 1000'));
+    expect(
+      invocations,
+      contains(
+        '-t emulator-5554 shell snapshot_display -f /data/local/tmp/fluoh-ohos-permission-step-11.jpeg',
+      ),
+    );
+    expect(
+      invocations,
+      contains(
+        '-t emulator-5554 file recv /data/local/tmp/fluoh-ohos-permission-step-11.jpeg ${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ohos-granted.jpeg',
+      ),
+    );
     expect(stderr, isEmpty);
   });
 

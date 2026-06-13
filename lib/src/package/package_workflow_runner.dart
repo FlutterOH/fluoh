@@ -573,169 +573,180 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         runDuration: logDuration,
         usage: usage,
       );
-    } finally {
-      await preparation.restoreIfNeeded();
-    }
-    final runDetails = <String, Object?>{
-      ...runResult.details,
-      ...preparation.details,
-      'platform': runResult.platform,
-      if (runResult.target != null) 'targetId': runResult.target!.id,
-      if (runResult.target != null) 'target': runResult.target!.toJson(),
-      if (runResult.emulator != null) 'emulator': runResult.emulator!.toJson(),
-      if (runResult.outputLog != null) 'outputLog': runResult.outputLog!.path,
-    };
-    steps.add(
-      WorkflowStepResult(
-        name: 'example-run-${runResult.platform}',
-        path: examplePath,
-        command: runResult.command,
-        status: runResult.passed ? 'passed' : 'failed',
-        exitCode: runResult.exitCode,
-        reason: runResult.reason,
-        details: runDetails,
-        diagnostics: runResult.diagnostics
-            .map(
-              (diagnostic) => WorkflowDiagnostic(
-                code: diagnostic.code,
-                severity: diagnostic.severity,
-                message: diagnostic.message,
-                details: diagnostic.details,
-                nextCommand: _nextCommandForDiagnosticCode(
-                  diagnostic.code,
-                  package.name,
+      final runDetails = <String, Object?>{
+        ...runResult.details,
+        ...preparation.details,
+        'platform': runResult.platform,
+        if (runResult.target != null) 'targetId': runResult.target!.id,
+        if (runResult.target != null) 'target': runResult.target!.toJson(),
+        if (runResult.emulator != null)
+          'emulator': runResult.emulator!.toJson(),
+        if (runResult.outputLog != null) 'outputLog': runResult.outputLog!.path,
+      };
+      steps.add(
+        WorkflowStepResult(
+          name: 'example-run-${runResult.platform}',
+          path: examplePath,
+          command: runResult.command,
+          status: runResult.passed ? 'passed' : 'failed',
+          exitCode: runResult.exitCode,
+          reason: runResult.reason,
+          details: runDetails,
+          diagnostics: runResult.diagnostics
+              .map(
+                (diagnostic) => WorkflowDiagnostic(
+                  code: diagnostic.code,
+                  severity: diagnostic.severity,
+                  message: diagnostic.message,
+                  details: diagnostic.details,
+                  nextCommand: _nextCommandForDiagnosticCode(
+                    diagnostic.code,
+                    package.name,
+                  ),
                 ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-    if (!runResult.passed) {
-      output.failure(
-        'Example ${runResult.platform} run failed for ${package.name}',
+              )
+              .toList(),
+        ),
       );
-      if (runResult.reason != null) {
-        output.detail(runResult.reason!);
+      if (!runResult.passed) {
+        output.failure(
+          'Example ${runResult.platform} run failed for ${package.name}',
+        );
+        if (runResult.reason != null) {
+          output.detail(runResult.reason!);
+        }
+        if (runResult.outputLog != null) {
+          output.detail(
+            'Flutter run output saved to ${runResult.outputLog!.path}',
+          );
+        }
+        return WorkflowTargetResult.package(
+          packageName: package.name,
+          exitCode: runResult.exitCode,
+          steps: steps,
+          preset: preset,
+          phase: phase,
+        );
       }
       if (runResult.outputLog != null) {
         output.detail(
           'Flutter run output saved to ${runResult.outputLog!.path}',
         );
       }
-      return WorkflowTargetResult.package(
-        packageName: package.name,
-        exitCode: runResult.exitCode,
-        steps: steps,
-        preset: preset,
-        phase: phase,
+      output.success(
+        'Example ${runResult.platform} run passed for ${package.name}',
       );
-    }
-    if (runResult.outputLog != null) {
-      output.detail('Flutter run output saved to ${runResult.outputLog!.path}');
-    }
-    output.success(
-      'Example ${runResult.platform} run passed for ${package.name}',
-    );
 
-    final targetId = runResult.target?.id;
-    if (exampleHasIntegrationTests && targetId != null) {
-      final integrationArguments = ['test', 'integration_test', '-d', targetId];
-      final integrationTest = await _runToolCommand(
-        environment: environment,
-        directory: example,
-        displayPath: examplePath,
-        flutter: true,
-        arguments: integrationArguments,
-        stdout: stdout,
-        stderr: stderr,
-        output: output,
-        usage: usage,
-      );
-      steps.add(
-        _commandStep(
-          name: 'example-integration-${runResult.platform}',
-          packageName: package.name,
-          path: examplePath,
+      final targetId = runResult.target?.id;
+      if (exampleHasIntegrationTests && targetId != null) {
+        final integrationArguments = [
+          'test',
+          'integration_test',
+          '-d',
+          targetId,
+        ];
+        final integrationTest = await _runToolCommand(
+          environment: environment,
+          directory: example,
+          displayPath: examplePath,
           flutter: true,
           arguments: integrationArguments,
-          result: integrationTest,
-          nextCommand: _packageRunNextCommand(
-            packageName: package.name,
-            platform: runResult.platform,
-            deviceId: deviceId,
-            startEmulator: startEmulator,
-            emulatorName: emulatorName,
-          ),
-          details: {
-            'platform': runResult.platform,
-            'targetId': targetId,
-            'interactionEvidence': {
-              'method': 'integration_test',
-              'status': integrationTest.exitCode == 0 ? 'passed' : 'failed',
-              'testDirectory': '$examplePath/integration_test',
-            },
-          },
-        ),
-      );
-      if (integrationTest.exitCode != 0) {
-        output.failure(
-          'Example ${runResult.platform} integration tests failed for ${package.name}',
+          stdout: stdout,
+          stderr: stderr,
+          output: output,
+          usage: usage,
         );
-        return WorkflowTargetResult.package(
-          packageName: package.name,
-          exitCode: integrationTest.exitCode,
-          steps: steps,
-          preset: preset,
-          phase: phase,
+        steps.add(
+          _commandStep(
+            name: 'example-integration-${runResult.platform}',
+            packageName: package.name,
+            path: examplePath,
+            flutter: true,
+            arguments: integrationArguments,
+            result: integrationTest,
+            nextCommand: _packageRunNextCommand(
+              packageName: package.name,
+              platform: runResult.platform,
+              deviceId: deviceId,
+              startEmulator: startEmulator,
+              emulatorName: emulatorName,
+            ),
+            details: {
+              'platform': runResult.platform,
+              'targetId': targetId,
+              'interactionEvidence': {
+                'method': 'integration_test',
+                'status': integrationTest.exitCode == 0 ? 'passed' : 'failed',
+                'testDirectory': '$examplePath/integration_test',
+              },
+            },
+          ),
+        );
+        if (integrationTest.exitCode != 0) {
+          output.failure(
+            'Example ${runResult.platform} integration tests failed for ${package.name}',
+          );
+          return WorkflowTargetResult.package(
+            packageName: package.name,
+            exitCode: integrationTest.exitCode,
+            steps: steps,
+            preset: preset,
+            phase: phase,
+          );
+        }
+        output.success(
+          'Example ${runResult.platform} integration tests passed for ${package.name}',
+        );
+      } else if (exampleHasIntegrationTests) {
+        steps.add(
+          WorkflowStepResult(
+            name: 'example-integration-${runResult.platform}',
+            path: examplePath,
+            command: 'flutter test integration_test -d <device>',
+            status: 'skipped',
+            reason: 'run target did not expose a device id',
+            details: {
+              'platform': runResult.platform,
+              'interactionEvidence': {
+                'status': 'blocked',
+                'method': 'integration_test',
+                'reason': 'missing target id',
+                'testDirectory': '$examplePath/integration_test',
+              },
+            },
+          ),
+        );
+        output.skipped(
+          'Skipping ${runResult.platform} integration tests for ${package.name}: missing target id',
+        );
+      } else {
+        final reason = exampleHasIntegrationTestDirectory
+            ? 'no integration test files'
+            : 'no integration_test directory';
+        steps.add(
+          WorkflowStepResult(
+            name: 'example-integration-${runResult.platform}',
+            path: examplePath,
+            command: targetId == null
+                ? 'flutter test integration_test -d <device>'
+                : 'flutter test integration_test -d $targetId',
+            status: 'skipped',
+            reason: reason,
+            details: {
+              'platform': runResult.platform,
+              'interactionEvidence': {
+                'status': 'not-present',
+                'reason': reason,
+              },
+            },
+          ),
+        );
+        output.skipped(
+          'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
         );
       }
-      output.success(
-        'Example ${runResult.platform} integration tests passed for ${package.name}',
-      );
-    } else if (exampleHasIntegrationTests) {
-      steps.add(
-        WorkflowStepResult(
-          name: 'example-integration-${runResult.platform}',
-          path: examplePath,
-          command: 'flutter test integration_test -d <device>',
-          status: 'skipped',
-          reason: 'run target did not expose a device id',
-          details: {
-            'platform': runResult.platform,
-            'interactionEvidence': {
-              'status': 'blocked',
-              'method': 'integration_test',
-              'reason': 'missing target id',
-              'testDirectory': '$examplePath/integration_test',
-            },
-          },
-        ),
-      );
-      output.skipped(
-        'Skipping ${runResult.platform} integration tests for ${package.name}: missing target id',
-      );
-    } else {
-      final reason = exampleHasIntegrationTestDirectory
-          ? 'no integration test files'
-          : 'no integration_test directory';
-      steps.add(
-        WorkflowStepResult(
-          name: 'example-integration-${runResult.platform}',
-          path: examplePath,
-          command: targetId == null
-              ? 'flutter test integration_test -d <device>'
-              : 'flutter test integration_test -d $targetId',
-          status: 'skipped',
-          reason: reason,
-          details: {
-            'platform': runResult.platform,
-            'interactionEvidence': {'status': 'not-present', 'reason': reason},
-          },
-        ),
-      );
-      output.skipped(
-        'Skipping ${runResult.platform} integration tests for ${package.name}: $reason',
-      );
+    } finally {
+      await preparation.restoreIfNeeded();
     }
   }
 

@@ -448,7 +448,7 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
 
     expect(
       await runFluoh(
-        ['run', 'ohos', '--all', '--session-file', '.fluoh/run-session.json'],
+        ['run', 'all', '--session-file', '.fluoh/run-session.json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -458,7 +458,47 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
 
     expect(
       stderr.join('\n'),
-      contains('Use --session-file with one run target at a time.'),
+      contains(
+        'Use --session-file with one run platform and one run target at a time.',
+      ),
+    );
+  });
+
+  test('validates all-platform run target options', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['run', 'all', '--session-file', '.fluoh/run-session.json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+    expect(
+      stderr.join('\n'),
+      contains(
+        'Use --session-file with one run platform and one run target at a time.',
+      ),
+    );
+
+    stdout.clear();
+    stderr.clear();
+    expect(
+      await runFluoh(
+        ['run', 'all', '--device-id', 'emulator-5554'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+    expect(
+      stderr.join('\n'),
+      contains('Use --device-id with one run platform.'),
     );
   });
 }

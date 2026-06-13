@@ -377,6 +377,8 @@ steps:
   - action: assertText
     bundleId: com.example.camera
     labels: [PermissionStatus.granted]
+  - action: captureScreenshot
+    outputPath: .fluoh/evidence/screenshots/camera-ios-granted.png
   - action: assertLog
     contains: Application running.
   - action: assertSession
@@ -450,6 +452,7 @@ steps:
       'wait',
       'tapText',
       'assertText',
+      'captureScreenshot',
       'assertLog',
       'assertSession',
     ]);
@@ -467,6 +470,18 @@ steps:
       (action) => action['action'] == 'wait',
     );
     expect(waitAction['details'], containsPair('waitSeconds', 0));
+    final screenshotAction = actions.singleWhere(
+      (action) => action['action'] == 'captureScreenshot',
+    );
+    final screenshotDetails =
+        screenshotAction['details'] as Map<String, Object?>;
+    final screenshotPath = screenshotDetails['path'] as String;
+    expect(
+      screenshotPath,
+      '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ios-granted.png',
+    );
+    expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
+    expect(File(screenshotPath).existsSync(), isTrue);
     final assertLogAction = actions.singleWhere(
       (action) => action['action'] == 'assertLog',
     );
@@ -505,6 +520,12 @@ steps:
     );
     expect(invocations, contains('simctl install ios-sim'));
     expect(invocations, contains('simctl launch ios-sim com.example.camera'));
+    expect(
+      invocations,
+      contains(
+        'simctl io ios-sim screenshot ${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ios-granted.png',
+      ),
+    );
     expect(invocations, contains('build/ios/iphonesimulator/Runner.app'));
     expect(invocations, isNot(contains('Debug-iphonesimulator/Runner.app')));
     final openInvocations = openLog.readAsStringSync();

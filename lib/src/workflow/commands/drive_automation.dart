@@ -63,14 +63,6 @@ void _validateAutomationScenarios(
   }
 }
 
-List<String> _drivePlatformsFromArgument(String value) {
-  return switch (value) {
-    'all' => const ['ohos', 'android', 'ios'],
-    'ohos' || 'android' || 'ios' => [value],
-    _ => throw ArgumentError.value(value, 'platform', 'Unsupported platform.'),
-  };
-}
-
 _PackageWorkflowInvocation _automationPackageInvocation({
   required String platform,
   required String packageName,
@@ -151,7 +143,6 @@ Future<List<WorkflowTargetResult>> _runAutomationScenariosForPlatform(
   required FluohEnvironment environment,
   required TerminalOutput output,
   required String? packageName,
-  required bool all,
   required String? deviceId,
   required String? emulatorName,
   required bool autoEmulator,
@@ -163,6 +154,10 @@ Future<List<WorkflowTargetResult>> _runAutomationScenariosForPlatform(
   }
   final updated = <WorkflowTargetResult>[];
   for (final target in results) {
+    if (!target.passed) {
+      updated.add(target);
+      continue;
+    }
     var current = target;
     for (final scenario in scenarios) {
       output.step(
@@ -174,7 +169,6 @@ Future<List<WorkflowTargetResult>> _runAutomationScenariosForPlatform(
         targetKind: target.targetKind,
         packageName: packageName,
         targetName: target.targetName,
-        all: all,
         deviceId: deviceId,
         emulatorName: emulatorName,
         autoEmulator: autoEmulator,
@@ -271,7 +265,6 @@ String _automationScenarioNextCommand({
   required String targetKind,
   required String? packageName,
   required String targetName,
-  required bool all,
   required String? deviceId,
   required String? emulatorName,
   required bool autoEmulator,
@@ -285,9 +278,7 @@ String _automationScenarioNextCommand({
     if (packageName != null) ...[
       '--package',
       packageName,
-    ] else if (all)
-      '--all'
-    else if (targetKind == 'package') ...[
+    ] else if (targetKind == 'package') ...[
       '--package',
       targetName,
     ],

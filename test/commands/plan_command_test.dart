@@ -164,9 +164,12 @@ dependencyPolicy:
         'fluoh run ohos --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh drive ohos --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh drive android --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh doctor --platform android --json --strict',
         'fluoh run android --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh doctor --platform web --json --strict',
         'fluoh run web --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh report create --scope example_app --trace-dir .fluoh/traces/example_app/adaptation --json',
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
       ]),
     );
     expect(
@@ -217,8 +220,40 @@ dependencyPolicy:
         ),
       ),
     );
+    expect(
+      queue,
+      contains(
+        allOf(
+          containsPair('phase', 'report-check'),
+          containsPair(
+            'command',
+            'python3 <skill-dir>/scripts/check_report.py <report-path>',
+          ),
+          containsPair('requiresApproval', false),
+          containsPair('expectedEvidence', 'canonical report validation JSON'),
+          containsPair('mustCompleteForDelivery', true),
+        ),
+      ),
+    );
     final automationRunbook = plan['automationRunbook'] as Map<String, Object?>;
     expect(automationRunbook, containsPair('mode', 'autonomous-to-delivery'));
+    final appQualityGates = (automationRunbook['qualityGates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      appQualityGates.map((gate) => gate['id']),
+      containsAll([
+        'functional-test-baseline',
+        'complete-existing-platform-matrix',
+        'behavior-evidence-not-smoke',
+      ]),
+    );
+    expect(
+      stringList(automationRunbook['executionRules']),
+      containsAll([
+        contains('add or repair missing functional tests'),
+        contains('Do not focus only on OHOS'),
+      ]),
+    );
     final appCheckpointPolicy =
         automationRunbook['checkpointPolicy'] as Map<String, Object?>;
     expect(appCheckpointPolicy, containsPair('mode', 'auto-local-commits'));
@@ -238,11 +273,35 @@ dependencyPolicy:
         'git diff --check',
         'fluoh drive ohos --json --trace-dir .fluoh/traces/example_app/adaptation',
         'fluoh drive android --json --trace-dir .fluoh/traces/example_app/adaptation',
+        'fluoh doctor --platform android --json --strict',
+        'fluoh doctor --platform web --json --strict',
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
       ]),
     );
     expect(
       stringList(deliveryGate['readyRequires']),
-      contains(contains('reportCheckCommand passes')),
+      containsAll([
+        contains('existing tests and integration tests were reviewed'),
+        contains('functional evidence validates'),
+        contains('every existing non-OHOS platform directory'),
+        contains('reportCheckCommand passes'),
+      ]),
+    );
+    expect(
+      queue,
+      contains(
+        allOf(
+          containsPair('phase', 'regression'),
+          containsPair(
+            'command',
+            'fluoh run android --auto-emulator --json --trace-dir .fluoh/traces/example_app/adaptation',
+          ),
+          containsPair(
+            'expectedEvidence',
+            'android functional regression evidence',
+          ),
+        ),
+      ),
     );
     expect(stderr, isEmpty);
   });
@@ -324,6 +383,7 @@ dependencyPolicy:
         'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
         'fluoh package handoff --package camera --json',
         'fluoh package check --package camera --report <report-path> --json',
       ]),
@@ -360,6 +420,24 @@ dependencyPolicy:
       isNot(contains('commit')),
     );
     final automationRunbook = plan['automationRunbook'] as Map<String, Object?>;
+    final packageQualityGates =
+        (automationRunbook['qualityGates'] as List<Object?>)
+            .cast<Map<String, Object?>>();
+    expect(
+      packageQualityGates.map((gate) => gate['id']),
+      containsAll([
+        'functional-test-baseline',
+        'complete-existing-platform-matrix',
+        'behavior-evidence-not-smoke',
+      ]),
+    );
+    expect(
+      stringList(automationRunbook['executionRules']),
+      containsAll([
+        contains('add or repair missing functional tests'),
+        contains('every existing platform'),
+      ]),
+    );
     final checkpointPolicy =
         automationRunbook['checkpointPolicy'] as Map<String, Object?>;
     expect(checkpointPolicy, containsPair('mode', 'auto-local-commits'));
@@ -376,6 +454,9 @@ dependencyPolicy:
         'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh doctor --platform android --json --strict',
+        'fluoh doctor --platform web --json --strict',
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
         'fluoh package handoff --package camera --json',
         'fluoh package check --package camera --report <report-path> --json',
       ]),
@@ -383,6 +464,45 @@ dependencyPolicy:
     expect(
       stringList(deliveryGate['needsMaintainerDecision']),
       allOf(contains(contains('release')), isNot(contains(contains('commit')))),
+    );
+    expect(
+      stringList(deliveryGate['readyRequires']),
+      containsAll([
+        contains('existing tests and integration tests were reviewed'),
+        contains('functional evidence validates'),
+        contains('every existing non-OHOS platform directory'),
+      ]),
+    );
+    expect(
+      queue,
+      contains(
+        allOf(
+          containsPair('phase', 'regression'),
+          containsPair(
+            'command',
+            'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          ),
+          containsPair(
+            'expectedEvidence',
+            'android package example functional evidence',
+          ),
+        ),
+      ),
+    );
+    expect(
+      queue,
+      contains(
+        allOf(
+          containsPair('phase', 'report-check'),
+          containsPair(
+            'command',
+            'python3 <skill-dir>/scripts/check_report.py <report-path>',
+          ),
+          containsPair('requiresApproval', false),
+          containsPair('expectedEvidence', 'canonical report validation JSON'),
+          containsPair('mustCompleteForDelivery', true),
+        ),
+      ),
     );
     expect(stderr, isEmpty);
   });

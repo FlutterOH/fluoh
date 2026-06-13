@@ -14,6 +14,7 @@ import '../../context/fluoh_environment.dart';
 import '../../package/flutter_example_runner.dart';
 import '../../package/git/package_git.dart';
 import '../../package/manifest/package_manifest.dart';
+import '../../package/manifest/pubspec_package.dart';
 import '../../package/package_examples.dart';
 import '../../package/package_workflow_runner.dart';
 import '../../schema/yaml_utils.dart';

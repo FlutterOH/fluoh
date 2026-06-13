@@ -3,7 +3,6 @@ part of 'workflow_commands.dart';
 Future<List<WorkflowTargetResult>> _runPackageOrProject({
   required FluohEnvironment environment,
   required String? packageName,
-  required bool all,
   required TerminalOutput output,
   required OutputWriter stdout,
   required OutputWriter stderr,
@@ -16,7 +15,7 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
 }) async {
   final manifest = await _readOptionalPackageManifest(environment);
   if (manifest == null) {
-    if (all || packageName != null) {
+    if (packageName != null) {
       throw UsageException(
         'Current directory is not a package repository.',
         usage,
@@ -37,9 +36,7 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
     ];
   }
 
-  final packages = all
-      ? [manifest.package]
-      : [manifest.packageForName(packageName)];
+  final packages = [manifest.packageForName(packageName)];
   final results = <WorkflowTargetResult>[];
   for (final package in packages) {
     final invocation =
@@ -329,70 +326,70 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         runDuration: logDuration,
         usage: usage,
       );
-    } finally {
-      await preparation.restoreIfNeeded();
-    }
-    steps.add(
-      WorkflowStepResult(
-        name: 'project-run-${runResult.platform}',
-        path: '.',
-        command: runResult.command,
-        status: runResult.passed ? 'passed' : 'failed',
-        exitCode: runResult.exitCode,
-        reason: runResult.reason,
-        details: {
-          ...runResult.details,
-          ...preparation.details,
-          'platform': runResult.platform,
-          if (runResult.target != null) 'targetId': runResult.target!.id,
-          if (runResult.target != null) 'target': runResult.target!.toJson(),
-          if (runResult.emulator != null)
-            'emulator': runResult.emulator!.toJson(),
-          if (runResult.outputLog != null)
-            'outputLog': runResult.outputLog!.path,
-        },
-        diagnostics: runResult.diagnostics
-            .map(
-              (diagnostic) => WorkflowDiagnostic(
-                code: diagnostic.code,
-                severity: diagnostic.severity,
-                message: diagnostic.message,
-                details: diagnostic.details,
-                nextCommand: _projectNextCommandForDiagnosticCode(
-                  diagnostic.code,
-                  invocation,
+      steps.add(
+        WorkflowStepResult(
+          name: 'project-run-${runResult.platform}',
+          path: '.',
+          command: runResult.command,
+          status: runResult.passed ? 'passed' : 'failed',
+          exitCode: runResult.exitCode,
+          reason: runResult.reason,
+          details: {
+            ...runResult.details,
+            ...preparation.details,
+            'platform': runResult.platform,
+            if (runResult.target != null) 'targetId': runResult.target!.id,
+            if (runResult.target != null) 'target': runResult.target!.toJson(),
+            if (runResult.emulator != null)
+              'emulator': runResult.emulator!.toJson(),
+            if (runResult.outputLog != null)
+              'outputLog': runResult.outputLog!.path,
+          },
+          diagnostics: runResult.diagnostics
+              .map(
+                (diagnostic) => WorkflowDiagnostic(
+                  code: diagnostic.code,
+                  severity: diagnostic.severity,
+                  message: diagnostic.message,
+                  details: diagnostic.details,
+                  nextCommand: _projectNextCommandForDiagnosticCode(
+                    diagnostic.code,
+                    invocation,
+                  ),
                 ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-    if (!runResult.passed) {
+              )
+              .toList(),
+        ),
+      );
+      if (!runResult.passed) {
+        return WorkflowTargetResult.project(
+          projectName: 'current',
+          exitCode: runResult.exitCode,
+          steps: steps,
+          phase: 'run-$platform',
+        );
+      }
+      final integrationExitCode = await _appendProjectIntegrationRunSteps(
+        environment: environment,
+        project: project,
+        platform: runResult.platform,
+        targetId: runResult.target?.id,
+        stdout: stdout,
+        stderr: stderr,
+        output: output,
+        usage: usage,
+        steps: steps,
+        nextCommand: _projectRunNextCommand(invocation),
+      );
       return WorkflowTargetResult.project(
         projectName: 'current',
-        exitCode: runResult.exitCode,
+        exitCode: integrationExitCode ?? runResult.exitCode,
         steps: steps,
         phase: 'run-$platform',
       );
+    } finally {
+      await preparation.restoreIfNeeded();
     }
-    final integrationExitCode = await _appendProjectIntegrationRunSteps(
-      environment: environment,
-      project: project,
-      platform: runResult.platform,
-      targetId: runResult.target?.id,
-      stdout: stdout,
-      stderr: stderr,
-      output: output,
-      usage: usage,
-      steps: steps,
-      nextCommand: _projectRunNextCommand(invocation),
-    );
-    return WorkflowTargetResult.project(
-      projectName: 'current',
-      exitCode: integrationExitCode ?? runResult.exitCode,
-      steps: steps,
-      phase: 'run-$platform',
-    );
   }
 
   final buildPreparation = await preparePlatformBuild(
