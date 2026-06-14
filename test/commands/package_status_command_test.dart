@@ -77,7 +77,14 @@ void main() {
       nextCommands,
       containsAllInOrder([
         'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh doctor --platform ohos --project --json --strict',
+        'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh devices --platform ohos --json',
+        'fluoh emulators --platform ohos --json',
+        'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'python3 <skill-dir>/scripts/check_report.py ${reportFile.path}',
         'fluoh package check --package camera --report ${reportFile.path} --json',
       ]),
     );
@@ -118,8 +125,15 @@ void main() {
       nextCommands,
       containsAllInOrder([
         'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh doctor --platform ohos --project --json --strict',
+        'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh devices --platform ohos --json',
+        'fluoh emulators --platform ohos --json',
+        'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
         'fluoh package check --package camera --report <report-path> --json',
       ]),
     );
@@ -169,11 +183,26 @@ void main() {
       nextCommands,
       containsAllInOrder([
         'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh doctor --platform ohos --project --json --strict',
+        'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh devices --platform ohos --json',
+        'fluoh emulators --platform ohos --json',
+        'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh doctor --platform android --json --strict',
+        'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh drive android --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        if (Platform.isMacOS) 'fluoh doctor --platform ios --json --strict',
+        if (Platform.isMacOS)
+          'fluoh run ios --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+        if (Platform.isMacOS)
+          'fluoh drive ios --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
         if (Platform.isMacOS)
           'fluoh drive ios --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
         'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+        'python3 <skill-dir>/scripts/check_report.py <report-path>',
         'fluoh package check --package camera --report <report-path> --json',
       ]),
     );

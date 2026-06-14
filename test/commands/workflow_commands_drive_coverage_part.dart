@@ -622,4 +622,103 @@ steps:
     );
     expect(stderr, isEmpty);
   });
+
+  test('drive dry-run keeps blocked coverage rows in repair queue', () async {
+    final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    await _writeFlutterExample(
+      Directory('${environment.workingDirectory.path}/example'),
+    );
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-blocked.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android blocked camera
+platform: android
+coverage:
+  - category: permission
+    item: camera
+    path: grant
+    status: blocked
+    note: missing grant automation
+  - category: permission
+    item: camera
+    path: deny
+    status: blocked
+    note: missing deny automation
+steps:
+  - action: waitText
+    labels: [Permission.camera]
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'drive',
+          'android',
+          '--package',
+          'camera',
+          '--scenario',
+          scenario.path,
+          '--dry-run',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final automation = report['automation'] as Map<String, Object?>;
+    final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
+    expect(coveragePolicy, containsPair('status', 'needsAgentCoverageReview'));
+    expect(coveragePolicy, containsPair('readyForAutomation', false));
+    final qualityGates = (coveragePolicy['qualityGates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final blockedGate = qualityGates.singleWhere(
+      (gate) => gate['id'] == 'blocked-coverage',
+    );
+    expect(
+      blockedGate,
+      allOf(
+        containsPair('status', 'needsBlockedCoverageRepair'),
+        containsPair('blockedCoverageCount', 2),
+      ),
+    );
+    final delivery =
+        automation['deliveryRecommendation'] as Map<String, Object?>;
+    expect(delivery, containsPair('recommendation', 'blocked'));
+    expect(delivery, containsPair('status', 'needsCoverageReview'));
+    final repairQueue = (automation['repairQueue'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      repairQueue,
+      contains(
+        allOf(
+          containsPair('type', 'coverage'),
+          containsPair('gate', 'blocked-coverage'),
+          containsPair('status', 'needsBlockedCoverageRepair'),
+        ),
+      ),
+    );
+    expect(
+      repairQueue,
+      contains(
+        allOf(
+          containsPair('type', 'coverageBlocked'),
+          containsPair('platform', 'android'),
+          containsPair('scenario', 'android blocked camera'),
+        ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
 }

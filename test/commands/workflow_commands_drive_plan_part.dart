@@ -226,6 +226,196 @@ void _registerWorkflowCommandsDrivePlanTests() {
     expect(stderr, isEmpty);
   });
 
+  test('drive dry-run auto-discovers package scenarios', () async {
+    final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android public api ready
+platform: android
+coverage:
+  - category: publicApi
+    item: camera
+    path: success
+steps:
+  - action: assertLog
+    contains: camera-ok
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final automation = report['automation'] as Map<String, Object?>;
+    final scenarios = (automation['scenarios'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(scenarios, hasLength(1));
+    expect(scenarios.single, containsPair('path', scenario.path));
+    expect(
+      automation['rerunCommand'],
+      allOf(
+        contains('fluoh drive android --package camera'),
+        contains('--scenario ${scenario.path}'),
+        contains('--json'),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'drive dry-run discovers repository scenarios for subpath packages',
+    () async {
+      final environment = await createTestEnvironment();
+      await File(
+        '${environment.workingDirectory.path}/fluoh.yaml',
+      ).writeAsString('''
+schema: 1
+kind: package
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+package:
+  name: camera
+  path: packages/camera/camera
+  release:
+    version: 0.1.0
+    upstream:
+      version: 0.11.0
+      commit: "1111111111111111111111111111111111111111"
+    status: experimental
+''');
+      await _writeFlutterPackage(
+        Directory(
+          '${environment.workingDirectory.path}/packages/camera/camera',
+        ),
+      );
+      final scenario = File(
+        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+      );
+      await scenario.parent.create(recursive: true);
+      await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android public api ready
+platform: android
+coverage:
+  - category: publicApi
+    item: camera
+    path: success
+steps:
+  - action: assertLog
+    contains: camera-ok
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['drive', 'android', '--package', 'camera', '--dry-run', '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final automation = report['automation'] as Map<String, Object?>;
+      final scenarios = (automation['scenarios'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(scenarios, hasLength(1));
+      expect(scenarios.single, containsPair('path', scenario.path));
+      expect(
+        automation['rerunCommand'],
+        contains('--scenario ${scenario.path}'),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('drive dry-run filters auto-discovered scenarios by platform', () async {
+    final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final scenarioDirectory = Directory(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/camera',
+    );
+    await scenarioDirectory.create(recursive: true);
+    final ohosScenario = File('${scenarioDirectory.path}/ohos-public-api.md');
+    await ohosScenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: ohos public api ready
+platform: ohos
+coverage:
+  - category: publicApi
+    item: camera
+    path: success
+steps:
+  - action: assertLog
+    contains: camera-ok
+''');
+    final androidScenario = File(
+      '${scenarioDirectory.path}/android-public-api.md',
+    );
+    await androidScenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android public api ready
+platform: android
+coverage:
+  - category: publicApi
+    item: camera
+    path: success
+steps:
+  - action: assertLog
+    contains: camera-ok
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['drive', 'ohos', '--package', 'camera', '--dry-run', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final automation = report['automation'] as Map<String, Object?>;
+    final scenarios = (automation['scenarios'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(scenarios, hasLength(1));
+    expect(scenarios.single, containsPair('path', ohosScenario.path));
+    expect(
+      automation['rerunCommand'],
+      allOf(
+        contains('--scenario ${ohosScenario.path}'),
+        isNot(contains('--scenario ${androidScenario.path}')),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('drive dry-run asks execution after coverage gates are ready', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
@@ -408,7 +598,7 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('drive dry-run routes blocked coverage to maintainer decision', () async {
+  test('drive dry-run keeps blocked coverage in the repair queue', () async {
     final environment = await createTestEnvironment();
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
@@ -462,31 +652,42 @@ steps:
     expect(report, containsPair('ok', true));
     final automation = report['automation'] as Map<String, Object?>;
     final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
-    expect(coveragePolicy, containsPair('status', 'needsMaintainerDecision'));
+    expect(coveragePolicy, containsPair('status', 'needsAgentCoverageReview'));
     expect(coveragePolicy, containsPair('readyForAutomation', false));
+    final qualityGates = (coveragePolicy['qualityGates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
     expect(
-      coveragePolicy['qualityGateSummary'],
-      allOf(
-        containsPair('notReady', isEmpty),
-        containsPair('ready', greaterThan(0)),
+      qualityGates,
+      contains(
+        allOf(
+          containsPair('id', 'blocked-coverage'),
+          containsPair('status', 'needsBlockedCoverageRepair'),
+        ),
       ),
     );
     final recommendation =
         automation['deliveryRecommendation'] as Map<String, Object?>;
-    expect(recommendation, containsPair('status', 'needsMaintainerDecision'));
-    expect(
-      recommendation,
-      containsPair('recommendation', 'needs-maintainer-decision'),
-    );
+    expect(recommendation, containsPair('status', 'needsCoverageReview'));
+    expect(recommendation, containsPair('recommendation', 'blocked'));
     final repairQueue = (automation['repairQueue'] as List<Object?>)
         .cast<Map<String, Object?>>();
-    expect(repairQueue, hasLength(1));
     expect(
-      repairQueue.single,
-      allOf(
-        containsPair('type', 'coverageBlocked'),
-        containsPair('scenario', 'android blocked public api'),
-        containsPair('coverage', containsPair('status', 'blocked')),
+      repairQueue,
+      contains(
+        allOf(
+          containsPair('type', 'coverage'),
+          containsPair('gate', 'blocked-coverage'),
+        ),
+      ),
+    );
+    expect(
+      repairQueue,
+      contains(
+        allOf(
+          containsPair('type', 'coverageBlocked'),
+          containsPair('scenario', 'android blocked public api'),
+          containsPair('coverage', containsPair('status', 'blocked')),
+        ),
       ),
     );
     expect(stderr, isEmpty);

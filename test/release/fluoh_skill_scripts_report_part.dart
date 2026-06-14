@@ -377,17 +377,27 @@ package:
         'fluoh verify --package share_plus --json --trace-dir $sharePlusTraceDir',
         'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir $sharePlusTraceDir',
         'fluoh drive ohos --package share_plus --json --trace-dir $sharePlusTraceDir',
-        if (Platform.isMacOS)
+        if (Platform.isMacOS) ...[
+          'fluoh doctor --platform ios --json --strict',
+          'fluoh run ios --package share_plus --auto-emulator --json --trace-dir $sharePlusTraceDir',
           'fluoh drive ios --package share_plus --json --trace-dir $sharePlusTraceDir',
-        if (Platform.isLinux)
+          'fluoh doctor --platform macos --json --strict',
+          'fluoh run macos --package share_plus --json --trace-dir $sharePlusTraceDir',
+        ],
+        if (Platform.isLinux) ...[
+          'fluoh doctor --platform linux --json --strict',
           'fluoh build linux --package share_plus --json --trace-dir $sharePlusTraceDir',
+        ],
+        'fluoh doctor --platform web --json --strict',
         'fluoh run web --package share_plus --json --trace-dir $sharePlusTraceDir',
-        if (Platform.isWindows)
+        if (Platform.isWindows) ...[
+          'fluoh doctor --platform windows --json --strict',
           'fluoh build windows --package share_plus --json --trace-dir $sharePlusTraceDir',
+        ],
       ];
       expect(
         stringList(report['suggestedCommands']),
-        containsAll(packageSuggestedCommands),
+        containsAllInOrder(packageSuggestedCommands),
       );
       expect(
         stringList(report['finalCheckCommands']),
@@ -479,24 +489,30 @@ package:
       expect(stringList(selected['notes']), isEmpty);
       expect(
         stringList(selected['suggestedCommands']),
-        containsAll([
+        containsAllInOrder([
           'fluoh verify --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh drive ohos --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh doctor --platform android --json --strict',
+          'fluoh run android --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh drive android --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package share_plus --json',
           'fluoh package check --package share_plus --report <report-path> --json',
         ]),
       );
       expect(
         stringList(selected['finalCheckCommands']),
-        containsAll([
+        containsAllInOrder([
           'git diff --check',
           'fluoh verify --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh drive ohos --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh doctor --platform android --json --strict',
+          'fluoh run android --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh drive android --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
           'fluoh package status --package share_plus',
+          'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package share_plus --json',
           'fluoh package check --package share_plus --report <report-path> --json',
         ]),

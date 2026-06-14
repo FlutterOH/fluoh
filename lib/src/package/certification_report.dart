@@ -5,6 +5,7 @@ const _requiredAutomationCoverageGates = {
   'coverage-metadata',
   'coverage-items',
   'capability-inventory-coverage',
+  'blocked-coverage',
   'scenario-evidence-assertions',
   'existing-test-baseline',
   'manifest-permission-coverage',
@@ -47,6 +48,8 @@ class PackageCertificationReportResult {
     required this.readyAutomationCoverageRows,
     required this.interactionRows,
     required this.passedInteractionRows,
+    required this.passedMobileRunOrDrive,
+    required this.postLaunchVisualEvidence,
     required this.errors,
     required this.warnings,
   });
@@ -93,6 +96,12 @@ class PackageCertificationReportResult {
   /// Number of interaction evidence rows marked as passed.
   final int passedInteractionRows;
 
+  /// Whether the report includes passed mobile `fluoh run` or `fluoh drive`.
+  final bool passedMobileRunOrDrive;
+
+  /// Whether the report records post-launch screenshot or UI-state evidence.
+  final bool postLaunchVisualEvidence;
+
   /// Validation errors that block the package release check.
   final List<String> errors;
 
@@ -117,6 +126,8 @@ class PackageCertificationReportResult {
       'readyAutomationCoverageRows': readyAutomationCoverageRows,
       'interactionRows': interactionRows,
       'passedInteractionRows': passedInteractionRows,
+      'passedMobileRunOrDrive': passedMobileRunOrDrive,
+      'postLaunchVisualEvidence': postLaunchVisualEvidence,
       'errors': errors,
       'warnings': warnings,
     };
@@ -156,6 +167,8 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       readyAutomationCoverageRows: 0,
       interactionRows: 0,
       passedInteractionRows: 0,
+      passedMobileRunOrDrive: false,
+      postLaunchVisualEvidence: false,
       errors: [
         ...errors,
         'Certification report does not exist: ${report.path}',
@@ -247,11 +260,36 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       'Certification report must include passed fluoh run ohos evidence.',
     );
   }
+  final mobileVisualRequirements = _mobileVisualRequirements(
+    content,
+    passedCommandRows,
+  );
+  final hasMobileRunOrDrive = mobileVisualRequirements.isNotEmpty;
   final interactionRows = _interactionRows(content);
   final passedInteractionRows = [
     for (final row in interactionRows)
       if (row.passed) row,
   ];
+  final missingPostLaunchVisualEvidence = _missingPostLaunchVisualEvidence(
+    content: content,
+    requirements: mobileVisualRequirements,
+    passedCommandRows: passedCommandRows,
+    passedInteractionRows: passedInteractionRows,
+  );
+  final hasPostLaunchVisualEvidence = hasMobileRunOrDrive
+      ? missingPostLaunchVisualEvidence.isEmpty
+      : _hasAnyPostLaunchVisualEvidence(
+          content,
+          passedCommandRows: passedCommandRows,
+          passedInteractionRows: passedInteractionRows,
+        );
+  if (missingPostLaunchVisualEvidence.isNotEmpty) {
+    errors.add(
+      'Certification reports with passed mobile fluoh run or drive evidence '
+      'must record post-launch screenshot or UI-state evidence. Missing: '
+      '${missingPostLaunchVisualEvidence.join(', ')}.',
+    );
+  }
   final passedManualAssistedWithoutToolEvidence = [
     for (final row in passedInteractionRows)
       if (row.method == 'manual-assisted' && !_hasToolReadableEvidence(row))
@@ -367,6 +405,21 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
     );
   }
 
+  final feedbackRows = _feedbackRows(content);
+  if (feedbackRows.isEmpty && !_hasNoFeedbackStatement(content)) {
+    errors.add(
+      'Fluoh Feedback must include a concrete row or '
+      '"No fluoh feedback: <reason>".',
+    );
+  }
+  final openFeedbackRows = [
+    for (final row in feedbackRows)
+      if (const {'queued', 'open', 'todo'}.contains(row.statusText)) row,
+  ];
+  if (openFeedbackRows.isNotEmpty) {
+    warnings.add('Fluoh Feedback includes queued or open tool follow-ups.');
+  }
+
   final placeholders = _placeholderHits(content);
   if (placeholders.isNotEmpty) {
     errors.add('Certification report still contains placeholder content.');
@@ -391,6 +444,8 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
     readyAutomationCoverageRows: readyAutomationCoverageRows.length,
     interactionRows: interactionRows.length,
     passedInteractionRows: passedInteractionRows.length,
+    passedMobileRunOrDrive: hasMobileRunOrDrive,
+    postLaunchVisualEvidence: hasPostLaunchVisualEvidence,
     errors: errors,
     warnings: warnings,
   );
@@ -417,6 +472,7 @@ const _requiredSections = [
   '## Automation Coverage',
   '## Interaction Evidence',
   '## Diagnostics',
+  '## Fluoh Feedback',
   '## Signing',
   '## Remaining Risks',
   '## Local State',
@@ -482,6 +538,27 @@ List<_AutomationCoverageRow> _automationCoverageRows(String content) {
     }
   }
   return rows;
+}
+
+List<_FeedbackRow> _feedbackRows(String content) {
+  final section = _sectionContent(content, '## Fluoh Feedback');
+  final rows = <_FeedbackRow>[];
+  for (final line in section.split('\n')) {
+    final row = _FeedbackRow.fromMarkdown(line);
+    if (row != null) {
+      rows.add(row);
+    }
+  }
+  return rows;
+}
+
+bool _hasNoFeedbackStatement(String content) {
+  final section = _sectionContent(content, '## Fluoh Feedback');
+  return RegExp(
+    r'^\s*No fluoh feedback\s*:\s*\S.+$',
+    multiLine: true,
+    caseSensitive: false,
+  ).hasMatch(section);
 }
 
 _AutomationCoverageStatus _automationCoverageStatus(String content) {
@@ -600,12 +677,29 @@ bool _isOhosRunEvidence(_CommandRow row) {
       command.contains('--json');
 }
 
+bool _isMobileRunEvidence(_CommandRow row) {
+  final command = row.command;
+  return _containsCommand(command, 'fluoh run') &&
+      RegExp(
+        r'(^|\s)fluoh\s+run\s+(ohos|android|ios|all)(\s|$)',
+      ).hasMatch(command) &&
+      command.contains('--json');
+}
+
 bool _isAutomationEvidence(_CommandRow row) {
   final command = row.command;
   return _containsCommand(command, 'fluoh drive') &&
       command.contains('--json') &&
       !_containsShellToken(command, '--dry-run') &&
       !_containsShellToken(command, '-n');
+}
+
+bool _isMobileAutomationEvidence(_CommandRow row) {
+  final command = row.command;
+  return _isAutomationEvidence(row) &&
+      RegExp(
+        r'(^|\s)fluoh\s+drive\s+(ohos|android|ios|all)(\s|$)',
+      ).hasMatch(command);
 }
 
 bool _isIntegrationTestEvidence(
@@ -712,6 +806,177 @@ bool _hasFunctionalToolEvidence(String normalized) {
   ].any(normalized.contains);
 }
 
+List<_MobileVisualRequirement> _mobileVisualRequirements(
+  String content,
+  List<_CommandRow> passedCommandRows,
+) {
+  final requirements = <_MobileVisualRequirement>[];
+  for (final row in passedCommandRows) {
+    if (!_isMobileRunEvidence(row) && !_isMobileAutomationEvidence(row)) {
+      continue;
+    }
+    for (final platform in _mobileCommandPlatforms(row.command, content)) {
+      requirements.add(
+        _MobileVisualRequirement(
+          platform: platform,
+          command: row.command,
+          row: row.row,
+        ),
+      );
+    }
+  }
+  return requirements;
+}
+
+List<String> _mobileCommandPlatforms(String command, String content) {
+  final match = RegExp(
+    r'(^|\s)fluoh\s+(?:run|drive)\s+(ohos|android|ios|all)(\s|$)',
+  ).firstMatch(command);
+  final platform = match?.group(2);
+  if (platform == null) {
+    return const [];
+  }
+  if (platform != 'all') {
+    return [platform];
+  }
+  final matrixPlatforms = _passedMobileRunMatrixPlatforms(content);
+  return matrixPlatforms.isEmpty ? const ['all'] : matrixPlatforms;
+}
+
+List<String> _passedMobileRunMatrixPlatforms(String content) {
+  final section = _sectionContent(content, '## Platform Matrix');
+  final platforms = <String>[];
+  for (final line in section.split('\n')) {
+    final columns = [
+      for (final column in line.trim().split('|')) column.trim(),
+    ].where((column) => column.isNotEmpty).toList(growable: false);
+    if (columns.length < 4) {
+      continue;
+    }
+    final platform = columns[0].toLowerCase();
+    if (!const {'ohos', 'android', 'ios'}.contains(platform)) {
+      continue;
+    }
+    final runStatus = columns[2].toLowerCase();
+    final integrationStatus = columns[3].toLowerCase();
+    if (runStatus.startsWith('passed') ||
+        integrationStatus.startsWith('passed')) {
+      platforms.add(platform);
+    }
+  }
+  return platforms;
+}
+
+List<String> _missingPostLaunchVisualEvidence({
+  required String content,
+  required List<_MobileVisualRequirement> requirements,
+  required List<_CommandRow> passedCommandRows,
+  required List<_InteractionRow> passedInteractionRows,
+}) {
+  final evidenceRows = [
+    for (final row in passedCommandRows) row.row,
+    for (final row in passedInteractionRows) row.row,
+    ..._passedPlatformMatrixRows(content),
+  ];
+  return [
+    for (final requirement in requirements)
+      if (!_hasPostLaunchVisualEvidenceForPlatform(requirement.platform, [
+        requirement.row,
+        ...evidenceRows,
+      ]))
+        requirement.label,
+  ];
+}
+
+bool _hasPostLaunchVisualEvidenceForPlatform(
+  String platform,
+  List<String> rows,
+) {
+  return rows.any(
+    (row) =>
+        _hasPositivePostLaunchVisualEvidence(row) &&
+        _visualEvidenceMatchesPlatform(row, platform),
+  );
+}
+
+bool _hasAnyPostLaunchVisualEvidence(
+  String content, {
+  required List<_CommandRow> passedCommandRows,
+  required List<_InteractionRow> passedInteractionRows,
+}) {
+  final evidenceRows = [
+    for (final row in passedCommandRows) row.row,
+    for (final row in passedInteractionRows) row.row,
+    ..._passedPlatformMatrixRows(content),
+  ];
+  return evidenceRows.any(_hasPositivePostLaunchVisualEvidence);
+}
+
+List<String> _passedPlatformMatrixRows(String content) {
+  final section = _sectionContent(content, '## Platform Matrix');
+  final rows = <String>[];
+  for (final line in section.split('\n')) {
+    final columns = [
+      for (final column in line.trim().split('|')) column.trim(),
+    ].where((column) => column.isNotEmpty).toList(growable: false);
+    if (columns.length < 6) {
+      continue;
+    }
+    final platform = columns[0].toLowerCase();
+    if (platform == 'platform' || RegExp(r'^-+$').hasMatch(platform)) {
+      continue;
+    }
+    final statuses = columns.skip(1).take(3).map((value) {
+      return value.toLowerCase();
+    });
+    if (statuses.any((value) => value.startsWith('passed'))) {
+      rows.add(line);
+    }
+  }
+  return rows;
+}
+
+bool _hasPositivePostLaunchVisualEvidence(String row) {
+  final evidence = row.toLowerCase();
+  final hasMarker = const [
+    '.fluoh/evidence/screenshots',
+    'post-launch screenshot',
+    'post launch screenshot',
+    'postlaunchscreenshot',
+    'visualpagereadiness',
+    'ui-state',
+    'ui state',
+    'capture screenshot',
+    'capturescreenshot',
+    'screenshot path',
+    'screenshot:',
+    'screen recording',
+  ].any(evidence.contains);
+  if (!hasMarker) {
+    return false;
+  }
+  if (const [
+    'not captured',
+    'not collect',
+    'not recorded',
+    'missing',
+    'failed',
+    'empty',
+    'blocked',
+    'skipped',
+  ].any(evidence.contains)) {
+    return false;
+  }
+  return true;
+}
+
+bool _visualEvidenceMatchesPlatform(String row, String platform) {
+  if (platform == 'all') {
+    return true;
+  }
+  return row.toLowerCase().contains(platform);
+}
+
 bool _containsCommand(String command, String expected) {
   return command == expected || command.startsWith('$expected ');
 }
@@ -725,6 +990,20 @@ class _ChecklistItem {
 
   final bool done;
   final String text;
+}
+
+class _MobileVisualRequirement {
+  const _MobileVisualRequirement({
+    required this.platform,
+    required this.command,
+    required this.row,
+  });
+
+  final String platform;
+  final String command;
+  final String row;
+
+  String get label => platform == 'all' ? command : '$platform ($command)';
 }
 
 class _CommandRow {
@@ -802,6 +1081,33 @@ class _InteractionRow {
       evidenceText: columns[5],
       row: line,
     );
+  }
+}
+
+class _FeedbackRow {
+  const _FeedbackRow({required this.id, required this.statusText});
+
+  final String id;
+  final String statusText;
+
+  static _FeedbackRow? fromMarkdown(String line) {
+    if (!line.trimLeft().startsWith('|')) {
+      return null;
+    }
+    final columns = [
+      for (final column in line.trim().split('|')) column.trim(),
+    ].where((column) => column.isNotEmpty).toList(growable: false);
+    if (columns.length < 6) {
+      return null;
+    }
+    final id = columns[0].trim();
+    if (id.isEmpty ||
+        id.toLowerCase() == 'id' ||
+        id == '...' ||
+        RegExp(r'^-+$').hasMatch(id)) {
+      return null;
+    }
+    return _FeedbackRow(id: id, statusText: columns[5].trim().toLowerCase());
   }
 }
 

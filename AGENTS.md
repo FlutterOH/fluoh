@@ -17,9 +17,8 @@
 - `lib/src/sdk/`: SDK listing, installation, removal, selection, and Flutter wrapper commands.
 - `lib/src/platform/`: cross-platform target discovery, emulator/simulator helpers, and OHOS toolchain helpers.
 - `lib/src/deps/`: project dependency analysis, policy, plan, pubspec rewrite helpers, and top-level `deps` command entry points.
-- `lib/src/workflow/commands/`: workflow command entry points for `plan`, `verify`, `build`, `run`, `attach`, `drive`, and `report`.
+- `lib/src/workflow/commands/`: workflow command entry points for `plan`, `verify`, `build`, `run`, `attach`, `drive`, `report`, and `clean`.
 - `lib/src/workflow/`: shared workflow result models, automation scenarios, and platform automation helpers.
-- `lib/src/clean/`: cleanup of tool-owned cache artifacts.
 - `lib/src/package/`: package repository create, sync, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
 - `skills/fluoh/`: bundled AI agent workflow, helper scripts, and report templates.
@@ -72,11 +71,11 @@ level. Keep human progress text off stdout/stderr while JSON mode is active.
 
 Top-level commands are wired in `lib/src/cli/fluoh_command_runner.dart`. Keep the command table in `doc/commands.md` and `doc/commands.zh-CN.md` aligned when adding, removing, renaming, or moving commands.
 
-- Fluoh commands: `skill`, `flutter`, `doctor`, `clean`, and `upgrade`; `fluohf` is the `flutter` shortcut.
+- Fluoh commands: `skill`, `flutter`, `doctor`, and `upgrade`; `fluohf` is the `flutter` shortcut.
 - SDK and Metadata commands: `sdk` and `source`.
 - Project commands: `create` and `deps`.
 - Package commands: `package` owns package repository lifecycle, handoff, and release tasks.
-- Workflow commands: `plan`, `verify`, `build`, `run`, `attach`, `drive`, and `report`.
+- Workflow commands: `plan`, `verify`, `build`, `run`, `attach`, `drive`, `report`, and `clean`.
 - Device commands: `devices` and `emulators`.
 
 State must have one owner. Do not bypass these owners in command implementations or tests:
@@ -84,7 +83,7 @@ State must have one owner. Do not bypass these owners in command implementations
 - `$FLUOH_HOME/config.json`: Source configuration and first default Source initialization through `lib/src/source/`.
 - `$FLUOH_HOME/sources/<name>` and `$FLUOH_HOME/sources.lock.json`: Source runtime snapshots and lock generation in `lib/src/source/`.
 - `$FLUOH_HOME/sdks/<version>`: SDK install, remove, and on-demand wrapper setup in `lib/src/sdk/`.
-- `$FLUOH_HOME/cache/`: cleanable runtime artifacts produced by workflow, platform, and package commands; cleanup is owned by `fluoh clean`.
+- Project `.fluoh/cache/`: cleanable runtime artifacts produced by workflow, platform, and package commands; cleanup is owned by `fluoh clean`.
 - Project `fluoh.yaml` and `.fluoh/flutter_sdk`: SDK selection and dependency workflow configuration.
 - Project `pubspec.yaml`: `deps` command entry points under `lib/src/deps/commands/`, using rewrite helpers under `lib/src/deps/`.
 - FlutterOH package repository `fluoh.yaml`, generated docs, examples, and release metadata: package workflow commands under `lib/src/package/`.
@@ -140,7 +139,7 @@ The Homebrew formula currently installs from the pub.dev archive. Update its arc
 
 ## Security and Local State
 
-Do not commit credentials, private tokens, local caches, IDE metadata, generated build output, or machine-specific SDK paths. Runtime state belongs under `$FLUOH_HOME` or `$HOME/.fluoh`; tests must use temporary directories.
+Do not commit credentials, private tokens, local caches, IDE metadata, generated build output, or machine-specific SDK paths. User-level runtime state belongs under `$FLUOH_HOME` or `$HOME/.fluoh`; project-bound runtime state belongs under project `.fluoh/`. Tests must use temporary directories.
 
 For this tool repository, commit-time cleanup mainly means removing machine-specific absolute paths produced by local runs, such as SDK paths, home directories, temporary directories, generated `local.properties` content, and tool cache paths.
 

@@ -105,7 +105,7 @@ class _CapabilityCoverage {
         ],
       if (needsReview)
         'repair':
-            'Add scenario coverage or integration-test evidence for this package capability, or mark it notApplicable or blocked with a note.',
+            'Add scenario coverage or integration-test evidence for this package capability, or mark it notApplicable only when the behavior does not exist on this platform.',
     };
   }
 
@@ -200,7 +200,7 @@ class _ManifestPermissionCoverage {
         ],
       if (needsReview)
         'repair':
-            'Add selected-platform scenario coverage for this manifest permission, including grant and denied/error behavior paths, or mark a path notApplicable or blocked with a note.',
+            'Add selected-platform scenario coverage for this manifest permission, including grant and denied/error behavior paths, or mark a path notApplicable only when the permission has no runtime behavior on this platform.',
     };
   }
 
@@ -257,7 +257,7 @@ class _CoveragePathGroup {
       if (!_hasNegativeOrErrorPath) 'needsNegativeOrErrorPath': true,
       if (needsReview)
         'repair':
-            'Add explicit coverage rows for both success and denied, cancelled, failure, or error behavior paths; use notApplicable or blocked with a note when a path is intentionally not automated.',
+            'Add explicit coverage rows for both success and denied, cancelled, failure, or error behavior paths; use notApplicable only when a path does not exist on this platform.',
     };
   }
 

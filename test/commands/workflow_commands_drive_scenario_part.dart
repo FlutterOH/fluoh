@@ -265,7 +265,7 @@ steps:
     expect(allowDetails, containsPair('method', 'xcodebuildTest'));
     expect(allowDetails, containsPair('bundleId', 'com.example.camera'));
     final generatedTest = File(
-      '${environment.homeDirectory.path}/cache/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+      '${environment.projectCacheDirectory.path}/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
     );
     expect(await generatedTest.exists(), isTrue);
     final generatedSource = await generatedTest.readAsString();
@@ -489,7 +489,7 @@ steps:
     expect(assertLogDetails, containsPair('source', 'flutterRunOutput'));
     expect(assertLogDetails['path'], isA<String>());
     final generatedTest = File(
-      '${environment.homeDirectory.path}/cache/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+      '${environment.projectCacheDirectory.path}/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
     );
     expect(await generatedTest.exists(), isTrue);
     final generatedSource = await generatedTest.readAsString();
@@ -663,7 +663,7 @@ steps:
       ),
     );
     final generatedTest = File(
-      '${environment.homeDirectory.path}/cache/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+      '${environment.projectCacheDirectory.path}/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
     );
     expect(await generatedTest.exists(), isTrue);
     final generatedSource = await generatedTest.readAsString();

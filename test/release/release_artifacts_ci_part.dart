@@ -82,6 +82,11 @@ void _registerReleaseArtifactsCiTests() {
     expect(prWorkflow, contains('test/commands/create_command_test.dart'));
     expect(prWorkflow, contains('test/workflow'));
     expect(prWorkflow, contains('test/commands/workflow_commands_test.dart'));
+    expect(prWorkflow, contains('test/commands/clean_command_test.dart'));
+    expect(
+      prWorkflow,
+      contains('Plan, verify, build, run, attach, drive, report, and clean'),
+    );
     expect(
       prWorkflow,
       contains('test/commands/platform_target_commands_test.dart'),
@@ -124,7 +129,7 @@ void _registerReleaseArtifactsCiTests() {
     expect(issueWorkflow, contains('fluoh\\s+create'));
     expect(
       issueWorkflow,
-      contains('fluoh\\s+(plan|verify|build|run|attach|drive|report)'),
+      contains('fluoh\\s+(plan|verify|build|run|attach|drive|report|clean)'),
     );
     expect(issueWorkflow, contains('fluoh\\s+(devices|emulators)'));
     expect(issueWorkflow, contains('fluoh\\s+package'));
@@ -282,17 +287,14 @@ void _registerReleaseArtifactsCiTests() {
     expect(
       pullRequestTemplate,
       contains(
-        'App workflow: plan, verify, build, run, attach, drive, or report',
+        'App workflow: plan, verify, build, run, attach, drive, report, or clean',
       ),
     );
     expect(
       pullRequestTemplate,
       contains('Devices, emulators, or platform tooling'),
     );
-    expect(
-      pullRequestTemplate,
-      contains('Doctor, clean, upgrade, or skill command'),
-    );
+    expect(pullRequestTemplate, contains('Doctor, upgrade, or skill command'));
     expect(pullRequestTemplate, contains('`dart format .`'));
     expect(pullRequestTemplate, contains('`dart analyze`'));
     expect(pullRequestTemplate, contains('`dart test`'));

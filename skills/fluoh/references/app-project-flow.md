@@ -9,6 +9,10 @@ Use `scripts/preflight.py` or `fluoh plan app --json` as the machine runbook.
 The app adaptation is not complete after SDK setup, dependency rewrite, HAP
 build, launch, or a screenshot. Continue until the delivery gate is satisfied,
 an explicit blocker remains, or a maintainer decision is required.
+After each successful mobile run, capture at least one screenshot or equivalent
+UI-state artifact and verify the app reached the expected functional screen.
+If the page is blank, stuck on splash, visually hidden, or otherwise abnormal,
+repair that page before continuing to broader automation.
 
 ## Commands
 
@@ -42,6 +46,9 @@ python3 <skill-dir>/scripts/check_report.py <report-path>
   package implementations inside the app project unless asked.
 - Prefer `fluoh run ohos --auto-emulator --json` so fluoh starts a
   local DevEco emulator before falling back to connected devices.
+- Treat successful `fluoh run` as launch smoke only. Follow
+  `workflowEvidence.toolCommands` with `fluoh drive`, screenshot capture, page
+  assertions, and full interaction automation before claiming ready.
 - Every failing JSON command enters the repair loop: parse diagnostics and log
   tails, inspect trace feedback candidates, patch the smallest owned issue,
   rerun the failed command or its `nextCommand`, and record the result.

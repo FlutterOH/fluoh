@@ -94,7 +94,7 @@ Future<_ScenarioScreenshotFileSelection> _scenarioScreenshotFile(
   final configured = action.outputPath?.trim();
   final path = configured == null || configured.isEmpty
       ? '$_scenarioScreenshotDirectory/${_scenarioArtifactSlug(context.scenario.platform)}-${_scenarioArtifactSlug(context.scenario.name)}-step-${action.index}.$defaultExtension'
-      : configured;
+      : _scenarioScreenshotOutputPath(configured);
   if (configured != null &&
       configured.isNotEmpty &&
       _isAbsoluteScenarioOutputPath(configured)) {
@@ -114,6 +114,20 @@ Future<_ScenarioScreenshotFileSelection> _scenarioScreenshotFile(
   );
   await file.parent.create(recursive: true);
   return _ScenarioScreenshotFileSelection.file(file);
+}
+
+String _scenarioScreenshotOutputPath(String configured) {
+  final normalizedPath = _normalizeRelativeScenarioPath(configured);
+  if (normalizedPath == null) {
+    return configured;
+  }
+  if (_isScreenshotEvidencePath(normalizedPath)) {
+    return normalizedPath;
+  }
+  if (normalizedPath == '.fluoh' || normalizedPath.startsWith('.fluoh/')) {
+    return normalizedPath;
+  }
+  return '$_scenarioScreenshotDirectory/$normalizedPath';
 }
 
 class _ScenarioScreenshotFileSelection {
@@ -146,7 +160,7 @@ AutomationScenarioActionResult _invalidScreenshotOutputPath(
     },
     repairHints: [
       ...action.repairHints,
-      'Use a relative path such as $_scenarioScreenshotDirectory/<name>.png.',
+      'Use a file name such as <name>.png or a relative path under $_scenarioScreenshotDirectory.',
     ],
   );
 }

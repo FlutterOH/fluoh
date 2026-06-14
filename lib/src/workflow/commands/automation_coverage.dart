@@ -54,7 +54,7 @@ class _AutomationCoveragePolicy {
       'status': status,
       'readyForAutomation': status == 'readyForExecution',
       'readyRule':
-          'A package adaptation is ready only after every applicable package capability is covered by automation, integration_test, or an explicit notApplicable or blocked entry in the report.',
+          'A package adaptation is ready only after every applicable package capability is covered by automation, integration_test, or an explicit notApplicable row. Blocked rows require repair before release readiness.',
       'minimumGates': const [
         {
           'id': 'platform-matrix',
@@ -72,7 +72,7 @@ class _AutomationCoveragePolicy {
           'id': 'interaction-matrix',
           'required': true,
           'rule':
-              'For each applicable interaction class, provide a scenario, integration_test, manual-assisted tool-readable evidence, or a notApplicable or blocked reason.',
+              'For each applicable interaction class, provide a scenario, integration_test, or manual-assisted tool-readable evidence. Use notApplicable only for behavior that truly does not exist on the platform.',
         },
         {
           'id': 'permission-matrix',
@@ -116,7 +116,7 @@ class _AutomationCoveragePolicy {
       'qualityGates': qualityGates,
       'repairLoop': const {
         'goal':
-            'Repeat diagnose, minimal edit, rerun, and coverage update until every applicable capability row is covered, notApplicable, or blocked with evidence.',
+            'Repeat diagnose, minimal edit, rerun, and coverage update until every applicable capability row is covered or explicitly notApplicable.',
         'steps': [
           {
             'id': 'read-json-diagnostics',
@@ -136,13 +136,13 @@ class _AutomationCoveragePolicy {
           {
             'id': 'refresh-coverage',
             'action':
-                'Update scenario coverage metadata and the report so missing, blocked, and notApplicable rows stay explicit.',
+                'Update scenario coverage metadata and the report so missing and notApplicable rows stay explicit; blocked rows stay in the repair queue.',
           },
         ],
         'stopWhen': [
           'all applicable capability rows have tool-readable evidence',
           'format, analysis, tests, and selected platform automation pass',
-          'remaining blocked rows are local-environment or maintainer-decision issues with evidence',
+          'remaining notApplicable rows are platform-inapplicable behavior with evidence',
         ],
       },
       'interactionClasses': const [
@@ -158,7 +158,7 @@ class _AutomationCoveragePolicy {
         'negativeOrErrorPaths',
       ],
       'capabilityCoverageGuidance':
-          'Create coverage rows from the package capability inventory. For each category/item, use explicit path values such as grant, deny, success, failure, cancel, or error, and add notApplicable or blocked rows with notes when a behavior path cannot be automated.',
+          'Create coverage rows from the package capability inventory. For each category/item, use explicit path values such as grant, deny, success, failure, cancel, or error. Use notApplicable only when the behavior does not exist on the selected platform; blocked rows require repair.',
     };
   }
 
@@ -245,7 +245,7 @@ class _AutomationCoveragePolicy {
         const <String, Object?>{};
     final blockedCoverage = statusCounts['blocked'] as int? ?? 0;
     if (blockedCoverage > 0) {
-      return 'needsMaintainerDecision';
+      return 'needsAgentCoverageReview';
     }
     return 'readyForExecution';
   }
@@ -386,6 +386,10 @@ class _AutomationCoveragePolicy {
         (summary['scenariosWithoutCoverage'] as List<String>);
     final capabilityCount = summary['capabilityCount'] as int;
     final manifestPermissionCount = summary['manifestPermissionCount'] as int;
+    final statusCounts =
+        summary['statusCounts'] as Map<String, Object?>? ??
+        const <String, Object?>{};
+    final blockedCoverage = statusCounts['blocked'] as int? ?? 0;
     return [
       {
         'id': 'coverage-inventory',
@@ -401,7 +405,7 @@ class _AutomationCoveragePolicy {
             ? 'readyForReview'
             : 'needsRepair',
         'repair':
-            'Add coverage metadata to every scenario, or mark capability rows notApplicable or blocked with evidence.',
+            'Add coverage metadata to every scenario, or mark truly inapplicable capability rows notApplicable with evidence.',
       },
       {
         'id': 'coverage-items',
@@ -419,13 +423,24 @@ class _AutomationCoveragePolicy {
             ? 'readyForReview'
             : 'needsCapabilityCoverageRows',
         'repair':
-            'For every discovered public API, platform call, or example entry point, add matching scenario coverage rows, integration-test evidence, or explicit notApplicable or blocked rows.',
+            'For every discovered public API, platform call, or example entry point, add matching scenario coverage rows, integration-test evidence, or explicit notApplicable rows for platform-inapplicable behavior.',
         if (capabilityCount > 0)
           'capabilities': inventory.capabilities
               .map((capability) => capability.toJson())
               .toList(),
         if (capabilityCoverageWarnings.isNotEmpty)
           'missingCapabilities': capabilityCoverageWarnings,
+      },
+      {
+        'id': 'blocked-coverage',
+        'status': scenarioCount == 0
+            ? 'needsInventory'
+            : blockedCoverage > 0
+            ? 'needsBlockedCoverageRepair'
+            : 'readyForReview',
+        'repair':
+            'Replace blocked coverage rows by fixing the package, repairing the demo, or adding full automation evidence. Use notApplicable only when the behavior does not exist on this platform.',
+        if (blockedCoverage > 0) 'blockedCoverageCount': blockedCoverage,
       },
       {
         'id': 'scenario-evidence-assertions',
@@ -459,7 +474,7 @@ class _AutomationCoveragePolicy {
             ? 'needsPermissionCoverageRows'
             : 'readyForReview',
         'repair':
-            'For every runtime permission found in selected Android, iOS, or OHOS manifests, add scenario coverage rows for grant and denied/error behavior paths, or mark rows notApplicable or blocked with notes.',
+            'For every runtime permission found in selected Android, iOS, or OHOS manifests, add scenario coverage rows for grant and denied/error behavior paths, or mark rows notApplicable only when the permission has no runtime behavior on that platform.',
         if (manifestPermissionCount > 0)
           'permissions': inventory.manifestPermissions
               .where((permission) => platforms.contains(permission.platform))
@@ -478,7 +493,7 @@ class _AutomationCoveragePolicy {
             ? 'readyForReview'
             : 'needsPathCoverageReview',
         'repair':
-            'For each category/item, declare both a successful path and a denied, cancelled, failure, or error path. Use notApplicable or blocked with notes when a path cannot be automated.',
+            'For each category/item, declare both a successful path and a denied, cancelled, failure, or error path. Use notApplicable only when a path does not exist on that platform; blocked rows require repair.',
         if (pathCoverageWarnings.isNotEmpty) 'items': pathCoverageWarnings,
       },
     ];

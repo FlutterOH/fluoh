@@ -30,6 +30,7 @@ part 'build_command.dart';
 part 'run_command.dart';
 part 'attach_command.dart';
 part 'drive_command.dart';
+part 'clean_command.dart';
 part 'drive_automation.dart';
 part 'automation_plan.dart';
 part 'automation_inventory_models.dart';

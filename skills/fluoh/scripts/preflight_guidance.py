@@ -360,7 +360,10 @@ def quality_gates(project: dict[str, Any]) -> list[dict[str, Any]]:
                 "Ready evidence must validate library behavior through package "
                 "tests, integration_test, real fluoh drive JSON, or "
                 "manual-assisted tool-readable assertions; build, launch, "
-                "screenshot, or run-all smoke evidence is insufficient alone."
+                "screenshot, or run-all smoke evidence is insufficient alone. "
+                "After each mobile run, capture a screenshot or equivalent "
+                "UI-state artifact and repair abnormal demo pages before "
+                "continuing to full automation."
             ),
         },
     ]
@@ -393,9 +396,10 @@ def automation_runbook(project: dict[str, Any]) -> dict[str, Any]:
             "Before final verification, inspect whether existing tests cover the package or app behavior; add or repair missing functional tests before running the final test matrix.",
             "Parse every --json result before editing or deciding the next step.",
             "Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.",
+            "After every successful mobile run, capture a screenshot or equivalent UI-state artifact and fix abnormal demo pages before continuing.",
             "Do not stop after setup, verify, build, run, or screenshot-only smoke evidence.",
             "Do not focus only on OHOS; every existing platform must have functional evidence or an explicit unsupported-host/toolchain diagnostic blocker.",
-            "Do not skip drive, package handoff, report creation, report check, or package check when they are applicable.",
+            "Do not skip drive, report creation, report check, package handoff, or package check when they are applicable.",
             "Create local checkpoint commits after completed phases when command evidence is clean.",
             "Do not push, release, force-push, or run destructive Git commands without separate maintainer approval.",
         ],
@@ -482,6 +486,7 @@ def delivery_gate(
     common = [
         "upgradeChecks has no schema, generated-doc, or newer-template blocker",
         "existing tests and integration tests were reviewed against public API, platform interfaces, example flows, permissions, and behavior paths before final verification; missing or weak functional tests were added or a concrete blocker is recorded",
+        "each successful mobile run has screenshot or equivalent UI-state evidence, and abnormal demo pages were repaired before continuing",
         "functional evidence validates the library or app behavior, not only build, launch, screenshot, or run-all smoke",
         "OHOS and every existing non-OHOS platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons",
         "every commandQueue item marked mustCompleteForDelivery has passed or has a concrete blocker recorded",

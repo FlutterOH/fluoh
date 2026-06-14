@@ -346,6 +346,7 @@ Future<FlutterExampleRunResult> runFlutterExampleOnDevice({
   output.step('Running $runCommand in ${exampleDirectory.path}');
   final runResult = await _runFlutterSmoke(
     environment: commandEnvironment,
+    cacheEnvironment: environment,
     workingDirectory: exampleDirectory,
     arguments: runArguments,
     platform: platform,

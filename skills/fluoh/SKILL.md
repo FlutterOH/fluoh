@@ -54,10 +54,11 @@ contract.
 ## Request Routing
 
 - Install, update, or reload the skill: if needed, run CLI Setup, run
-  `fluoh upgrade`, then run `fluoh skill --json` and use `localPath`,
-  `skillVersion`, `installPrompt`, and `upgradePrompt` to reinstall or reload
-  the returned skill, overwriting any existing fluoh skill when the host agent
-  supports it. If the host cannot reload skills now, report that blocker.
+  `fluoh upgrade`, then run `fluoh skill --path` and reinstall or reload the
+  printed skill path, overwriting any existing fluoh skill when the host agent
+  supports it. Use `fluoh skill --json` only when script metadata, reference
+  paths, `skillVersion`, `installPrompt`, or `upgradePrompt` are needed. If the
+  host cannot reload skills now, report that blocker.
 - Install or set up fluoh: run the CLI Setup section, then continue with the
   requested workflow.
 - Make an existing Flutter app support OHOS: run preflight, then use
@@ -175,7 +176,7 @@ When using `scripts/preflight.py`, route by the returned JSON:
 - `package-repository`: use `references/package-adaptation-flow.md` and confirm
   the selected package matches the user's request.
 - `upgradeChecks`: when preflight requires a newer fluoh, run `fluoh upgrade`,
-  refresh the skill with `fluoh skill --json` when the host supports it, then
+  refresh the skill with `fluoh skill --path` when the host supports it, then
   handle schema migration and generated-doc refresh blockers before
   implementation edits. Generated `README.md`, `FLUOH.md`, and `AGENTS.md`
   sections are tool-owned; do not edit inside `fluoh:generated` blocks by hand.
@@ -205,7 +206,11 @@ For every `--json` command:
 - Read `workflowEvidence` from `build` and `run` as factual tool output.
   `classification: buildOnly` means only artifacts were built.
   `classification: launchSmoke` means the app launched, not that UI behavior
-  passed. Use `observedEvidence`, `collectedEvidenceKinds`,
+  passed. Every successful mobile run must be followed by at least one
+  screenshot or equivalent UI-state capture and a tool-readable page assertion.
+  If the example/demo page is visually stuck, blank, hidden behind splash, or
+  otherwise unusable, repair the demo before continuing to broader automation.
+  Use `observedEvidence`, `collectedEvidenceKinds`,
   `notCollectedEvidenceKinds`, `workflowContinuations`, and `toolCommands` to
   choose the next run smoke, `fluoh drive --dry-run`, scenario,
   integration-test, report, or check action.
@@ -231,11 +236,13 @@ Use this loop for app and package work:
    permissions, and behavior paths. If the existing tests do not cover the
    adapted library behavior, add or repair focused functional tests first.
 3. Run the suggested verify/build/run commands until diagnostics are clean or a
-   blocker is explicit. Clean build/run JSON is not the end of the workflow;
-   inspect `workflowEvidence.notCollectedEvidenceKinds` and
+   blocker is explicit. Clean build/run JSON is not the end of the workflow.
+   After every successful mobile run, capture at least one screenshot or
+   equivalent UI-state artifact and confirm the example/demo page is the
+   expected functional screen. If the page is abnormal, fix that page first.
+   Inspect `workflowEvidence.notCollectedEvidenceKinds` and
    `workflowEvidence.workflowContinuations` and continue until functional
-   evidence, coverage review, report creation, and report checks are handled or
-   explicitly blocked.
+   evidence, coverage review, report creation, and report checks are handled.
 4. When an interactive flow, permission prompt, file picker, camera, location,
    media, deep link, external app callback, or lifecycle behavior matters, use
    `references/automation-evidence-flow.md`.
@@ -260,8 +267,10 @@ and result in the Commands table.
 When `fluoh run all` succeeds, use it only as platform launch-smoke coverage
 for the existing project or package example platform directories it selected.
 Continue with the printed `fluoh drive all --dry-run --json` or
-platform-specific `drive` commands, then add or repair scenarios until grant,
-deny, gestures, and result assertions are covered or explicitly blocked.
+platform-specific `drive` commands, capture screenshots for each mobile target,
+repair any abnormal demo page, then add or repair scenarios until grant, deny,
+gestures, and result assertions are fully covered. `blocked` coverage rows are
+repair items, not a release-complete state.
 Do not focus only on OHOS for package adaptations. Existing Android, iOS,
 macOS, Linux, Web, and Windows example/platform directories are in scope for
 functional verification. Run the platform commands when the current host and
@@ -269,7 +278,9 @@ toolchain support them; otherwise record the exact diagnostic command, host or
 toolchain limitation, and skip reason in the report. A `ready` recommendation
 requires either passed functional evidence for each existing platform or a
 concrete unsupported-environment blocker.
-Do not rely on screenshot recognition as the primary assertion.
+Do not rely on screenshot recognition as the primary assertion; use it as the
+mandatory visual sanity check after launch, backed by text, session, log, or
+interaction assertions for pass/fail behavior.
 
 ## Completion Report
 

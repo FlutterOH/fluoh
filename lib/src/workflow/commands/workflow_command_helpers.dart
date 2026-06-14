@@ -185,13 +185,20 @@ Map<String, Object?> _runSmokeEvidence({
   final hasIntegrationCommandResult =
       interactionEvidence['status'] != 'notCollectedByThisCommand';
   final blockingDiagnostics = [if (!passed) 'repairFailedTargets'];
-  final notCollectedEvidenceKinds = [
-    if (!hasPassedIntegrationEvidence) 'functionalInteraction',
-  ];
-  final workflowContinuations = ['coverageReview', 'reportCheck'];
   final mobilePlatforms = platforms
       .where(_isDrivePlatform)
       .toList(growable: false);
+  final notCollectedEvidenceKinds = [
+    if (mobilePlatforms.isNotEmpty) 'postLaunchScreenshot',
+    if (mobilePlatforms.isNotEmpty) 'visualPageReadiness',
+    if (!hasPassedIntegrationEvidence) 'functionalInteraction',
+  ];
+  final workflowContinuations = [
+    if (mobilePlatforms.isNotEmpty) 'postLaunchScreenshotReview',
+    if (mobilePlatforms.isNotEmpty) 'demoRepairBeforeFullAutomation',
+    'coverageReview',
+    'reportCheck',
+  ];
   return {
     'schema': 1,
     'kind': 'fluoh.workflowEvidence',
@@ -220,7 +227,8 @@ Map<String, Object?> _runSmokeEvidence({
     'toolCommands': [
       if (passed && mobilePlatforms.isNotEmpty)
         {
-          'purpose': 'plan functional interaction automation',
+          'purpose':
+              'capture post-launch screenshot, verify the demo page, and plan functional interaction automation',
           'command': _driveCommandFromEvidenceScope(
             platforms: mobilePlatforms,
             packageName: packageName,

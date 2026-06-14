@@ -222,14 +222,21 @@ Future<_ComposedReport> _composeReport({
       traces.add(await _readJsonObject(manifest));
     }
   }
-  final automation = <Map<String, Object?>>[];
+  final explicitAutomation = <Map<String, Object?>>[];
   for (final raw in automationPaths) {
-    automation.add(await _readJsonObject(_resolveFile(environment, raw)));
+    explicitAutomation.add(
+      await _readJsonObject(_resolveFile(environment, raw)),
+    );
   }
-  final commandRows = _commandRows(traces, automation);
-  final automationRows = _automationCoverageRows(automation);
-  final automationGatesReady = _automationGatesReady(automation);
-  final interactionRows = _interactionRows(automation);
+  final allAutomation = [
+    ...explicitAutomation,
+    ..._automationEvidenceFromTraces(traces),
+  ];
+  final releaseAutomation = _latestAutomationCoverageEvidence(allAutomation);
+  final commandRows = _commandRows(traces, explicitAutomation);
+  final automationRows = _automationCoverageRows(releaseAutomation);
+  final automationGatesReady = _automationGatesReady(releaseAutomation);
+  final interactionRows = _interactionRows(releaseAutomation);
   final feedbackRows = _feedbackRows(traces);
   final packageValue = packageName?.isNotEmpty == true ? packageName! : '';
   final generatedAt = DateTime.now().toIso8601String();
@@ -241,13 +248,14 @@ Future<_ComposedReport> _composeReport({
       generatedAt: generatedAt,
       recommendation: recommendation,
       traceCount: traces.length,
-      automationCount: automation.length,
+      automationCount: releaseAutomation.length,
       commandRows: commandRows,
       automationRows: automationRows,
       automationGatesReady: automationGatesReady,
       interactionRows: interactionRows,
       feedbackRows: feedbackRows,
-      automation: automation,
+      automation: releaseAutomation,
+      diagnosticAutomation: allAutomation,
       traces: traces,
     ),
     commandRows: commandRows.length,
@@ -271,6 +279,7 @@ String _englishReportContent({
   required List<String> feedbackRows,
   required List<Map<String, Object?>> traces,
   required List<Map<String, Object?>> automation,
+  required List<Map<String, Object?>> diagnosticAutomation,
 }) {
   return [
     '# fluoh AI Report',
@@ -285,7 +294,7 @@ String _englishReportContent({
     '',
     '## Summary',
     '',
-    '- Report composed from $traceCount trace manifest(s) and $automationCount automation JSON file(s).',
+    '- Report composed from $traceCount trace manifest(s) and $automationCount automation evidence object(s).',
     '- AI owns adaptation changes, command execution, evidence collection, report composition, and the release recommendation.',
     '- The maintainer owns the final publish, push, tag, store, or release approval decision.',
     '',
@@ -349,7 +358,7 @@ String _englishReportContent({
     '## Interaction Evidence',
     '',
     if (interactionRows.isEmpty)
-      'No interaction required: no passed scenario evidence was supplied to report create.'
+      'Interaction evidence missing: no passed scenario evidence was supplied to report create. Add concrete interaction rows or replace this line with `No interaction required: <reason>` only when no device-side interaction flow exists.'
     else ...[
       '| Scenario | Method | Platform | Target | Result | Evidence / blocker |',
       '| --- | --- | --- | --- | --- | --- |',
@@ -358,7 +367,7 @@ String _englishReportContent({
     '',
     '## Diagnostics',
     '',
-    ..._diagnosticLines(traces, automation),
+    ..._diagnosticLines(traces, diagnosticAutomation),
     '',
     '## Fluoh Feedback',
     '',
@@ -480,6 +489,111 @@ Future<Map<String, Object?>> _readJsonObject(File file) async {
   return decoded;
 }
 
+List<Map<String, Object?>> _automationEvidenceFromTraces(
+  List<Map<String, Object?>> traces,
+) {
+  final automation = <Map<String, Object?>>[];
+  for (final trace in traces) {
+    final invocations = trace['invocations'];
+    if (invocations is List<Object?>) {
+      for (final item in invocations) {
+        if (item is Map<String, Object?>) {
+          final evidence = _automationEvidenceFromInvocation(item);
+          if (evidence != null) {
+            automation.add(evidence);
+          }
+        }
+      }
+      continue;
+    }
+    final evidence = _automationEvidenceFromInvocation(trace);
+    if (evidence != null) {
+      automation.add(evidence);
+    }
+  }
+  return automation;
+}
+
+Map<String, Object?>? _automationEvidenceFromInvocation(
+  Map<String, Object?> invocation,
+) {
+  final result = invocation['result'];
+  if (result is! Map || result['automation'] is! Map) {
+    return null;
+  }
+  return {
+    ...Map<String, Object?>.from(result),
+    if (invocation['commandLine'] != null)
+      'commandLine': invocation['commandLine'],
+    if (invocation['command'] != null) 'command': invocation['command'],
+    if (invocation['ok'] != null) 'ok': invocation['ok'],
+    if (invocation['exitCode'] != null) 'exitCode': invocation['exitCode'],
+    if (invocation['createdAt'] != null) 'createdAt': invocation['createdAt'],
+  };
+}
+
+List<Map<String, Object?>> _latestAutomationCoverageEvidence(
+  List<Map<String, Object?>> automation,
+) {
+  final passthrough = <Map<String, Object?>>[];
+  final latestByKey = <String, Map<String, Object?>>{};
+  for (final item in automation) {
+    if (_automationCoveragePolicy(item) == null) {
+      passthrough.add(item);
+      continue;
+    }
+    latestByKey[_automationEvidenceKey(item)] = item;
+  }
+  return [...passthrough, ...latestByKey.values];
+}
+
+Map<Object?, Object?>? _automationCoveragePolicy(Map<String, Object?> item) {
+  final automationJson = item['automation'];
+  if (automationJson is! Map) {
+    return null;
+  }
+  final coveragePolicy = automationJson['coveragePolicy'];
+  return coveragePolicy is Map ? coveragePolicy : null;
+}
+
+String _automationEvidenceKey(Map<String, Object?> item) {
+  final command = _automationEvidenceCommand(item);
+  if (command != null) {
+    return _normalizedAutomationEvidenceCommand(command);
+  }
+  final automationJson = item['automation'];
+  if (automationJson is Map) {
+    final platforms = automationJson['platforms'];
+    final targetSelection = automationJson['targetSelection'];
+    final scenarios = automationJson['scenarios'];
+    return ['automation', ?platforms, ?targetSelection, ?scenarios].join('|');
+  }
+  return 'automation:${item.hashCode}';
+}
+
+String? _automationEvidenceCommand(Map<String, Object?> item) {
+  final commandLine = _nonEmptyString(item['commandLine']);
+  if (commandLine != null) {
+    return commandLine;
+  }
+  final automationJson = item['automation'];
+  if (automationJson is Map) {
+    final rerun = _nonEmptyString(automationJson['rerunCommand']);
+    if (rerun != null) {
+      return rerun;
+    }
+  }
+  return _normalizedCommand(item['command']);
+}
+
+String _normalizedAutomationEvidenceCommand(String command) {
+  return command
+      .replaceAll(RegExp(r'(^|\s)--dry-run(?=\s|$)'), ' ')
+      .replaceAll(RegExp(r'(^|\s)-n(?=\s|$)'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
 List<_CommandEvidence> _commandRows(
   List<Map<String, Object?>> traces,
   List<Map<String, Object?>> automation,
@@ -506,7 +620,8 @@ List<_CommandEvidence> _commandRows(
 _CommandEvidence _commandEvidence(Map<String, Object?> item) {
   final command =
       item['commandLine'] as String? ??
-      item['command'] as String? ??
+      _automationRerunCommand(item) ??
+      _normalizedCommand(item['command']) ??
       'fluoh drive --json';
   final exitCode = item['exitCode']?.toString() ?? 'n/a';
   final ok = item['ok'];
@@ -517,6 +632,28 @@ _CommandEvidence _commandEvidence(Map<String, Object?> item) {
     status: passed ? 'passed' : 'failed',
     note: _rowNote(item),
   );
+}
+
+String? _automationRerunCommand(Map<String, Object?> item) {
+  final automation = item['automation'];
+  if (automation is Map) {
+    final rerun = automation['rerunCommand'];
+    if (rerun is String && rerun.trim().isNotEmpty) {
+      return rerun.trim();
+    }
+  }
+  return null;
+}
+
+String? _normalizedCommand(Object? value) {
+  if (value is! String || value.trim().isEmpty) {
+    return null;
+  }
+  final command = value.trim();
+  if (command == 'drive') {
+    return 'fluoh drive --json';
+  }
+  return command.startsWith('fluoh ') ? command : 'fluoh $command';
 }
 
 String _rowNote(Map<String, Object?> item) {
@@ -604,13 +741,187 @@ List<String> _interactionRows(List<Map<String, Object?>> automation) {
             !'${step['name'] ?? ''}'.startsWith('automation-scenario-')) {
           continue;
         }
+        final platform = _scenarioPlatform(target, step);
+        final targetName = _scenarioTargetName(target, platform);
+        final evidence = _scenarioEvidence(step);
         rows.add(
-          '| `${_escapeCell('${step['name'] ?? ''}')}` | AI-assisted | ${_escapeCell('${target['platform'] ?? ''}')} | ${_escapeCell('${target['targetName'] ?? ''}')} | ${_escapeCell('${step['status'] ?? ''}')} | ${_escapeCell('${step['reason'] ?? step['path'] ?? ''}')} |',
+          '| `${_escapeCell('${step['name'] ?? ''}')}` | AI-assisted | ${_escapeCell(platform)} | ${_escapeCell(targetName)} | ${_escapeCell('${step['status'] ?? ''}')} | ${_escapeCell(evidence)} |',
         );
       }
     }
   }
   return rows;
+}
+
+String _scenarioPlatform(Map target, Map step) {
+  final direct = _nonEmptyString(target['platform']);
+  if (direct != null) {
+    return direct;
+  }
+  final details = step['details'];
+  if (details is Map) {
+    final scenario = details['scenario'];
+    final scenarioPlatform = scenario is Map
+        ? _nonEmptyString(scenario['platform'])
+        : null;
+    if (scenarioPlatform != null) {
+      return scenarioPlatform;
+    }
+  }
+  final phasePlatform = _platformFromText(_nonEmptyString(target['phase']));
+  if (phasePlatform != null) {
+    return phasePlatform;
+  }
+  return _platformFromText(_nonEmptyString(step['name'])) ?? '';
+}
+
+String _scenarioTargetName(Map target, String platform) {
+  final steps = target['steps'];
+  if (steps is List<Object?>) {
+    for (final step in steps) {
+      if (step is! Map) {
+        continue;
+      }
+      final details = step['details'];
+      if (details is! Map) {
+        continue;
+      }
+      final stepPlatform = _nonEmptyString(details['platform']);
+      if (stepPlatform != null && stepPlatform != platform) {
+        continue;
+      }
+      final targetId = _nonEmptyString(details['targetId']);
+      if (targetId != null) {
+        return targetId;
+      }
+      final targetDetails = details['target'];
+      if (targetDetails is Map) {
+        final id = _nonEmptyString(targetDetails['id']);
+        if (id != null) {
+          return id;
+        }
+      }
+    }
+  }
+  final direct = _nonEmptyString(target['targetName']);
+  if (direct != null) {
+    return direct;
+  }
+  final targetObject = target['target'];
+  if (targetObject is Map) {
+    final name = _nonEmptyString(targetObject['name']);
+    if (name != null) {
+      return name;
+    }
+  }
+  return '';
+}
+
+String _scenarioEvidence(Map step) {
+  final parts = <String>[];
+  void add(Object? value) {
+    final text = _nonEmptyString(value);
+    if (text != null && !parts.contains(text)) {
+      parts.add(text);
+    }
+  }
+
+  add(step['reason']);
+  add(step['path']);
+  final details = step['details'];
+  if (details is Map) {
+    final scenario = details['scenario'];
+    if (scenario is Map) {
+      final path = _nonEmptyString(scenario['path']);
+      if (path != null) {
+        add('scenario $path');
+      }
+    }
+    final actions = details['actions'];
+    if (actions is List<Object?>) {
+      for (final action in actions) {
+        if (action is Map) {
+          add(_scenarioActionEvidence(action));
+        }
+      }
+    }
+  }
+  return parts.join('; ');
+}
+
+String? _scenarioActionEvidence(Map action) {
+  final name = _nonEmptyString(action['action']) ?? 'action';
+  final status = _nonEmptyString(action['status']) ?? 'unknown';
+  final details = action['details'];
+  final detailMap = details is Map ? details : const <Object?, Object?>{};
+  final reason = _nonEmptyString(action['reason']);
+  if (status != 'passed') {
+    return reason == null ? '$name $status' : '$name $status: $reason';
+  }
+  if (_isScreenshotAction(name)) {
+    final path = _nonEmptyString(detailMap['path']);
+    if (path != null) {
+      final bytes = _nonEmptyString(detailMap['bytes']);
+      return bytes == null
+          ? 'post-launch screenshot $path'
+          : 'post-launch screenshot $path ($bytes bytes)';
+    }
+    return 'post-launch screenshot captured';
+  }
+  final sessionFile = _nonEmptyString(detailMap['sessionFile']);
+  if (sessionFile != null) {
+    return '$name passed with session file $sessionFile';
+  }
+  final hilog = _nonEmptyString(detailMap['hilog']);
+  if (hilog != null) {
+    return '$name passed with hilog $hilog';
+  }
+  final outputLog = _nonEmptyString(detailMap['outputLog']);
+  if (outputLog != null) {
+    return '$name passed with output log $outputLog';
+  }
+  if (_isAssertionAction(name)) {
+    return '$name passed';
+  }
+  final command = _nonEmptyString(action['command']);
+  if (command != null) {
+    return '$name passed via $command';
+  }
+  return null;
+}
+
+bool _isScreenshotAction(String name) {
+  final normalized = name.toLowerCase();
+  return normalized == 'screenshot' || normalized == 'capturescreenshot';
+}
+
+bool _isAssertionAction(String name) {
+  final normalized = name.toLowerCase();
+  return normalized == 'assertlog' ||
+      normalized == 'assertsession' ||
+      normalized == 'assertohossession' ||
+      normalized == 'asserttext' ||
+      normalized == 'waittext';
+}
+
+String? _platformFromText(String? value) {
+  if (value == null) {
+    return null;
+  }
+  for (final platform in const ['ohos', 'android', 'ios']) {
+    if (RegExp('(^|-)${RegExp.escape(platform)}(-|\$)').hasMatch(value)) {
+      return platform;
+    }
+  }
+  return null;
+}
+
+String? _nonEmptyString(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  final text = value.toString().trim();
+  return text.isEmpty || text == 'null' ? null : text;
 }
 
 List<String> _platformRows(List<_CommandEvidence> commandRows) {

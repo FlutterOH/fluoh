@@ -66,7 +66,7 @@ jobs:
               },
               'area:workflow': {
                 color: '0969DA',
-                description: 'Plan, verify, build, run, attach, drive, and report workflows.',
+                description: 'Plan, verify, build, run, attach, drive, report, and clean workflows.',
               },
               'area:devices': {
                 color: '0969DA',
@@ -143,8 +143,8 @@ jobs:
             if (fileMatches(/^(lib\/src\/package\/|test\/package\/|test\/commands\/package_)/)) {
               addArea('area:package', 'dart test test/package test/commands/package_*_test.dart');
             }
-            if (fileMatches(/^(lib\/src\/workflow\/|test\/workflow\/|test\/commands\/workflow_commands(?:_.*)?\.dart|test\/commands\/(plan_command|report_command)_test\.dart)/)) {
-              addArea('area:workflow', 'dart test test/workflow test/commands/workflow_commands_test.dart test/commands/plan_command_test.dart test/commands/report_command_test.dart');
+            if (fileMatches(/^(lib\/src\/workflow\/|test\/workflow\/|test\/commands\/workflow_commands(?:_.*)?\.dart|test\/commands\/(plan_command|report_command|clean_command)_test\.dart)/)) {
+              addArea('area:workflow', 'dart test test/workflow test/commands/workflow_commands_test.dart test/commands/plan_command_test.dart test/commands/report_command_test.dart test/commands/clean_command_test.dart');
             }
             if (fileMatches(/^(lib\/src\/platform\/platform_target_commands\.dart|test\/commands\/platform_target_commands_test\.dart)/)) {
               addArea('area:devices', 'dart test test/commands/platform_target_commands_test.dart');

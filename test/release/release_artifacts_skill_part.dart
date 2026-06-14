@@ -73,6 +73,7 @@ void _registerReleaseArtifactsSkillTests() {
       'brew tap FlutterOH/tap',
       'fluoh --version',
       'fluoh upgrade',
+      'fluoh skill --path',
       'fluoh skill --json',
       'skillVersion',
       'upgradePrompt',
@@ -146,7 +147,7 @@ void _registerReleaseArtifactsSkillTests() {
       'manifestPermissionCoverage',
       'permissionCoverage',
       'readyForAutomation',
-      'ready=8, notReady=0',
+      'ready=9, notReady=0',
       'automation.repairQueue',
     ]);
     expectContainsAll(sourceFlow, [
@@ -190,12 +191,8 @@ void _registerReleaseArtifactsSkillTests() {
     expect(reportTemplate, contains('manual-assisted'));
     expect(reportTemplate, contains('meaningful session state beyond launch'));
     expect(reportTemplate, contains('.fluoh/scenarios/'));
-    expect(
-      reportTemplate,
-      contains('Flutter debug/widget/semantic/log evidence'),
-    );
-    expect(reportTemplate, contains('flutterRunSession/VM Service evidence'));
-    expect(reportTemplate, contains('screenshots optional'));
+    expect(reportTemplate, contains('debug/semantic/log evidence'));
+    expect(reportTemplate, contains('screenshot or UI-state evidence'));
     expect(newSummary, contains('fluoh Monorepo Summary'));
     expect(newSummary, contains('Package Matrix'));
     expect(newSummary, contains('.fluoh/reports'));
@@ -211,7 +208,12 @@ void _registerReleaseArtifactsSkillTests() {
     expect(scenarioTemplate, contains('flutterRunSession JSON status'));
     expect(scenarioTemplate, contains('functional correctness'));
     expect(scenarioTemplate, contains('widget/component state'));
-    expect(scenarioTemplate, contains('screenshot-optional'));
+    expect(scenarioTemplate, isNot(contains('screenshot-optional')));
+    expect(scenarioTemplate, contains('screenshot-supporting'));
+    expect(
+      scenarioTemplate,
+      contains('Screenshots or screen recordings, required after mobile run'),
+    );
     expect(reportTemplate, contains('## Local State'));
     expect(reportTemplate, contains('Diff reviewed'));
     expect(reportTemplate, contains('Release recommendation: ready'));

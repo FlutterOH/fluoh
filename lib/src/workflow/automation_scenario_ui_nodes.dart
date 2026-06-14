@@ -47,6 +47,9 @@ class AndroidBounds {
   /// Vertical center coordinate.
   int get centerY => ((top + bottom) / 2).round();
 
+  /// Whether the node has a non-empty render area.
+  bool get hasArea => right > left && bottom > top;
+
   /// Converts bounds to JSON.
   Map<String, Object?> toJson() {
     return {
@@ -186,6 +189,9 @@ class OhosBounds {
   /// Vertical center coordinate.
   int get centerY => ((top + bottom) / 2).round();
 
+  /// Whether the node has a non-empty render area.
+  bool get hasArea => right > left && bottom > top;
+
   /// Converts bounds to JSON.
   Map<String, Object?> toJson() {
     return {
@@ -204,10 +210,11 @@ List<OhosUiNode> parseOhosUiNodes(String source) {
   final decoded = jsonDecode(source);
   final nodes = <OhosUiNode>[];
 
-  void visit(Object? value) {
+  void visit(Object? value, {bool ancestorVisible = true}) {
     if (value is! Map) {
       return;
     }
+    var nodeVisible = ancestorVisible;
     final attributes = value['attributes'];
     if (attributes is Map) {
       final stringAttributes = <String, String>{
@@ -215,8 +222,10 @@ List<OhosUiNode> parseOhosUiNodes(String source) {
           if (entry.key is String && entry.value != null)
             entry.key as String: entry.value.toString(),
       };
+      nodeVisible =
+          ancestorVisible && _ohosAttributesAreVisible(stringAttributes);
       final bounds = _parseOhosBounds(stringAttributes['bounds']);
-      if (bounds != null) {
+      if (bounds != null && bounds.hasArea && nodeVisible) {
         final id = _nonEmptyString(stringAttributes['id']);
         final key = _nonEmptyString(stringAttributes['key']);
         final labels = <String>{
@@ -234,13 +243,25 @@ List<OhosUiNode> parseOhosUiNodes(String source) {
     final children = value['children'];
     if (children is List) {
       for (final child in children) {
-        visit(child);
+        visit(child, ancestorVisible: nodeVisible);
       }
     }
   }
 
   visit(decoded);
   return nodes;
+}
+
+bool _ohosAttributesAreVisible(Map<String, String> attributes) {
+  final visible = attributes['visible']?.trim().toLowerCase();
+  if (visible == 'false') {
+    return false;
+  }
+  final opacity = double.tryParse(attributes['opacity']?.trim() ?? '');
+  if (opacity != null && opacity <= 0) {
+    return false;
+  }
+  return true;
 }
 
 OhosUiNode? _findOhosUiNode(

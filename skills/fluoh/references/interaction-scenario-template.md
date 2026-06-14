@@ -12,7 +12,9 @@ is specifically visual.
 - Platform: ohos | android | ios | macos | linux | web | windows
 - Target requirement: emulator | simulator | device | host | browser
 - Required local tools:
-- Observation mode: integration_test | flutter-debug | widget-tree | semantics-tree | accessibility | visible-text | log-marker | screenshot-optional
+- Observation mode: integration_test | flutter-debug | widget-tree |
+  semantics-tree | accessibility | visible-text | log-marker |
+  screenshot-supporting
 - Related command:
 - Session file command, when supported:
 - Session inspect command, when supported:
@@ -24,7 +26,8 @@ is specifically visual.
 - Example path:
 - Required permissions:
 - Required test files, fixtures, media, URLs, accounts, or local services:
-- Required Flutter debug output, widget/component state, semantic labels, visible status text, test keys, or log markers:
+- Required Flutter debug output, widget/component state, semantic labels,
+  visible status text, test keys, or log markers:
 - Network requirement: none | local | internet
 
 ## Coverage Matrix
@@ -40,14 +43,16 @@ package exposes more.
 | publicApi | ExampleController | success | covered | Scenario drives the API through the example and asserts status/log output |
 | publicApi | formatValue | error | covered | Scenario or integration test asserts invalid-input handling |
 | methodChannel | openPicker | error | notApplicable | Covered by a package test because the host callback is mocked |
-| platformChannel | sample/events | success | blocked | Local fixture cannot emit native stream events |
+| platformChannel | sample/events | success | blocked | Repair item: add native stream fixture or scenario evidence |
 | exampleFlow | main | success | covered | Launch and assertion prove the example entry point works |
 | permission | camera | grant | covered | Scenario action and log/status assertion |
 | permission | camera | deny | covered | Scenario action and denied status assertion |
-| permission | photos | grant | blocked | Local emulator fixture does not expose this permission |
+| permission | photos | grant | blocked | Repair item: use a target/profile that exposes the permission, or mark notApplicable only if the platform has no such behavior |
 
-Status must be one of `covered`, `notApplicable`, or `blocked`. `blocked` and
-`notApplicable` rows must include a non-empty `note` or `reason`.
+Status must be one of `covered`, `notApplicable`, or `blocked`.
+`notApplicable` rows must include a non-empty `note` or `reason` explaining why
+the behavior does not exist on this platform. `blocked` rows are repair backlog,
+not release-ready coverage.
 `fluoh drive --dry-run --json` reports these rows under
 `automation.coveragePolicy.scenarioCoverage` and also emits
 `coverageSummary`, `inventory`, `capabilityCoverage`,
@@ -64,25 +69,24 @@ or expected log marker is not enough.
 `capabilityCoverage` lists discovered public API entries from top-level library
 files and local exports, top-level functions, getters, variables, platform
 channel declarations and calls, and example entry points. Copy its
-`suggestedCoverage` rows into the scenario or mark the row
-`notApplicable`/`blocked` with a note when that capability is covered elsewhere
-or cannot be automated.
+`suggestedCoverage` rows into the scenario or mark the row `notApplicable`
+only when that capability does not exist on the selected platform.
 `manifestPermissionCoverage` lists each selected-platform manifest permission,
 its normalized `coverageItem`, and suggested coverage rows when grant/success
 or denied/error paths are missing. Each applicable `category`/`item` should
 include both a successful path and a denied, cancelled, failure, or error path;
-use `notApplicable` or `blocked` with a note when a path cannot be automated.
+use `notApplicable` only when a path does not exist on the selected platform.
 Every scenario with `covered` rows should include at least one tool-readable
 verification action such as `assertText`, `waitText`, `assertLog`, or
 `assertSession`; clicks alone are not evidence. Scenarios whose rows are only
-`blocked` or `notApplicable` do not need runtime assertions, but those rows
-still need concrete notes or reasons.
+`notApplicable` do not need runtime assertions, but those rows still need
+concrete reasons. Scenarios with `blocked` rows should stay in the repair queue.
 
 ## Scenario
 
 | Step | Action | Expected result | Evidence |
 | --- | --- | --- | --- |
-| 1 | Launch the example screen | Ready state or functional status is observable | Flutter debug output, widget/semantics tree, visible text, semantic label, accessibility dump, or log marker |
+| 1 | Launch the example screen | Ready state or functional status is observable | Debug output, widget/semantics tree, visible text, accessibility dump, or log marker |
 | 2 | ... | ... | ... |
 
 ## Executable Automation Block
@@ -131,8 +135,8 @@ Supported first-pass actions:
   `assertSession`, `wait`.
   Text actions match UIAutomator text, content description, resource id, or
   resource id suffix. Screenshot actions save a local file under
-  `.fluoh/evidence/screenshots/`; custom `outputPath` values must be relative
-  paths that stay inside that directory.
+  `.fluoh/evidence/screenshots/`; custom `outputPath` may be a file name such
+  as `main.png` or a relative path that stays inside that directory.
 - iOS: `resetPermission`, coordinate `tap`, `swipe`, `drag`, `tapText`,
   `waitText`, `assertText`, `allowPermission`, `denyPermission`,
   `captureScreenshot`/`screenshot`, `assertLog`, `assertSession`, `wait`.
@@ -152,7 +156,7 @@ Supported first-pass actions:
   `denyPermission` click the
   visible system permission prompt through the same runner when `bundleId` is
   present. The runner uses Xcode/`xcodebuild` and writes a temporary helper
-  project under `$FLUOH_HOME/cache/automation/ios-xctest`. If XCTest cannot run
+  project under `.fluoh/cache/automation/ios-xctest`. If XCTest cannot run
   in the current environment, record that blocker instead of treating the
   package behavior as fixed.
 - OHOS: `clearAppData`, `launchApp`, coordinate `tap`, `swipe`, `drag`,
@@ -170,12 +174,16 @@ permission result, or form submission changed app state. Use `assertLog` only
 when the relevant marker is guaranteed to be present in the captured run output.
 Use screenshots as supporting evidence for inspection or handoff, not as the
 primary pass/fail assertion unless the package is specifically visual.
+After a successful mobile run, capture at least one screenshot or equivalent
+UI-state artifact and repair the demo first if it is blank, stuck on splash, or
+not on the expected functional screen.
 
 `coverage` metadata is included in `fluoh drive --dry-run --json` and real
 run JSON. Use it to make AI package adaptation auditable: every applicable
 package API, permission, picker, media flow, callback, lifecycle path, and
 negative path should have a `covered`, `notApplicable`, or `blocked` row before
-the package is marked ready.
+the package is marked ready for review. `blocked` rows keep the package out of
+release readiness until repaired.
 
 ## Assertions
 
@@ -197,7 +205,7 @@ the package is marked ready.
 - Device, emulator, simulator, or host id:
 - Text, semantic, accessibility, structured log, or test assertion evidence:
 - flutterRunSession JSON status, VM Service URI, or attach result:
-- Screenshots or screen recordings, optional:
+- Screenshots or screen recordings, required after mobile run:
 - HAP/APK/app build path when relevant:
 - Hilog or run output path:
 - Actual result:

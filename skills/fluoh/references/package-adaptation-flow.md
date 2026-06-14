@@ -10,8 +10,8 @@ verification, HAP build, app launch, or a screenshot. Continue until exactly
 one delivery state is justified:
 
 - `ready`: implementation, package tests, OHOS build/run, applicable
-  interaction automation, existing-platform functional checks, package
-  handoff, release check, canonical report, and `check_report.py` all pass.
+  interaction automation, existing-platform functional checks, canonical
+  report, `check_report.py`, package handoff, and release check all pass.
 - `needs maintainer decision`: code and evidence are as complete as the local
   environment allows, but release, publish, push, tag, signing policy, SDK
   line, upstream downgrade, public API break, or release version choice needs a
@@ -25,14 +25,19 @@ runbook. If preflight reports `fluohSetup.status: needs-cli-setup`, fix the
 fluoh executable or launcher and rerun preflight before `commandQueue`. Execute
 `commandQueue`/`queue` in order, parse every JSON result, follow diagnostics
 `nextCommand`, make the smallest owned fix, and rerun the failed command. Do
-not skip `drive`, `report create`, `package handoff`, `package check`, or
-`check_report.py` when applicable.
+not skip `drive`, `report create`, `check_report.py`, `package handoff`, or
+`package check` when applicable.
 Treat `fluoh build all` and `fluoh run all` as matrix shortcuts for artifact
 and launch-smoke evidence across existing project or package example platform
 directories. Parse `workflowEvidence.observedEvidence`,
 `collectedEvidenceKinds`, `notCollectedEvidenceKinds`,
 `workflowContinuations`, and `toolCommands`; continue through `drive`,
 scenario repair, report creation, and report checks before recommending ready.
+After each successful mobile `run`, capture at least one screenshot or
+equivalent UI-state artifact and verify the example app is on its expected
+functional screen. If the demo is blank, stuck on a splash screen, visually
+hidden, or otherwise abnormal, repair that demo page before continuing to
+permission, gesture, callback, or platform regression automation.
 
 Before final verification, inspect whether existing package tests, example
 tests, and `integration_test/` cover the library's public API, platform
@@ -40,6 +45,10 @@ interfaces, permission flows, success paths, and denial/error paths. If they do
 not, add or repair focused functional tests first. Do not defer missing tests
 to the final report unless a concrete upstream, host, device, or toolchain
 blocker prevents the test from being written or run.
+For interaction packages, every applicable grant, deny, success, failure, and
+error path must be automated through `integration_test/`, `fluoh drive`, or
+manual-assisted tool-readable evidence. Coverage rows marked `blocked` are
+repair backlog, not an acceptable final state.
 
 ## Setup
 
@@ -130,9 +139,9 @@ fluoh drive android --package <name> --json --trace-dir <trace-dir>
 fluoh drive ios --package <name> --json --trace-dir <trace-dir>
 fluoh package status --package <name>
 fluoh report create --scope <name> --package <name> --trace-dir <trace-dir> --json
+python3 <skill-dir>/scripts/check_report.py <report-path>
 fluoh package handoff --package <name> --json
 fluoh package check --package <name> --report <report-path> --json
-python3 <skill-dir>/scripts/check_report.py <report-path>
 ```
 
 Rules:

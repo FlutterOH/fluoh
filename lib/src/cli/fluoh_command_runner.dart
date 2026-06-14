@@ -3,7 +3,6 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
-import '../clean/clean_command.dart';
 import '../context/fluoh_environment.dart';
 import '../doctor/doctor_command.dart';
 import '../deps/commands/deps_command.dart';
@@ -478,13 +477,7 @@ bool _createCommandRequestsJson(List<String> arguments) {
 }
 
 const _topLevelCommandSections = [
-  CommandUsageSection('Fluoh', [
-    'skill',
-    'doctor',
-    'flutter',
-    'clean',
-    'upgrade',
-  ]),
+  CommandUsageSection('Fluoh', ['skill', 'doctor', 'flutter', 'upgrade']),
   CommandUsageSection('SDK & Metadata', ['sdk', 'source']),
   CommandUsageSection('Project', ['create', 'deps']),
   CommandUsageSection('Package', ['package']),
@@ -496,6 +489,7 @@ const _topLevelCommandSections = [
     'attach',
     'drive',
     'report',
+    'clean',
   ]),
   CommandUsageSection('Devices', ['devices', 'emulators']),
 ];

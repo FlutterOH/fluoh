@@ -120,16 +120,18 @@ class DriveCommand extends FluohCommand<int> {
       environment.workingDirectory,
       argResults!.option('session-dir') ?? '.fluoh/run-sessions/automation',
     );
-    final scenarios = await _readAutomationScenarios(
-      argResults!.multiOption('scenario'),
-      workingDirectory: environment.workingDirectory,
-      usageException: usageException,
-    );
-    _validateAutomationScenarios(scenarios, platforms, usageException);
     final inventory = await _automationInventory(
       environment: environment,
       packageName: packageName,
     );
+    final scenarios = await _readAutomationScenarios(
+      argResults!.multiOption('scenario'),
+      workingDirectory: environment.workingDirectory,
+      inventory: inventory,
+      platforms: platforms,
+      usageException: usageException,
+    );
+    _validateAutomationScenarios(scenarios, platforms, usageException);
     final plan = _automationPlan(
       platforms: platforms,
       packageName: packageName,

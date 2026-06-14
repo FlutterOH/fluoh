@@ -498,6 +498,7 @@ Map<String, Object?> _signingDetails(OhosDebugSigningMaterial signingMaterial) {
     'apl': profile.apl,
     'signingConfig': signingMaterial.signingConfig.name,
     'profile': signingMaterial.signingConfig.profile,
+    'signingDirectory': signingMaterial.directory.path,
   };
 }
 

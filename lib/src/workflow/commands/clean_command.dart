@@ -1,12 +1,6 @@
-import 'dart:io';
+part of 'workflow_commands.dart';
 
-import '../cli/argument_validation.dart';
-import '../cli/fluoh_command_runner.dart';
-import '../cli/machine_output.dart';
-import '../cli/terminal_output.dart';
-import '../context/fluoh_environment.dart';
-
-/// Removes cleanable local fluoh runtime artifacts.
+/// Removes cleanable project-local workflow artifacts.
 class CleanCommand extends FluohCommand<int> {
   /// Creates the clean command.
   CleanCommand({
@@ -28,7 +22,7 @@ class CleanCommand extends FluohCommand<int> {
       );
   }
 
-  /// Runtime environment containing the fluoh cache directory.
+  /// Runtime environment used to locate the project cache directory.
   final FluohEnvironment environment;
   final OutputWriter _stdout;
   final TerminalOutput _output;
@@ -37,21 +31,21 @@ class CleanCommand extends FluohCommand<int> {
   String get name => 'clean';
 
   @override
-  String get description => 'Remove cleanable fluoh runtime artifacts.';
+  String get description => 'Remove cleanable project workflow artifacts.';
 
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
     final json = argResults!.flag('json');
-    final cache = environment.cacheDirectory;
+    final cache = environment.projectCacheDirectory;
 
     late final _CleanStats stats;
     try {
       stats = await _cacheStats(cache);
     } on FileSystemException catch (error) {
       return _writeFailure(
-        cache: cache,
+        cache: Directory(error.path ?? cache.path),
         dryRun: dryRun,
         json: json,
         message: _fileSystemMessage(error),
@@ -60,13 +54,15 @@ class CleanCommand extends FluohCommand<int> {
 
     var deleted = false;
     try {
-      if (stats.exists && !dryRun) {
-        await cache.delete(recursive: true);
-        deleted = true;
+      if (!dryRun) {
+        if (stats.exists) {
+          await Directory(stats.path).delete(recursive: true);
+          deleted = true;
+        }
       }
     } on FileSystemException catch (error) {
       return _writeFailure(
-        cache: cache,
+        cache: Directory(error.path ?? cache.path),
         dryRun: dryRun,
         json: json,
         message: _fileSystemMessage(error),
@@ -96,7 +92,15 @@ class CleanCommand extends FluohCommand<int> {
     required String message,
     _CleanStats? stats,
   }) {
-    final cacheJson = stats?.toJson() ?? {'path': cache.path};
+    final cleanStats =
+        stats ??
+        _CleanStats(
+          path: cache.path,
+          exists: false,
+          files: 0,
+          directories: 0,
+          bytes: 0,
+        );
     if (json) {
       writeMachineOutput(
         _stdout,
@@ -106,7 +110,7 @@ class CleanCommand extends FluohCommand<int> {
         fields: {
           'dryRun': dryRun,
           'deleted': false,
-          'cache': cacheJson,
+          'cache': cleanStats.toJson(),
           'error': {'type': 'filesystem', 'message': message},
         },
       );

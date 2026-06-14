@@ -30,14 +30,14 @@ const fluohSkillDefaultPrompt =
 
 /// Prompt for installing the bundled fluoh skill.
 const fluohSkillInstallPrompt =
-    'Run `fluoh skill --json`, install the returned localPath as the fluoh '
-    'skill, and overwrite any existing installation. Use $fluohSkillUrl only '
-    'when fluoh is not installed yet.';
+    'Run `fluoh skill --path`, install the printed path as the fluoh skill, '
+    'and overwrite any existing installation. Use $fluohSkillUrl only when '
+    'fluoh is not installed yet.';
 
 /// Prompt for updating the bundled fluoh skill.
 const fluohSkillUpgradePrompt =
-    'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --json` and '
-    'reinstall or reload the returned localPath.';
+    'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --path` and '
+    'reinstall or reload the printed path.';
 const _fluohSkillScripts = {
   'preflight': _FluohSkillScript(
     relativePath: 'scripts/preflight.py',
@@ -219,8 +219,8 @@ class SkillCommand extends FluohCommand<int> {
     _output.write('${style.label('Ask AI')} $fluohSkillInstallPrompt');
     _output.write(
       '${style.label('Update')} Run ${style.code(fluohSkillUpgradeCommand)}, '
-      'then run ${style.code('fluoh skill --json')} and reinstall or reload '
-      'the returned localPath.',
+      'then run ${style.code('fluoh skill --path')} and reinstall or reload '
+      'the printed path.',
     );
     _output.blank();
     _output.write(
@@ -233,8 +233,8 @@ class SkillCommand extends FluohCommand<int> {
       'precheck a FlutterOH Source change.',
     );
     _output.write(
-      'Local or upgrade setup: run ${style.code('fluoh skill --json')}, install '
-      'the returned localPath, then reload skills if needed.',
+      'Local or upgrade setup: run ${style.code('fluoh skill --path')}, install '
+      'the printed path, then reload skills if needed.',
     );
     return location.available ? 0 : 1;
   }

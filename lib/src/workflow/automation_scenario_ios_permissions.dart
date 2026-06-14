@@ -185,7 +185,7 @@ Future<AutomationScenarioActionResult> _tapIosPermissionWithXCTest(
   }
   final project = await writeIosXCTestPermissionProject(
     cacheRoot: Directory(
-      '${context.environment.homeDirectory.path}/cache/automation',
+      '${context.environment.projectCacheDirectory.path}/automation',
     ),
     bundleId: action.bundleId!.trim(),
     labels: labels,

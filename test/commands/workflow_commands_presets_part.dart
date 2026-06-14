@@ -433,15 +433,34 @@ void _registerWorkflowCommandsPresetsTests() {
       workflowEvidence['notCollectedEvidenceKinds'],
       contains('functionalInteraction'),
     );
+    expect(
+      workflowEvidence['notCollectedEvidenceKinds'],
+      contains('postLaunchScreenshot'),
+    );
+    expect(
+      workflowEvidence['notCollectedEvidenceKinds'],
+      contains('visualPageReadiness'),
+    );
+    expect(
+      workflowEvidence['workflowContinuations'],
+      contains('postLaunchScreenshotReview'),
+    );
+    expect(
+      workflowEvidence['workflowContinuations'],
+      contains('demoRepairBeforeFullAutomation'),
+    );
     expect(workflowEvidence['workflowContinuations'], contains('reportCheck'));
     final toolCommands = (workflowEvidence['toolCommands'] as List<Object?>)
         .cast<Map<String, Object?>>();
     expect(
       toolCommands,
       contains(
-        containsPair(
-          'command',
-          'fluoh drive all --package camera --auto-emulator --dry-run --json',
+        allOf(
+          containsPair('purpose', contains('capture post-launch screenshot')),
+          containsPair(
+            'command',
+            'fluoh drive all --package camera --auto-emulator --dry-run --json',
+          ),
         ),
       ),
     );

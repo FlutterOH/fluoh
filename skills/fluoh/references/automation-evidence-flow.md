@@ -21,9 +21,12 @@ When a preceding `fluoh build` or `fluoh run` JSON contains
 only artifacts were built. `launchSmoke` means launch was exercised, not that
 functional behavior passed. Read `observedEvidence`, `collectedEvidenceKinds`,
 `notCollectedEvidenceKinds`, `workflowContinuations`, and `toolCommands`, then
-choose the next run smoke, `drive --dry-run`, scenario, integration-test,
-report, or check action. After `drive --dry-run` or real drive output, follow
-`automation.repairPlan.nextStep`.
+choose the next run smoke, post-launch screenshot review, `drive --dry-run`,
+scenario, integration-test, report, or check action. A successful mobile run
+must be followed by at least one screenshot or equivalent UI-state capture and
+a page assertion. If the example/demo page is blank, stuck on splash, visually
+hidden, or otherwise abnormal, repair the demo before broader automation. After
+`drive --dry-run` or real drive output, follow `automation.repairPlan.nextStep`.
 `collectedEvidenceKinds` records that a result or artifact exists; use
 `observedEvidence` to distinguish passed, failed, blocked, and skipped results.
 For `observedEvidence.interaction.status`, treat
@@ -64,6 +67,9 @@ or debug-tool evidence, not the primary `fluoh run` contract.
 ## Evidence Rules
 
 - `fluoh run` launch success is smoke evidence only.
+- Every successful mobile `fluoh run` must be followed by screenshot or
+  equivalent UI-state evidence that the example/demo reached the expected
+  functional screen.
 - `fluoh run all` is a launch-smoke matrix shortcut, not full-platform
   functional testing.
 - `workflowEvidence.classification: buildOnly` or `launchSmoke` is not a
@@ -80,9 +86,10 @@ or debug-tool evidence, not the primary `fluoh run` contract.
   operate or observe the target, and only mark it passed after tool-readable
   evidence verifies the user-completed flow. It is an operation mode, not a
   human-only approval.
-- Do not judge visual correctness unless the package is specifically visual.
 - Do not rely on screenshot recognition as the primary assertion. Screenshots
-  and recordings are supporting artifacts only.
+  and recordings are mandatory launch sanity artifacts for mobile runs, but
+  functional pass/fail still needs assertions such as visible text, session
+  state, logs, semantics, or integration-test output.
 - Primary evidence should be Flutter debug output, VM Service/session output,
   widget or component tree state, semantics tree, integration-test output,
   accessibility text, visible status text, semantic labels, stable test keys,
@@ -118,8 +125,9 @@ markers.
 Before marking a Package adaptation ready, build a coverage matrix from the
 upstream public API, example entry points, declared platform interfaces,
 manifest permissions, and platform feature classes. Every applicable row must
-have automation, `integration_test`, manual-assisted tool-readable evidence, or
-an explicit `notApplicable` or `blocked` reason.
+have automation, `integration_test`, or manual-assisted tool-readable evidence.
+Use `notApplicable` only when the behavior does not exist on that platform.
+`blocked` rows are repair items, not release-ready coverage.
 
 Start coverage review before final test execution. Inspect existing package
 tests, example tests, and `integration_test/` against the library behavior; if
@@ -147,17 +155,17 @@ Read these JSON fields from dry-run and real automation output:
 - `automation.repairQueue`
 
 Only `readyForAutomation: true` means the matrix is ready to execute.
-`needsMaintainerDecision` means structurally ready rows still need explicit
-handoff evidence. Final ready reports must show zero not-ready quality gates,
-such as `ready=8, notReady=0`, with irrelevant gates recorded as
-`notApplicable` and a reason.
+`needsBlockedCoverageRepair` means the package, demo, or scenario automation
+must be fixed before release readiness. Final ready reports must show zero
+not-ready quality gates, such as `ready=9, notReady=0`; record irrelevant gates
+as `notApplicable` with a reason.
 
 ## Repair Loop
 
 Use `inventory` as the first local evidence source for test-gap analysis. When
 the existing-test-baseline, capability-inventory-coverage, or
 manifest-permission-coverage gate is not ready, add or repair tests, scenarios,
-example controls, manifest declarations, or explicit blocked/notApplicable rows
+example controls, manifest declarations, or explicit notApplicable rows
 before reporting ready.
 
 Follow `automation.repairPlan.nextStep` as the current machine-consumable
@@ -172,8 +180,10 @@ Common queue types:
 - `pathCoverage`: add missing success or negative/error behavior rows.
 - `scenarioEvidence`: add a printed verification action such as `assertText`,
   `waitText`, `assertLog`, or `assertSession`.
+- `coverageBlocked`: repair the implementation, demo, or automation until the
+  row is `covered`, or mark it `notApplicable` only when the behavior does not
+  exist on the platform.
 - `needsExecution`: run the concrete commands in the execution repair queue.
-- `needsMaintainerDecision`: document the handoff or environment blocker.
 
 After editing tests or scenarios, run the printed validation command or
 `automation.rerunCommand` instead of reconstructing it from memory.

@@ -118,7 +118,7 @@ Future<AutomationScenarioActionResult> _runIosTextAction(
 
   final project = await writeIosXCTestTextActionProject(
     cacheRoot: Directory(
-      '${context.environment.homeDirectory.path}/cache/automation',
+      '${context.environment.projectCacheDirectory.path}/automation',
     ),
     bundleId: bundleId,
     labels: labels,
@@ -229,7 +229,7 @@ Future<AutomationScenarioActionResult> _runIosCoordinateAction(
 
   final project = await writeIosXCTestCoordinateActionProject(
     cacheRoot: Directory(
-      '${context.environment.homeDirectory.path}/cache/automation',
+      '${context.environment.projectCacheDirectory.path}/automation',
     ),
     bundleId: bundleId,
     x: coordinates.x,

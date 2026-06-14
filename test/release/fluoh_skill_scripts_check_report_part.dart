@@ -532,10 +532,13 @@ package:
           'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh doctor --platform android --json --strict',
           'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh doctor --platform web --json --strict',
           'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+          'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package camera --json',
           'fluoh package check --package camera --report <report-path> --json',
         ]),
@@ -740,10 +743,10 @@ package:
 | `python3 skills/fluoh/scripts/preflight.py ${root.path} --package camera` | 0 | passed | package repository detected, camera selected |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, and tests passed in simulated evidence |
 | `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed debug HAP built |
-| `fluoh run ohos --package camera --auto-emulator --json` | 0 | passed | debug signing prepared, flutter run launched, session evidence recorded |
+| `fluoh run ohos --package camera --auto-emulator --json` | 0 | passed | debug signing prepared, flutter run launched, session evidence recorded; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
 | `fluoh run android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
 | `fluoh run web --package camera --json` | 0 | passed | Web example smoke and regression check passed |
-| `fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation` | 0 | passed | mobile automation coverage gates ready; Android scenario ${scenario.path} passed |
+| `fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation` | 0 | passed | mobile automation coverage gates ready; Android scenario ${scenario.path} passed; post-launch screenshot .fluoh/evidence/screenshots/camera-android-main.png captured |
 | `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
 | `python3 skills/fluoh/scripts/check_report.py .fluoh/reports/camera/report-1780401600301.md` | 0 | passed | repaired report passed delivery validation |
 | `fluoh package handoff --package camera --json` | 0 | passed | latest report and next commands surfaced |
@@ -780,7 +783,7 @@ package:
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=8, notReady=0
+- qualityGateSummary: ready=9, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -788,6 +791,7 @@ package:
 | coverage-metadata | readyForReview | scenario coverage metadata reviewed |
 | coverage-items | readyForReview | every applicable capability has a coverage row |
 | capability-inventory-coverage | readyForReview | camera permission fallback scenario covers applicable capability rows |
+| blocked-coverage | readyForReview | no blocked rows remain |
 | scenario-evidence-assertions | readyForReview | scenario uses VM/session/log evidence |
 | existing-test-baseline | readyForReview | package and example tests reviewed |
 | manifest-permission-coverage | readyForReview | Android camera permission fallback coverage reviewed |
@@ -797,7 +801,7 @@ package:
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| `${scenario.path}` | AI-assisted | Android | emulator-5554 | passed | camera permission denied fallback verified through VM Service attach hint, semantic label cameraPermissionDenied, log marker camera.permissionDenied, session ${sessionFile.path} |
+| `${scenario.path}` | AI-assisted | Android | emulator-5554 | passed | camera permission denied fallback verified through VM Service attach hint, semantic label cameraPermissionDenied, log marker camera.permissionDenied, session ${sessionFile.path}, post-launch screenshot .fluoh/evidence/screenshots/camera-android-main.png |
 
 ## Diagnostics
 
@@ -840,7 +844,7 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
             '- readyForAutomation: false',
           )
           .replaceFirst(
-            '- qualityGateSummary: ready=8, notReady=0',
+            '- qualityGateSummary: ready=9, notReady=0',
             '- qualityGateSummary: ready=7, notReady=1',
           )
           .replaceFirst(
@@ -890,8 +894,8 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
       expect(checkJson, containsPair('recommendation', 'ready'));
       expect(checkJson, containsPair('commandRows', 11));
       expect(checkJson, containsPair('passedCommandRows', 11));
-      expect(checkJson, containsPair('automationCoverageRows', 8));
-      expect(checkJson, containsPair('readyAutomationCoverageRows', 8));
+      expect(checkJson, containsPair('automationCoverageRows', 9));
+      expect(checkJson, containsPair('readyAutomationCoverageRows', 9));
       expect(checkJson, containsPair('interactionRows', 1));
       expect(checkJson, containsPair('passedInteractionRows', 1));
       expect(checkJson, containsPair('passedOhosBuild', true));
@@ -975,7 +979,7 @@ $integrationCommand
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=8, notReady=0
+- qualityGateSummary: ready=9, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -983,6 +987,7 @@ $integrationCommand
 | coverage-metadata | readyForReview | scenario metadata reviewed |
 | coverage-items | readyForReview | all applicable capability rows reviewed |
 | capability-inventory-coverage | readyForReview | package capabilities covered |
+| blocked-coverage | readyForReview | no blocked rows remain |
 | scenario-evidence-assertions | readyForReview | scenario uses log evidence |
 | existing-test-baseline | readyForReview | package tests reviewed |
 | manifest-permission-coverage | readyForReview | selected-platform permissions reviewed |

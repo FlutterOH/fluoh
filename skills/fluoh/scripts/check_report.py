@@ -32,6 +32,7 @@ REQUIRED_AUTOMATION_COVERAGE_GATES = (
     "coverage-metadata",
     "coverage-items",
     "capability-inventory-coverage",
+    "blocked-coverage",
     "scenario-evidence-assertions",
     "existing-test-baseline",
     "manifest-permission-coverage",
@@ -158,6 +159,16 @@ def is_ohos_run_evidence(row: dict[str, str]) -> bool:
     )
 
 
+def is_mobile_run_evidence(row: dict[str, str]) -> bool:
+    command = row["command"]
+    return (
+        command_contains(command, "fluoh run")
+        and re.search(r"(^|\s)fluoh\s+run\s+(ohos|android|ios|all)(\s|$)", command)
+        is not None
+        and "--json" in command
+    )
+
+
 def is_automation_evidence(row: dict[str, str]) -> bool:
     command = row["command"]
     return (
@@ -166,6 +177,56 @@ def is_automation_evidence(row: dict[str, str]) -> bool:
         and not contains_shell_token(command, "--dry-run")
         and not contains_shell_token(command, "-n")
     )
+
+
+def is_mobile_automation_evidence(row: dict[str, str]) -> bool:
+    command = row["command"]
+    return (
+        is_automation_evidence(row)
+        and re.search(r"(^|\s)fluoh\s+drive\s+(ohos|android|ios|all)(\s|$)", command)
+        is not None
+    )
+
+
+def mobile_visual_requirements(
+    content: str, passed_command_rows: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    requirements: list[dict[str, str]] = []
+    for row in passed_command_rows:
+        if not (is_mobile_run_evidence(row) or is_mobile_automation_evidence(row)):
+            continue
+        for platform in mobile_command_platforms(row["command"], content):
+            requirements.append(
+                {"platform": platform, "command": row["command"], "row": row["row"]}
+            )
+    return requirements
+
+
+def mobile_command_platforms(command: str, content: str) -> list[str]:
+    match = re.search(
+        r"(^|\s)fluoh\s+(?:run|drive)\s+(ohos|android|ios|all)(\s|$)",
+        command,
+    )
+    if not match:
+        return []
+    platform = match.group(2)
+    if platform != "all":
+        return [platform]
+    matrix_platforms = passed_mobile_run_matrix_platforms(content)
+    return matrix_platforms or ["all"]
+
+
+def passed_mobile_run_matrix_platforms(content: str) -> list[str]:
+    platforms: list[str] = []
+    for row in platform_matrix_rows(content):
+        platform = row["platform"].strip().lower()
+        if platform not in ("ohos", "android", "ios"):
+            continue
+        if row["run"].strip().lower().startswith("passed") or row[
+            "integration"
+        ].strip().lower().startswith("passed"):
+            platforms.append(platform)
+    return platforms
 
 
 def is_integration_test_command_evidence(row: dict[str, str]) -> bool:
@@ -396,6 +457,120 @@ def has_functional_tool_evidence(evidence: str) -> bool:
     return any(marker in evidence for marker in markers)
 
 
+def platform_matrix_rows(content: str) -> list[dict[str, str]]:
+    section = section_content(content, "## Platform Matrix")
+    rows: list[dict[str, str]] = []
+    for line in section.splitlines():
+        columns = split_markdown_row(line)
+        if len(columns) < 6:
+            continue
+        platform = columns[0].strip()
+        if not platform or platform.lower() == "platform" or set(platform) <= {"-"}:
+            continue
+        rows.append(
+            {
+                "platform": platform,
+                "build": columns[1],
+                "run": columns[2],
+                "integration": columns[3],
+                "row": line,
+            }
+        )
+    return rows
+
+
+def platform_matrix_row_passed(row: dict[str, str]) -> bool:
+    return any(
+        row[key].strip().lower().startswith("passed")
+        for key in ("build", "run", "integration")
+    )
+
+
+def positive_post_launch_visual_evidence(row: str) -> bool:
+    evidence = row.lower()
+    markers = (
+        ".fluoh/evidence/screenshots",
+        "post-launch screenshot",
+        "post launch screenshot",
+        "postlaunchscreenshot",
+        "visualpagereadiness",
+        "ui-state",
+        "ui state",
+        "capture screenshot",
+        "capturescreenshot",
+        "screenshot path",
+        "screenshot:",
+        "screen recording",
+    )
+    if not any(marker in evidence for marker in markers):
+        return False
+    negative_markers = (
+        "not captured",
+        "not collect",
+        "not recorded",
+        "missing",
+        "failed",
+        "empty",
+        "blocked",
+        "skipped",
+    )
+    return not any(marker in evidence for marker in negative_markers)
+
+
+def has_post_launch_visual_evidence(
+    content: str,
+    *,
+    passed_command_rows: list[dict[str, str]],
+    passed_interactions: list[dict[str, str]],
+) -> bool:
+    evidence_rows = [row["row"] for row in passed_command_rows]
+    evidence_rows.extend(row["row"] for row in passed_interactions)
+    evidence_rows.extend(
+        row["row"]
+        for row in platform_matrix_rows(content)
+        if platform_matrix_row_passed(row)
+    )
+    return any(positive_post_launch_visual_evidence(row) for row in evidence_rows)
+
+
+def missing_post_launch_visual_evidence(
+    *,
+    content: str,
+    requirements: list[dict[str, str]],
+    passed_command_rows: list[dict[str, str]],
+    passed_interactions: list[dict[str, str]],
+) -> list[str]:
+    evidence_rows = [row["row"] for row in passed_command_rows]
+    evidence_rows.extend(row["row"] for row in passed_interactions)
+    evidence_rows.extend(
+        row["row"]
+        for row in platform_matrix_rows(content)
+        if platform_matrix_row_passed(row)
+    )
+    missing: list[str] = []
+    for requirement in requirements:
+        platform = requirement["platform"]
+        rows = [requirement["row"], *evidence_rows]
+        if not has_post_launch_visual_evidence_for_platform(platform, rows):
+            command = requirement["command"]
+            missing.append(command if platform == "all" else f"{platform} ({command})")
+    return missing
+
+
+def has_post_launch_visual_evidence_for_platform(platform: str, rows: list[str]) -> bool:
+    return any(
+        positive_post_launch_visual_evidence(row)
+        and visual_evidence_matches_platform(row, platform)
+        for row in rows
+    )
+
+
+def visual_evidence_matches_platform(row: str, platform: str) -> bool:
+    if platform == "all":
+        return True
+    return platform in row.lower()
+
+
 def split_markdown_row(line: str) -> list[str]:
     stripped = line.strip()
     if not stripped.startswith("|") or not stripped.endswith("|"):
@@ -545,6 +720,9 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
             "Ready reports must include passed fluoh run ohos evidence."
         )
     passed_automation = any(is_automation_evidence(row) for row in passed_command_rows)
+    visual_requirements = mobile_visual_requirements(content, passed_command_rows)
+    passed_mobile_run_or_drive = bool(visual_requirements)
+    post_launch_visual_evidence = False
 
     coverage_rows = automation_coverage_rows(content)
     coverage_status = automation_coverage_status(content)
@@ -604,6 +782,32 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     passed_interactions = [
         row for row in concrete_interactions if interaction_row_passed(row)
     ]
+    missing_visual_evidence = missing_post_launch_visual_evidence(
+        content=content,
+        requirements=visual_requirements,
+        passed_command_rows=passed_command_rows,
+        passed_interactions=passed_interactions,
+    )
+    post_launch_visual_evidence = (
+        not missing_visual_evidence
+        if passed_mobile_run_or_drive
+        else has_post_launch_visual_evidence(
+            content,
+            passed_command_rows=passed_command_rows,
+            passed_interactions=passed_interactions,
+        )
+    )
+    if (
+        recommendation == "ready"
+        and passed_mobile_run_or_drive
+        and missing_visual_evidence
+    ):
+        errors.append(
+            "Ready reports with passed mobile fluoh run or drive evidence "
+            "must record post-launch screenshot or UI-state evidence. Missing: "
+            + ", ".join(missing_visual_evidence)
+            + "."
+        )
     manual_assisted_without_tool_evidence = [
         row
         for row in passed_interactions
@@ -682,6 +886,8 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         "passedOhosBuild": passed_ohos_build,
         "passedOhosRun": passed_ohos_run,
         "passedAutomation": passed_automation,
+        "passedMobileRunOrDrive": passed_mobile_run_or_drive,
+        "postLaunchVisualEvidence": post_launch_visual_evidence,
         "passedIntegrationTest": passed_integration_test,
         "passedManualAssisted": passed_manual_assisted,
         "coveragePolicyStatus": coverage_status["coveragePolicyStatus"],

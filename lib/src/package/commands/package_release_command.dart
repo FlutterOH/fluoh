@@ -329,6 +329,8 @@ class PackageReleaseCommand extends FluohCommand<int> {
         readyAutomationCoverageRows: 0,
         interactionRows: 0,
         passedInteractionRows: 0,
+        passedMobileRunOrDrive: false,
+        postLaunchVisualEvidence: false,
         errors: const [],
         warnings: const [
           'No certification report provided; baseline release checks only.',

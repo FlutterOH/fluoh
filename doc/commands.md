@@ -23,7 +23,10 @@ detailed agent routing, report wording, and repair ordering live in
 Start by installing or refreshing the skill in the agent:
 
 ```text
-Run `fluoh skill --json`, install the returned localPath as the fluoh skill, and overwrite any existing installation. Use https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only when fluoh is not installed yet.
+Run `fluoh skill --path`, install the printed path as the fluoh skill, and
+overwrite any existing installation. Use
+https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only when fluoh is
+not installed yet.
 ```
 
 Then give the agent the goal in one short request:
@@ -39,14 +42,14 @@ When the CLI is missing, the skill handles installation. Agents can inspect the
 bundled local skill path, helper scripts, and report templates with:
 
 ```text
-Run `fluoh skill --json`, install the returned localPath as a skill, then reload skills if needed.
+Run `fluoh skill --path`, install the printed path as a skill, then reload skills if needed.
 ```
 
 Agents use read-only preflight to present the final scope for user approval and
 collect context before applying changes. Release, push, force-push, destructive
 Git operations, and external publishing remain separate maintainer decisions.
 The skill version follows the CLI package version; after `fluoh upgrade`,
-reinstall or reload the path returned by `fluoh skill --json`.
+reinstall or reload the path printed by `fluoh skill --path`.
 
 ### Add OHOS to an App Project Manually
 
@@ -78,21 +81,20 @@ JSON diagnostic `nextCommand` for the next local setup step.
 ## Command Surface
 
 Root help keeps CLI utility commands under `Fluoh`
-(`skill`, `doctor`, `flutter`, `clean`, and `upgrade`), then lists
+(`skill`, `doctor`, `flutter`, and `upgrade`), then lists
 `SDK & Metadata` before project workflows because SDK and Source state often
 gate adaptation. `Project` contains top-level app project commands: `create`
 and `deps`. `Package` contains the `package` repository command group.
 `Workflow` contains shared execution and evidence commands in the order `plan`,
-`verify`, `build`, `run`, `attach`, `drive`, and `report`. `Devices` contains target
-inventory and launch helpers: `devices` owns connected target discovery, and
-`emulators` owns emulator or simulator launch.
+`verify`, `build`, `run`, `attach`, `drive`, `report`, and `clean`. `Devices`
+contains target inventory and launch helpers: `devices` owns connected target
+discovery, and `emulators` owns emulator or simulator launch.
 
 | Command | Implementation | Purpose |
 | --- | --- | --- |
 | `fluoh --version` | `lib/src/cli/fluoh_command_runner.dart` | Print the `fluoh` version, Dart version, platform, and repository URL. |
 | `fluoh help [command]` | `package:args` command runner | Print global or command-specific usage. |
 | `fluoh skill` | `lib/src/cli/skill_command.dart` | Print local path, version, update, and prompt details for the bundled AI skill. |
-| `fluoh clean` | `lib/src/clean/clean_command.dart` | Remove cleanable runtime artifacts under `$FLUOH_HOME/cache`. |
 | `fluoh create [--sdk <version-or-series>] <args>` | `lib/src/project/create_command.dart` | Create a Flutter project with a FlutterOH SDK and pass remaining arguments to `flutter create`. |
 | `fluoh plan app` | `lib/src/workflow/commands/plan_command.dart` | Print a read-only app adaptation plan and command queue. |
 | `fluoh plan package` | `lib/src/workflow/commands/plan_command.dart` | Print a read-only package adaptation plan and command queue. |
@@ -136,6 +138,7 @@ inventory and launch helpers: `devices` owns connected target discovery, and
 | `fluoh attach <platform>` | `lib/src/workflow/commands/attach_command.dart` | Attach Flutter debug tooling to a `flutterRunSession`, VM Service URI, or device id. |
 | `fluoh drive <platform>` | `lib/src/workflow/commands/drive_command.dart` | Run mobile app automation scenarios and evidence checks on OHOS, Android, and iOS targets. |
 | `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | Create an ignored local AI adaptation report from trace manifests and automation JSON. |
+| `fluoh clean` | `lib/src/workflow/commands/clean_command.dart` | Remove cleanable runtime artifacts under the current project `.fluoh/cache`. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose environment, native tools, and optional project state. |
 | `fluoh devices` | `lib/src/platform/platform_target_commands.dart` | List connected Flutter targets, including OHOS, Android, iOS, Web, and host-supported desktop targets. |
 | `fluoh emulators` | `lib/src/platform/platform_target_commands.dart` | List and launch local emulators and simulators for OHOS, Android, and iOS; desktop and Web platforms do not provide emulators. |
@@ -206,14 +209,6 @@ inventory and launch helpers: `devices` owns connected target discovery, and
 
 ## Command Groups
 
-### `fluoh clean`
-
-`clean` removes only `$FLUOH_HOME/cache`, which contains cleanable runtime
-artifacts such as OHOS debug signing material and package run logs. It does not
-remove SDK installations, Source snapshots, config, lock files, or project
-`.fluoh/` reports. Use `--dry-run` to inspect the cache without deleting it and
-`--json` for machine-readable cleanup reports.
-
 ### `fluoh create [--sdk <version-or-series>] <args>`
 
 `create` is a project creation wrapper around `flutter create` from a
@@ -265,14 +260,14 @@ FlutterOH package branch. It reads package `fluoh.yaml`, reports branch and
 working-tree state, selected SDK, upstream/release metadata, example platform
 directories, and a command queue for generated docs, verification, OHOS
 build/run evidence, OHOS device/emulator discovery, unified platform
-automation, existing-platform example regressions, handoff, report creation,
-and release checks. `verify`, `build`, `run`, `drive`, and `report create` commands
+automation, existing-platform example regressions, report creation, report
+check, handoff, and release checks. `verify`, `build`, `run`, `drive`, and `report create` commands
 share one `.fluoh/traces/<package>/adaptation` session when supported. The plan
 keeps Android, iOS, and OHOS implementation work behind platform-specific steps
 while the upper-level queue is called through one `plan package` contract. Its
-delivery gate requires the final `package check` to run with
-`--report <report-path>` so report certification failures cannot be reduced to
-non-blocking warnings.
+delivery gate requires `check_report.py` to pass and the final `package check`
+to run with `--report <report-path>` so report certification failures cannot be
+reduced to non-blocking warnings.
 
 ### `fluoh flutter <args>` and `fluohf <args>`
 
@@ -351,7 +346,7 @@ emulator or simulator and requires selecting a single platform.
 `dart pub global activate fluoh` for Dart global installs. Local source
 checkouts are refused because replacing a checkout is a user-owned decision.
 The bundled skill is versioned with the CLI; after upgrading, rerun
-`fluoh skill --json` and reinstall or reload the returned skill path in the
+`fluoh skill --path` and reinstall or reload the printed skill path in the
 agent that copied it.
 
 ## Source Commands
@@ -713,11 +708,12 @@ manifest branch, branch match state, dirty-state summary, evidence paths, the
 trace directory that follow-up commands should reuse, and next commands. When a
 current-package trace exists, handoff reuses the latest trace directory under
 `.fluoh/traces/<package>/`; otherwise it defaults to
-`.fluoh/traces/<package>/adaptation`. When a report exists, the next
-`package check` command includes `--report <latest-report-path>`. It does not
-modify the repository. Use it when an AI task needs to resume, transfer, or
-confirm whether the branch is ready for final verify, drive evidence, report
-creation, or `package check`.
+`.fluoh/traces/<package>/adaptation`. The next commands include report
+validation before `package check`; when a report exists, `check_report.py` and
+`package check` both use the latest report path. It does not modify the
+repository. Use it when an AI task needs to resume, transfer, or confirm
+whether the branch is ready for final verify, drive evidence, report creation,
+report validation, or `package check`.
 
 `fluoh package sync` fetches upstream branches and tags, fast-forwards the
 upstream branch recorded in Package `upstream.git.branch`, resolves the package
@@ -829,6 +825,10 @@ successfully, the
 --dry-run --json` command so AI agents can plan taps, gestures, permission
 grant/deny paths, screenshots, and result assertions instead of treating launch
 as complete.
+Mobile launch success must be followed by at least one screenshot or equivalent
+UI-state capture and a page assertion. If the example app is blank, stuck on a
+splash screen, visually hidden, or otherwise abnormal, repair the demo before
+continuing to broader automation.
 For `observedEvidence.interaction.status`, `integrationTestEvidenceFailed`
 takes precedence over any passed integration-test rows in the same matrix, and
 `partialIntegrationTestEvidence` means only some targets produced passed
@@ -878,10 +878,11 @@ should still be backed by tool-readable assertions such as `assertText`,
 `assertLog`, `assertSession`, or integration-test output.
 
 Runtime permissions require explicit grant, deny, and differing error-path
-coverage on each supported platform, or a reasoned `notApplicable` or `blocked`
-row. iOS automation uses the built-in XCTest runner when possible; set
-`FLUOH_XCODEBUILD` for explicit Xcode selection and `FLUOH_IOS_PERMISSION_DRIVER`
-only when a permission driver must be forced.
+coverage on each supported platform. Use `notApplicable` only when the behavior
+does not exist on that platform; `blocked` rows remain repair backlog and are
+not release-ready evidence. iOS automation uses the built-in XCTest runner when
+possible. Set `FLUOH_XCODEBUILD` for explicit Xcode selection and
+`FLUOH_IOS_PERMISSION_DRIVER` only when a permission driver must be forced.
 
 JSON failures include platform run diagnostics such as `ohos.run_failed`,
 `android.run_failed`, `ios.run_failed`, `macos.run_failed`, `linux.run_failed`,
@@ -902,6 +903,13 @@ reports the path as `report`. The command owns only local report composition
 and release recommendation; the maintainer still owns final release approval
 and any publish, push, tag, store, or registry action.
 
+`fluoh clean` removes the current project's `.fluoh/cache`, which contains
+project-bound cleanable runtime artifacts such as OHOS debug signing material
+and package run logs. It does not remove SDK installations, Source snapshots,
+config, lock files, or project `.fluoh/` reports. Use `--dry-run` to inspect
+the project cache without deleting it and `--json` for machine-readable cleanup
+reports.
+
 `fluoh package version` updates the release metadata for the current package
 in `fluoh.yaml`. Use `--bump patch|minor|major` to increment the FlutterOH
 adaptation package version, `--set <version>` to set an exact version, and
@@ -915,18 +923,20 @@ SDK version exists in sources, runs `fluoh verify`, ensures the working tree
 remains clean, and reports the release tag that would be created. It never
 creates or pushes tags. Use `--package <name>` to validate the requested package
 name against the current branch. `--json` prints tags, warnings, certification
-state, and verification results. Checks do not require device or AI report evidence by
-default; they print a non-blocking warning when no certification report is
-provided. Use `--report <path>` to require a
-completed `.fluoh/reports/<scope>/report-<timestamp>.md` before passing the check. Certification
-reports must be `ready`, complete every delivery checklist item, include passed
-`fluoh verify` evidence, include passed OHOS build or run evidence, include
-interaction readiness evidence from a passed `fluoh drive --json`, a backed
-`flutter test integration_test -d <device>` command row, or
-`manual-assisted` tool-readable evidence, include an `Automation Coverage`
-section with the complete required automation gate set whose rows are all
-ready/covered/passed/notApplicable, and include passed interaction evidence or
-an explicit `No interaction required: <reason>`.
+state, and verification results. Checks do not require device or AI report
+evidence by default; they print a non-blocking warning when no certification
+report is provided. Use `--report <path>` to require a completed
+`.fluoh/reports/<scope>/report-<timestamp>.md` before passing the check.
+Certification reports must be `ready`, complete every delivery checklist item,
+include passed `fluoh verify` evidence, include passed OHOS build or run
+evidence, and include interaction readiness evidence. That interaction evidence
+must come from a passed `fluoh drive --json`, a
+`flutter test integration_test -d <device>` command row with supporting
+evidence, or `manual-assisted` tool-readable evidence. Reports must also
+include an `Automation Coverage` section with the complete required gate set;
+every gate row must be ready/covered/passed/notApplicable. Finally, the report
+must include passed interaction evidence or an explicit
+`No interaction required: <reason>`.
 Add `--require-ohos-run` when CI or an AI handoff must prove a passed OHOS run
 rather than build-only evidence.
 
@@ -956,7 +966,7 @@ current branch, and `--json` for machine-readable output.
 | `$FLUOH_HOME/sources/<name>` | `source add`, `source update` |
 | `$FLUOH_HOME/sources.lock.json` | Source runtime in `lib/src/source/`; rebuilt after Source mutations, first default Source initialization, and load-index checks when stale or when selected-SDK installation needs SDK metadata |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
-| `$FLUOH_HOME/cache/` | Cleanable runtime artifacts such as OHOS debug signing material and package run logs |
+| Project `.fluoh/cache/` | Project-bound cleanable runtime artifacts such as OHOS debug signing material and package run logs |
 | Project `.fluoh/run-sessions/` | `drive` and `run --session-file` Flutter run session evidence |
 | Project or package `.fluoh/reports/` | `report create` and AI handoff report artifacts |
 | Project `fluoh.yaml` | `create`, `sdk use`, `deps check`, `deps fix`, `deps upgrade` |

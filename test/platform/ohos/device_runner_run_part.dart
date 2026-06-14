@@ -62,7 +62,9 @@ void _registerOhosDeviceRunnerRunTests() {
     expect(result.logFile, isNotNull);
     expect(
       result.logFile!.path,
-      startsWith('${home.path}/cache/package-runs/com.example.camera/'),
+      startsWith(
+        '${project.path}/.fluoh/cache/package-runs/com.example.camera/',
+      ),
     );
     expect(result.logFile!.readAsStringSync(), contains('app started'));
     final invocations = hdcLog.readAsStringSync();

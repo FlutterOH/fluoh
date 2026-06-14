@@ -80,7 +80,7 @@ steps:
   - action: assertText
     labels: [PermissionStatus.granted]
   - action: captureScreenshot
-    outputPath: .fluoh/evidence/screenshots/camera-ohos-granted.jpeg
+    outputPath: camera-ohos-granted.jpeg
   - action: assertLog
     contains: "sample_permissions_ohos: requestPermissions"
   - action: assertSession

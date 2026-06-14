@@ -423,9 +423,26 @@ def drive_command(
     platform: str,
     trace_dir: str,
     package_name: str | None = None,
+    *,
+    dry_run: bool = False,
 ) -> str:
     package_part = f" --package {package_name}" if package_name else ""
-    return f"fluoh drive {platform}{package_part} --json --trace-dir {trace_dir}"
+    dry_run_part = " --dry-run" if dry_run else ""
+    return (
+        f"fluoh drive {platform}{package_part}{dry_run_part} "
+        f"--json --trace-dir {trace_dir}"
+    )
+
+
+def drive_commands(
+    platform: str,
+    trace_dir: str,
+    package_name: str | None = None,
+) -> list[str]:
+    return [
+        drive_command(platform, trace_dir, package_name, dry_run=True),
+        drive_command(platform, trace_dir, package_name),
+    ]
 
 
 def host_supports_drive_platform(platform: str) -> bool:
@@ -434,22 +451,6 @@ def host_supports_drive_platform(platform: str) -> bool:
     if platform == "ios":
         return sys.platform == "darwin"
     return False
-
-
-def mobile_drive_commands(
-    platforms: dict[str, Any],
-    trace_dir: str,
-    package_name: str | None = None,
-) -> list[str]:
-    commands: list[str] = []
-    for platform in ("ohos", "android", "ios"):
-        if platform == "ohos":
-            enabled = True
-        else:
-            enabled = bool(platforms.get(platform))
-        if enabled and host_supports_drive_platform(platform):
-            commands.append(drive_command(platform, trace_dir, package_name))
-    return commands
 
 
 def package_entries(content: str, root: Path) -> list[dict[str, Any]]:
@@ -711,6 +712,8 @@ def app_platform_regression_commands(
     for platform in REGRESSION_PLATFORM_ORDER:
         if platforms.get(platform) and host_supports_regression_platform(platform):
             commands.extend(regression_commands_for_platform(platform, trace_dir))
+            if platform in {"android", "ios"} and host_supports_drive_platform(platform):
+                commands.extend(drive_commands(platform, trace_dir))
     return commands
 
 
@@ -737,6 +740,8 @@ def package_platform_regression_commands(
                     package_name,
                 )
             )
+            if platform in {"android", "ios"} and host_supports_drive_platform(platform):
+                commands.extend(drive_commands(platform, trace_dir, package_name))
     return commands
 
 
@@ -757,7 +762,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh deps fix",
             "fluoh deps get",
             *ohos_adaptation_commands(trace_dir),
-            *mobile_drive_commands(project["platformDirectories"], trace_dir),
+            *drive_commands(OHOS_PLATFORM, trace_dir),
             *app_platform_regression_commands(project, trace_dir),
             f"fluoh report create --scope {command_arg(project['name'] or 'app')} --trace-dir {trace_dir} --json",
             report_check_command(),
@@ -770,11 +775,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             "fluoh deps get",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             *ohos_adaptation_commands(trace_dir, package),
-            *mobile_drive_commands(
-                selected_package_entry(project).get("examplePlatforms", {}),
-                trace_dir,
-                package,
-            ),
+            *drive_commands(OHOS_PLATFORM, trace_dir, package),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
@@ -802,7 +803,7 @@ def suggested_commands(info: dict[str, Any]) -> list[str]:
             f"cd {output}",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             *ohos_adaptation_commands(trace_dir, package),
-            *mobile_drive_commands({}, trace_dir, package),
+            *drive_commands(OHOS_PLATFORM, trace_dir, package),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             f"fluoh report create --scope {command_arg(package)} --package {command_arg(package)} --trace-dir {trace_dir} --json",
@@ -827,7 +828,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
         return [
             "git diff --check",
             *ohos_adaptation_commands(trace_dir),
-            *mobile_drive_commands(project["platformDirectories"], trace_dir),
+            *drive_commands(OHOS_PLATFORM, trace_dir),
             *app_platform_regression_commands(project, trace_dir),
             report_check_command(),
         ]
@@ -838,11 +839,7 @@ def final_check_commands(info: dict[str, Any]) -> list[str]:
             "git diff --check",
             f"fluoh verify --package {package} --json --trace-dir {trace_dir}",
             *ohos_adaptation_commands(trace_dir, package),
-            *mobile_drive_commands(
-                selected_package_entry(project).get("examplePlatforms", {}),
-                trace_dir,
-                package,
-            ),
+            *drive_commands(OHOS_PLATFORM, trace_dir, package),
             *package_platform_regression_commands(project, package, trace_dir),
             f"fluoh package status --package {package}",
             report_check_command(),

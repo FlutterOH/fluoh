@@ -939,6 +939,9 @@ Original upstream README body.
     );
     expect(guide, contains('## Platform Implementation Template'));
     expect(guide, contains('Federated packages: keep `path_provider`'));
+    expect(guide, contains('postLaunchScreenshot'));
+    expect(guide, contains('visualPageReadiness'));
+    expect(guide, contains('post-launch screenshots or UI-state captures'));
     expect(stderr, isEmpty);
   });
 }

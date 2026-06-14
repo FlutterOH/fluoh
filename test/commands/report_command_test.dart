@@ -44,155 +44,331 @@ void main() {
       ).existsSync(),
       isFalse,
     );
-    expect(await output.readAsString(), contains('# fluoh AI Report'));
+    final content = await output.readAsString();
+    expect(content, contains('# fluoh AI Report'));
+    expect(content, contains('Interaction evidence missing:'));
+    expect(content, isNot(contains('\nNo interaction required:')));
     expect(stderr, isEmpty);
   });
 
-  test(
-    'report create writes an AI report from trace and automation json',
-    () async {
-      final environment = await createTestEnvironment();
-      final traceDir = Directory(
-        '${environment.workingDirectory.path}/.fluoh/traces/camera/session',
-      );
-      await traceDir.create(recursive: true);
-      await File('${traceDir.path}/trace.json').writeAsString(
-        jsonEncode({
-          'id': 'trace-camera-session',
-          'invocations': [
-            {
-              'commandLine':
-                  'fluoh build ohos --package camera --auto-sign --json',
-              'exitCode': 0,
-              'trace': {'manifest': '${traceDir.path}/trace.json'},
+  test('report create writes an AI report from trace and automation json', () async {
+    final environment = await createTestEnvironment();
+    final traceDir = Directory(
+      '${environment.workingDirectory.path}/.fluoh/traces/camera/session',
+    );
+    await traceDir.create(recursive: true);
+    await File('${traceDir.path}/trace.json').writeAsString(
+      jsonEncode({
+        'id': 'trace-camera-session',
+        'invocations': [
+          {
+            'commandLine':
+                'fluoh build ohos --package camera --auto-sign --json',
+            'exitCode': 0,
+            'trace': {'manifest': '${traceDir.path}/trace.json'},
+          },
+          {
+            'commandLine':
+                'fluoh run android --package camera --auto-emulator --json',
+            'exitCode': 0,
+          },
+        ],
+        'feedbackCandidates': [
+          {
+            'id': 'fluoh.automation.retry',
+            'owner': 'fluoh',
+            'category': 'automation',
+            'suggestedChange': 'Keep platform retry evidence structured.',
+          },
+        ],
+      }),
+    );
+    final automationFile = File(
+      '${environment.workingDirectory.path}/automation.json',
+    );
+    await automationFile.writeAsString(
+      jsonEncode({
+        'schema': 1,
+        'command': 'drive',
+        'ok': true,
+        'exitCode': 0,
+        'automation': {
+          'rerunCommand':
+              'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json',
+          'coveragePolicy': {
+            'status': 'readyForReview',
+            'readyForAutomation': true,
+            'qualityGateSummary': {'ready': 1, 'notReady': 0},
+            'qualityGates': [
+              {
+                'id': 'coverage-inventory',
+                'status': 'readyForReview',
+                'evidence': 'scenario matrix complete',
+              },
+            ],
+          },
+        },
+        'targets': [
+          {
+            'platform': 'ohos',
+            'targetName': 'DevEco Emulator',
+            'steps': [
+              {
+                'name': 'automation-scenario-camera-permission',
+                'status': 'passed',
+                'path': 'camera permission grant',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    final output = File(
+      '${environment.workingDirectory.path}/reports/camera.md',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'report',
+          'create',
+          '--scope',
+          'camera',
+          '--package',
+          'camera',
+          '--trace-dir',
+          traceDir.path,
+          '--automation-json',
+          automationFile.path,
+          '--output',
+          output.path,
+          '--recommendation',
+          'needs-maintainer-decision',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('schema', 1));
+    expect(report, containsPair('command', 'report create'));
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('changed', true));
+    expect(report, containsPair('report', output.path));
+    expect(report, isNot(contains('reports')));
+    expect(report, containsPair('scope', 'camera'));
+    expect(report['commandRows'], 3);
+    expect(report['automationRows'], 1);
+    expect(report['interactionRows'], 1);
+    final content = output.readAsStringSync();
+    expect(content, contains('# fluoh AI Report'));
+    expect(content, contains('## Adaptation Responsibility'));
+    expect(content, contains('## Platform Matrix'));
+    expect(content, contains('## Automation Coverage'));
+    expect(
+      content,
+      contains(
+        'Existing package/app tests, example tests, and `integration_test/` were inspected',
+      ),
+    );
+    expect(
+      content,
+      contains('Missing or weak functional tests were added or repaired'),
+    );
+    expect(
+      content,
+      contains(
+        'Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked',
+      ),
+    );
+    expect(content, contains('automation-scenario-camera-permission'));
+    expect(
+      content,
+      contains(
+        'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json',
+      ),
+    );
+    expect(content, contains('fluoh.automation.retry'));
+    expect(
+      content,
+      contains('Release recommendation: needs-maintainer-decision'),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('report create imports automation evidence from trace manifests', () async {
+    final environment = await createTestEnvironment();
+    final traceDir = Directory(
+      '${environment.workingDirectory.path}/.fluoh/traces/camera/adaptation',
+    );
+    await traceDir.create(recursive: true);
+    await File('${traceDir.path}/trace.json').writeAsString(
+      jsonEncode({
+        'id': 'trace-camera-adaptation',
+        'invocations': [
+          {
+            'commandLine':
+                'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
+            'ok': true,
+            'exitCode': 0,
+            'result': {
+              'automation': {
+                'coveragePolicy': {
+                  'status': 'needsInteractionInventory',
+                  'readyForAutomation': false,
+                  'qualityGateSummary': {
+                    'ready': 0,
+                    'notReady': [
+                      {'id': 'coverage-inventory'},
+                    ],
+                  },
+                  'qualityGates': [
+                    {
+                      'id': 'coverage-inventory',
+                      'status': 'needsInventory',
+                      'repair': 'stale dry-run coverage inventory',
+                    },
+                  ],
+                },
+              },
             },
-            {
-              'commandLine':
-                  'fluoh run android --package camera --auto-emulator --json',
-              'exitCode': 0,
-            },
-          ],
-          'feedbackCandidates': [
-            {
-              'id': 'fluoh.automation.retry',
-              'owner': 'fluoh',
-              'category': 'automation',
-              'suggestedChange': 'Keep platform retry evidence structured.',
-            },
-          ],
-        }),
-      );
-      final automationFile = File(
-        '${environment.workingDirectory.path}/automation.json',
-      );
-      await automationFile.writeAsString(
-        jsonEncode({
-          'schema': 1,
-          'command': 'drive',
-          'ok': true,
-          'exitCode': 0,
-          'automation': {
-            'coveragePolicy': {
-              'status': 'readyForReview',
-              'readyForAutomation': true,
-              'qualityGateSummary': {'ready': 1, 'notReady': 0},
-              'qualityGates': [
+          },
+          {
+            'commandLine':
+                'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json --trace-dir .fluoh/traces/camera/adaptation',
+            'ok': true,
+            'exitCode': 0,
+            'result': {
+              'automation': {
+                'coveragePolicy': {
+                  'status': 'readyForExecution',
+                  'readyForAutomation': true,
+                  'qualityGateSummary': {'ready': 9, 'notReady': 0},
+                  'qualityGates': [
+                    {
+                      'id': 'coverage-inventory',
+                      'status': 'readyForReview',
+                      'evidence': 'interaction inventory reviewed',
+                    },
+                  ],
+                },
+              },
+              'targets': [
                 {
-                  'id': 'coverage-inventory',
-                  'status': 'readyForReview',
-                  'evidence': 'scenario matrix complete',
+                  'target': {'kind': 'package', 'name': 'camera'},
+                  'phase': 'ohos-run',
+                  'passed': true,
+                  'exitCode': 0,
+                  'steps': [
+                    {
+                      'name': 'package-run-ohos',
+                      'path': 'example',
+                      'command':
+                          'flutter run -d emulator-5554 --device-timeout 90',
+                      'status': 'passed',
+                      'exitCode': 0,
+                      'details': {
+                        'platform': 'ohos',
+                        'targetId': 'emulator-5554',
+                      },
+                    },
+                    {
+                      'name': 'automation-scenario-ohos-camera-permission',
+                      'path': '.fluoh/scenarios/camera',
+                      'command':
+                          'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json --trace-dir .fluoh/traces/camera/adaptation',
+                      'status': 'passed',
+                      'exitCode': 0,
+                      'details': {
+                        'scenario': {
+                          'path': '.fluoh/scenarios/camera/ohos-permission.md',
+                          'name': 'camera permission',
+                          'platform': 'ohos',
+                        },
+                        'actions': [
+                          {
+                            'index': 1,
+                            'action': 'captureScreenshot',
+                            'status': 'passed',
+                            'details': {
+                              'path':
+                                  '.fluoh/evidence/screenshots/camera-ohos-main.png',
+                              'bytes': 128,
+                            },
+                          },
+                          {
+                            'index': 2,
+                            'action': 'assertLog',
+                            'status': 'passed',
+                            'details': {
+                              'hilog':
+                                  '.fluoh/traces/camera/adaptation/ohos.hilog',
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  ],
                 },
               ],
             },
           },
-          'targets': [
-            {
-              'platform': 'ohos',
-              'targetName': 'DevEco Emulator',
-              'steps': [
-                {
-                  'name': 'automation-scenario-camera-permission',
-                  'status': 'passed',
-                  'path': 'camera permission grant',
-                },
-              ],
-            },
-          ],
-        }),
-      );
-      final output = File(
-        '${environment.workingDirectory.path}/reports/camera.md',
-      );
-      final stdout = <String>[];
-      final stderr = <String>[];
+        ],
+      }),
+    );
+    final output = File(
+      '${environment.workingDirectory.path}/reports/camera-trace.md',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      expect(
-        await runFluoh(
-          [
-            'report',
-            'create',
-            '--scope',
-            'camera',
-            '--package',
-            'camera',
-            '--trace-dir',
-            traceDir.path,
-            '--automation-json',
-            automationFile.path,
-            '--output',
-            output.path,
-            '--recommendation',
-            'needs-maintainer-decision',
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
+    expect(
+      await runFluoh(
+        [
+          'report',
+          'create',
+          '--scope',
+          'camera',
+          '--trace-dir',
+          traceDir.path,
+          '--output',
+          output.path,
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
 
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('schema', 1));
-      expect(report, containsPair('command', 'report create'));
-      expect(report, containsPair('ok', true));
-      expect(report, containsPair('changed', true));
-      expect(report, containsPair('report', output.path));
-      expect(report, isNot(contains('reports')));
-      expect(report, containsPair('scope', 'camera'));
-      expect(report['commandRows'], 3);
-      expect(report['automationRows'], 1);
-      expect(report['interactionRows'], 1);
-      final content = output.readAsStringSync();
-      expect(content, contains('# fluoh AI Report'));
-      expect(content, contains('## Adaptation Responsibility'));
-      expect(content, contains('## Platform Matrix'));
-      expect(content, contains('## Automation Coverage'));
-      expect(
-        content,
-        contains(
-          'Existing package/app tests, example tests, and `integration_test/` were inspected',
-        ),
-      );
-      expect(
-        content,
-        contains('Missing or weak functional tests were added or repaired'),
-      );
-      expect(
-        content,
-        contains(
-          'Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked',
-        ),
-      );
-      expect(content, contains('automation-scenario-camera-permission'));
-      expect(content, contains('fluoh.automation.retry'));
-      expect(
-        content,
-        contains('Release recommendation: needs-maintainer-decision'),
-      );
-      expect(stderr, isEmpty);
-    },
-  );
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(payload, containsPair('commandRows', 2));
+    expect(payload, containsPair('automationRows', 1));
+    expect(payload, containsPair('interactionRows', 1));
+    final content = output.readAsStringSync();
+    expect(content, contains('- coveragePolicy.status: readyForExecution'));
+    expect(content, isNot(contains('stale dry-run coverage inventory')));
+    expect(content, isNot(contains('| coverage-inventory | needsInventory |')));
+    expect(content, isNot(contains('No automation JSON supplied')));
+    expect(content, isNot(contains('Interaction evidence missing:')));
+    expect(content, contains('automation-scenario-ohos-camera-permission'));
+    expect(content, contains('emulator-5554'));
+    expect(
+      content,
+      contains(
+        'post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png',
+      ),
+    );
+    expect(content, contains('assertLog passed with hilog'));
+    expect(stderr, isEmpty);
+  });
 
   test('report create leaves blocked automation gates unchecked', () async {
     final environment = await createTestEnvironment();

@@ -2,6 +2,7 @@ part of 'flutter_example_runner.dart';
 
 Future<FlutterExampleRunResult> _runFlutterSmoke({
   required FluohEnvironment environment,
+  required FluohEnvironment cacheEnvironment,
   required Directory workingDirectory,
   required List<String> arguments,
   required String platform,
@@ -105,7 +106,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     final exitCode = await _terminateProcess(process, exitFuture);
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment,
+      cacheEnvironment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -136,7 +137,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     final exitCode = await _terminateProcess(process, exitFuture);
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment,
+      cacheEnvironment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -165,7 +166,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   if (firstState is _RunExited) {
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment,
+      cacheEnvironment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -256,7 +257,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
     final exitCode = await _terminateProcess(process, exitFuture);
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment,
+      cacheEnvironment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -286,7 +287,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   if (secondState is _RunExited) {
     await _waitForCapturedOutput([stdoutDone, stderrDone]);
     final outputLog = await _writeRunLog(
-      environment,
+      cacheEnvironment,
       platform,
       stdoutBuffer.text,
       stderrBuffer.text,
@@ -335,7 +336,7 @@ Future<FlutterExampleRunResult> _runFlutterSmoke({
   exitCode ??= await _terminateProcess(process, exitFuture);
   await _waitForCapturedOutput([stdoutDone, stderrDone]);
   final outputLog = await _writeRunLog(
-    environment,
+    cacheEnvironment,
     platform,
     stdoutBuffer.text,
     stderrBuffer.text,

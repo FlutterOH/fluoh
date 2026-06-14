@@ -439,13 +439,7 @@ List<Map<String, Object?>> _appAdaptationQueue(
       evidence: 'pubspec dependency rewrite summary',
     ),
     ..._ohosAdaptationQueue(traceDir: traceDir),
-    for (final command in _mobileDriveCommands(platforms, traceDir: traceDir))
-      _queueItem(
-        phase: 'automation',
-        command: command,
-        mutating: true,
-        evidence: 'automation coverage policy, scenarios, and repair queue',
-      ),
+    ..._mobileDriveQueueItems('ohos', traceDir: traceDir),
   ];
   for (final platform in const [
     'android',
@@ -476,6 +470,9 @@ List<Map<String, Object?>> _appAdaptationQueue(
           evidence: '$platform functional regression evidence',
         ),
       );
+    if (_shouldDriveMobilePlatform(platform, platforms)) {
+      items.addAll(_mobileDriveQueueItems(platform, traceDir: traceDir));
+    }
   }
   items.add(
     _queueItem(
@@ -524,17 +521,11 @@ List<Map<String, Object?>> _packageAdaptationQueue(
       evidence: 'pub get, analysis, tests, and trace manifest',
     ),
     ..._ohosAdaptationQueue(packageName: packageName, traceDir: traceDir),
-    for (final command in _mobileDriveCommands(
-      platforms,
+    ..._mobileDriveQueueItems(
+      'ohos',
       packageName: packageName,
       traceDir: traceDir,
-    ))
-      _queueItem(
-        phase: 'automation',
-        command: command,
-        mutating: true,
-        evidence: 'automation coverage policy, scenarios, and repair queue',
-      ),
+    ),
   ];
   for (final platform in const [
     'android',
@@ -565,6 +556,15 @@ List<Map<String, Object?>> _packageAdaptationQueue(
           evidence: '$platform package example functional evidence',
         ),
       );
+    if (_shouldDriveMobilePlatform(platform, platforms)) {
+      items.addAll(
+        _mobileDriveQueueItems(
+          platform,
+          packageName: packageName,
+          traceDir: traceDir,
+        ),
+      );
+    }
   }
   items
     ..add(
@@ -674,7 +674,9 @@ List<Map<String, Object?>> _qualityGates(String kind, {required bool active}) {
           'Ready evidence must validate library behavior through package '
           'tests, integration_test, real fluoh drive JSON, or manual-assisted '
           'tool-readable assertions; build, launch, screenshot, or run-all '
-          'smoke evidence is insufficient alone.',
+          'smoke evidence is insufficient alone. After each mobile run, '
+          'capture a screenshot or equivalent UI-state artifact and repair '
+          'abnormal demo pages before continuing to full automation.',
     },
   ];
 }
@@ -691,9 +693,10 @@ Map<String, Object?> _automationRunbook(String kind, {required bool active}) {
       'Before final verification, inspect whether existing tests cover the package or app behavior; add or repair missing functional tests before running the final test matrix.',
       'Parse every --json result before editing or deciding the next step.',
       'Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.',
+      'After every successful mobile run, capture a screenshot or equivalent UI-state artifact and fix abnormal demo pages before continuing.',
       'Do not stop after setup, verify, build, run, or screenshot-only smoke evidence.',
       'Do not focus only on OHOS; every existing platform must have functional evidence or an explicit unsupported-host/toolchain diagnostic blocker.',
-      'Do not skip drive, handoff, report creation, report check, or package check when they are applicable.',
+      'Do not skip drive, report creation, report check, handoff, or package check when they are applicable.',
       'Create local checkpoint commits after completed phases when command evidence is clean.',
       'Do not push, release, force-push, or run destructive Git commands without separate maintainer approval.',
     ],
@@ -746,6 +749,7 @@ Map<String, Object?> _deliveryGate({
 }) {
   final commonReadyRequires = [
     'existing tests and integration tests were reviewed against public API, platform interfaces, example flows, permissions, and behavior paths before final verification; missing or weak functional tests were added or a concrete blocker is recorded',
+    'each successful mobile run has screenshot or equivalent UI-state evidence, and abnormal demo pages were repaired before continuing',
     'functional evidence validates the library or app behavior, not only build, launch, screenshot, or run-all smoke',
     'OHOS and every existing non-OHOS platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons',
     'all queue items marked mustCompleteForDelivery passed or have a concrete blocker recorded',
@@ -836,7 +840,7 @@ List<String> _appFinalCheckCommands(
     'git diff --check',
     for (final item in _ohosAdaptationQueue(traceDir: traceDir))
       item['command']! as String,
-    ..._mobileDriveCommands(platforms, traceDir: traceDir),
+    _mobileDriveCommand('ohos', traceDir: traceDir),
     for (final platform in const [
       'android',
       'ios',
@@ -848,6 +852,8 @@ List<String> _appFinalCheckCommands(
       if (platforms[platform] == true) ...[
         platformWorkflowPolicy(platform).doctorCommand(strict: true),
         _regressionCommand(platform, traceDir),
+        if (_shouldDriveMobilePlatform(platform, platforms))
+          _mobileDriveCommand(platform, traceDir: traceDir),
       ],
     _reportCheckCommand,
   ];
@@ -866,11 +872,7 @@ List<String> _packageFinalCheckCommands(
       traceDir: traceDir,
     ))
       item['command']! as String,
-    ..._mobileDriveCommands(
-      platforms,
-      packageName: packageName,
-      traceDir: traceDir,
-    ),
+    _mobileDriveCommand('ohos', packageName: packageName, traceDir: traceDir),
     for (final platform in const [
       'android',
       'ios',
@@ -882,6 +884,12 @@ List<String> _packageFinalCheckCommands(
       if (platforms[platform] == true) ...[
         platformWorkflowPolicy(platform).doctorCommand(strict: true),
         _packageRegressionCommand(platform, packageName, traceDir),
+        if (_shouldDriveMobilePlatform(platform, platforms))
+          _mobileDriveCommand(
+            platform,
+            packageName: packageName,
+            traceDir: traceDir,
+          ),
       ],
     'fluoh package status --package $packageName',
     _reportCheckCommand,
@@ -890,23 +898,49 @@ List<String> _packageFinalCheckCommands(
   ];
 }
 
-List<String> _mobileDriveCommands(
-  Map<String, bool> platforms, {
+List<Map<String, Object?>> _mobileDriveQueueItems(
+  String platform, {
   String? packageName,
   required String traceDir,
 }) {
-  final commands = <String>[];
-  for (final platform in const ['ohos', 'android', 'ios']) {
-    if (!_shouldDriveMobilePlatform(platform, platforms)) {
-      continue;
-    }
-    commands.add(
-      'fluoh drive $platform'
+  return [
+    _queueItem(
+      phase: 'automation-plan',
+      command: _mobileDriveCommand(
+        platform,
+        packageName: packageName,
+        traceDir: traceDir,
+        dryRun: true,
+      ),
+      mutating: false,
+      evidence:
+          'automation coverage policy, discovered scenarios, and repair queue',
+    ),
+    _queueItem(
+      phase: 'automation',
+      command: _mobileDriveCommand(
+        platform,
+        packageName: packageName,
+        traceDir: traceDir,
+      ),
+      mutating: true,
+      evidence:
+          'post-launch screenshot, UI-state, automation coverage policy, '
+          'scenarios, and repair queue',
+    ),
+  ];
+}
+
+String _mobileDriveCommand(
+  String platform, {
+  String? packageName,
+  required String traceDir,
+  bool dryRun = false,
+}) {
+  return 'fluoh drive $platform'
       '${packageName == null ? '' : ' --package $packageName'}'
-      ' --json --trace-dir $traceDir',
-    );
-  }
-  return commands;
+      '${dryRun ? ' --dry-run' : ''}'
+      ' --json --trace-dir $traceDir';
 }
 
 bool _shouldDriveMobilePlatform(String platform, Map<String, bool> platforms) {

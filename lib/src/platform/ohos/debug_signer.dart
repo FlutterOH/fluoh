@@ -58,8 +58,13 @@ Future<OhosDebugSigningMaterial> prepareOhosDebugSigning({
     ohosDirectory: ohosDirectory,
     openHarmonySdk: toolchain.openHarmonySdk,
   );
+  final scope = _signingScopeSegment(
+    environment: environment,
+    ohosDirectory: ohosDirectory,
+  );
   final directory = io.Directory(
     '${environment.ohosSigningDirectory.path}/'
+    '$scope/'
     '${_safePathSegment(permissionProfile.bundleName)}',
   );
   await directory.create(recursive: true);
@@ -629,6 +634,28 @@ Future<String> _readCompatibleVersion(io.Directory ohosDirectory) async {
 
 String _fileName(String path) {
   return path.replaceAll('\\', '/').split('/').last;
+}
+
+String _signingScopeSegment({
+  required FluohEnvironment environment,
+  required io.Directory ohosDirectory,
+}) {
+  final projectRoot = environment.workingDirectory.absolute.uri.toFilePath();
+  final targetDirectory = ohosDirectory.parent.absolute.uri.toFilePath();
+  if (targetDirectory == projectRoot) {
+    return 'project';
+  }
+  final rootPrefix = projectRoot.endsWith(io.Platform.pathSeparator)
+      ? projectRoot
+      : '$projectRoot${io.Platform.pathSeparator}';
+  if (targetDirectory.startsWith(rootPrefix)) {
+    final relative = targetDirectory
+        .substring(rootPrefix.length)
+        .replaceAll(io.Platform.pathSeparator, '/')
+        .replaceAll(RegExp(r'/$'), '');
+    return relative.isEmpty ? 'project' : _safePathSegment(relative);
+  }
+  return _safePathSegment(targetDirectory);
 }
 
 String _safePathSegment(String value) {

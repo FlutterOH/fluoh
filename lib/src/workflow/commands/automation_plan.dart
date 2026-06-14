@@ -258,10 +258,10 @@ class _AutomationPlan {
     }
     if (type == 'coverageBlocked') {
       return {
-        'kind': 'resolveBlockedCoverage',
+        'kind': 'repairBlockedCoverage',
         'sourceType': type,
         'action':
-            'Decide whether the blocked coverage row is an environment blocker or maintainer decision, then record that evidence in the report.',
+            'Fix the package or demo, add full automation evidence, or mark the row notApplicable only when the behavior does not exist on this platform.',
         if (item['platform'] != null) 'platform': item['platform'],
         if (item['scenario'] != null) 'scenario': item['scenario'],
         if (item['path'] != null) 'path': item['path'],
@@ -321,8 +321,8 @@ class _AutomationPlan {
         'real drive JSON includes passed targets and retained evidence',
       ],
       'coverageBlocked' => [
-        'the blocked row has a concrete environment or maintainer-decision note',
-        'the final report records the blocker instead of claiming ready',
+        'the blocked row is replaced by covered automation evidence or a valid notApplicable row',
+        'the same drive command no longer reports coverageBlocked repair items',
       ],
       'coverage' => [
         if (gate != null) 'quality gate $gate reports readyForReview',
@@ -331,17 +331,17 @@ class _AutomationPlan {
       'scenarioCoverage' => [
         if (category != null && coverageItem != null)
           '$category/$coverageItem capability coverage reports readyForReview',
-        'the scenario coverage row has covered, notApplicable, or blocked status with required notes',
+        'the scenario coverage row has covered or valid notApplicable status',
       ],
       'permissionCoverage' => [
         if (coverageItem != null)
           'manifest permission coverage for $coverageItem reports readyForReview',
-        'grant and denied/error permission paths are covered or explicitly documented',
+        'grant and denied/error permission paths are covered or valid notApplicable rows explain that no runtime behavior exists on this platform',
       ],
       'pathCoverage' => [
         if (category != null && coverageItem != null)
           '$category/$coverageItem behavior paths report readyForReview',
-        'both success and negative/error behavior paths are covered or explicitly documented',
+        'both success and negative/error behavior paths are covered or valid notApplicable rows explain that no runtime behavior exists on this platform',
       ],
       'scenarioEvidence' => [
         'scenarioEvidence reports readyForReview for the scenario',
@@ -440,13 +440,12 @@ class _AutomationPlan {
         : hasCoverageGap
         ? 'needsCoverageReview'
         : blockedCoverage > 0
-        ? 'needsMaintainerDecision'
+        ? 'needsCoverageReview'
         : dryRun
         ? 'needsExecution'
         : 'readyForReportReview';
     final recommendation = switch (status) {
       'readyForReportReview' => 'ready',
-      'needsMaintainerDecision' => 'needs-maintainer-decision',
       _ => 'blocked',
     };
     return {
@@ -474,9 +473,7 @@ class _AutomationPlan {
       'needsRepair' =>
         'One or more workflow targets or scenario actions failed; inspect repairQueue and rerun the exact nextCommand.',
       'needsCoverageReview' =>
-        'Automation launched, but coverage inventory, metadata, or rows are incomplete.',
-      'needsMaintainerDecision' =>
-        'Automation ran, but at least one declared coverage row is blocked and needs maintainer or environment decision.',
+        'Automation launched, but coverage inventory, metadata, rows, or blocked behavior paths still need repair.',
       'needsExecution' =>
         'Coverage inventory is complete for the dry run, but selected platform automation has not executed yet.',
       _ =>
@@ -990,5 +987,6 @@ bool _isAutomationCoverageGapStatus(String status) {
       status == 'needsPackageTests' ||
       status == 'needsTestCoverageReview' ||
       status == 'needsPermissionCoverageRows' ||
+      status == 'needsBlockedCoverageRepair' ||
       status == 'needsEvidenceAssertions';
 }

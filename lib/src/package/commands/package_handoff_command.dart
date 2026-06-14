@@ -140,14 +140,29 @@ List<String> _nextCommands(
   }
   return [
     'fluoh verify --package $packageName --json --trace-dir $traceDir',
-    ..._driveCommands(
+    ..._ohosCommands(packageName, traceDir),
+    ..._driveCommands('ohos', packageName, traceDir),
+    ..._examplePlatformCommands(
       packageName,
       packageRoot: packageRoot,
       traceDir: traceDir,
     ),
-    if (reportPath == null)
+    if (reportPath == null) ...[
       'fluoh report create --scope $packageName --package $packageName --trace-dir $traceDir --json',
+      'python3 <skill-dir>/scripts/check_report.py <report-path>',
+    ] else
+      'python3 <skill-dir>/scripts/check_report.py ${_shellQuote(reportPath)}',
     'fluoh package check --package $packageName --report ${_shellQuote(reportPath ?? '<report-path>')} --json',
+  ];
+}
+
+List<String> _ohosCommands(String packageName, String traceDir) {
+  return [
+    'fluoh doctor --platform ohos --project --json --strict',
+    'fluoh build ohos --package $packageName --auto-sign --json --trace-dir $traceDir',
+    'fluoh devices --platform ohos --json',
+    'fluoh emulators --platform ohos --json',
+    'fluoh run ohos --package $packageName --auto-emulator --json --trace-dir $traceDir',
   ];
 }
 
@@ -158,19 +173,85 @@ Directory _packageRoot(Directory repository, String packagePath) {
   return Directory('${repository.path}/$packagePath');
 }
 
-List<String> _driveCommands(
+List<String> _examplePlatformCommands(
   String packageName, {
   required Directory packageRoot,
   required String traceDir,
 }) {
   final example = Directory('${packageRoot.path}/example');
+  final commands = <String>[];
+  for (final platform in const [
+    'android',
+    'ios',
+    'macos',
+    'linux',
+    'web',
+    'windows',
+  ]) {
+    if (!Directory('${example.path}/$platform').existsSync() ||
+        !_hostSupportsRegressionPlatform(platform)) {
+      continue;
+    }
+    commands
+      ..add('fluoh doctor --platform $platform --json --strict')
+      ..add(_regressionCommand(platform, packageName, traceDir));
+    if (_hostSupportsDrivePlatform(platform)) {
+      commands.addAll(_driveCommands(platform, packageName, traceDir));
+    }
+  }
+  return commands;
+}
+
+String _regressionCommand(
+  String platform,
+  String packageName,
+  String traceDir,
+) {
+  if (platform == 'linux' || platform == 'windows') {
+    return 'fluoh build $platform --package $packageName --json --trace-dir $traceDir';
+  }
+  final autoEmulator = platform == 'android' || platform == 'ios'
+      ? ' --auto-emulator'
+      : '';
+  return 'fluoh run $platform --package $packageName$autoEmulator --json --trace-dir $traceDir';
+}
+
+String _driveCommand(String platform, String packageName, String traceDir) {
+  return 'fluoh drive $platform --package $packageName --json --trace-dir $traceDir';
+}
+
+List<String> _driveCommands(
+  String platform,
+  String packageName,
+  String traceDir,
+) {
   return [
-    'fluoh drive ohos --package $packageName --json --trace-dir $traceDir',
-    if (Directory('${example.path}/android').existsSync())
-      'fluoh drive android --package $packageName --json --trace-dir $traceDir',
-    if (Platform.isMacOS && Directory('${example.path}/ios').existsSync())
-      'fluoh drive ios --package $packageName --json --trace-dir $traceDir',
+    'fluoh drive $platform --package $packageName --dry-run --json --trace-dir $traceDir',
+    _driveCommand(platform, packageName, traceDir),
   ];
+}
+
+bool _hostSupportsDrivePlatform(String platform) {
+  if (platform == 'android') {
+    return true;
+  }
+  if (platform == 'ios') {
+    return Platform.isMacOS;
+  }
+  return false;
+}
+
+bool _hostSupportsRegressionPlatform(String platform) {
+  if (platform == 'ios' || platform == 'macos') {
+    return Platform.isMacOS;
+  }
+  if (platform == 'linux') {
+    return Platform.isLinux;
+  }
+  if (platform == 'windows') {
+    return Platform.isWindows;
+  }
+  return true;
 }
 
 String _shellQuote(String value) {

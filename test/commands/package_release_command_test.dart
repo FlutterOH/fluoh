@@ -32,7 +32,7 @@ Future<File> _writeCertificationReport(
   await reportDirectory.create(recursive: true);
   final report = File('${reportDirectory.path}/report-1780401600123.md');
   final ohosRunRow = includeOhosRun
-      ? '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, and collected hilog |\n'
+      ? '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, collected hilog, and captured post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png |\n'
       : '';
   await report.writeAsString('''
 # fluoh AI Report
@@ -65,7 +65,7 @@ Future<File> _writeCertificationReport(
 | --- | --- | --- | --- |
 | `fluoh verify --package camera --json` | 0 | passed | package and example baseline passed |
 | `fluoh build ohos --package camera --auto-sign --json` | $ohosBuildExit | $ohosBuildResult | signed HAP was produced |
-| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed |
+| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
 $ohosRunRow
 ## Delivery Checklist
 
@@ -86,7 +86,7 @@ $ohosRunRow
 
 | Platform | Build | Run | Integration test | Target | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| OHOS | passed | ${includeOhosRun ? 'passed' : 'skipped with blocker'} | not required | ${includeOhosRun ? 'emulator' : 'none'} | build evidence recorded |
+| OHOS | passed | ${includeOhosRun ? 'passed' : 'skipped with blocker'} | not required | ${includeOhosRun ? 'emulator' : 'none'} | build evidence recorded; post-launch UI-state evidence recorded when automation ran |
 | Android | not present | not present | not required | none | no Android example platform |
 | iOS | not present | not present | not required | none | no iOS example platform |
 | macOS | not present | not present | not required | none | no macOS example platform |
@@ -95,7 +95,7 @@ $ohosRunRow
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=8, notReady=0
+- qualityGateSummary: ready=9, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -103,6 +103,7 @@ $ohosRunRow
 | coverage-metadata | readyForReview | every scenario has coverage metadata or no interaction is required |
 | coverage-items | readyForReview | all applicable capability rows reviewed |
 | capability-inventory-coverage | readyForReview | all package capabilities covered or explicitly notApplicable |
+| blocked-coverage | readyForReview | no blocked rows remain |
 | scenario-evidence-assertions | readyForReview | no interaction scenario required for fixture |
 | existing-test-baseline | readyForReview | package tests present for fixture library |
 | manifest-permission-coverage | readyForReview | no selected-platform manifest runtime permissions apply |
@@ -143,4 +144,22 @@ Release recommendation: $recommendation
 Reason: baseline and OHOS evidence are complete.
 ''');
   return report;
+}
+
+String _replaceReportSection(
+  String content,
+  String heading,
+  String replacementBody,
+) {
+  final pattern = RegExp(
+    '^${RegExp.escape(heading)}\\s*\\n[\\s\\S]*?(?=^##\\s|\\z)',
+    multiLine: true,
+  );
+  return content.replaceFirstMapped(pattern, (_) {
+    final body = replacementBody.trimRight();
+    if (body.isEmpty) {
+      return '$heading\n\n';
+    }
+    return '$heading\n\n$body\n\n';
+  });
 }

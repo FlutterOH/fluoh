@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluoh/src/workflow/automation_scenario.dart';
@@ -54,5 +55,44 @@ actions:
         ),
       ),
     );
+  });
+
+  test('OHOS UI parsing ignores hidden or transparent text nodes', () {
+    final nodes = parseOhosUiNodes(
+      jsonEncode({
+        'attributes': {'bounds': '[0,0][1272,2756]'},
+        'children': [
+          {
+            'attributes': {
+              'bounds': '[0,563][1272,806]',
+              'text': 'Permission.camera',
+              'visible': 'true',
+              'opacity': '0.000000',
+            },
+            'children': <Object?>[],
+          },
+          {
+            'attributes': {
+              'bounds': '[0,806][1272,1049]',
+              'text': 'Permission.contacts',
+              'visible': 'false',
+              'opacity': '1.000000',
+            },
+            'children': <Object?>[],
+          },
+          {
+            'attributes': {
+              'bounds': '[0,1049][1272,1292]',
+              'text': 'Permission.microphone',
+              'visible': 'true',
+              'opacity': '1.000000',
+            },
+            'children': <Object?>[],
+          },
+        ],
+      }),
+    );
+
+    expect(nodes.map((node) => node.label), ['Permission.microphone']);
   });
 }

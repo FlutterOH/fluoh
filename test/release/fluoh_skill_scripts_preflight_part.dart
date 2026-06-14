@@ -56,6 +56,8 @@ sdk:
       final appRegressionCommands = [
         'fluoh doctor --platform android --json --strict',
         'fluoh run android --auto-emulator --json --trace-dir $appTraceDir',
+        'fluoh drive android --dry-run --json --trace-dir $appTraceDir',
+        'fluoh drive android --json --trace-dir $appTraceDir',
         if (Platform.isLinux) ...[
           'fluoh doctor --platform linux --json --strict',
           'fluoh build linux --json --trace-dir $appTraceDir',
@@ -79,8 +81,8 @@ sdk:
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
         'fluoh run ohos --auto-emulator --json --trace-dir $appTraceDir',
+        'fluoh drive ohos --dry-run --json --trace-dir $appTraceDir',
         'fluoh drive ohos --json --trace-dir $appTraceDir',
-        'fluoh drive android --json --trace-dir $appTraceDir',
         ...appRegressionCommands,
         'fluoh report create --scope example_app --trace-dir $appTraceDir --json',
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
@@ -165,8 +167,8 @@ sdk:
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
         'fluoh run ohos --auto-emulator --json --trace-dir $appTraceDir',
+        'fluoh drive ohos --dry-run --json --trace-dir $appTraceDir',
         'fluoh drive ohos --json --trace-dir $appTraceDir',
-        'fluoh drive android --json --trace-dir $appTraceDir',
         ...appRegressionCommands,
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
       ]);
@@ -709,7 +711,7 @@ package:
       );
       expect(
         stringList(report['suggestedCommands']),
-        containsAll([
+        containsAllInOrder([
           'fluoh package docs refresh --dry-run',
           'fluoh package docs refresh',
           'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
@@ -717,8 +719,13 @@ package:
           'fluoh devices --platform ohos --json',
           'fluoh emulators --platform ohos --json',
           'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh doctor --platform android --json --strict',
+          'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh doctor --platform web --json --strict',
           'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package camera --json',
@@ -781,15 +788,21 @@ package:
       );
       expect(
         stringList(report['finalCheckCommands']),
-        containsAll([
+        containsAllInOrder([
           'git diff --check',
           'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh devices --platform ohos --json',
           'fluoh emulators --platform ohos --json',
           'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh doctor --platform android --json --strict',
+          'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive android --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh doctor --platform web --json --strict',
+          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
           'fluoh package status --package camera',
           'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package camera --json',

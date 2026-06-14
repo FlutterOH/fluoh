@@ -16,7 +16,7 @@ class FluohEnvironment {
 
   /// Creates an environment from [Platform.environment] and [Directory.current].
   ///
-  /// `FLUOH_HOME` overrides the default cache/config directory. When it is not
+  /// `FLUOH_HOME` overrides the default state directory. When it is not
   /// set, `fluoh` stores runtime state under `$HOME/.fluoh`.
   factory FluohEnvironment.current({Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
@@ -48,16 +48,21 @@ class FluohEnvironment {
   /// Directory containing cached FlutterOH SDK installations.
   Directory get sdksDirectory => Directory('${homeDirectory.path}/sdks');
 
-  /// Directory containing cleanable runtime artifacts and diagnostic logs.
-  Directory get cacheDirectory => Directory('${homeDirectory.path}/cache');
+  /// Directory containing project-local fluoh state.
+  Directory get projectFluohDirectory =>
+      Directory('${workingDirectory.path}/.fluoh');
+
+  /// Directory containing project-local cleanable runtime artifacts.
+  Directory get projectCacheDirectory =>
+      Directory('${projectFluohDirectory.path}/cache');
 
   /// Directory containing generated OHOS debug signing material.
   Directory get ohosSigningDirectory =>
-      Directory('${cacheDirectory.path}/ohos-signing');
+      Directory('${projectCacheDirectory.path}/ohos-signing');
 
   /// Directory containing run-smoke output logs.
   Directory get packageRunsDirectory =>
-      Directory('${cacheDirectory.path}/package-runs');
+      Directory('${projectCacheDirectory.path}/package-runs');
 
   /// User-level fluoh configuration file.
   File get configFile => File('${homeDirectory.path}/config.json');

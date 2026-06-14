@@ -75,7 +75,7 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(
       output,
       contains(
-        'Run `fluoh skill --json`, install the returned localPath as the fluoh '
+        'Run `fluoh skill --path`, install the printed path as the fluoh '
         'skill, and overwrite any existing installation.',
       ),
     );
@@ -86,7 +86,7 @@ void _registerFluohCommandRunnerSkillTests() {
         'when fluoh is not installed yet.',
       ),
     );
-    expect(output, contains('fluoh skill --json'));
+    expect(output, contains('fluoh skill --path'));
     expect(output, contains('fluoh upgrade'));
     expect(output, contains('precheck a FlutterOH Source change'));
   });
@@ -165,7 +165,7 @@ void _registerFluohCommandRunnerSkillTests() {
       report,
       containsPair(
         'installPrompt',
-        'Run `fluoh skill --json`, install the returned localPath as the fluoh '
+        'Run `fluoh skill --path`, install the printed path as the fluoh '
             'skill, and overwrite any existing installation. Use '
             'https://github.com/FlutterOH/fluoh/tree/main/skills/fluoh only '
             'when fluoh is not installed yet.',
@@ -176,8 +176,8 @@ void _registerFluohCommandRunnerSkillTests() {
       report,
       containsPair(
         'upgradePrompt',
-        'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --json` '
-            'and reinstall or reload the returned localPath.',
+        'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --path` '
+            'and reinstall or reload the printed path.',
       ),
     );
     final scripts = report['scripts'] as Map<String, Object?>;

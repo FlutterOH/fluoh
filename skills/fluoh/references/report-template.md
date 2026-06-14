@@ -17,9 +17,14 @@
 
 ## Adaptation Responsibility
 
-- AI owns adaptation implementation, project/package rewrites, command execution, evidence collection, report composition, and release recommendation.
+- AI owns adaptation implementation, project/package rewrites, command
+  execution, evidence collection, report composition, and release
+  recommendation.
 - The maintainer owns final release approval and any publish, push, tag, store, or release action.
-- `manual-assisted` means a person operated a device or emulator, but pass/fail still requires tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers.
+- `manual-assisted` means a person operated a device or emulator, but pass/fail
+  still requires tool-readable confirmation such as logs, meaningful session
+  state beyond launch, stable text, semantics, test keys, command JSON, hilog,
+  or app log markers.
 
 ## Changes
 
@@ -41,12 +46,18 @@
 
 - [ ] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.
 - [ ] Commands table includes exit codes and enough evidence to reproduce the decision.
-- [ ] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [ ] Existing package/app tests, example tests, and `integration_test/` were
+  inspected against public API, platform interfaces, permissions, and behavior
+  paths before final verification.
 - [ ] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
-- [ ] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
-- [ ] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.
+- [ ] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was
+  functionally checked when supported by the current host/toolchain, or exact
+  diagnostic evidence and skip reason are recorded.
+- [ ] Interaction automation evidence recorded through a passed
+  `flutter test integration_test -d <device>` command or real
+  `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
@@ -81,7 +92,7 @@ Record `automation.coveragePolicy.status`, `readyForAutomation`, and
 `qualityGateSummary` before the table so the handoff shows whether coverage is
 ready to execute, still missing rows, or waiting on maintainer/environment
 decision. Ready reports must show zero not-ready gates, such as
-`qualityGateSummary: ready=8, notReady=0`.
+`qualityGateSummary: ready=9, notReady=0`.
 When `existing-test-baseline` is not ready, include the concrete
 `coverageBaseline.missingPackageTests` and
 `coverageBaseline.weakPackageTests` rows that were fixed or remain blocked,
@@ -103,6 +114,7 @@ completion checks, and the `validation` rerun hint. Include
 | coverage-metadata | readyForReview | every scenario declares coverage metadata or has an explicit no-interaction reason |
 | coverage-items | readyForReview | every applicable capability has a coverage row |
 | capability-inventory-coverage | readyForReview | all public API/platform/example rows covered or notApplicable |
+| blocked-coverage | readyForReview | no capability row remains blocked; demo defects and missing automation were repaired |
 | scenario-evidence-assertions | readyForReview | scenarios use assertText/waitText/assertLog/assertSession |
 | existing-test-baseline | readyForReview | package and integration tests reviewed |
 | manifest-permission-coverage | readyForReview | every selected-platform manifest permission is covered or notApplicable |
@@ -126,7 +138,7 @@ Scenario notes should live under `.fluoh/scenarios/<package-or-scope>/`.
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| `...` | integration_test \| AI-assisted \| manual-assisted | OHOS | device-or-emulator | passed | steps, functional assertions, Flutter debug/widget/semantic/log evidence, flutterRunSession/VM Service evidence when available; screenshots optional |
+| `...` | integration_test \| AI-assisted \| manual-assisted | OHOS | device-or-emulator | passed | functional assertions plus debug/semantic/log evidence; screenshot or UI-state evidence for mobile runs |
 
 ## Diagnostics
 

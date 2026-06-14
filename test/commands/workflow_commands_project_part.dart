@@ -356,6 +356,13 @@ fi
       (step) => step['name'] == 'project-run-ohos',
     );
     final runDetails = runStep['details'] as Map<String, Object?>;
+    final preparation = runDetails['runPreparation'] as Map<String, Object?>;
+    expect(
+      preparation['signingDirectory'],
+      startsWith(
+        '${environment.workingDirectory.path}/.fluoh/cache/ohos-signing/project/com.example.camera',
+      ),
+    );
     final sessionFile =
         '${environment.workingDirectory.path}/.fluoh/project-ohos-session.json';
     expect(runDetails, containsPair('sessionFile', sessionFile));

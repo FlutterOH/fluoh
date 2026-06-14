@@ -460,6 +460,12 @@ fi
     final preparation = details['runPreparation'] as Map<String, Object?>;
     expect(preparation, containsPair('platform', 'ohos'));
     expect(preparation, containsPair('signingMode', 'build-profile'));
+    expect(
+      preparation['signingDirectory'],
+      startsWith(
+        '${environment.workingDirectory.path}/.fluoh/cache/ohos-signing/example/com.example.camera',
+      ),
+    );
     final session =
         jsonDecode(File(sessionFile).readAsStringSync())
             as Map<String, Object?>;

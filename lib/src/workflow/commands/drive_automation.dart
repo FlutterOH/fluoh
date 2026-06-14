@@ -19,10 +19,19 @@ Directory _resolveOutputDirectory(Directory workingDirectory, String path) {
 Future<List<AutomationScenario>> _readAutomationScenarios(
   List<String> paths, {
   required Directory workingDirectory,
+  required _AutomationInventory inventory,
+  required List<String> platforms,
   required UsageError usageException,
 }) async {
+  final autoDiscovered = paths.isEmpty;
+  final selectedPaths = paths.isEmpty
+      ? await _discoverAutomationScenarioPaths(
+          inventory,
+          workingDirectory: workingDirectory,
+        )
+      : paths;
   final scenarios = <AutomationScenario>[];
-  for (final path in paths) {
+  for (final path in selectedPaths) {
     final trimmed = path.trim();
     if (trimmed.isEmpty) {
       usageException('Use a non-empty path for --scenario.');
@@ -40,7 +49,47 @@ Future<List<AutomationScenario>> _readAutomationScenarios(
       usageException(error.message);
     }
   }
+  if (autoDiscovered) {
+    return [
+      for (final scenario in scenarios)
+        if (platforms.contains(scenario.platform)) scenario,
+    ];
+  }
   return scenarios;
+}
+
+Future<List<String>> _discoverAutomationScenarioPaths(
+  _AutomationInventory inventory, {
+  required Directory workingDirectory,
+}) async {
+  final scope = _automationPathSlug(
+    inventory.targetName ?? _pathBasename(inventory.rootPath),
+  );
+  final roots = {
+    '${inventory.rootPath}/.fluoh/scenarios/$scope',
+    '${workingDirectory.path}/.fluoh/scenarios/$scope',
+  };
+  final paths = <String>{};
+  for (final rootPath in roots) {
+    final root = Directory(rootPath);
+    if (!await root.exists()) {
+      continue;
+    }
+    await for (final entity in root.list(recursive: true, followLinks: false)) {
+      if (entity is File && _isAutomationScenarioPath(entity.path)) {
+        paths.add(entity.path);
+      }
+    }
+  }
+  return paths.toList()..sort();
+}
+
+bool _isAutomationScenarioPath(String path) {
+  final normalized = path.toLowerCase();
+  return normalized.endsWith('.md') ||
+      normalized.endsWith('.yaml') ||
+      normalized.endsWith('.yml') ||
+      normalized.endsWith('.json');
 }
 
 void _validateAutomationScenarios(
