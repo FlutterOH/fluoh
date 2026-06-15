@@ -32,6 +32,10 @@ class _AutomationCoveragePolicy {
       for (final evidence in scenarioEvidence)
         if (evidence.needsReview) evidence.toJson(),
     ];
+    final pageReadinessWarnings = [
+      for (final evidence in scenarioEvidence)
+        if (evidence.needsPageReadiness) evidence.pageReadinessJson(),
+    ];
     final coverageSummary = _coverageSummary(
       pathGroupCount: pathCoverage.length,
       pathCoverageWarningCount: pathCoverageWarnings.length,
@@ -40,6 +44,7 @@ class _AutomationCoveragePolicy {
       manifestPermissionCount: manifestPermissionCoverage.length,
       manifestPermissionWarningCount: manifestPermissionWarnings.length,
       scenarioEvidenceWarningCount: scenarioEvidenceWarnings.length,
+      pageReadinessWarningCount: pageReadinessWarnings.length,
     );
     final qualityGates = _qualityGates(
       coverageSummary,
@@ -47,6 +52,7 @@ class _AutomationCoveragePolicy {
       capabilityCoverageWarnings,
       manifestPermissionWarnings,
       scenarioEvidenceWarnings,
+      pageReadinessWarnings,
     );
     final status = _coveragePolicyStatus(coverageSummary, qualityGates);
     return {
@@ -113,6 +119,9 @@ class _AutomationCoveragePolicy {
       'scenarioEvidence': scenarioEvidence
           .map((evidence) => evidence.toJson())
           .toList(),
+      'pageReadiness': [
+        for (final evidence in scenarioEvidence) evidence.pageReadinessJson(),
+      ],
       'qualityGates': qualityGates,
       'repairLoop': const {
         'goal':
@@ -190,6 +199,7 @@ class _AutomationCoveragePolicy {
     required int manifestPermissionCount,
     required int manifestPermissionWarningCount,
     required int scenarioEvidenceWarningCount,
+    required int pageReadinessWarningCount,
   }) {
     final statusCounts = <String, int>{
       'covered': 0,
@@ -223,6 +233,7 @@ class _AutomationCoveragePolicy {
       'manifestPermissionCount': manifestPermissionCount,
       'manifestPermissionWarningCount': manifestPermissionWarningCount,
       'scenarioEvidenceWarningCount': scenarioEvidenceWarningCount,
+      'pageReadinessWarningCount': pageReadinessWarningCount,
     };
   }
 
@@ -379,6 +390,7 @@ class _AutomationCoveragePolicy {
     List<Map<String, Object?>> capabilityCoverageWarnings,
     List<Map<String, Object?>> manifestPermissionWarnings,
     List<Map<String, Object?>> scenarioEvidenceWarnings,
+    List<Map<String, Object?>> pageReadinessWarnings,
   ) {
     final scenarioCount = summary['scenarioCount'] as int;
     final itemCount = summary['itemCount'] as int;
@@ -450,11 +462,23 @@ class _AutomationCoveragePolicy {
             ? 'needsCoverageRows'
             : scenarioEvidenceWarnings.isEmpty
             ? 'readyForReview'
-            : 'needsEvidenceAssertions',
+            : 'needsFunctionalEvidence',
         'repair':
-            'Every scenario with coverage rows must include tool-readable verification such as assertText, waitText, assertLog, or assertSession.',
+            'Every scenario with covered rows must include functional evidence after the interaction flow. assertSession, launchApp, wait, and screenshots are launch or visual sanity evidence only.',
         if (scenarioEvidenceWarnings.isNotEmpty)
           'scenarios': scenarioEvidenceWarnings,
+      },
+      {
+        'id': 'page-readiness',
+        'status': scenarioCount == 0
+            ? 'needsInventory'
+            : pageReadinessWarnings.isEmpty
+            ? 'readyForReview'
+            : 'needsPageReadinessEvidence',
+        'repair':
+            'Every covered mobile scenario with launch, wait, or screenshot evidence must assert the post-launch functional page state with assertText, waitText, or assertLog.',
+        if (pageReadinessWarnings.isNotEmpty)
+          'scenarios': pageReadinessWarnings,
       },
       {
         'id': 'existing-test-baseline',

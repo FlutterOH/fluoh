@@ -581,6 +581,21 @@ Original upstream README body.
       'releaseVersion': '0.1.0',
       'status': 'experimental',
     });
+    final adaptationProfile = plan['adaptationProfile'] as Map<String, Object?>;
+    expect(adaptationProfile['complexity'], 'high');
+    expect(
+      adaptationProfile['categories'],
+      containsAll(['media-capture', 'runtime-permission']),
+    );
+    expect(
+      adaptationProfile['requiredEvidence'],
+      contains('permission-grant-deny'),
+    );
+    expect(adaptationProfile, containsPair('officialDocsRequired', true));
+    expect(
+      adaptationProfile['officialDocTopics'],
+      contains(contains('permission')),
+    );
     expect(plan['gitAuthor'], {
       'name': 'FlutterOH Adapter',
       'email': 'adapter@example.com',

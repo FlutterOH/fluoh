@@ -188,8 +188,19 @@ Map<String, Object?> _runSmokeEvidence({
   final mobilePlatforms = platforms
       .where(_isDrivePlatform)
       .toList(growable: false);
+  final postLaunchScreenshotEvidence = _postLaunchScreenshotEvidenceSummary(
+    mobilePlatforms: mobilePlatforms,
+    results: results,
+  );
+  final postLaunchScreenshotStatus =
+      postLaunchScreenshotEvidence['status'] as String;
+  final hasCollectedPostLaunchScreenshot =
+      (postLaunchScreenshotEvidence['capturedTargetCount'] as int? ?? 0) > 0;
+  final hasCompletePostLaunchScreenshot =
+      postLaunchScreenshotStatus == 'postLaunchScreenshotEvidencePresent';
   final notCollectedEvidenceKinds = [
-    if (mobilePlatforms.isNotEmpty) 'postLaunchScreenshot',
+    if (mobilePlatforms.isNotEmpty && !hasCompletePostLaunchScreenshot)
+      'postLaunchScreenshot',
     if (mobilePlatforms.isNotEmpty) 'visualPageReadiness',
     if (!hasPassedIntegrationEvidence) 'functionalInteraction',
   ];
@@ -214,10 +225,13 @@ Map<String, Object?> _runSmokeEvidence({
         'status': passed ? 'passed' : 'failed',
         'targetCount': results.length,
       },
+      if (mobilePlatforms.isNotEmpty)
+        'postLaunchScreenshot': postLaunchScreenshotEvidence,
       'interaction': interactionEvidence,
     },
     'collectedEvidenceKinds': [
       'launchCommandResult',
+      if (hasCollectedPostLaunchScreenshot) 'postLaunchScreenshot',
       if (hasIntegrationCommandResult) 'integrationTestCommandResult',
     ],
     'notCollectedEvidenceKinds': notCollectedEvidenceKinds,
@@ -238,6 +252,100 @@ Map<String, Object?> _runSmokeEvidence({
           ),
         },
     ],
+  };
+}
+
+Map<String, Object?> _postLaunchScreenshotEvidenceSummary({
+  required List<String> mobilePlatforms,
+  required List<WorkflowTargetResult> results,
+}) {
+  if (mobilePlatforms.isEmpty) {
+    return const {'status': 'notApplicable'};
+  }
+  final mobilePlatformSet = mobilePlatforms.toSet();
+  var successfulMobileRunTargetCount = 0;
+  var capturedTargetCount = 0;
+  var failedTargetCount = 0;
+  var skippedTargetCount = 0;
+  var missingTargetCount = 0;
+  final paths = <String>[];
+  final failures = <Map<String, Object?>>[];
+  for (final result in results) {
+    for (final step in result.steps) {
+      if (!_isRunStep(step)) {
+        continue;
+      }
+      final platform = _stepPlatform(step);
+      if (platform == null || !mobilePlatformSet.contains(platform)) {
+        continue;
+      }
+      if (step.status != 'passed') {
+        continue;
+      }
+      successfulMobileRunTargetCount += 1;
+      final evidence = step.details['postLaunchScreenshot'];
+      if (evidence is! Map) {
+        missingTargetCount += 1;
+        continue;
+      }
+      final status = evidence['status'];
+      if (status == 'passed') {
+        capturedTargetCount += 1;
+        final path = evidence['path'];
+        if (path is String && path.isNotEmpty) {
+          paths.add(path);
+        }
+      } else if (status == 'skipped') {
+        skippedTargetCount += 1;
+        failures.add(_postLaunchScreenshotIssue(platform, evidence));
+      } else {
+        failedTargetCount += 1;
+        failures.add(_postLaunchScreenshotIssue(platform, evidence));
+      }
+    }
+  }
+  final status = successfulMobileRunTargetCount == 0
+      ? 'notCollectedByThisCommand'
+      : capturedTargetCount == successfulMobileRunTargetCount
+      ? 'postLaunchScreenshotEvidencePresent'
+      : capturedTargetCount > 0
+      ? 'partialPostLaunchScreenshotEvidence'
+      : 'notCollectedByThisCommand';
+  return {
+    'status': status,
+    'targetCount': successfulMobileRunTargetCount,
+    'capturedTargetCount': capturedTargetCount,
+    'failedTargetCount': failedTargetCount,
+    'skippedTargetCount': skippedTargetCount,
+    'missingTargetCount': missingTargetCount,
+    if (paths.isNotEmpty) 'paths': paths,
+    if (failures.isNotEmpty) 'issues': failures,
+  };
+}
+
+bool _isRunStep(WorkflowStepResult step) {
+  return step.name.startsWith('example-run-') ||
+      step.name.startsWith('project-run-');
+}
+
+String? _stepPlatform(WorkflowStepResult step) {
+  final platform = step.details['platform'];
+  if (platform is String && platform.trim().isNotEmpty) {
+    return platform.trim().toLowerCase();
+  }
+  final match = RegExp(r'-(ohos|android|ios)$').firstMatch(step.name);
+  return match?.group(1);
+}
+
+Map<String, Object?> _postLaunchScreenshotIssue(
+  String platform,
+  Map<Object?, Object?> evidence,
+) {
+  return {
+    'platform': platform,
+    if (evidence['status'] != null) 'status': evidence['status'],
+    if (evidence['reason'] != null) 'reason': evidence['reason'],
+    if (evidence['path'] != null) 'path': evidence['path'],
   };
 }
 

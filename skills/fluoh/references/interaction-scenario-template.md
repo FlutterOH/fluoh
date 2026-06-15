@@ -37,6 +37,10 @@ write one row for every exposed or requestable item on every supported platform,
 and add separate rows for grant, deny, success, failure, or error paths when the
 package reports different states. Do not sample a representative item when the
 package exposes more.
+When `fluoh package discover --json` or a package plan provides
+`adaptationProfile.suggestedCoverage`, copy those suggested categories, items,
+and paths into this matrix first, then refine them against the actual public
+API, example controls, and platform behavior.
 
 | Category | Item | Path | Status | Evidence |
 | --- | --- | --- | --- | --- |
@@ -44,7 +48,7 @@ package exposes more.
 | publicApi | formatValue | error | covered | Scenario or integration test asserts invalid-input handling |
 | methodChannel | openPicker | error | notApplicable | Covered by a package test because the host callback is mocked |
 | platformChannel | sample/events | success | blocked | Repair item: add native stream fixture or scenario evidence |
-| exampleFlow | main | success | covered | Launch and assertion prove the example entry point works |
+| exampleFlow | main | success | covered | Launch plus a post-launch functional assertion prove the example entry point works |
 | permission | camera | grant | covered | Scenario action and log/status assertion |
 | permission | camera | deny | covered | Scenario action and denied status assertion |
 | permission | photos | grant | blocked | Repair item: use a target/profile that exposes the permission, or mark notApplicable only if the platform has no such behavior |
@@ -76,11 +80,23 @@ its normalized `coverageItem`, and suggested coverage rows when grant/success
 or denied/error paths are missing. Each applicable `category`/`item` should
 include both a successful path and a denied, cancelled, failure, or error path;
 use `notApplicable` only when a path does not exist on the selected platform.
-Every scenario with `covered` rows should include at least one tool-readable
-verification action such as `assertText`, `waitText`, `assertLog`, or
-`assertSession`; clicks alone are not evidence. Scenarios whose rows are only
-`notApplicable` do not need runtime assertions, but those rows still need
-concrete reasons. Scenarios with `blocked` rows should stay in the repair queue.
+Every scenario with `covered` rows should include real interaction actions when
+the flow is interactive, plus at least one tool-readable functional assertion
+such as `assertText`, `waitText`, or `assertLog` after the result changes.
+`assertSession`, `launchApp`, `wait`, and screenshots are launch or visual
+sanity evidence only; they cannot prove permission grant/deny, public API,
+method-channel, platform-channel, example-flow, or negative-path coverage.
+Scenarios whose rows are only `notApplicable` do not need runtime assertions,
+but those rows still need concrete reasons. Scenarios with `blocked` rows
+should stay in the repair queue.
+For strongest evidence, bind each covered row to concrete steps with
+`interactionStep` and `assertionStep`. `interactionStep` should point to the
+step that performs the permission/action flow, and `assertionStep` must point
+to `assertText`, `waitText`, or `assertLog`. `fluoh drive --dry-run --json`
+reports `coverageEvidenceBindings`; when a row is weak, copy
+`suggestedScenarioPatch.coverageUpdates` and append
+`suggestedScenarioPatch.steps`, then adjust TODO labels or log markers and
+rerun the printed command.
 
 ## Scenario
 
@@ -107,9 +123,13 @@ coverage:
   - category: permission
     item: camera
     path: grant
+    interactionStep: 2
+    assertionStep: 3
   - category: permission
     item: camera
     path: deny
+    interactionStep: 5
+    assertionStep: 6
 steps:
   - action: tapText
     labels: [Open camera]
@@ -119,8 +139,18 @@ steps:
     labels: [Allow]
     repairHints:
       - Trigger the runtime permission request before this step.
+  - action: assertText
+    labels: [Camera permission granted]
+    repairHints:
+      - Render stable result text, a semantics label, or a test key after permission grant.
+  - action: tapText
+    labels: [Open camera]
+  - action: denyPermission
+    labels: [Deny]
+    repairHints:
+      - Reset the permission before the deny path when the platform keeps prior grants.
   - action: assertLog
-    contains: camera permission granted
+    contains: camera permission denied
     repairHints:
       - Emit a structured app log marker after the permission result is handled.
   - action: assertSession
@@ -144,8 +174,8 @@ Supported first-pass actions:
   `permission`. `tapText`, `waitText`, and `assertText` use the built-in XCTest
   runner to match app UI by label, identifier, or value. Coordinate `tap`,
   `swipe`, and `drag` also use the built-in XCTest runner and require
-  `bundleId`. Prefer `assertText`, `waitText`, and `assertSession` for state
-  produced by post-launch UI interactions; bounded Flutter run log capture may
+  `bundleId`. Prefer `assertText` and `waitText` for state produced by
+  post-launch UI interactions; bounded Flutter run log capture may
   not include `debugPrint` output emitted after scenario actions. `assertLog`
   checks captured Flutter run output and is best for startup markers or other
   output known to be inside the captured log window. For

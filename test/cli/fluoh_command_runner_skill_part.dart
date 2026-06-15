@@ -69,6 +69,7 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(output, contains('References app-project-flow.md'));
     expect(output, contains('package-adaptation-flow.md'));
     expect(output, contains('automation-evidence-flow.md'));
+    expect(output, contains('independent-review-flow.md'));
     expect(output, contains('source-maintenance-flow.md'));
     expect(output, contains('report-template.md'));
     expect(output, contains('interaction-scenario-template.md'));
@@ -267,6 +268,7 @@ void _registerFluohCommandRunnerSkillTests() {
         'appProjectFlow',
         'packageAdaptationFlow',
         'automationEvidenceFlow',
+        'independentReviewFlow',
         'sourceMaintenanceFlow',
         'reportTemplate',
         'interactionScenarioTemplate',
@@ -297,6 +299,16 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(
       automationEvidenceFlow['path'],
       allOf(isA<String>(), contains('automation-evidence-flow.md')),
+    );
+    final independentReviewFlow =
+        references['independentReviewFlow'] as Map<String, Object?>;
+    expect(
+      independentReviewFlow['relativePath'],
+      'references/independent-review-flow.md',
+    );
+    expect(
+      independentReviewFlow['path'],
+      allOf(isA<String>(), contains('independent-review-flow.md')),
     );
     final sourceMaintenanceFlow =
         references['sourceMaintenanceFlow'] as Map<String, Object?>;

@@ -76,6 +76,7 @@ class PackageDiscoveryCandidate {
     required this.path,
     required this.platforms,
     required this.role,
+    required this.adaptationProfile,
     this.platformDefaultPackages = const {},
     this.coveredByImplementationRecommendations = const [],
     this.defaultRecommendationExclusionReason,
@@ -99,6 +100,9 @@ class PackageDiscoveryCandidate {
 
   /// Discovery role for AI package selection.
   final String role;
+
+  /// Capability and risk profile that helps AI seed adaptation tests.
+  final PackageAdaptationProfile adaptationProfile;
 
   /// Federated default_package declarations keyed by platform.
   final Map<String, String> platformDefaultPackages;
@@ -180,6 +184,7 @@ class PackageDiscoveryCandidate {
       'path': path,
       'platforms': platforms,
       'role': role,
+      'adaptationProfile': adaptationProfile.toJson(),
       if (platformDefaultPackages.isNotEmpty)
         'platformDefaultPackages': platformDefaultPackages,
       'missingPlatforms': missingPlatforms,
@@ -215,6 +220,7 @@ class PackageDiscoveryCandidate {
       sdkConstraint: sdkConstraint,
       platforms: platforms,
       role: role,
+      adaptationProfile: adaptationProfile,
       platformDefaultPackages: platformDefaultPackages,
       coveredByImplementationRecommendations:
           coveredByImplementationRecommendations ??
@@ -223,6 +229,110 @@ class PackageDiscoveryCandidate {
           defaultRecommendationExclusionReason,
     );
   }
+}
+
+/// Capability and risk profile for a discovered package adaptation target.
+class PackageAdaptationProfile {
+  /// Creates a package adaptation profile.
+  const PackageAdaptationProfile({
+    required this.complexity,
+    required this.categories,
+    required this.riskReasons,
+    required this.requiredEvidence,
+    required this.suggestedCoverage,
+    required this.officialDocsRequired,
+    required this.officialDocTopics,
+    this.blockerPolicy,
+  });
+
+  /// Expected adaptation complexity: `low`, `medium`, `high`, or `external`.
+  final String complexity;
+
+  /// Capability categories inferred from package metadata.
+  final List<String> categories;
+
+  /// Stable reasons why the adaptation needs special attention.
+  final List<String> riskReasons;
+
+  /// Evidence types that should be collected before release readiness.
+  final List<String> requiredEvidence;
+
+  /// Coverage rows that can seed interaction scenarios or package tests.
+  final List<PackageSuggestedCoverage> suggestedCoverage;
+
+  /// Whether official OHOS/platform documentation should be reviewed.
+  final bool officialDocsRequired;
+
+  /// Official documentation topics the adaptation should cite or disposition.
+  final List<String> officialDocTopics;
+
+  /// External blocker policy when a vendor SDK or service may be unavailable.
+  final Map<String, String>? blockerPolicy;
+
+  /// Converts this profile to JSON.
+  Map<String, Object?> toJson() {
+    return {
+      'complexity': complexity,
+      'categories': categories,
+      if (riskReasons.isNotEmpty) 'riskReasons': riskReasons,
+      'requiredEvidence': requiredEvidence,
+      if (suggestedCoverage.isNotEmpty)
+        'suggestedCoverage': suggestedCoverage
+            .map((coverage) => coverage.toJson())
+            .toList(),
+      'officialDocsRequired': officialDocsRequired,
+      if (officialDocTopics.isNotEmpty) 'officialDocTopics': officialDocTopics,
+      if (blockerPolicy != null) 'blockerPolicy': blockerPolicy,
+    };
+  }
+}
+
+/// Suggested functional coverage for an inferred package capability.
+class PackageSuggestedCoverage {
+  /// Creates a suggested coverage row.
+  const PackageSuggestedCoverage({
+    required this.category,
+    required this.item,
+    required this.paths,
+    required this.evidence,
+  });
+
+  /// Capability category compatible with scenario coverage metadata.
+  final String category;
+
+  /// Concrete behavior or API group to cover.
+  final String item;
+
+  /// Success, error, denied, unavailable, or lifecycle paths to cover.
+  final List<String> paths;
+
+  /// Tool-readable evidence expected from the adaptation.
+  final String evidence;
+
+  /// Converts this suggestion to JSON.
+  Map<String, Object?> toJson() {
+    return {
+      'category': category,
+      'item': item,
+      'paths': paths,
+      'evidence': evidence,
+    };
+  }
+}
+
+/// Infers a package adaptation profile from package metadata.
+PackageAdaptationProfile inferPackageAdaptationProfile({
+  required String name,
+  String path = '.',
+  String? description,
+  Set<String> dependencyNames = const {},
+}) {
+  return _adaptationProfile(
+    name: name,
+    path: path,
+    description: description,
+    dependencyNames: dependencyNames,
+  );
 }
 
 /// Recommended federated implementation package for a discovery candidate.
@@ -667,6 +777,12 @@ Future<PackageDiscoveryCandidate?> _readDiscoveryCandidate(
     sdkConstraint: _sdkConstraint(yaml, relativePubspec, issues),
     platforms: platforms.names,
     role: role,
+    adaptationProfile: _adaptationProfile(
+      name: name,
+      path: packagePath,
+      description: optionalString(yaml, 'description'),
+      dependencyNames: _dependencyNames(yaml),
+    ),
     platformDefaultPackages: platforms.defaultPackages,
     defaultRecommendationExclusionReason: _defaultRecommendationExclusionReason(
       role,
@@ -698,6 +814,584 @@ String? _defaultRecommendationExclusionReason(String role) {
     'platform_specific_helper' => 'platform_specific_helper_package',
     _ => null,
   };
+}
+
+PackageAdaptationProfile _adaptationProfile({
+  required String name,
+  required String path,
+  required String? description,
+  required Set<String> dependencyNames,
+}) {
+  final haystack = [
+    name,
+    path,
+    ?description,
+    ...dependencyNames,
+  ].join(' ').toLowerCase();
+  bool has(String token) => haystack.contains(token);
+
+  final categories = <String>{};
+  void add(String category) => categories.add(category);
+
+  if (has('path_provider')) add('filesystem-path');
+  if (has('shared_preferences') || has('preferences')) {
+    add('key-value-storage');
+  }
+  if (has('url_launcher') || has('launcher')) add('external-intent');
+  if (has('package_info')) add('package-metadata');
+  if (has('device_info')) add('device-info');
+  if (has('secure_storage') || has('secure storage')) add('secure-storage');
+  if (has('file_picker') || has('file selector')) add('file-picker');
+  if (has('connectivity')) add('network-state');
+  if (has('share_plus') || has('share sheet')) add('share-sheet');
+  if (has('permission_handler') || has('permission')) {
+    add('runtime-permission');
+  }
+  if (has('webview')) add('webview');
+  if (has('video_player') || has('audioplayers') || has('just_audio')) {
+    add('media-playback');
+  }
+  if (has('image_picker') || has('camera') || has('photo')) {
+    add('media-capture');
+  }
+  if (has('sqflite') || has('sqlite')) add('database');
+  if (has('notification')) add('notification');
+  if (has('wakelock')) add('screen-state');
+  if (has('app_links') || has('deep link') || has('universal link')) {
+    add('deep-link');
+  }
+  if (has('geolocator') || has('geocoding') || has('location')) {
+    add('location');
+  }
+  if (has('firebase')) {
+    add('firebase-service');
+    add('external-service');
+  }
+  if (has('messaging') || has('push')) add('push-messaging');
+  if (has('google_sign_in') || has('sign_in') || has('auth')) {
+    add('auth');
+  }
+  if (has('google_maps') || has('map')) {
+    add('map-view');
+    if (has('google_maps')) add('external-service');
+  }
+  if (has('mobile_scanner') || has('barcode') || has('qr')) {
+    add('camera-scanner');
+  }
+  if (has('local_auth') || has('biometric')) add('biometric-auth');
+  if (has('in_app_purchase') || has('billing')) {
+    add('store-billing');
+    add('external-service');
+  }
+  if (has('sensor')) add('sensor-stream');
+  if (has('printing') || has('printer')) add('printing');
+  if (has('toast')) add('toast');
+  if (has('record') || has('microphone')) add('audio-recording');
+
+  if (categories.any(
+    const {
+      'media-capture',
+      'camera-scanner',
+      'notification',
+      'location',
+      'audio-recording',
+      'biometric-auth',
+    }.contains,
+  )) {
+    add('runtime-permission');
+  }
+
+  if (categories.isEmpty) {
+    add('platform-channel');
+  }
+
+  final riskReasons = <String>{};
+  final requiredEvidence = <String>{
+    'package-tests',
+    'example-page-readiness',
+    'platform-build-run',
+  };
+  final suggestedCoverage = <PackageSuggestedCoverage>[];
+
+  void addCoverage({
+    required String category,
+    required String item,
+    required List<String> paths,
+    required String evidence,
+  }) {
+    suggestedCoverage.add(
+      PackageSuggestedCoverage(
+        category: category,
+        item: item,
+        paths: paths,
+        evidence: evidence,
+      ),
+    );
+  }
+
+  for (final category in categories) {
+    switch (category) {
+      case 'filesystem-path':
+        requiredEvidence.add('path-exists-and-is-writable');
+        addCoverage(
+          category: category,
+          item: 'temporary documents cache and support paths',
+          paths: const ['success', 'unavailable'],
+          evidence:
+              'assert returned paths exist or return upstream-compatible unavailable errors',
+        );
+      case 'key-value-storage':
+        requiredEvidence.add('read-write-delete-persistence');
+        addCoverage(
+          category: category,
+          item: 'primitive value persistence',
+          paths: const ['write-read', 'remove', 'clear'],
+          evidence:
+              'assert values survive plugin reinitialization and are removed when requested',
+        );
+      case 'external-intent':
+        riskReasons.add('external-app-or-scheme-availability');
+        requiredEvidence.add('external-launch-success-and-unavailable-path');
+        addCoverage(
+          category: category,
+          item: 'launchable and unavailable URI schemes',
+          paths: const ['success', 'unavailable', 'error'],
+          evidence:
+              'assert launch result, error shape, or explicit unsupported state',
+        );
+      case 'package-metadata':
+        addCoverage(
+          category: category,
+          item: 'package identity and version fields',
+          paths: const ['success'],
+          evidence:
+              'assert package name, version, build number, and installer fields where supported',
+        );
+      case 'device-info':
+        requiredEvidence.add('device-info-field-coverage');
+        addCoverage(
+          category: category,
+          item: 'device and OS metadata',
+          paths: const ['success', 'field-unavailable'],
+          evidence:
+              'assert stable required fields and explicit null or unsupported values for unavailable fields',
+        );
+      case 'secure-storage':
+        riskReasons.add('secure-key-store-and-persistence');
+        requiredEvidence.add('secure-read-write-delete-persistence');
+        addCoverage(
+          category: category,
+          item: 'secure value lifecycle',
+          paths: const ['write-read', 'delete', 'reinstall-or-restart'],
+          evidence: 'assert encrypted storage behavior and deletion semantics',
+        );
+      case 'file-picker':
+        riskReasons.add('system-picker-ui');
+        requiredEvidence.add('picker-success-cancel-error');
+        addCoverage(
+          category: category,
+          item: 'native file picker result',
+          paths: const ['single', 'multiple', 'cancel', 'type-filter'],
+          evidence:
+              'assert picked file metadata, cancel result, and unsupported filter handling',
+        );
+      case 'network-state':
+        requiredEvidence.add('state-stream-update');
+        addCoverage(
+          category: category,
+          item: 'current network state and change stream',
+          paths: const ['initial-state', 'state-change', 'unavailable'],
+          evidence:
+              'assert current result and at least one emitted stream update or explicit environment blocker',
+        );
+      case 'share-sheet':
+        riskReasons.add('external-system-ui');
+        requiredEvidence.add('share-result-or-unavailable-path');
+        addCoverage(
+          category: category,
+          item: 'platform share action',
+          paths: const ['text', 'file', 'cancel-or-unavailable'],
+          evidence:
+              'assert share command result, platform UI launch, or upstream-compatible unavailable result',
+        );
+      case 'runtime-permission':
+        riskReasons.add('runtime-permission-matrix');
+        requiredEvidence.add('permission-grant-deny');
+        addCoverage(
+          category: category,
+          item: 'runtime permission request result',
+          paths: const ['grant', 'deny', 'permanently-denied', 'unsupported'],
+          evidence:
+              'assert permission state and behavior after grant and denied/error paths',
+        );
+      case 'webview':
+        riskReasons.add('embedded-native-view');
+        requiredEvidence.add('webview-navigation-js-lifecycle');
+        addCoverage(
+          category: category,
+          item: 'webview navigation and JavaScript bridge',
+          paths: const ['load', 'navigation-delegate', 'javascript', 'error'],
+          evidence:
+              'assert page load, callback logs, JavaScript result, and load error handling',
+        );
+      case 'media-playback':
+        riskReasons.add('media-codec-texture-lifecycle');
+        requiredEvidence.add('media-playback-lifecycle');
+        addCoverage(
+          category: category,
+          item: 'media playback controller',
+          paths: const ['initialize', 'play-pause', 'seek', 'dispose', 'error'],
+          evidence:
+              'assert controller state, duration or position, playback transitions, and error shape',
+        );
+      case 'media-capture':
+        riskReasons.add('hardware-or-system-picker');
+        requiredEvidence.add('capture-picker-success-cancel-error');
+        addCoverage(
+          category: category,
+          item: 'camera or gallery capture result',
+          paths: const [
+            'capture-or-pick',
+            'cancel',
+            'permission-denied',
+            'error',
+          ],
+          evidence:
+              'assert returned media metadata or upstream-compatible null/error result',
+        );
+      case 'database':
+        requiredEvidence.add('database-crud-transaction');
+        addCoverage(
+          category: category,
+          item: 'database lifecycle and CRUD',
+          paths: const [
+            'open',
+            'insert-query-update-delete',
+            'transaction',
+            'close',
+          ],
+          evidence:
+              'assert persisted rows, transaction behavior, and close/reopen lifecycle',
+        );
+      case 'notification':
+        riskReasons.add('notification-permission-and-background');
+        requiredEvidence.add('notification-show-schedule-tap');
+        addCoverage(
+          category: category,
+          item: 'local notification display and callback',
+          paths: const ['show', 'schedule', 'tap', 'permission-denied'],
+          evidence:
+              'assert notification command result, callback/log evidence, and denied path',
+        );
+      case 'screen-state':
+        requiredEvidence.add('screen-awake-toggle');
+        addCoverage(
+          category: category,
+          item: 'wakelock enable disable state',
+          paths: const ['enable', 'disable'],
+          evidence: 'assert plugin state or platform flag after toggling',
+        );
+      case 'deep-link':
+        riskReasons.add('platform-routing-configuration');
+        requiredEvidence.add('deep-link-cold-warm-start');
+        addCoverage(
+          category: category,
+          item: 'incoming app link',
+          paths: const ['cold-start', 'warm-start', 'unmatched-link'],
+          evidence:
+              'assert delivered URI from platform launch or exact unsupported environment blocker',
+        );
+      case 'location':
+        riskReasons.add('location-permission-and-service-state');
+        requiredEvidence.add('location-grant-deny-service-disabled');
+        addCoverage(
+          category: category,
+          item: 'current position and service state',
+          paths: const [
+            'grant-position',
+            'deny',
+            'service-disabled',
+            'timeout',
+          ],
+          evidence:
+              'assert position result, permission denied error, disabled service error, or timeout handling',
+        );
+      case 'firebase-service':
+      case 'external-service':
+        riskReasons.add('external-service-sdk');
+        requiredEvidence.add('sdk-availability-and-credential-blocker');
+        addCoverage(
+          category: category,
+          item: 'vendor SDK initialization or explicit blocker',
+          paths: const [
+            'sdk-available',
+            'sdk-unavailable',
+            'credential-missing',
+          ],
+          evidence:
+              'record SDK availability, credential requirements, and upstream-compatible initialization result',
+        );
+      case 'push-messaging':
+        riskReasons.add('push-provider-service');
+        requiredEvidence.add('push-token-foreground-background');
+        addCoverage(
+          category: category,
+          item: 'push token and message delivery',
+          paths: const [
+            'token',
+            'foreground',
+            'background',
+            'permission-denied',
+          ],
+          evidence: 'assert token/callback evidence or exact provider blocker',
+        );
+      case 'auth':
+        riskReasons.add('account-provider-or-credential-service');
+        requiredEvidence.add('auth-success-cancel-error');
+        addCoverage(
+          category: category,
+          item: 'sign-in flow',
+          paths: const ['success', 'cancel', 'credential-error'],
+          evidence:
+              'assert account result, cancel result, or provider unavailable blocker',
+        );
+      case 'map-view':
+        riskReasons.add('map-sdk-and-embedded-view');
+        requiredEvidence.add('map-render-camera-marker');
+        addCoverage(
+          category: category,
+          item: 'map render and camera movement',
+          paths: const ['render', 'camera-update', 'marker', 'sdk-unavailable'],
+          evidence:
+              'assert map readiness callback, visible state, or SDK blocker',
+        );
+      case 'camera-scanner':
+        riskReasons.add('camera-and-frame-processing');
+        requiredEvidence.add('scanner-detect-permission-error');
+        addCoverage(
+          category: category,
+          item: 'camera scanner result',
+          paths: const ['detect', 'permission-denied', 'camera-unavailable'],
+          evidence: 'assert decoded result or exact camera/permission blocker',
+        );
+      case 'biometric-auth':
+        riskReasons.add('biometric-hardware-and-enrollment');
+        requiredEvidence.add('biometric-success-cancel-error');
+        addCoverage(
+          category: category,
+          item: 'biometric authentication',
+          paths: const [
+            'success',
+            'cancel',
+            'not-enrolled',
+            'hardware-unavailable',
+          ],
+          evidence: 'assert auth result or exact hardware/enrollment blocker',
+        );
+      case 'store-billing':
+        riskReasons.add('store-provider-and-sandbox-account');
+        requiredEvidence.add('billing-query-purchase-error');
+        addCoverage(
+          category: category,
+          item: 'store billing',
+          paths: const [
+            'query-products',
+            'purchase',
+            'restore',
+            'provider-unavailable',
+          ],
+          evidence:
+              'assert product or purchase result or store provider blocker',
+        );
+      case 'sensor-stream':
+        requiredEvidence.add('sensor-stream-values');
+        addCoverage(
+          category: category,
+          item: 'sensor event stream',
+          paths: const ['initial-listen', 'event', 'unavailable'],
+          evidence: 'assert emitted values or unsupported sensor state',
+        );
+      case 'printing':
+        riskReasons.add('external-print-service');
+        requiredEvidence.add('print-layout-preview-error');
+        addCoverage(
+          category: category,
+          item: 'print or PDF layout action',
+          paths: const ['layout', 'print', 'service-unavailable'],
+          evidence:
+              'assert layout callback, platform print handoff, or unavailable result',
+        );
+      case 'toast':
+        addCoverage(
+          category: category,
+          item: 'toast display request',
+          paths: const ['show', 'cancel-or-unavailable'],
+          evidence: 'assert platform request result or app log marker',
+        );
+      case 'audio-recording':
+        riskReasons.add('microphone-permission-and-codec');
+        requiredEvidence.add('record-start-stop-permission-error');
+        addCoverage(
+          category: category,
+          item: 'audio recording lifecycle',
+          paths: const [
+            'start',
+            'stop',
+            'permission-denied',
+            'codec-unavailable',
+          ],
+          evidence:
+              'assert output metadata, state transitions, and denied/error paths',
+        );
+      case 'platform-channel':
+        requiredEvidence.add('public-api-success-and-error-paths');
+        addCoverage(
+          category: category,
+          item: 'public platform channel API',
+          paths: const ['success', 'error', 'unsupported'],
+          evidence:
+              'assert public API result, error shape, and unsupported platform behavior',
+        );
+    }
+  }
+
+  final sortedCategories = categories.toList()..sort();
+  final sortedRiskReasons = riskReasons.toList()..sort();
+  final officialDocTopics = _officialDocTopicsForCategories(categories);
+  final sortedRequiredEvidence = requiredEvidence.toList()..sort();
+  if (officialDocTopics.isNotEmpty) {
+    sortedRequiredEvidence.add('official-platform-docs-reviewed');
+    sortedRequiredEvidence.sort();
+  }
+  final complexity = _profileComplexity(
+    categories: categories,
+    riskReasons: riskReasons,
+  );
+
+  return PackageAdaptationProfile(
+    complexity: complexity,
+    categories: List.unmodifiable(sortedCategories),
+    riskReasons: List.unmodifiable(sortedRiskReasons),
+    requiredEvidence: List.unmodifiable(sortedRequiredEvidence),
+    suggestedCoverage: List.unmodifiable(suggestedCoverage),
+    officialDocsRequired: officialDocTopics.isNotEmpty,
+    officialDocTopics: List.unmodifiable(officialDocTopics),
+    blockerPolicy: riskReasons.contains('external-service-sdk')
+        ? const {
+            'decision': 'needsMaintainerDecisionWhenSdkUnavailable',
+            'evidence':
+                'Record vendor SDK availability, credentials, service account requirements, and compatible fallback or unsupported result.',
+          }
+        : null,
+  );
+}
+
+List<String> _officialDocTopicsForCategories(Set<String> categories) {
+  final topics = <String>{
+    'OpenHarmony Flutter platform plugin and Platform Channel integration',
+  };
+  for (final category in categories) {
+    final topic = switch (category) {
+      'runtime-permission' =>
+        'OpenHarmony permission declaration and runtime authorization',
+      'media-capture' || 'camera-scanner' =>
+        'OpenHarmony camera, media picker, and media library APIs',
+      'file-picker' || 'filesystem-path' =>
+        'OpenHarmony file picker, sandbox, and application file directories',
+      'location' => 'OpenHarmony location service and permission APIs',
+      'notification' =>
+        'OpenHarmony notification service, permissions, and callbacks',
+      'webview' => 'OpenHarmony Web component lifecycle and JavaScript bridge',
+      'media-playback' =>
+        'OpenHarmony media playback, texture, and lifecycle APIs',
+      'audio-recording' => 'OpenHarmony microphone and audio recording APIs',
+      'network-state' => 'OpenHarmony network state and connectivity APIs',
+      'share-sheet' || 'external-intent' || 'deep-link' =>
+        'OpenHarmony Want, URI, sharing, and application routing APIs',
+      'secure-storage' => 'OpenHarmony keystore and secure storage APIs',
+      'device-info' || 'package-metadata' =>
+        'OpenHarmony device, bundle, and application metadata APIs',
+      'database' => 'OpenHarmony data persistence and SQLite APIs',
+      'screen-state' => 'OpenHarmony display and screen awake APIs',
+      'firebase-service' ||
+      'external-service' ||
+      'push-messaging' ||
+      'auth' ||
+      'map-view' ||
+      'store-billing' =>
+        'Official vendor SDK documentation and OpenHarmony availability policy',
+      'biometric-auth' => 'OpenHarmony user authentication and biometric APIs',
+      'sensor-stream' => 'OpenHarmony sensor subscription APIs',
+      'printing' => 'OpenHarmony print or document rendering service APIs',
+      'key-value-storage' =>
+        'OpenHarmony preferences or key-value storage APIs',
+      'toast' => 'OpenHarmony prompt or toast UI APIs',
+      'platform-channel' =>
+        'OpenHarmony Flutter platform plugin and Platform Channel integration',
+      _ => null,
+    };
+    if (topic != null) {
+      topics.add(topic);
+    }
+  }
+  return (topics.toList()..sort()).toList(growable: false);
+}
+
+String _profileComplexity({
+  required Set<String> categories,
+  required Set<String> riskReasons,
+}) {
+  if (riskReasons.contains('external-service-sdk') ||
+      categories.contains('store-billing')) {
+    return 'external';
+  }
+  if (categories.any(
+    const {
+      'runtime-permission',
+      'webview',
+      'media-capture',
+      'media-playback',
+      'notification',
+      'location',
+      'map-view',
+      'camera-scanner',
+      'biometric-auth',
+      'push-messaging',
+      'audio-recording',
+    }.contains,
+  )) {
+    return 'high';
+  }
+  if (categories.any(
+    const {
+      'external-intent',
+      'secure-storage',
+      'file-picker',
+      'share-sheet',
+      'deep-link',
+      'network-state',
+      'printing',
+      'sensor-stream',
+    }.contains,
+  )) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+Set<String> _dependencyNames(Map<String, Object?> yaml) {
+  final names = <String>{};
+  for (final key in const [
+    'dependencies',
+    'dev_dependencies',
+    'dependency_overrides',
+  ]) {
+    final dependencies = yaml[key];
+    if (dependencies is Map<String, Object?>) {
+      names.addAll(dependencies.keys);
+    }
+  }
+  return names;
 }
 
 bool _isTestFixturePath(String path) {

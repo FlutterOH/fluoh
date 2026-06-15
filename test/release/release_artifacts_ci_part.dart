@@ -74,6 +74,11 @@ void _registerReleaseArtifactsCiTests() {
     expect(prWorkflow, contains('area:schema'));
     expect(prWorkflow, contains('area:platform'));
     expect(prWorkflow, contains('area:skill'));
+    expect(prWorkflow, contains('skill_command\\.dart'));
+    expect(
+      prWorkflow,
+      contains('test/cli/fluoh_command_runner_skill_part.dart'),
+    );
     expect(prWorkflow, contains('area:release'));
     expect(prWorkflow, contains('JSON contract impact'));
     expect(prWorkflow, contains('Suggested focused tests'));
@@ -247,7 +252,7 @@ void _registerReleaseArtifactsCiTests() {
         'acceptance',
         'output_contract',
         'safety',
-        'compatibility',
+        'contract_release_impact',
         'alternatives',
       ]),
     );
@@ -257,7 +262,7 @@ void _registerReleaseArtifactsCiTests() {
     expect(featureTemplate, contains('Acceptance criteria'));
     expect(featureTemplate, contains('CLI, JSON, and file contract'));
     expect(featureTemplate, contains('Safety and local state'));
-    expect(featureTemplate, contains('Compatibility and release impact'));
+    expect(featureTemplate, contains('Contract and release impact'));
     expect(configYaml['blank_issues_enabled'], isFalse);
     final contactLinks = configYaml['contact_links'] as YamlList;
     expect(contactLinks, hasLength(2));

@@ -231,7 +231,10 @@ void _registerWorkflowCommandsProjectTests() {
         0,
       );
 
-      expect(await hdcLog.exists(), isFalse);
+      final hdcInvocations = hdcLog.readAsStringSync();
+      expect(hdcInvocations, contains('snapshot_display'));
+      expect(hdcInvocations, isNot(contains(' install ')));
+      expect(hdcInvocations, isNot(contains(' aa start ')));
       final root = await environment.workingDirectory.resolveSymbolicLinks();
       final invocations = File(
         '${environment.workingDirectory.path}/package_workflow_invocations.txt',
@@ -366,6 +369,14 @@ fi
     final sessionFile =
         '${environment.workingDirectory.path}/.fluoh/project-ohos-session.json';
     expect(runDetails, containsPair('sessionFile', sessionFile));
+    final screenshot =
+        runDetails['postLaunchScreenshot'] as Map<String, Object?>;
+    final screenshotPath =
+        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/current-ohos-post-launch.jpeg';
+    expect(screenshot, containsPair('status', 'passed'));
+    expect(screenshot, containsPair('path', screenshotPath));
+    expect(screenshot, containsPair('bytes', greaterThan(0)));
+    expect(File(screenshotPath).existsSync(), isTrue);
     final session =
         jsonDecode(File(sessionFile).readAsStringSync())
             as Map<String, Object?>;

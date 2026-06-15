@@ -11,8 +11,12 @@ class _ScenarioEvidence {
   int get explanatoryCoverageItemCount =>
       scenario.coverage.length - coveredCoverageItemCount;
 
-  bool get needsReview =>
-      coveredCoverageItemCount > 0 && verificationActions.isEmpty;
+  bool get needsReview => evidenceGapCoverageItems.isNotEmpty;
+
+  bool get needsPageReadiness =>
+      coveredCoverageItemCount > 0 &&
+      launchEvidenceActions.isNotEmpty &&
+      pageReadinessActions.isEmpty;
 
   List<String> get verificationActions {
     return [
@@ -21,8 +25,78 @@ class _ScenarioEvidence {
     ];
   }
 
+  List<String> get launchEvidenceActions {
+    return [
+      for (final action in scenario.steps)
+        if (_isScenarioLaunchEvidenceAction(action.action)) action.action,
+    ];
+  }
+
+  List<String> get interactionActions {
+    return [
+      for (final action in scenario.steps)
+        if (_isScenarioInteractionAction(action.action)) action.action,
+    ];
+  }
+
+  List<String> get pageReadinessActions {
+    return [
+      for (final action in scenario.steps)
+        if (_isScenarioPageReadinessAction(action.action)) action.action,
+    ];
+  }
+
+  List<AutomationScenarioCoverageItem> get evidenceGapCoverageItems {
+    return [
+      for (final binding in coverageEvidenceBindings)
+        if (binding.needsReview) binding.item,
+    ];
+  }
+
+  List<_CoverageEvidenceBinding> get coverageEvidenceBindings {
+    return [
+      for (final item in scenario.coverage)
+        if (item.status == 'covered') _bindingFor(item),
+    ];
+  }
+
+  Map<String, Object?> pageReadinessJson() {
+    return {
+      'platform': scenario.platform,
+      'scenario': scenario.name,
+      'path': scenario.path.path,
+      'status': needsPageReadiness
+          ? 'needsPageReadinessEvidence'
+          : 'readyForReview',
+      'launchEvidenceActions': launchEvidenceActions,
+      'pageReadinessActions': pageReadinessActions,
+      if (needsPageReadiness)
+        'repair':
+            'Add a page readiness assertion such as assertText, waitText, or assertLog after launch. Screenshots remain supporting evidence only.',
+      if (needsPageReadiness)
+        'suggestedScenarioPatch': _suggestedScenarioPatch(
+          evidenceGapCoverageItems.isEmpty
+              ? scenario.coverage
+                    .where((item) => item.status == 'covered')
+                    .take(1)
+                    .toList()
+              : evidenceGapCoverageItems,
+        ),
+    };
+  }
+
   Map<String, Object?> toJson() {
     final actions = verificationActions;
+    final launchActions = launchEvidenceActions;
+    final interactions = interactionActions;
+    final evidenceGaps = evidenceGapCoverageItems;
+    final bindings = coverageEvidenceBindings;
+    final needsFunctionalEvidence = bindings.any(
+      (binding) => binding.missingFunctionalAssertion,
+    );
+    final needsInteractionEvidence = bindings.any(
+      (binding) => binding.missingInteraction,
+    );
     return {
       'platform': scenario.platform,
       'scenario': scenario.name,
@@ -30,29 +104,399 @@ class _ScenarioEvidence {
       'coverageItemCount': scenario.coverage.length,
       'coveredCoverageItemCount': coveredCoverageItemCount,
       'explanatoryCoverageItemCount': explanatoryCoverageItemCount,
-      'status': needsReview ? 'needsEvidenceAssertions' : 'readyForReview',
+      'status': needsReview ? 'needsFunctionalEvidence' : 'readyForReview',
       'verificationActions': actions,
+      'launchEvidenceActions': launchActions,
+      'interactionActions': interactions,
+      'pageReadinessActions': pageReadinessActions,
+      'coverageEvidenceBindings': bindings
+          .map((binding) => binding.toJson())
+          .toList(),
+      if (evidenceGaps.isNotEmpty)
+        'evidenceGaps': evidenceGaps.map((item) => item.toJson()).toList(),
       if (needsReview)
-        'repair':
-            'Add at least one tool-readable verification action after the interaction flow, such as assertText, waitText, assertLog, or assertSession.',
+        'repair': needsFunctionalEvidence
+            ? 'Add a functional tool-readable assertion after the interaction flow. assertSession, launchApp, wait, and screenshots only prove launch or visual sanity, not permission, public API, or behavior coverage.'
+            : needsInteractionEvidence
+            ? 'Add a real interaction step before the assertion, then rerun drive. Covered permission and behavior rows need action evidence plus a result assertion.'
+            : 'Add functional scenario evidence, then rerun drive.',
       if (needsReview)
         'suggestedActions': const [
+          {'action': 'tapText'},
+          {'action': 'allowPermission'},
+          {'action': 'denyPermission'},
           {'action': 'assertText'},
+          {'action': 'waitText'},
           {'action': 'assertLog'},
-          {'action': 'assertSession'},
         ],
+      if (needsReview)
+        'suggestedScenarioPatch': _suggestedScenarioPatch(evidenceGaps),
+    };
+  }
+
+  _CoverageEvidenceBinding _bindingFor(AutomationScenarioCoverageItem item) {
+    final actionsByStep = {
+      for (final action in scenario.steps) action.index: action,
+    };
+    final explicitProblems = <String>[];
+    final explicitInteraction = _explicitActionAt(
+      actionsByStep,
+      item.interactionStep,
+      expected: _isScenarioInteractionAction,
+      problem: 'interactionStepMustReferenceInteractionAction',
+      problems: explicitProblems,
+    );
+    final explicitAssertion = _explicitActionAt(
+      actionsByStep,
+      item.assertionStep,
+      expected: _isScenarioVerificationAction,
+      problem: 'assertionStepMustReferenceFunctionalAssertion',
+      problems: explicitProblems,
+    );
+    final evidenceActions = <AutomationScenarioAction>[];
+    for (final step in item.evidenceSteps) {
+      final action = actionsByStep[step];
+      if (action != null) {
+        evidenceActions.add(action);
+      }
+    }
+    AutomationScenarioAction? evidenceAssertion;
+    for (final action in evidenceActions) {
+      if (_isScenarioVerificationAction(action.action)) {
+        evidenceAssertion = action;
+        break;
+      }
+    }
+    final interaction = item.interactionStep == null
+        ? _inferInteractionAction(item)
+        : explicitInteraction;
+    final assertion = item.assertionStep == null
+        ? evidenceAssertion ?? _inferAssertionAction(after: interaction?.index)
+        : explicitAssertion;
+    final missingReasons = <String>[
+      ...explicitProblems,
+      if (_coverageNeedsInteractionAction(item) && interaction == null)
+        'missingInteractionStep',
+      if (assertion == null) 'missingFunctionalAssertionStep',
+    ];
+    return _CoverageEvidenceBinding(
+      item: item,
+      interactionAction: interaction,
+      assertionAction: assertion,
+      evidenceActions: evidenceActions,
+      bindingMode:
+          item.interactionStep != null ||
+              item.assertionStep != null ||
+              item.evidenceSteps.isNotEmpty
+          ? 'explicit'
+          : 'inferred',
+      missingReasons: missingReasons,
+    );
+  }
+
+  AutomationScenarioAction? _explicitActionAt(
+    Map<int, AutomationScenarioAction> actionsByStep,
+    int? step, {
+    required bool Function(String action) expected,
+    required String problem,
+    required List<String> problems,
+  }) {
+    if (step == null) {
+      return null;
+    }
+    final action = actionsByStep[step];
+    if (action == null) {
+      problems.add('stepNotFound:$step');
+      return null;
+    }
+    if (!expected(action.action)) {
+      problems.add('$problem:$step:${action.action}');
+      return null;
+    }
+    return action;
+  }
+
+  AutomationScenarioAction? _inferInteractionAction(
+    AutomationScenarioCoverageItem item,
+  ) {
+    if (!_coverageNeedsInteractionAction(item)) {
+      return null;
+    }
+    final expectedAction = _permissionInteractionAction(item.path);
+    for (final action in scenario.steps) {
+      if (expectedAction != null && action.action != expectedAction) {
+        continue;
+      }
+      if (expectedAction == null &&
+          !_isScenarioInteractionAction(action.action)) {
+        continue;
+      }
+      final permission = action.permission?.trim();
+      if (permission == null ||
+          permission.isEmpty ||
+          _normalizedCoveragePath(permission) ==
+              _normalizedCoveragePath(item.item)) {
+        return action;
+      }
+    }
+    return null;
+  }
+
+  AutomationScenarioAction? _inferAssertionAction({int? after}) {
+    for (final action in scenario.steps) {
+      if (after != null && action.index <= after) {
+        continue;
+      }
+      if (_isScenarioVerificationAction(action.action)) {
+        return action;
+      }
+    }
+    return null;
+  }
+
+  Map<String, Object?> _suggestedScenarioPatch(
+    List<AutomationScenarioCoverageItem> items,
+  ) {
+    final coverageUpdates = <Map<String, Object?>>[];
+    final steps = <Map<String, Object?>>[];
+    var nextStep = scenario.steps.length + 1;
+    for (final item in items.take(3)) {
+      int? interactionStep;
+      if (_coverageNeedsInteractionAction(item)) {
+        steps.add(_suggestedTriggerAction(item));
+        nextStep += 1;
+        interactionStep = nextStep;
+        steps.add(_suggestedInteractionAction(item));
+        nextStep += 1;
+      }
+      final assertionStep = nextStep;
+      steps.add(_suggestedAssertionAction(item));
+      nextStep += 1;
+      final coverageUpdate = <String, Object?>{
+        ...item.toJson(),
+        'assertionStep': assertionStep,
+      };
+      if (interactionStep != null) {
+        coverageUpdate['interactionStep'] = interactionStep;
+      }
+      coverageUpdates.add(coverageUpdate);
+    }
+    return {
+      'mode': 'updateCoverageRowsAndAppendSteps',
+      'path': scenario.path.path,
+      'coverageUpdates': coverageUpdates,
+      'steps': steps,
+      'yaml': _scenarioPatchYaml(coverageUpdates, steps),
+      'notes': const [
+        'Replace matching coverage rows with coverageUpdates.',
+        'Append steps, then adjust TODO labels/log markers to real app output.',
+        'Rerun the printed fluoh drive command.',
+      ],
+    };
+  }
+}
+
+class _CoverageEvidenceBinding {
+  const _CoverageEvidenceBinding({
+    required this.item,
+    required this.interactionAction,
+    required this.assertionAction,
+    required this.evidenceActions,
+    required this.bindingMode,
+    required this.missingReasons,
+  });
+
+  final AutomationScenarioCoverageItem item;
+  final AutomationScenarioAction? interactionAction;
+  final AutomationScenarioAction? assertionAction;
+  final List<AutomationScenarioAction> evidenceActions;
+  final String bindingMode;
+  final List<String> missingReasons;
+
+  bool get needsReview => missingReasons.isNotEmpty;
+
+  bool get missingInteraction => missingReasons.any(
+    (reason) =>
+        reason == 'missingInteractionStep' ||
+        reason.contains('interactionStep'),
+  );
+
+  bool get missingFunctionalAssertion => missingReasons.any(
+    (reason) =>
+        reason == 'missingFunctionalAssertionStep' ||
+        reason.contains('assertionStep'),
+  );
+
+  Map<String, Object?> toJson() {
+    return {
+      'coverage': item.toJson(),
+      'category': item.category,
+      'item': item.item,
+      if (item.path != null) 'path': item.path,
+      'status': needsReview ? 'needsFunctionalEvidence' : 'readyForReview',
+      'bindingMode': bindingMode,
+      if (interactionAction != null) ...{
+        'interactionStep': interactionAction!.index,
+        'interactionAction': interactionAction!.action,
+      },
+      if (assertionAction != null) ...{
+        'assertionStep': assertionAction!.index,
+        'assertionAction': assertionAction!.action,
+      },
+      if (evidenceActions.isNotEmpty)
+        'evidenceSteps': [
+          for (final action in evidenceActions)
+            {'step': action.index, 'action': action.action},
+        ],
+      if (missingReasons.isNotEmpty) 'missingReasons': missingReasons,
     };
   }
 }
 
 bool _isScenarioVerificationAction(String action) {
-  const verificationActions = {
-    'assertText',
-    'waitText',
-    'assertLog',
-    'assertSession',
-  };
+  const verificationActions = {'assertText', 'waitText', 'assertLog'};
   return verificationActions.contains(action);
+}
+
+bool _isScenarioLaunchEvidenceAction(String action) {
+  const launchEvidenceActions = {
+    'assertSession',
+    'launchApp',
+    'wait',
+    'captureScreenshot',
+    'screenshot',
+  };
+  return launchEvidenceActions.contains(action);
+}
+
+bool _isScenarioInteractionAction(String action) {
+  const interactionActions = {
+    'tap',
+    'tapText',
+    'allowPermission',
+    'denyPermission',
+    'resetPermission',
+    'clearAppData',
+    'swipe',
+    'drag',
+    'inputText',
+    'press',
+  };
+  return interactionActions.contains(action);
+}
+
+bool _coverageNeedsInteractionAction(AutomationScenarioCoverageItem item) {
+  final category = _normalizedCapabilityCategory(item.category);
+  if (category == 'permission') {
+    return true;
+  }
+  return false;
+}
+
+bool _isScenarioPageReadinessAction(String action) {
+  return _isScenarioVerificationAction(action);
+}
+
+String? _permissionInteractionAction(String? path) {
+  final normalized = _normalizedCoveragePath(path ?? '');
+  if (_isPositiveCoveragePath(normalized) || normalized == 'grant') {
+    return 'allowPermission';
+  }
+  if (_isNegativeOrErrorCoveragePath(normalized) ||
+      normalized == 'deny' ||
+      normalized == 'denied') {
+    return 'denyPermission';
+  }
+  if (normalized == 'reset') {
+    return 'resetPermission';
+  }
+  return null;
+}
+
+Map<String, Object?> _suggestedTriggerAction(
+  AutomationScenarioCoverageItem item,
+) {
+  return {
+    'action': 'tapText',
+    'labels': ['TODO trigger ${item.item} ${item.path ?? 'flow'}'],
+    'repairHints': [
+      'Expose a stable label, semantics label, or test key for this trigger.',
+    ],
+  };
+}
+
+Map<String, Object?> _suggestedInteractionAction(
+  AutomationScenarioCoverageItem item,
+) {
+  final action = _permissionInteractionAction(item.path) ?? 'tapText';
+  return {
+    'action': action,
+    if (action == 'allowPermission') 'labels': ['Allow'],
+    if (action == 'denyPermission') 'labels': ['Deny'],
+    if (action == 'resetPermission') 'permission': item.item,
+    if (action == 'tapText')
+      'labels': ['TODO operate ${item.item} ${item.path ?? 'flow'}'],
+    if (action == 'allowPermission' || action == 'denyPermission')
+      'permission': item.item,
+    'repairHints': [
+      'Use the real platform permission name or prompt label when different.',
+    ],
+  };
+}
+
+Map<String, Object?> _suggestedAssertionAction(
+  AutomationScenarioCoverageItem item,
+) {
+  return {
+    'action': 'assertText',
+    'labels': ['TODO ${item.item} ${item.path ?? 'result'} result'],
+    'repairHints': [
+      'Render stable result text, semantics, a test key, or add assertLog with a structured app log marker.',
+    ],
+  };
+}
+
+String _scenarioPatchYaml(
+  List<Map<String, Object?>> coverageUpdates,
+  List<Map<String, Object?>> steps,
+) {
+  final buffer = StringBuffer()
+    ..writeln('coverage:')
+    ..write(_yamlList(coverageUpdates))
+    ..writeln('steps:')
+    ..write(_yamlList(steps));
+  return buffer.toString().trimRight();
+}
+
+String _yamlList(List<Map<String, Object?>> values) {
+  final buffer = StringBuffer();
+  for (final value in values) {
+    var first = true;
+    for (final entry in value.entries) {
+      final prefix = first ? '  - ' : '    ';
+      first = false;
+      buffer.writeln('$prefix${entry.key}: ${_yamlValue(entry.value)}');
+    }
+  }
+  return buffer.toString();
+}
+
+String _yamlValue(Object? value) {
+  if (value is List) {
+    return '[${value.map(_yamlScalar).join(', ')}]';
+  }
+  return _yamlScalar(value);
+}
+
+String _yamlScalar(Object? value) {
+  if (value == null) {
+    return 'null';
+  }
+  if (value is num || value is bool) {
+    return value.toString();
+  }
+  final string = value.toString().replaceAll("'", "''");
+  return "'$string'";
 }
 
 class _CapabilityCoverage {
@@ -135,6 +579,7 @@ String _normalizedCapabilityCategory(String category) {
     'api' || 'publicapi' || 'packageapi' => 'publicapi',
     'methodchannel' || 'platformcall' || 'nativecall' => 'methodchannel',
     'example' || 'exampleflow' || 'exampleentrypoint' => 'exampleflow',
+    'runtimepermission' || 'permissions' => 'permission',
     'capability' || 'feature' => 'capability',
     _ => normalized,
   };

@@ -1,6 +1,6 @@
 ## Summary
 
-- <!-- Describe the user-visible behavior or maintenance change. -->
+-
 
 ## Related issue
 
@@ -45,4 +45,4 @@
 
 ## Reviewer notes
 
-- <!-- Add migration notes, follow-ups, test gaps, or reviewer context. -->
+-

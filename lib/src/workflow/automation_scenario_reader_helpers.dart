@@ -125,6 +125,7 @@ List<AutomationScenarioCoverageItem> _readScenarioCoverage(
       category: 'permission',
       item: permission,
       path: path,
+      interactionStep: action.index,
     );
   }
   return inferred.values.toList();
@@ -190,6 +191,13 @@ AutomationScenarioCoverageItem _readCoverageItem(Object? value, String label) {
         optionalString(json, 'flow'),
     status: status,
     note: note?.trim(),
+    interactionStep:
+        _optionalInt(json['interactionStep']) ??
+        _optionalInt(json['actionStep']),
+    assertionStep:
+        _optionalInt(json['assertionStep']) ??
+        _optionalInt(json['verificationStep']),
+    evidenceSteps: _intList(json['evidenceSteps'] ?? json['steps']),
   );
 }
 
@@ -216,6 +224,23 @@ List<String> _stringList(Object? value) {
   }
   if (value is String && value.trim().isNotEmpty) {
     return [value.trim()];
+  }
+  return const [];
+}
+
+List<int> _intList(Object? value) {
+  if (value is List) {
+    final values = <int>[];
+    for (final item in value) {
+      final parsed = _optionalInt(item);
+      if (parsed != null) {
+        values.add(parsed);
+      }
+    }
+    return values;
+  }
+  if (_optionalInt(value) case final parsed?) {
+    return [parsed];
   }
   return const [];
 }

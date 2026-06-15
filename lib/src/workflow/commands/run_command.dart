@@ -47,6 +47,13 @@ class RunCommand extends FluohCommand<int> {
         help:
             'Write a Flutter run session JSON file with platform launch evidence.',
       )
+      ..addOption(
+        'ohos-permission-dialog-policy',
+        allowed: ohosSystemPermissionDialogPolicyValues,
+        defaultsTo: 'disabled',
+        help:
+            'OHOS integration_test system permission dialog policy. Use allow only for grant-path tests.',
+      )
       ..addFlag(
         'json',
         negatable: false,
@@ -99,6 +106,9 @@ class RunCommand extends FluohCommand<int> {
     final deviceId = _trimmedOption(argResults!, 'device-id');
     final emulatorName = _trimmedOption(argResults!, 'emulator');
     final autoEmulator = argResults!.flag('auto-emulator');
+    final ohosPermissionDialogPolicy = parseOhosSystemPermissionDialogPolicy(
+      argResults!.option('ohos-permission-dialog-policy'),
+    );
     if (requestedAllPlatforms && deviceId != null) {
       usageException('Use --device-id with one run platform.');
     }
@@ -152,6 +162,7 @@ class RunCommand extends FluohCommand<int> {
         startEmulator: startEmulator,
         emulatorName: emulatorName,
         sessionFile: sessionFile,
+        ohosPermissionDialogPolicy: ohosPermissionDialogPolicy,
       );
       results.addAll(
         await _runPackageOrProject(
@@ -169,6 +180,7 @@ class RunCommand extends FluohCommand<int> {
             emulatorName: emulatorName,
             sessionFile: sessionFile,
             autoSign: policy.supportsAutoSign,
+            ohosPermissionDialogPolicy: ohosPermissionDialogPolicy,
           ),
           deviceTimeout: deviceTimeout,
           logDuration: logDuration,

@@ -464,6 +464,26 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     );
   });
 
+  test('validates OHOS permission dialog policy options', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['run', 'ohos', '--ohos-permission-dialog-policy', 'deny'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    expect(stderr.join('\n'), contains('ohos-permission-dialog-policy'));
+    expect(stderr.join('\n'), contains('disabled'));
+    expect(stderr.join('\n'), contains('allow'));
+  });
+
   test('validates all-platform run target options', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];

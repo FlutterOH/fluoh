@@ -11,7 +11,9 @@ one delivery state is justified:
 
 - `ready`: implementation, package tests, OHOS build/run, applicable
   interaction automation, existing-platform functional checks, canonical
-  report, `check_report.py`, package handoff, and release check all pass.
+  report, `check_report.py`, independent reviewer agent pass with no open
+  blocker/high/medium feedback packet items, package handoff, and release
+  check all pass.
 - `needs maintainer decision`: code and evidence are as complete as the local
   environment allows, but release, publish, push, tag, signing policy, SDK
   line, upstream downgrade, public API break, or release version choice needs a
@@ -27,6 +29,10 @@ fluoh executable or launcher and rerun preflight before `commandQueue`. Execute
 `nextCommand`, make the smallest owned fix, and rerun the failed command. Do
 not skip `drive`, `report create`, `check_report.py`, `package handoff`, or
 `package check` when applicable.
+After `check_report.py` passes, use `independent-review-flow.md` to start a new
+read-only reviewer agent. Feed its feedback packet back into the adaptation
+repair loop, record repair/validation status, and repeat review before
+claiming ready.
 Treat `fluoh build all` and `fluoh run all` as matrix shortcuts for artifact
 and launch-smoke evidence across existing project or package example platform
 directories. Parse `workflowEvidence.observedEvidence`,
@@ -49,6 +55,13 @@ For interaction packages, every applicable grant, deny, success, failure, and
 error path must be automated through `integration_test/`, `fluoh drive`, or
 manual-assisted tool-readable evidence. Coverage rows marked `blocked` are
 repair backlog, not an acceptable final state.
+`assertSession`, launch success, waits, and screenshots are only smoke or
+visual sanity evidence. If drive JSON reports `needsFunctionalEvidence`, keep
+the adaptation AI in the repair loop until the scenario or test performs the
+flow and asserts the resulting text, semantics, state, or log marker.
+If drive JSON reports `needsPageReadinessEvidence`, repair the demo screen or
+scenario until post-launch page state is asserted with text, semantics, or log
+evidence instead of a screenshot alone.
 
 ## Setup
 
@@ -65,11 +78,22 @@ fluoh package discover <upstream> --json
 ```
 
 Present discovered Flutter plugin packages missing `ohos`, including package
-names, paths, declared platforms, and `createCommand` values. If a candidate
-contains `implementationRecommendation`, prefer the federated path: create the
-recommended `<package>_ohos` implementation package, add the missing platform
-`default_package` entry to the app-facing package, and add the implementation
-dependency with the recommended relative path.
+names, paths, declared platforms, `adaptationProfile`, and `createCommand`
+values. Use `adaptationProfile.categories`, `riskReasons`,
+`requiredEvidence`, `suggestedCoverage`, `officialDocsRequired`,
+`officialDocTopics`, and `blockerPolicy` as the initial capability inventory:
+review the relevant official OHOS/OpenHarmony or vendor SDK documentation
+before implementation, then seed package tests and scenario coverage from the
+profile before inventing custom rows. If official docs are unavailable, keep
+working but record the unavailable source and impact in the report before any
+`ready` recommendation. If `complexity` is `external`, first record vendor SDK,
+credential, service-account, or store/provider availability; keep the item in
+the repair loop until the SDK path works or the report clearly needs a
+maintainer decision. If a candidate contains `implementationRecommendation`,
+prefer the federated path: create the recommended `<package>_ohos`
+implementation package, add the missing platform `default_package` entry to
+the app-facing package, and add the implementation dependency with the
+recommended relative path.
 
 For a new repository, first run a plan:
 
@@ -140,6 +164,7 @@ fluoh drive ios --package <name> --json --trace-dir <trace-dir>
 fluoh package status --package <name>
 fluoh report create --scope <name> --package <name> --trace-dir <trace-dir> --json
 python3 <skill-dir>/scripts/check_report.py <report-path>
+# host subagent: independent read-only review using independent-review-flow.md
 fluoh package handoff --package <name> --json
 fluoh package check --package <name> --report <report-path> --json
 ```
@@ -164,6 +189,19 @@ Rules:
 - `fluoh run ohos --package <name> ...` owns the OHOS Flutter platform loop:
   debug signing preparation, `flutter run`, run/session diagnostics, and
   `example/integration_test/` execution on the selected target when present.
+  Successful mobile `fluoh run` commands also attempt best-effort post-launch
+  screenshot capture for OHOS, Android, and iOS and record
+  `details.postLaunchScreenshot`. If the field is skipped, failed, partial, or
+  absent, collect screenshot or equivalent UI-state evidence with
+  `fluoh drive`; always keep a tool-readable page assertion before claiming
+  the demo page is ready.
+  During OHOS grant-path integration tests, pass
+  `--ohos-permission-dialog-policy allow` only when clicking allow preserves
+  the test intent. If this happens, the integration step records
+  `details.systemPermissionDialogs` with the dialog title, reason, button
+  bounds, poll count, and handled count. Use that evidence to explain prompt
+  handling, but keep deny/error paths under test or `fluoh drive` control so
+  automatic allow does not mask those behaviors.
   Use `fluoh attach ohos --session-file <path>` for Flutter debug attach when
   a live session exposes a VM Service URI or target id.
   Use hdc/hilog through `fluoh drive --scenario` or lower-level debug
@@ -216,6 +254,8 @@ Before the final response:
 - Create or update the canonical report under `.fluoh/reports/`.
 - Run `python3 <skill-dir>/scripts/check_report.py <report-path>` against the
   canonical report and fix every failure.
+- Run `independent-review-flow.md`; repair or explicitly route every
+  blocker/high/medium feedback packet item before `ready`.
 - Ensure `fluoh package handoff --package <name> --json` sees the current
   branch, trace, report paths, and next commands.
 - Ensure `fluoh package check --package <name> --report <report-path> --json`

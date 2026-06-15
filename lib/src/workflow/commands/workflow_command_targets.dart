@@ -61,6 +61,7 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
       startEmulator: invocation.startEmulator,
       emulatorName: invocation.emulatorName,
       sessionFile: invocation.sessionFile,
+      ohosPermissionDialogPolicy: invocation.ohosPermissionDialogPolicy,
       deviceTimeout: deviceTimeout,
       logDuration: logDuration,
       phase: invocation.phase,
@@ -103,6 +104,7 @@ class _PackageWorkflowInvocation {
     this.startEmulator = false,
     this.emulatorName,
     this.sessionFile,
+    this.ohosPermissionDialogPolicy = OhosSystemPermissionDialogPolicy.disabled,
   });
 
   final String phase;
@@ -116,6 +118,7 @@ class _PackageWorkflowInvocation {
   final bool startEmulator;
   final String? emulatorName;
   final File? sessionFile;
+  final OhosSystemPermissionDialogPolicy ohosPermissionDialogPolicy;
 
   String stepMessage(String packageName) {
     if (phase == 'baseline') {
@@ -140,7 +143,8 @@ class _ProjectWorkflowInvocation {
       deviceId = null,
       startEmulator = false,
       emulatorName = null,
-      sessionFile = null;
+      sessionFile = null,
+      ohosPermissionDialogPolicy = OhosSystemPermissionDialogPolicy.disabled;
 
   const _ProjectWorkflowInvocation.build({
     required this.platform,
@@ -150,7 +154,8 @@ class _ProjectWorkflowInvocation {
        deviceId = null,
        startEmulator = false,
        emulatorName = null,
-       sessionFile = null;
+       sessionFile = null,
+       ohosPermissionDialogPolicy = OhosSystemPermissionDialogPolicy.disabled;
 
   const _ProjectWorkflowInvocation.run({
     required this.platform,
@@ -159,6 +164,7 @@ class _ProjectWorkflowInvocation {
     required this.emulatorName,
     required this.sessionFile,
     required this.autoSign,
+    required this.ohosPermissionDialogPolicy,
   }) : kind = 'run',
        debug = true;
 
@@ -170,6 +176,7 @@ class _ProjectWorkflowInvocation {
   final bool startEmulator;
   final String? emulatorName;
   final File? sessionFile;
+  final OhosSystemPermissionDialogPolicy ohosPermissionDialogPolicy;
 }
 
 Future<WorkflowTargetResult> _runProjectWorkflow({
@@ -326,6 +333,14 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         runDuration: logDuration,
         usage: usage,
       );
+      final postLaunchScreenshot = runResult.passed && runResult.target != null
+          ? await captureMobilePostLaunchScreenshot(
+              environment: environment,
+              platform: runResult.platform,
+              targetId: runResult.target!.id,
+              scopeName: 'current',
+            )
+          : null;
       steps.add(
         WorkflowStepResult(
           name: 'project-run-${runResult.platform}',
@@ -344,6 +359,8 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
               'emulator': runResult.emulator!.toJson(),
             if (runResult.outputLog != null)
               'outputLog': runResult.outputLog!.path,
+            if (postLaunchScreenshot != null)
+              'postLaunchScreenshot': postLaunchScreenshot.toJson(),
           },
           diagnostics: runResult.diagnostics
               .map(
@@ -380,6 +397,7 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         usage: usage,
         steps: steps,
         nextCommand: _projectRunNextCommand(invocation),
+        ohosPermissionDialogPolicy: invocation.ohosPermissionDialogPolicy,
       );
       return WorkflowTargetResult.project(
         projectName: 'current',
@@ -550,6 +568,7 @@ Future<int?> _appendProjectIntegrationRunSteps({
   required String usage,
   required List<WorkflowStepResult> steps,
   required String nextCommand,
+  required OhosSystemPermissionDialogPolicy ohosPermissionDialogPolicy,
 }) async {
   if (!await hasIntegrationTests(project)) {
     return null;
@@ -579,15 +598,29 @@ Future<int?> _appendProjectIntegrationRunSteps({
   }
   final arguments = ['test', 'integration_test', '-d', targetId];
   output.step('Running flutter ${arguments.join(' ')} in current project');
-  final result = await runSelectedFlutterResult(
-    environment: environment,
-    arguments: arguments,
-    workingDirectory: project,
-    stdout: stdout,
-    stderr: stderr,
-    output: output,
-    usage: usage,
-  );
+  final permissionDialogWatcher = platform == 'ohos'
+      ? await OhosSystemPermissionDialogWatcher.start(
+          environment: environment,
+          targetId: targetId,
+          policy: ohosPermissionDialogPolicy,
+          output: output,
+        )
+      : null;
+  late final SelectedToolResult result;
+  OhosSystemPermissionDialogSummary? permissionDialogs;
+  try {
+    result = await runSelectedFlutterResult(
+      environment: environment,
+      arguments: arguments,
+      workingDirectory: project,
+      stdout: stdout,
+      stderr: stderr,
+      output: output,
+      usage: usage,
+    );
+  } finally {
+    permissionDialogs = await permissionDialogWatcher?.stop();
+  }
   final command = 'flutter ${arguments.join(' ')}';
   steps.add(
     WorkflowStepResult(
@@ -604,6 +637,8 @@ Future<int?> _appendProjectIntegrationRunSteps({
           'status': result.exitCode == 0 ? 'passed' : 'failed',
           'testDirectory': 'integration_test',
         },
+        if (permissionDialogs != null && permissionDialogs.hasEvidence)
+          'systemPermissionDialogs': permissionDialogs.toJson(),
         ..._toolOutputDetails(result),
       },
       diagnostics: result.exitCode == 0

@@ -34,6 +34,7 @@ REQUIRED_AUTOMATION_COVERAGE_GATES = (
     "capability-inventory-coverage",
     "blocked-coverage",
     "scenario-evidence-assertions",
+    "page-readiness",
     "existing-test-baseline",
     "manifest-permission-coverage",
     "behavior-paths",
@@ -43,6 +44,7 @@ REQUIRED_READY_CHECKLIST_PHRASES = (
     "Existing package/app tests, example tests",
     "Missing or weak functional tests",
     "Every existing Android, iOS, macOS, Linux, Web, and Windows platform",
+    "Official OHOS/platform documentation",
 )
 
 REPORT_FILENAME_PATTERN = re.compile(r"^report-\d+\.md$")
@@ -423,6 +425,14 @@ def manual_assisted_tool_readable(row: dict[str, str]) -> bool:
 
 def is_launch_only_evidence(evidence: str) -> bool:
     markers = (
+        "assertsession",
+        "launchapp",
+        "capture screenshot",
+        "capturescreenshot",
+        "post-launch screenshot",
+        "post launch screenshot",
+        ".fluoh/evidence/screenshots",
+        "screenshot only",
         "launched=true",
         "launchdetected true",
         "launchdetected=true",
@@ -440,7 +450,6 @@ def has_functional_tool_evidence(evidence: str) -> bool:
         "log marker",
         "app log",
         "assertlog",
-        "assertsession",
         "asserttext",
         "waittext",
         "visible text",
@@ -633,6 +642,40 @@ def no_feedback_statement(content: str) -> bool:
     )
 
 
+def official_platform_basis_satisfied(content: str) -> bool:
+    section = section_content(content, "## Official Platform Basis")
+    if not section.strip():
+        return False
+    if re.search(
+        r"^\s*No official platform basis required\s*:\s*\S.+$",
+        section,
+        re.IGNORECASE | re.MULTILINE,
+    ):
+        return True
+    positive_markers = (
+        "openharmony",
+        "ohos",
+        "harmonyos",
+        "developer.huawei.com",
+        "docs.openharmony.cn",
+        "official",
+        "api reference",
+        "sdk api",
+    )
+    if not any(marker in section.lower() for marker in positive_markers):
+        return False
+    unresolved_markers = (
+        "todo",
+        "...",
+        "not checked",
+        "not reviewed",
+        "missing",
+        "blocked",
+        "unknown",
+    )
+    return not any(marker in section.lower() for marker in unresolved_markers)
+
+
 def placeholder_hits(content: str) -> list[str]:
     hits: list[str] = []
     for pattern in PLACEHOLDER_PATTERNS:
@@ -696,7 +739,11 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
                 + ", ".join(missing_checklist)
                 + "."
             )
-
+        if not official_platform_basis_satisfied(content):
+            errors.append(
+                "Ready reports must record official OHOS/platform documentation basis, "
+                "or an explicit 'No official platform basis required: <reason>' statement."
+            )
     rows = command_rows(content)
     evidence_rows = [
         row
@@ -817,6 +864,17 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     if manual_assisted_without_tool_evidence:
         errors.append(
             "Passed manual-assisted interaction evidence must include tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers."
+        )
+    ai_assisted_launch_only_evidence = [
+        row
+        for row in passed_interactions
+        if row["method"].lower() == "ai-assisted"
+        and is_launch_only_evidence(row.get("evidence", "").lower())
+        and not has_functional_tool_evidence(row.get("evidence", "").lower())
+    ]
+    if ai_assisted_launch_only_evidence:
+        errors.append(
+            "Passed AI-assisted interaction evidence cannot rely on assertSession, launch, wait, or screenshots alone; add functional assertions such as assertText, waitText, assertLog, visible text, semantics, test keys, diagnostic command JSON, hilog, or app log markers."
         )
     # A prose note under fluoh run is launch evidence; release gating needs the
     # concrete flutter test command row that produced the integration result.

@@ -65,8 +65,8 @@ void _registerPackageReleaseValidationTests() {
     expect(certification, containsPair('ok', true));
     expect(certification, containsPair('commandRows', 4));
     expect(certification, containsPair('passedCommandRows', 4));
-    expect(certification, containsPair('automationCoverageRows', 9));
-    expect(certification, containsPair('readyAutomationCoverageRows', 9));
+    expect(certification, containsPair('automationCoverageRows', 10));
+    expect(certification, containsPair('readyAutomationCoverageRows', 10));
     expect(certification, containsPair('interactionRows', 0));
     expect(certification, containsPair('passedInteractionRows', 0));
     expect(stderr, isEmpty);

@@ -266,8 +266,9 @@ share one `.fluoh/traces/<package>/adaptation` session when supported. The plan
 keeps Android, iOS, and OHOS implementation work behind platform-specific steps
 while the upper-level queue is called through one `plan package` contract. Its
 delivery gate requires `check_report.py` to pass and the final `package check`
-to run with `--report <report-path>` so report certification failures cannot be
-reduced to non-blocking warnings.
+to run with `--report <report-path>` after the independent reviewer feedback
+loop has no open blocker, high, or medium findings, so report certification
+failures cannot be reduced to non-blocking warnings.
 
 ### `fluoh flutter <args>` and `fluohf <args>`
 
@@ -623,7 +624,10 @@ platform creation.
 prints a single machine-readable plan object, and does not create repositories,
 write files, stage files, or commit. The plan includes `warnings[]` for cases
 such as Dart SDK incompatibility, default-branch unreleased versions, and
-federated implementation recommendations.
+federated implementation recommendations, plus the selected package
+`adaptationProfile` so AI agents can seed official documentation review,
+tests, scenarios, evidence, and external-service blocker checks during scope
+confirmation.
 
 `fluoh package discover <upstream> --json` shallow-clones the upstream
 repository into a temporary directory, scans non-example `pubspec.yaml` files,
@@ -633,7 +637,9 @@ configure remotes, checkout branches, or write project files. JSON output
 includes the filter, inspected pubspec count, valid Flutter plugin count,
 candidate and recommended counts, candidate package names, paths, versions,
 declared platforms, federated `default_package` declarations, missing
-platforms, per-candidate `createCommand`, federated
+platforms, per-candidate `adaptationProfile` capability categories,
+complexity, risk reasons, required evidence, suggested coverage seeds,
+`officialDocsRequired`, `officialDocTopics`, and `createCommand`, federated
 `implementationRecommendation` details when an app-facing plugin should grow a
 new platform implementation package such as `<package>_ohos`, a multi-package
 `queueCommand`, and non-fatal `issues[]`. The default `queueCommand` contains
@@ -710,10 +716,11 @@ current-package trace exists, handoff reuses the latest trace directory under
 `.fluoh/traces/<package>/`; otherwise it defaults to
 `.fluoh/traces/<package>/adaptation`. The next commands include report
 validation before `package check`; when a report exists, `check_report.py` and
-`package check` both use the latest report path. It does not modify the
-repository. Use it when an AI task needs to resume, transfer, or confirm
-whether the branch is ready for final verify, drive evidence, report creation,
-report validation, or `package check`.
+`package check` both use the latest report path, and the AI workflow must run
+the independent reviewer feedback loop before claiming ready. It does not
+modify the repository. Use it when an AI task needs to resume, transfer, or
+confirm whether the branch is ready for final verify, drive evidence, report
+creation, report validation, independent review, or `package check`.
 
 `fluoh package sync` fetches upstream branches and tags, fast-forwards the
 upstream branch recorded in Package `upstream.git.branch`, resolves the package
@@ -805,6 +812,10 @@ When `integration_test/` exists and a concrete target is available, `fluoh run`
 also runs `flutter test integration_test -d <device>` on that target. Release
 reports should record that passed test command row separately because a plain
 `fluoh run --json` row is launch evidence.
+For OHOS grant-path integration tests, pass
+`--ohos-permission-dialog-policy allow` only when automatic allow preserves the
+test intent. The default `disabled` policy leaves system permission prompts
+under the test or `fluoh drive` scenario so deny/error paths are not masked.
 `--session-file <path>` writes a `flutterRunSession` file with process, target,
 launch, log, and VM Service URI details when available. `fluoh attach` can reuse
 that file, or accept `--vm-service-uri <uri>` or `--device-id <id>` directly.

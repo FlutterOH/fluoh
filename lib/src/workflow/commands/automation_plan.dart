@@ -345,7 +345,11 @@ class _AutomationPlan {
       ],
       'scenarioEvidence' => [
         'scenarioEvidence reports readyForReview for the scenario',
-        'the scenario includes a tool-readable assertion such as assertText, waitText, assertLog, or assertSession',
+        'the scenario includes a functional assertion such as assertText, waitText, or assertLog after the interaction flow',
+      ],
+      'pageReadiness' => [
+        'page-readiness reports readyForReview for the scenario',
+        'the scenario asserts post-launch functional page state with assertText, waitText, or assertLog',
       ],
       'testCoverage' => [
         if (item['expectedTestPath'] != null)
@@ -408,7 +412,9 @@ class _AutomationPlan {
       'pathCoverage' =>
         'Add the missing success or negative behavior path rows, then rerun drive.',
       'scenarioEvidence' =>
-        'Add a tool-readable scenario verification action, then rerun drive.',
+        'Add functional scenario evidence after the interaction flow, then rerun drive.',
+      'pageReadiness' =>
+        'Add a post-launch page readiness assertion, then rerun drive.',
       'testCoverage' =>
         'Create or expand the focused package test, then rerun package tests and drive.',
       _ =>
@@ -491,6 +497,7 @@ class _AutomationPlan {
     final scenarioCoverageQueue = _scenarioCoverageRepairQueue(coveragePolicy);
     final pathCoverageQueue = _pathCoverageRepairQueue(coveragePolicy);
     final scenarioEvidenceQueue = _scenarioEvidenceRepairQueue(coveragePolicy);
+    final pageReadinessQueue = _pageReadinessRepairQueue(coveragePolicy);
     final testCoverageQueue = _testCoverageRepairQueue(coveragePolicy);
     final blockedQueue = _blockedCoverageQueue(coveragePolicy);
     final targetQueue = _targetRepairQueue(results);
@@ -498,8 +505,9 @@ class _AutomationPlan {
       ...targetQueue,
       ...scenarioCoverageQueue,
       ...pathCoverageQueue,
-      ...scenarioEvidenceQueue,
       ...testCoverageQueue,
+      ...scenarioEvidenceQueue,
+      ...pageReadinessQueue,
       ...blockedQueue,
       ...coverageQueue,
       if (dryRun &&
@@ -507,6 +515,7 @@ class _AutomationPlan {
           scenarioCoverageQueue.isEmpty &&
           pathCoverageQueue.isEmpty &&
           scenarioEvidenceQueue.isEmpty &&
+          pageReadinessQueue.isEmpty &&
           testCoverageQueue.isEmpty &&
           targetQueue.isEmpty &&
           blockedQueue.isEmpty)
@@ -719,17 +728,63 @@ class _AutomationPlan {
             'status': scenario['status'] ?? evidenceGate?['status'],
             'repair':
                 scenario['repair'] ??
-                'Add a tool-readable verification action after the interaction flow.',
+                'Add functional evidence after the interaction flow.',
             'platform': scenario['platform'],
             'scenario': scenario['scenario'],
             'path': scenario['path'],
             if (scenario['suggestedActions'] != null)
               'suggestedActions': scenario['suggestedActions'],
+            if (scenario['coverageEvidenceBindings'] != null)
+              'coverageEvidenceBindings': scenario['coverageEvidenceBindings'],
+            if (scenario['suggestedScenarioPatch'] != null)
+              'suggestedScenarioPatch': scenario['suggestedScenarioPatch'],
             'nextAction': {
               'kind': 'addScenarioVerificationAction',
               'path': scenario['path'],
               if (scenario['suggestedActions'] != null)
                 'actions': scenario['suggestedActions'],
+              if (scenario['suggestedScenarioPatch'] != null)
+                'scenarioPatch': scenario['suggestedScenarioPatch'],
+            },
+          },
+    ];
+  }
+
+  List<Map<String, Object?>> _pageReadinessRepairQueue(
+    Map<String, Object?> coveragePolicy,
+  ) {
+    Map<String, Object?>? readinessGate;
+    for (final gate in coveragePolicy['qualityGates'] as List<Object?>) {
+      final gateJson = gate as Map<String, Object?>;
+      if (gateJson['id'] == 'page-readiness') {
+        readinessGate = gateJson;
+        break;
+      }
+    }
+    final scenarios = readinessGate?['scenarios'];
+    if (scenarios is! List<Object?> || scenarios.isEmpty) {
+      return const [];
+    }
+    return [
+      for (final scenario in scenarios)
+        if (scenario is Map<String, Object?>)
+          {
+            'type': 'pageReadiness',
+            'gate': 'page-readiness',
+            'status': scenario['status'] ?? readinessGate?['status'],
+            'repair':
+                scenario['repair'] ??
+                'Add a page readiness assertion after launch.',
+            'platform': scenario['platform'],
+            'scenario': scenario['scenario'],
+            'path': scenario['path'],
+            if (scenario['suggestedScenarioPatch'] != null)
+              'suggestedScenarioPatch': scenario['suggestedScenarioPatch'],
+            'nextAction': {
+              'kind': 'addPageReadinessAssertion',
+              'path': scenario['path'],
+              if (scenario['suggestedScenarioPatch'] != null)
+                'scenarioPatch': scenario['suggestedScenarioPatch'],
             },
           },
     ];
@@ -988,5 +1043,7 @@ bool _isAutomationCoverageGapStatus(String status) {
       status == 'needsTestCoverageReview' ||
       status == 'needsPermissionCoverageRows' ||
       status == 'needsBlockedCoverageRepair' ||
-      status == 'needsEvidenceAssertions';
+      status == 'needsEvidenceAssertions' ||
+      status == 'needsFunctionalEvidence' ||
+      status == 'needsPageReadinessEvidence';
 }

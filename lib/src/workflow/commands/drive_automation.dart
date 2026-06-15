@@ -172,6 +172,7 @@ _ProjectWorkflowInvocation _automationProjectInvocation({
       sessionDirectory: sessionDirectory,
     ),
     autoSign: platformWorkflowPolicy(platform).supportsAutoSign,
+    ohosPermissionDialogPolicy: OhosSystemPermissionDialogPolicy.disabled,
   );
 }
 

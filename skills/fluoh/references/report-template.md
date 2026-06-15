@@ -36,6 +36,17 @@
 - Dependency constraint changes:
 - Non-OHOS regression risk:
 
+## Official Platform Basis
+
+For platform plugins, cite the official OHOS/OpenHarmony or vendor SDK
+documentation reviewed before implementation. Include unavailable or
+not-applicable dispositions explicitly; do not leave this section blank for a
+ready recommendation.
+
+| Topic | Source | Decision / impact |
+| --- | --- | --- |
+| `...` | official docs URL, SDK API path, or `blocked: <reason>` | implementation and test impact |
+
 ## Commands
 
 | Command | Exit | Result | Notes |
@@ -50,6 +61,7 @@
   inspected against public API, platform interfaces, permissions, and behavior
   paths before final verification.
 - [ ] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [ ] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [ ] OHOS build evidence recorded.
 - [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [ ] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was
@@ -61,6 +73,21 @@
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
 - [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
+
+## Independent Review
+
+This section records the host-agent supervision loop after `check_report.py`
+passes. It is not a fluoh CLI gate; a separate reviewer agent owns the
+judgment, and the adaptation AI owns repairs.
+
+- Reviewer agent: not started
+- Verdict: pending
+- Feedback packet location: pending independent review
+- Repair loop: pending independent review
+
+| ID | Severity | Area | Evidence | Required repair | Validation | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| IR-000 | info | review | independent review not started | start reviewer agent after `check_report.py` passes | reviewer verdict recorded | pending |
 
 ## Platform Matrix
 
@@ -87,12 +114,13 @@ Copy the complete required `automation.coveragePolicy.qualityGates` set from
 generic gates that are `notApplicable` for the current Package. A `ready`
 release certification cannot include unresolved statuses such as
 `needsInventory`, `needsCapabilityCoverageRows`, `needsPermissionCoverageRows`,
-`needsPathCoverageReview`, `needsEvidenceAssertions`, `blocked`, or `failed`.
+`needsPathCoverageReview`, `needsFunctionalEvidence`,
+`needsPageReadinessEvidence`, `blocked`, or `failed`.
 Record `automation.coveragePolicy.status`, `readyForAutomation`, and
 `qualityGateSummary` before the table so the handoff shows whether coverage is
 ready to execute, still missing rows, or waiting on maintainer/environment
 decision. Ready reports must show zero not-ready gates, such as
-`qualityGateSummary: ready=9, notReady=0`.
+`qualityGateSummary: ready=10, notReady=0`.
 When `existing-test-baseline` is not ready, include the concrete
 `coverageBaseline.missingPackageTests` and
 `coverageBaseline.weakPackageTests` rows that were fixed or remain blocked,
@@ -115,7 +143,8 @@ completion checks, and the `validation` rerun hint. Include
 | coverage-items | readyForReview | every applicable capability has a coverage row |
 | capability-inventory-coverage | readyForReview | all public API/platform/example rows covered or notApplicable |
 | blocked-coverage | readyForReview | no capability row remains blocked; demo defects and missing automation were repaired |
-| scenario-evidence-assertions | readyForReview | scenarios use assertText/waitText/assertLog/assertSession |
+| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
+| page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package and integration tests reviewed |
 | manifest-permission-coverage | readyForReview | every selected-platform manifest permission is covered or notApplicable |
 | behavior-paths | readyForReview | success and negative/error paths are covered or explicitly explained |

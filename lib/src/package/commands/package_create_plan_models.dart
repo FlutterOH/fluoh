@@ -17,6 +17,7 @@ class _PackageCreatePlan {
     required this.branch,
     required this.gitAuthor,
     required this.flutterCreateOrg,
+    required this.adaptationProfile,
     required this.implementationRecommendation,
     required this.warnings,
   });
@@ -36,6 +37,7 @@ class _PackageCreatePlan {
   final String branch;
   final PackageGitAuthor? gitAuthor;
   final String? flutterCreateOrg;
+  final PackageAdaptationProfile adaptationProfile;
   final PackageImplementationRecommendation? implementationRecommendation;
   final List<_PackageCreateWarning> warnings;
 
@@ -66,6 +68,7 @@ class _PackageCreatePlan {
           ? null
           : {'name': gitAuthor!.name, 'email': gitAuthor!.email},
       'flutterCreateOrg': flutterCreateOrg,
+      'adaptationProfile': adaptationProfile.toJson(),
       'implementationRecommendation': ?implementationRecommendation?.toJson(),
       'warnings': warnings.map((warning) => warning.toJson()).toList(),
       'willRun': [

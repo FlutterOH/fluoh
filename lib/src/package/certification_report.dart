@@ -7,6 +7,7 @@ const _requiredAutomationCoverageGates = {
   'capability-inventory-coverage',
   'blocked-coverage',
   'scenario-evidence-assertions',
+  'page-readiness',
   'existing-test-baseline',
   'manifest-permission-coverage',
   'behavior-paths',
@@ -22,6 +23,7 @@ const _requiredReadyChecklistPhrases = [
   'Existing package/app tests, example tests',
   'Missing or weak functional tests',
   'Every existing Android, iOS, macOS, Linux, Web, and Windows platform',
+  'Official OHOS/platform documentation',
 ];
 
 final _canonicalReportFileNamePattern = RegExp(r'^report-\d+\.md$');
@@ -220,6 +222,13 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
           'for: ${missingChecklistPhrases.join(', ')}.',
         );
       }
+      if (!_officialPlatformBasisSatisfied(content)) {
+        errors.add(
+          'Ready certification reports must record official OHOS/platform '
+          'documentation basis, or an explicit '
+          '"No official platform basis required: <reason>" statement.',
+        );
+      }
     }
   }
 
@@ -301,6 +310,21 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       'tool-readable confirmation such as logs, meaningful session state '
       'beyond launch, stable text, semantics, test keys, command JSON, hilog, '
       'or app log markers.',
+    );
+  }
+  final passedAiAssistedLaunchOnlyEvidence = [
+    for (final row in passedInteractionRows)
+      if (row.method == 'ai-assisted' &&
+          _isLaunchOnlyEvidence(row.evidenceText.toLowerCase()) &&
+          !_hasFunctionalToolEvidence(row.evidenceText.toLowerCase()))
+        row,
+  ];
+  if (passedAiAssistedLaunchOnlyEvidence.isNotEmpty) {
+    errors.add(
+      'Passed AI-assisted interaction evidence cannot rely on assertSession, '
+      'launch, wait, or screenshots alone; add functional assertions such as '
+      'assertText, waitText, assertLog, visible text, semantics, test keys, '
+      'diagnostic command JSON, hilog, or app log markers.',
     );
   }
   // A prose note under fluoh run is launch evidence; release gating needs the
@@ -466,6 +490,7 @@ const _requiredSections = [
   '## Summary',
   '## Changes',
   '## Public API / Compatibility',
+  '## Official Platform Basis',
   '## Commands',
   '## Delivery Checklist',
   '## Platform Matrix',
@@ -559,6 +584,43 @@ bool _hasNoFeedbackStatement(String content) {
     multiLine: true,
     caseSensitive: false,
   ).hasMatch(section);
+}
+
+bool _officialPlatformBasisSatisfied(String content) {
+  final section = _sectionContent(content, '## Official Platform Basis');
+  if (section.trim().isEmpty) {
+    return false;
+  }
+  if (RegExp(
+    r'^\s*No official platform basis required\s*:\s*\S.+$',
+    multiLine: true,
+    caseSensitive: false,
+  ).hasMatch(section)) {
+    return true;
+  }
+  final normalized = section.toLowerCase();
+  final hasPositiveMarker = const [
+    'openharmony',
+    'ohos',
+    'harmonyos',
+    'developer.huawei.com',
+    'docs.openharmony.cn',
+    'official',
+    'api reference',
+    'sdk api',
+  ].any(normalized.contains);
+  if (!hasPositiveMarker) {
+    return false;
+  }
+  return !const [
+    'todo',
+    '...',
+    'not checked',
+    'not reviewed',
+    'missing',
+    'blocked',
+    'unknown',
+  ].any(normalized.contains);
 }
 
 _AutomationCoverageStatus _automationCoverageStatus(String content) {
@@ -774,6 +836,14 @@ bool _hasToolReadableEvidence(_InteractionRow row) {
 
 bool _isLaunchOnlyEvidence(String normalized) {
   return const [
+    'assertsession',
+    'launchapp',
+    'capture screenshot',
+    'capturescreenshot',
+    'post-launch screenshot',
+    'post launch screenshot',
+    '.fluoh/evidence/screenshots',
+    'screenshot only',
     'launched=true',
     'launchdetected true',
     'launchdetected=true',
@@ -790,7 +860,6 @@ bool _hasFunctionalToolEvidence(String normalized) {
     'log marker',
     'app log',
     'assertlog',
-    'assertsession',
     'asserttext',
     'waittext',
     'visible text',

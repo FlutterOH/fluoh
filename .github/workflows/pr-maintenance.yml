@@ -167,8 +167,8 @@ jobs:
             if (fileMatches(/^\.github\//)) {
               addArea('area:ci', 'dart test test/release/release_artifacts_test.dart');
             }
-            if (fileMatches(/^(skills\/fluoh\/|test\/release\/fluoh_skill_scripts_test\.dart)/)) {
-              addArea('area:skill', 'dart test test/release/fluoh_skill_scripts_test.dart');
+            if (fileMatches(/^(skills\/fluoh\/|lib\/src\/cli\/skill_command\.dart|test\/cli\/fluoh_command_runner_skill_part\.dart|test\/release\/fluoh_skill_scripts_test\.dart)/)) {
+              addArea('area:skill', 'dart test test/cli/fluoh_command_runner_skill_part.dart test/release/fluoh_skill_scripts_test.dart');
             }
 
             const releaseFiles = [

@@ -206,6 +206,7 @@ void _printDiscovery({
       TerminalTableColumn('Path', style: TerminalTableCellStyle.path),
       TerminalTableColumn('Version', style: TerminalTableCellStyle.muted),
       TerminalTableColumn('Platforms', style: TerminalTableCellStyle.muted),
+      TerminalTableColumn('Profile', style: TerminalTableCellStyle.muted),
       TerminalTableColumn(
         'Recommendation',
         style: TerminalTableCellStyle.muted,
@@ -221,6 +222,7 @@ void _printDiscovery({
           discovery.candidates[i].platforms.isEmpty
               ? '-'
               : discovery.candidates[i].platforms.join(', '),
+          _profileLabel(discovery.candidates[i].adaptationProfile),
           _recommendationLabel(discovery.candidates[i], missingPlatform),
         ],
     ],
@@ -244,6 +246,14 @@ void _printDiscovery({
     discovery: discovery,
   );
   _printDiscoveryIssues(output, discovery);
+}
+
+String _profileLabel(PackageAdaptationProfile profile) {
+  final categories = profile.categories.take(3).join(', ');
+  if (categories.isEmpty) {
+    return profile.complexity;
+  }
+  return '${profile.complexity}: $categories';
 }
 
 String _recommendationLabel(

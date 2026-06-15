@@ -54,6 +54,10 @@ sdk:
                 '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
           )
           .replaceAll(
+            '| `...` | official docs URL, SDK API path, or `blocked: <reason>` | implementation and test impact |',
+            '| OpenHarmony camera permission and media capture APIs | OpenHarmony official API reference | permission and media behavior reviewed before implementation |',
+          )
+          .replaceAll(
             RegExp(r'^- \.\.\.$', multiLine: true),
             '- Evidence recorded',
           )
@@ -64,7 +68,7 @@ sdk:
                 '- qualityGateSummary: ...',
             '- coveragePolicy.status: readyForExecution\n'
                 '- readyForAutomation: true\n'
-                '- qualityGateSummary: ready=9, notReady=0',
+                '- qualityGateSummary: ready=10, notReady=0',
           )
           .replaceAll(
             'OHOS | skipped | skipped | n/a | n/a | ...',
@@ -136,10 +140,10 @@ the local trace-evidence issue here.
       expect(completeJson, containsPair('readyForAutomation', 'true'));
       expect(
         completeJson,
-        containsPair('qualityGateSummary', 'ready=9, notReady=0'),
+        containsPair('qualityGateSummary', 'ready=10, notReady=0'),
       );
-      expect(completeJson['automationCoverageRows'], 9);
-      expect(completeJson['readyAutomationCoverageRows'], 9);
+      expect(completeJson['automationCoverageRows'], 10);
+      expect(completeJson['readyAutomationCoverageRows'], 10);
       expect(completeJson['passedVerify'], isTrue);
       expect(completeJson['passedOhosBuild'], isTrue);
       expect(completeJson['passedOhosRun'], isFalse);
@@ -149,6 +153,31 @@ the local trace-evidence issue here.
       expect(completeJson['interactionRows'], 1);
       expect(completeJson['passedInteractionRows'], 1);
       expect(completeJson['checklistDone'], completeJson['checklistTotal']);
+
+      final missingOfficialBasisReport = reportFixture(1780401600106);
+      await missingOfficialBasisReport.writeAsString(
+        content.replaceFirst(
+          RegExp(
+            r'## Official Platform Basis\n\n.*?\n\n## Commands',
+            dotAll: true,
+          ),
+          '## Commands',
+        ),
+      );
+      final missingOfficialBasis = await Process.run('python3', [
+        checkReportScript,
+        missingOfficialBasisReport.path,
+      ]);
+      expect(missingOfficialBasis.exitCode, 1);
+      final missingOfficialBasisJson =
+          jsonDecode(missingOfficialBasis.stdout.toString())
+              as Map<String, Object?>;
+      expect(
+        stringList(missingOfficialBasisJson['errors']).join('\n'),
+        contains(
+          'Ready reports must record official OHOS/platform documentation basis',
+        ),
+      );
 
       final missingPostLaunchVisualReport = reportFixture(1780401600107);
       await missingPostLaunchVisualReport.writeAsString(
@@ -317,6 +346,29 @@ the local trace-evidence issue here.
         ),
       );
 
+      final launchOnlyAiAssistedReport = reportFixture(1780401600120);
+      await launchOnlyAiAssistedReport.writeAsString(
+        content.replaceFirst(
+          '| camera preview | integration_test | OHOS | emulator-5554 | passed | flutter test integration_test -d emulator-5554 passed and hilog marker camera.captureSuccess confirmed the result |',
+          '| camera preview | AI-assisted | OHOS | emulator-5554 | passed | assertSession passed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+        ),
+      );
+      final launchOnlyAiAssisted = await Process.run('python3', [
+        checkReportScript,
+        launchOnlyAiAssistedReport.path,
+      ]);
+      expect(launchOnlyAiAssisted.exitCode, 1);
+      final launchOnlyAiAssistedJson =
+          jsonDecode(launchOnlyAiAssisted.stdout.toString())
+              as Map<String, Object?>;
+      expect(launchOnlyAiAssistedJson['passedAutomation'], isTrue);
+      expect(
+        stringList(launchOnlyAiAssistedJson['errors']),
+        contains(
+          'Passed AI-assisted interaction evidence cannot rely on assertSession, launch, wait, or screenshots alone; add functional assertions such as assertText, waitText, assertLog, visible text, semantics, test keys, diagnostic command JSON, hilog, or app log markers.',
+        ),
+      );
+
       final unbackedIntegrationReadyReport = reportFixture(1780401600104);
       await unbackedIntegrationReadyReport.writeAsString(
         content
@@ -412,7 +464,7 @@ the local trace-evidence issue here.
       final nonzeroSummaryReport = reportFixture(1780401600108);
       await nonzeroSummaryReport.writeAsString(
         content.replaceFirst(
-          '- qualityGateSummary: ready=9, notReady=0',
+          '- qualityGateSummary: ready=10, notReady=0',
           '- qualityGateSummary: ready=7, notReady=1',
         ),
       );
@@ -664,6 +716,10 @@ the local trace-evidence issue here.
 - Dependency constraint changes: none
 - Non-OHOS regression risk: none
 
+## Official Platform Basis
+
+No official platform basis required: fixture represents a pure Dart package with no platform API behavior.
+
 ## Commands
 
 | Command | Exit | Result | Notes |
@@ -677,6 +733,7 @@ the local trace-evidence issue here.
 - [x] Diff reviewed.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 
 ## Platform Matrix
@@ -689,7 +746,7 @@ the local trace-evidence issue here.
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=9, notReady=0
+- qualityGateSummary: ready=10, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -698,7 +755,8 @@ the local trace-evidence issue here.
 | coverage-items | readyForReview | every applicable capability has a coverage row |
 | capability-inventory-coverage | readyForReview | pure package capability rows covered |
 | blocked-coverage | readyForReview | no blocked rows remain |
-| scenario-evidence-assertions | readyForReview | no interaction scenario required |
+| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
+| page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package tests reviewed |
 | manifest-permission-coverage | readyForReview | no selected-platform manifest runtime permissions apply |
 | behavior-paths | readyForReview | no device-side behavior path applies |
@@ -801,6 +859,10 @@ Ready.
 - Dependency constraint changes: none
 - Non-OHOS regression risk: none
 
+## Official Platform Basis
+
+No official platform basis required: fixture represents a pure Dart package with no platform API behavior.
+
 ## Commands
 
 | Command | Exit | Result | Notes |
@@ -814,6 +876,7 @@ Ready.
 - [x] Diff reviewed.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 
 ## Platform Matrix
@@ -826,7 +889,7 @@ Ready.
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=9, notReady=0
+- qualityGateSummary: ready=10, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -835,7 +898,8 @@ Ready.
 | coverage-items | readyForReview | every applicable capability has a coverage row |
 | capability-inventory-coverage | readyForReview | pure Dart capability rows covered |
 | blocked-coverage | readyForReview | no blocked rows remain |
-| scenario-evidence-assertions | readyForReview | no interaction scenario required |
+| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
+| page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package tests reviewed |
 | manifest-permission-coverage | readyForReview | no selected-platform manifest runtime permissions apply |
 | behavior-paths | readyForReview | no device-side behavior path applies |

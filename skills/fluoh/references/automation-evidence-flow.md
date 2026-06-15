@@ -23,10 +23,13 @@ functional behavior passed. Read `observedEvidence`, `collectedEvidenceKinds`,
 `notCollectedEvidenceKinds`, `workflowContinuations`, and `toolCommands`, then
 choose the next run smoke, post-launch screenshot review, `drive --dry-run`,
 scenario, integration-test, report, or check action. A successful mobile run
-must be followed by at least one screenshot or equivalent UI-state capture and
-a page assertion. If the example/demo page is blank, stuck on splash, visually
-hidden, or otherwise abnormal, repair the demo before broader automation. After
-`drive --dry-run` or real drive output, follow `automation.repairPlan.nextStep`.
+automatically attempts a best-effort OHOS, Android, or iOS post-launch
+screenshot under `steps[].details.postLaunchScreenshot`. If it is skipped,
+failed, partial, or absent, collect a screenshot or equivalent UI-state capture
+with `fluoh drive`. A page assertion is still required. If the example/demo
+page is blank, stuck on splash, visually hidden, or otherwise abnormal, repair
+the demo before broader automation. After `drive --dry-run` or real drive
+output, follow `automation.repairPlan.nextStep`.
 `collectedEvidenceKinds` records that a result or artifact exists; use
 `observedEvidence` to distinguish passed, failed, blocked, and skipped results.
 For `observedEvidence.interaction.status`, treat
@@ -63,13 +66,20 @@ Service attach is not required. Use `integration_test/` as
 the release gate when available, and use `fluoh drive --scenario` only for
 flows that are not encoded as integration tests. hdc/hilog output is scenario
 or debug-tool evidence, not the primary `fluoh run` contract.
+When OHOS `fluoh run` executes grant-path integration tests, pass
+`--ohos-permission-dialog-policy allow` only when automatic allow preserves
+test intent. Read `steps[].details.systemPermissionDialogs` to confirm prompt
+title, reason, allow-button bounds, and handled count. This prevents blocking
+for grant paths, but it does not replace package-specific grant, deny, or state
+assertions.
 
 ## Evidence Rules
 
 - `fluoh run` launch success is smoke evidence only.
-- Every successful mobile `fluoh run` must be followed by screenshot or
-  equivalent UI-state evidence that the example/demo reached the expected
-  functional screen.
+- Every successful mobile `fluoh run` must have screenshot or equivalent
+  UI-state evidence that the example/demo reached the expected functional
+  screen. Prefer `details.postLaunchScreenshot` when it is passed; otherwise
+  collect the evidence with `fluoh drive`.
 - `fluoh run all` is a launch-smoke matrix shortcut, not full-platform
   functional testing.
 - `workflowEvidence.classification: buildOnly` or `launchSmoke` is not a
@@ -77,6 +87,10 @@ or debug-tool evidence, not the primary `fluoh run` contract.
   `workflowContinuations` to decide which evidence still needs collection or
   review before claiming ready.
 - Prefer `integration_test/` when available.
+- For OHOS grant-path permission prompts inside `integration_test/`, use
+  `--ohos-permission-dialog-policy allow` and record `systemPermissionDialogs`
+  details as prompt-handling evidence. Do not use automatic allow for deny or
+  error-path evidence.
 - Prefer `fluoh drive --scenario <path> --json` for AI-assisted scenarios
   with structured actions.
 - Real `fluoh drive` runs launch and available `integration_test/` evidence
@@ -148,6 +162,7 @@ Read these JSON fields from dry-run and real automation output:
 - `manifestPermissionCoverage`
 - `pathCoverage`
 - `scenarioEvidence`
+- `pageReadiness`
 - `qualityGates`
 - `repairLoop`
 - `automation.deliveryRecommendation`
@@ -157,7 +172,7 @@ Read these JSON fields from dry-run and real automation output:
 Only `readyForAutomation: true` means the matrix is ready to execute.
 `needsBlockedCoverageRepair` means the package, demo, or scenario automation
 must be fixed before release readiness. Final ready reports must show zero
-not-ready quality gates, such as `ready=9, notReady=0`; record irrelevant gates
+not-ready quality gates, such as `ready=10, notReady=0`; record irrelevant gates
 as `notApplicable` with a reason.
 
 ## Repair Loop
@@ -167,6 +182,11 @@ the existing-test-baseline, capability-inventory-coverage, or
 manifest-permission-coverage gate is not ready, add or repair tests, scenarios,
 example controls, manifest declarations, or explicit notApplicable rows
 before reporting ready.
+For package repositories created from `package discover`, merge the candidate
+`adaptationProfile.suggestedCoverage` rows into the first scenario or package
+test plan before adding ad hoc coverage. Treat `adaptationProfile.requiredEvidence`
+as required until a real command, scenario row, or explicit blocker satisfies
+it; do not leave external-service or provider SDK rows as prose-only risks.
 
 Follow `automation.repairPlan.nextStep` as the current machine-consumable
 action, then expand `automation.repairQueue` when you need the ordered backlog.
@@ -178,8 +198,13 @@ Common queue types:
 - `permissionCoverage`: add grant and denied/error rows for the printed
   manifest permission.
 - `pathCoverage`: add missing success or negative/error behavior rows.
-- `scenarioEvidence`: add a printed verification action such as `assertText`,
-  `waitText`, `assertLog`, or `assertSession`.
+- `scenarioEvidence`: add the printed interaction and functional verification
+  actions, such as `tapText`, `allowPermission`, `denyPermission`,
+  `assertText`, `waitText`, or `assertLog`. `assertSession`, launch, wait, and
+  screenshots are launch or visual sanity evidence only.
+- `pageReadiness`: add a post-launch functional page assertion such as
+  `assertText`, `waitText`, or `assertLog`; screenshot capture is supporting
+  evidence only.
 - `coverageBlocked`: repair the implementation, demo, or automation until the
   row is `covered`, or mark it `notApplicable` only when the behavior does not
   exist on the platform.
@@ -187,3 +212,8 @@ Common queue types:
 
 After editing tests or scenarios, run the printed validation command or
 `automation.rerunCommand` instead of reconstructing it from memory.
+When a repair item includes `suggestedScenarioPatch`, prefer the structured
+`coverageUpdates` and `steps` fields over prose. They are designed for the
+adaptation AI to update the scenario without guessing step indexes; the `yaml`
+field is a readable patch sketch, not a substitute for reviewing real labels
+and app output.

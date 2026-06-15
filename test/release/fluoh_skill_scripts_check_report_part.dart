@@ -736,6 +736,12 @@ package:
 - Dependency constraint changes: none
 - Non-OHOS regression risk: Android example run, Web example run, and permission-denied fallback checked
 
+## Official Platform Basis
+
+| Topic | Source | Decision / impact |
+| --- | --- | --- |
+| OpenHarmony camera permission and media capture APIs | OpenHarmony official API reference | permission request and denied fallback implemented and tested |
+
 ## Commands
 
 | Command | Exit | Result | Notes |
@@ -758,6 +764,7 @@ package:
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
@@ -783,7 +790,7 @@ package:
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=9, notReady=0
+- qualityGateSummary: ready=10, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -792,7 +799,8 @@ package:
 | coverage-items | readyForReview | every applicable capability has a coverage row |
 | capability-inventory-coverage | readyForReview | camera permission fallback scenario covers applicable capability rows |
 | blocked-coverage | readyForReview | no blocked rows remain |
-| scenario-evidence-assertions | readyForReview | scenario uses VM/session/log evidence |
+| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
+| page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package and example tests reviewed |
 | manifest-permission-coverage | readyForReview | Android camera permission fallback coverage reviewed |
 | behavior-paths | readyForReview | denied fallback path covered; positive capture remains physical-target risk |
@@ -844,11 +852,11 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
             '- readyForAutomation: false',
           )
           .replaceFirst(
-            '- qualityGateSummary: ready=9, notReady=0',
+            '- qualityGateSummary: ready=10, notReady=0',
             '- qualityGateSummary: ready=7, notReady=1',
           )
           .replaceFirst(
-            '| scenario-evidence-assertions | readyForReview | scenario uses VM/session/log evidence |',
+            '| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |',
             '| scenario-evidence-assertions | blocked | missing log assertion before AI repair |',
           );
       await report.writeAsString(unrepairedReportContent);
@@ -894,8 +902,8 @@ The simulated AI flow completed preflight, build/run evidence, non-visual intera
       expect(checkJson, containsPair('recommendation', 'ready'));
       expect(checkJson, containsPair('commandRows', 11));
       expect(checkJson, containsPair('passedCommandRows', 11));
-      expect(checkJson, containsPair('automationCoverageRows', 9));
-      expect(checkJson, containsPair('readyAutomationCoverageRows', 9));
+      expect(checkJson, containsPair('automationCoverageRows', 10));
+      expect(checkJson, containsPair('readyAutomationCoverageRows', 10));
       expect(checkJson, containsPair('interactionRows', 1));
       expect(checkJson, containsPair('passedInteractionRows', 1));
       expect(checkJson, containsPair('passedOhosBuild', true));
@@ -944,6 +952,12 @@ Future<File> _writeMinimalIntegrationReport(
 - Dependency constraint changes: none
 - Non-OHOS regression risk: none
 
+## Official Platform Basis
+
+| Topic | Source | Decision / impact |
+| --- | --- | --- |
+| OpenHarmony Flutter platform plugin and integration_test behavior | OpenHarmony official API reference | integration-test-backed behavior is supported by the selected emulator path |
+
 ## Commands
 
 | Command | Exit | Result | Notes |
@@ -957,6 +971,7 @@ $integrationCommand
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
@@ -979,7 +994,7 @@ $integrationCommand
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=9, notReady=0
+- qualityGateSummary: ready=10, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -988,7 +1003,8 @@ $integrationCommand
 | coverage-items | readyForReview | all applicable capability rows reviewed |
 | capability-inventory-coverage | readyForReview | package capabilities covered |
 | blocked-coverage | readyForReview | no blocked rows remain |
-| scenario-evidence-assertions | readyForReview | scenario uses log evidence |
+| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
+| page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package tests reviewed |
 | manifest-permission-coverage | readyForReview | selected-platform permissions reviewed |
 | behavior-paths | readyForReview | success and error paths reviewed |

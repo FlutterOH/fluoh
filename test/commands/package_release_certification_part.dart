@@ -40,16 +40,68 @@ void _registerPackageReleaseCertificationTests() {
     expect(certification, containsPair('readyForAutomation', true));
     expect(
       certification,
-      containsPair('qualityGateSummary', 'ready=9, notReady=0'),
+      containsPair('qualityGateSummary', 'ready=10, notReady=0'),
     );
-    expect(certification, containsPair('automationCoverageRows', 9));
-    expect(certification, containsPair('readyAutomationCoverageRows', 9));
+    expect(certification, containsPair('automationCoverageRows', 10));
+    expect(certification, containsPair('readyAutomationCoverageRows', 10));
     expect(certification, containsPair('interactionRows', 0));
     expect(certification, containsPair('passedInteractionRows', 0));
     expect(certification, containsPair('passedMobileRunOrDrive', true));
     expect(certification, containsPair('postLaunchVisualEvidence', true));
     expect(stderr, isEmpty);
   });
+
+  test(
+    'check certification rejects AI-assisted launch-only interaction evidence',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      final report = await _writeCertificationReport(packageRepository);
+      final content = await report.readAsString();
+      await report.writeAsString(
+        content.replaceFirst(
+          'No interaction required: fixture package has no device-side interaction flow.',
+          '''
+| Scenario | Method | Platform | Target | Result | Evidence / blocker |
+| --- | --- | --- | --- | --- | --- |
+| camera preview | AI-assisted | OHOS | emulator | passed | assertSession passed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
+''',
+        ),
+      );
+      final releaseEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['package', 'check', '--json', '--report', report.path],
+          environment: releaseEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      final result = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(result, containsPair('ok', false));
+      expect(
+        result['error'],
+        allOf(
+          isA<Map<String, Object?>>(),
+          containsPair(
+            'message',
+            contains('AI-assisted interaction evidence cannot rely'),
+          ),
+        ),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
 
   test(
     'check certification rejects missing post-launch mobile visual evidence',
@@ -318,6 +370,67 @@ void _registerPackageReleaseCertificationTests() {
           'message',
           contains('Ready certification reports must include'),
         ),
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('check rejects ready reports without official platform basis', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final report = await _writeCertificationReport(packageRepository);
+    final content = await report.readAsString();
+    await report.writeAsString(
+      content
+          .replaceFirst(
+            RegExp(
+              r'## Official Platform Basis\n\n'
+              r'\| Topic \| Source \| Decision / impact \|\n'
+              r'\| --- \| --- \| --- \|\n'
+              r'\| OpenHarmony Flutter platform plugin and package behavior '
+              r'\| OpenHarmony official API reference '
+              r'\| no additional device-side platform API required for this fixture \|\n',
+            ),
+            '## Official Platform Basis\n',
+          )
+          .replaceFirst(
+            '- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.\n',
+            '',
+          ),
+    );
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--report', report.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(result, containsPair('ok', false));
+    final error = result['error'] as Map<String, Object?>;
+    final message = (error['message'] as String).replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    expect(
+      message,
+      contains('Ready certification reports must include delivery checklist'),
+    );
+    expect(message, contains('Official OHOS/platform documentation'));
+    expect(
+      message,
+      contains(
+        'Ready certification reports must record official OHOS/platform',
       ),
     );
     expect(stderr, isEmpty);
@@ -744,7 +857,7 @@ void _registerPackageReleaseCertificationTests() {
       final content = await report.readAsString();
       await report.writeAsString(
         content.replaceFirst(
-          '- qualityGateSummary: ready=9, notReady=0',
+          '- qualityGateSummary: ready=10, notReady=0',
           '- qualityGateSummary: ready=7, notReady=1',
         ),
       );

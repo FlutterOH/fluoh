@@ -53,6 +53,9 @@ class AutomationScenarioCoverageItem {
     this.path,
     this.status = 'covered',
     this.note,
+    this.interactionStep,
+    this.assertionStep,
+    this.evidenceSteps = const [],
   });
 
   /// Capability category, such as `permission`, `picker`, or `lifecycle`.
@@ -70,6 +73,15 @@ class AutomationScenarioCoverageItem {
   /// Optional human-readable note for reports.
   final String? note;
 
+  /// Step index that performs the interaction for this coverage row.
+  final int? interactionStep;
+
+  /// Step index that asserts the functional result for this coverage row.
+  final int? assertionStep;
+
+  /// Step indexes that provide additional evidence for this coverage row.
+  final List<int> evidenceSteps;
+
   /// Converts the coverage item to JSON.
   Map<String, Object?> toJson() {
     return {
@@ -78,6 +90,9 @@ class AutomationScenarioCoverageItem {
       if (path != null) 'path': path,
       'status': status,
       if (note != null) 'note': note,
+      if (interactionStep != null) 'interactionStep': interactionStep,
+      if (assertionStep != null) 'assertionStep': assertionStep,
+      if (evidenceSteps.isNotEmpty) 'evidenceSteps': evidenceSteps,
     };
   }
 }

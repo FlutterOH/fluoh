@@ -113,6 +113,10 @@ const _fluohSkillReferences = {
     description:
         'Automation, integration test, and manual-assisted evidence workflow.',
   ),
+  'independentReviewFlow': _FluohSkillReference(
+    relativePath: 'references/independent-review-flow.md',
+    description: 'Host-agent supervision and feedback loop workflow.',
+  ),
   'sourceMaintenanceFlow': _FluohSkillReference(
     relativePath: 'references/source-maintenance-flow.md',
     description: 'FlutterOH Source check and maintenance workflow.',
@@ -209,8 +213,8 @@ class SkillCommand extends FluohCommand<int> {
       _output.write(
         '${style.label('References')} app-project-flow.md, '
         'package-adaptation-flow.md, automation-evidence-flow.md, '
-        'source-maintenance-flow.md, report-template.md, '
-        'interaction-scenario-template.md',
+        'independent-review-flow.md, source-maintenance-flow.md, '
+        'report-template.md, interaction-scenario-template.md',
       );
     } else {
       _output.warning('Bundled local skill path was not found.');

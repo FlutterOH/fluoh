@@ -439,7 +439,7 @@ steps:
     );
     expect(outside.existsSync(), isFalse);
     final adbInvocations = adbLog.existsSync() ? adbLog.readAsStringSync() : '';
-    expect(adbInvocations, isNot(contains('screencap')));
+    expect(RegExp('screencap').allMatches(adbInvocations), hasLength(1));
     expect(stderr, isEmpty);
   });
 
@@ -554,10 +554,16 @@ steps:
         '${environment.workingDirectory.path}/.fluoh/evidence/screenshots';
     expect(
       FileSystemEntity.typeSync(screenshotDirectoryPath),
-      FileSystemEntityType.notFound,
+      FileSystemEntityType.directory,
+    );
+    expect(
+      File(
+        '$screenshotDirectoryPath/camera-android-post-launch.png',
+      ).existsSync(),
+      isTrue,
     );
     final adbInvocations = adbLog.existsSync() ? adbLog.readAsStringSync() : '';
-    expect(adbInvocations, isNot(contains('screencap')));
+    expect(RegExp('screencap').allMatches(adbInvocations), hasLength(1));
     expect(stderr, isEmpty);
   });
 

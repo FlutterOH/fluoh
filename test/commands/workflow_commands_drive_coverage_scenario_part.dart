@@ -99,6 +99,7 @@ steps:
     expect(coverageSummary, containsPair('pathGroupCount', 3));
     expect(coverageSummary, containsPair('pathCoverageWarningCount', 2));
     expect(coverageSummary, containsPair('scenarioEvidenceWarningCount', 2));
+    expect(coverageSummary, containsPair('pageReadinessWarningCount', 2));
     final pathCoverage = (coveragePolicy['pathCoverage'] as List<Object?>)
         .cast<Map<String, Object?>>();
     final cameraCoverage = pathCoverage.singleWhere(
@@ -140,7 +141,7 @@ steps:
       contains(
         allOf(
           containsPair('id', 'scenario-evidence-assertions'),
-          containsPair('status', 'needsEvidenceAssertions'),
+          containsPair('status', 'needsFunctionalEvidence'),
         ),
       ),
     );
@@ -152,7 +153,7 @@ steps:
       scenarioEvidence,
       everyElement(
         allOf(
-          containsPair('status', 'needsEvidenceAssertions'),
+          containsPair('status', 'needsFunctionalEvidence'),
           containsPair('verificationActions', isEmpty),
           containsPair('suggestedActions', isA<List<Object?>>()),
         ),
@@ -247,6 +248,351 @@ steps:
     expect(report['targets'], isEmpty);
     expect(stderr, isEmpty);
   });
+
+  test(
+    'drive dry-run treats assertSession and screenshots as launch evidence only',
+    () async {
+      final environment = await createTestEnvironment();
+      final scenario = File(
+        '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-launch-only.md',
+      );
+      await scenario.parent.create(recursive: true);
+      await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android launch-only permission evidence
+platform: android
+coverage:
+  - category: permission
+    item: camera
+    path: grant
+  - category: permission
+    item: camera
+    path: deny
+steps:
+  - action: assertSession
+    status: passed
+  - action: captureScreenshot
+    outputPath: camera-launch-only.png
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          [
+            'drive',
+            'android',
+            '--package',
+            'sample_permissions',
+            '--scenario',
+            scenario.path,
+            '--dry-run',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final automation = report['automation'] as Map<String, Object?>;
+      final coveragePolicy =
+          automation['coveragePolicy'] as Map<String, Object?>;
+      expect(
+        coveragePolicy,
+        containsPair('status', 'needsAgentCoverageReview'),
+      );
+      final scenarioEvidence =
+          (coveragePolicy['scenarioEvidence'] as List<Object?>)
+              .cast<Map<String, Object?>>();
+      expect(
+        scenarioEvidence.single,
+        allOf(
+          containsPair('status', 'needsFunctionalEvidence'),
+          containsPair('verificationActions', isEmpty),
+          containsPair(
+            'launchEvidenceActions',
+            containsAll(['assertSession', 'captureScreenshot']),
+          ),
+          containsPair('evidenceGaps', hasLength(2)),
+          containsPair('suggestedScenarioPatch', isA<Map<String, Object?>>()),
+        ),
+      );
+      final pageReadiness = (coveragePolicy['pageReadiness'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        pageReadiness.single,
+        allOf(
+          containsPair('status', 'needsPageReadinessEvidence'),
+          containsPair('suggestedScenarioPatch', isA<Map<String, Object?>>()),
+        ),
+      );
+      final repairQueue = (automation['repairQueue'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final scenarioRepair = repairQueue.singleWhere(
+        (item) => item['type'] == 'scenarioEvidence',
+      );
+      final nextAction = scenarioRepair['nextAction'] as Map<String, Object?>;
+      final actions = (nextAction['actions'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(actions, isNot(contains(containsPair('action', 'assertSession'))));
+      expect(actions, contains(containsPair('action', 'assertText')));
+      expect(actions, contains(containsPair('action', 'tapText')));
+      expect(
+        nextAction,
+        containsPair('scenarioPatch', isA<Map<String, Object?>>()),
+      );
+      expect(
+        repairQueue,
+        contains(
+          allOf(
+            containsPair('type', 'pageReadiness'),
+            containsPair('gate', 'page-readiness'),
+          ),
+        ),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
+    'drive dry-run accepts explicit coverage evidence step bindings',
+    () async {
+      final environment = await createTestEnvironment();
+      final scenario = File(
+        '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-bound-evidence.md',
+      );
+      await scenario.parent.create(recursive: true);
+      await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android bound permission evidence
+platform: android
+coverage:
+  - category: permission
+    item: camera
+    path: grant
+    interactionStep: 3
+    assertionStep: 4
+  - category: permission
+    item: camera
+    path: deny
+    interactionStep: 6
+    assertionStep: 7
+steps:
+  - action: launchApp
+  - action: tapText
+    labels: [Open camera]
+  - action: allowPermission
+    permission: camera
+  - action: assertText
+    labels: [Camera permission granted]
+  - action: tapText
+    labels: [Open camera]
+  - action: denyPermission
+    permission: camera
+  - action: assertLog
+    contains: camera permission denied
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          [
+            'drive',
+            'android',
+            '--package',
+            'sample_permissions',
+            '--scenario',
+            scenario.path,
+            '--dry-run',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final automation = report['automation'] as Map<String, Object?>;
+      final coveragePolicy =
+          automation['coveragePolicy'] as Map<String, Object?>;
+      final scenarioEvidence =
+          (coveragePolicy['scenarioEvidence'] as List<Object?>)
+              .cast<Map<String, Object?>>();
+      final evidence = scenarioEvidence.single;
+      expect(evidence, containsPair('status', 'readyForReview'));
+      final bindings = (evidence['coverageEvidenceBindings'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        bindings,
+        everyElement(
+          allOf(
+            containsPair('status', 'readyForReview'),
+            containsPair('bindingMode', 'explicit'),
+            containsPair('interactionStep', isA<int>()),
+            containsPair('assertionStep', isA<int>()),
+          ),
+        ),
+      );
+      final pageReadiness = (coveragePolicy['pageReadiness'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(pageReadiness.single, containsPair('status', 'readyForReview'));
+      final repairQueue = (automation['repairQueue'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        repairQueue.where((item) => item['type'] == 'scenarioEvidence'),
+        isEmpty,
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test('drive dry-run rejects coverage bound to launch-only assertion', () async {
+    final environment = await createTestEnvironment();
+    final scenario = File(
+      '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-bad-binding.md',
+    );
+    await scenario.parent.create(recursive: true);
+    await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android bad bound evidence
+platform: android
+coverage:
+  - category: permission
+    item: camera
+    path: grant
+    interactionStep: 1
+    assertionStep: 2
+steps:
+  - action: allowPermission
+    permission: camera
+  - action: assertSession
+    status: passed
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'drive',
+          'android',
+          '--package',
+          'sample_permissions',
+          '--scenario',
+          scenario.path,
+          '--dry-run',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final automation = report['automation'] as Map<String, Object?>;
+    final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
+    final scenarioEvidence =
+        (coveragePolicy['scenarioEvidence'] as List<Object?>)
+            .cast<Map<String, Object?>>();
+    final binding =
+        ((scenarioEvidence.single['coverageEvidenceBindings'] as List<Object?>)
+                .cast<Map<String, Object?>>())
+            .single;
+    expect(binding, containsPair('status', 'needsFunctionalEvidence'));
+    expect(
+      binding['missingReasons'],
+      contains('assertionStepMustReferenceFunctionalAssertion:2:assertSession'),
+    );
+    expect(
+      scenarioEvidence.single,
+      containsPair('suggestedScenarioPatch', isA<Map<String, Object?>>()),
+    );
+    final repairQueue = (automation['repairQueue'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final scenarioRepair = repairQueue.singleWhere(
+      (item) => item['type'] == 'scenarioEvidence',
+    );
+    expect(
+      scenarioRepair['nextAction'],
+      containsPair('scenarioPatch', isA<Map<String, Object?>>()),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'drive dry-run treats runtime-permission profile coverage as interactive',
+    () async {
+      final environment = await createTestEnvironment();
+      final scenario = File(
+        '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-runtime-permission.md',
+      );
+      await scenario.parent.create(recursive: true);
+      await scenario.writeAsString('''
+kind: fluoh.automationScenario
+schema: 1
+name: android runtime permission profile coverage
+platform: android
+coverage:
+  - category: runtime-permission
+    item: camera
+    path: grant
+steps:
+  - action: assertText
+    labels: [Camera permission granted]
+''');
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          [
+            'drive',
+            'android',
+            '--package',
+            'sample_permissions',
+            '--scenario',
+            scenario.path,
+            '--dry-run',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final automation = report['automation'] as Map<String, Object?>;
+      final coveragePolicy =
+          automation['coveragePolicy'] as Map<String, Object?>;
+      final scenarioEvidence =
+          (coveragePolicy['scenarioEvidence'] as List<Object?>)
+              .cast<Map<String, Object?>>();
+      final binding =
+          ((scenarioEvidence.single['coverageEvidenceBindings']
+                      as List<Object?>)
+                  .cast<Map<String, Object?>>())
+              .single;
+      expect(binding, containsPair('status', 'needsFunctionalEvidence'));
+      expect(binding['missingReasons'], contains('missingInteractionStep'));
+      final repairQueue = (automation['repairQueue'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(repairQueue, contains(containsPair('type', 'scenarioEvidence')));
+      expect(stderr, isEmpty);
+    },
+  );
 
   test('drive dry-run allows explanatory coverage without assertions', () async {
     final environment = await createTestEnvironment();

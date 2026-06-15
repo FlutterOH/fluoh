@@ -16,6 +16,9 @@ void _registerReleaseArtifactsSkillTests() {
     final automationFlow = File(
       'skills/fluoh/references/automation-evidence-flow.md',
     ).readAsStringSync();
+    final independentReviewFlow = File(
+      'skills/fluoh/references/independent-review-flow.md',
+    ).readAsStringSync();
     final packageFlow = File(
       'skills/fluoh/references/package-adaptation-flow.md',
     ).readAsStringSync();
@@ -82,6 +85,7 @@ void _registerReleaseArtifactsSkillTests() {
       'references/app-project-flow.md',
       'references/package-adaptation-flow.md',
       'references/automation-evidence-flow.md',
+      'references/independent-review-flow.md',
       'references/source-maintenance-flow.md',
       'references/report-template.md',
       'references/interaction-scenario-template.md',
@@ -99,6 +103,7 @@ void _registerReleaseArtifactsSkillTests() {
       'Session attach command',
       'python3 <skill-dir>/scripts/check_report.py <report-path>',
       'manual-assisted',
+      'reviewer feedback packets',
     ]);
     expect(skill, isNot(contains('Codex')));
 
@@ -127,6 +132,9 @@ void _registerReleaseArtifactsSkillTests() {
       'fluoh drive ohos --package <name> --json',
       'fluoh report create --scope <name> --package <name>',
       'python3 <skill-dir>/scripts/check_report.py <report-path>',
+      'independent reviewer agent pass',
+      'feedback packet',
+      'blocker/high/medium feedback packet items',
       'fluoh run android --package <name> --auto-emulator --json',
       'fluoh run ios --package <name> --auto-emulator --json',
       'fluoh run web --package <name> --json',
@@ -147,8 +155,23 @@ void _registerReleaseArtifactsSkillTests() {
       'manifestPermissionCoverage',
       'permissionCoverage',
       'readyForAutomation',
-      'ready=9, notReady=0',
+      'ready=10, notReady=0',
       'automation.repairQueue',
+    ]);
+    expectContainsAll(independentReviewFlow, [
+      '# Independent Review Flow',
+      'host-agent supervision loop',
+      'Start a new independent reviewer agent',
+      'read-only',
+      '## Supervisor Feedback Packet',
+      'IR-001',
+      'accepted-risk',
+      'maintainer-decision',
+      'no open blocker/high findings',
+      'Verdict: pass | needs-fixes | blocked',
+      '## Independent Review',
+      'send the feedback packet back to the adaptation AI',
+      'not a deterministic `check_report.py` or fluoh CLI gate',
     ]);
     expectContainsAll(sourceFlow, [
       '# Source Maintenance Flow',
@@ -178,6 +201,15 @@ void _registerReleaseArtifactsSkillTests() {
     expect(reportTemplate, contains('## Adaptation Responsibility'));
     expect(reportTemplate, contains('## Public API / Compatibility'));
     expect(reportTemplate, contains('## Delivery Checklist'));
+    expect(reportTemplate, contains('## Independent Review'));
+    expect(reportTemplate, contains('not a fluoh CLI gate'));
+    expect(reportTemplate, contains('Feedback packet location'));
+    expect(
+      reportTemplate,
+      contains(
+        '| ID | Severity | Area | Evidence | Required repair | Validation | Status |',
+      ),
+    );
     expect(reportTemplate, contains('## Platform Matrix'));
     expect(reportTemplate, contains('## Automation Coverage'));
     expect(reportTemplate, contains('coverage-inventory'));

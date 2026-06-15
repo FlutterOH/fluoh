@@ -65,7 +65,9 @@ contract.
   `references/app-project-flow.md`.
 - Adapt a third-party package or upstream Git URL: run preflight or
   `fluoh package discover <upstream> --json`, then use
-  `references/package-adaptation-flow.md`.
+  `references/package-adaptation-flow.md`. Treat each candidate
+  `adaptationProfile` as the first capability inventory seed for tests,
+  scenarios, risk routing, and maintainer-decision blockers.
 - Validate emulator/device UI behavior, permission prompts, or automatic
   coverage repair: use `references/automation-evidence-flow.md`.
 - Check or precheck FlutterOH Source data: use
@@ -206,8 +208,11 @@ For every `--json` command:
 - Read `workflowEvidence` from `build` and `run` as factual tool output.
   `classification: buildOnly` means only artifacts were built.
   `classification: launchSmoke` means the app launched, not that UI behavior
-  passed. Every successful mobile run must be followed by at least one
-  screenshot or equivalent UI-state capture and a tool-readable page assertion.
+  passed. `fluoh run` automatically attempts a best-effort post-launch
+  screenshot for OHOS, Android, and iOS under `details.postLaunchScreenshot`;
+  if it is skipped or failed, collect equivalent UI-state evidence with
+  `fluoh drive`. Every successful mobile run still needs a tool-readable page
+  assertion.
   If the example/demo page is visually stuck, blank, hidden behind splash, or
   otherwise unusable, repair the demo before continuing to broader automation.
   Use `observedEvidence`, `collectedEvidenceKinds`,
@@ -220,6 +225,9 @@ For every `--json` command:
   `integrationTestEvidenceFailed` overrides any passed integration-test rows in
   the same matrix, and `partialIntegrationTestEvidence` means only some targets
   produced passed integration-test evidence. Neither status is release-ready.
+  OHOS integration steps may include `details.systemPermissionDialogs` when
+  `--ohos-permission-dialog-policy allow` handled prompts; use it as prompt
+  evidence, then still verify behavior through tests, drive, or assertions.
 - Treat doctor, toolchain, and device diagnostics as local-environment work
   until the local diagnostic is clean.
 - Treat build failures, install failures, launch failures, runtime crashes,
@@ -228,42 +236,52 @@ For every `--json` command:
 
 ## Evidence Loop
 
-Use this loop for app and package work:
-
 1. Run preflight and select exactly one package when selection is required.
 2. Before final verification, inspect existing package/app tests,
    `integration_test/`, examples, public API, platform interfaces,
-   permissions, and behavior paths. If the existing tests do not cover the
-   adapted library behavior, add or repair focused functional tests first.
+   permissions, behavior paths, and official OHOS/platform documentation. If
+   the existing tests do not cover the adapted library behavior, add or repair
+   focused functional tests first. For package work, start from
+   `package discover` or package plan
+   `adaptationProfile` categories, required evidence, suggested coverage, and
+   blocker policy before adding custom rows.
 3. Run the suggested verify/build/run commands until diagnostics are clean or a
    blocker is explicit. Clean build/run JSON is not the end of the workflow.
-   After every successful mobile run, capture at least one screenshot or
-   equivalent UI-state artifact and confirm the example/demo page is the
-   expected functional screen. If the page is abnormal, fix that page first.
+   After every successful mobile run, inspect `details.postLaunchScreenshot`
+   or collect equivalent UI-state evidence, then confirm the example/demo page
+   is the expected functional screen. If the page is abnormal, fix it first.
    Inspect `workflowEvidence.notCollectedEvidenceKinds` and
    `workflowEvidence.workflowContinuations` and continue until functional
    evidence, coverage review, report creation, and report checks are handled.
 4. When an interactive flow, permission prompt, file picker, camera, location,
    media, deep link, external app callback, or lifecycle behavior matters, use
    `references/automation-evidence-flow.md`.
+   For OHOS grant-path integration tests, use
+   `--ohos-permission-dialog-policy allow` only when automatic allow preserves
+   test intent; keep repairing missing deny-path or page-readiness assertions.
 5. Make the smallest implementation, scenario, test, or project-file change
    needed for the next clean verification result.
 6. Rerun the exact failed command, or the printed rerun/validation command from
    JSON diagnostics.
 7. Run `scripts/collect_feedback.py` on the trace session when feedback
    candidates exist.
-8. Write and check the report before the final response.
-9. Run the report check command and fix every failure before claiming `ready`.
+8. Write/check the report, then run `references/independent-review-flow.md`; feed reviewer feedback packets into repairs before `ready`.
 
 Launch success is smoke evidence. Release-ready interaction evidence must come
 from a passed `flutter test integration_test -d <device>` command row, real
 `fluoh drive --scenario <path> --json`, or manual-assisted tool-readable
 verification with a concrete blocker or result. `manual-assisted` is an
 operation mode, not a human-only pass; a passed row must still cite logs,
-session state, stable text, semantics, test keys, command JSON, hilog, or app
-log markers. When `integration_test/` exists, platform run commands, including
-OHOS, must execute it and the report must record the resulting test command
-and result in the Commands table.
+meaningful session state beyond launch, stable text, semantics, test keys,
+command JSON, hilog, or app log markers. When `integration_test/` exists,
+platform run commands, including OHOS, must execute it and the report must
+record the resulting test command and result in the Commands table.
+`assertSession`, `launchApp`, `wait`, and screenshots prove launch or visual
+sanity only. They cannot satisfy permission grant/deny, public API,
+method-channel, platform-channel, example-flow, or negative-path coverage
+unless the scenario also performs the relevant interaction and records a
+post-interaction functional assertion such as `assertText`, `waitText`, or
+`assertLog`.
 When `fluoh run all` succeeds, use it only as platform launch-smoke coverage
 for the existing project or package example platform directories it selected.
 Continue with the printed `fluoh drive all --dry-run --json` or
@@ -281,6 +299,15 @@ concrete unsupported-environment blocker.
 Do not rely on screenshot recognition as the primary assertion; use it as the
 mandatory visual sanity check after launch, backed by text, session, log, or
 interaction assertions for pass/fail behavior.
+If `automation.coveragePolicy.scenarioEvidence` or `repairQueue` reports
+`needsFunctionalEvidence`, keep the adaptation loop running: update the
+scenario, example app, or test so the adaptation AI can tap/request/deny the
+flow and assert the resulting text/log/state, then rerun the printed drive
+command. Do not downgrade those rows to ready in the report.
+If `page-readiness` reports `needsPageReadinessEvidence`, repair the scenario
+or demo page until a post-launch `assertText`, `waitText`, or `assertLog`
+proves the functional screen is ready. Use `suggestedScenarioPatch` from JSON
+when present so step bindings and TODO assertions stay machine-readable.
 
 ## Completion Report
 
@@ -309,8 +336,8 @@ Complete the report with commands, exit codes, changed files, platform matrix,
 automation coverage gates, interaction evidence, diagnostics, Fluoh Feedback,
 remaining risks, and release recommendation. Mark every applicable Delivery
 Checklist item as done, or leave it unchecked and explain the blocker. A ready
-recommendation requires all applicable checklist items to be done and
-`check_report.py` to pass against the canonical report.
+recommendation requires checklist completion, `check_report.py` pass, and no
+open blocker/high/medium independent-review feedback.
 
 The AI adaptation loop ends at a release recommendation and evidence report.
 The maintainer still makes the final release approval and owns publish, push,

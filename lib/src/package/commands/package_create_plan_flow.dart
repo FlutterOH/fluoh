@@ -70,6 +70,10 @@ extension on PackageCreateCommand {
             selected: selected,
             missingPlatform: 'ohos',
           );
+      final adaptationProfile = await _adaptationProfileForSelectedPackage(
+        repository: scratchRepository,
+        selected: selected,
+      );
       final compatibilityWarnings = await packageSdkCompatibilityWarnings(
         repository: scratchRepository,
         selectedPackages: selectedPackages
@@ -103,6 +107,7 @@ extension on PackageCreateCommand {
         branch: branch,
         gitAuthor: gitAuthor,
         flutterCreateOrg: flutterCreateOrg,
+        adaptationProfile: adaptationProfile,
         implementationRecommendation: implementationRecommendation,
         warnings: warnings,
       );
@@ -133,6 +138,9 @@ extension on PackageCreateCommand {
     _output.info('Package: ${plan.packageName} at ${plan.packagePath}');
     _output.info('SDK: ${plan.sdkVersion} (${plan.sdkLine})');
     _output.info('Branch: ${plan.branch}');
+    _output.info(
+      'Adaptation profile: ${_planProfileLabel(plan.adaptationProfile)}',
+    );
     if (plan.gitAuthor != null) {
       _output.info(
         'Git author: ${plan.gitAuthor!.name} <${plan.gitAuthor!.email}>',
@@ -159,5 +167,33 @@ extension on PackageCreateCommand {
       _output.next(warning.nextStep);
     }
     _output.next('Run without --plan after confirming these values');
+  }
+
+  Future<PackageAdaptationProfile> _adaptationProfileForSelectedPackage({
+    required Directory repository,
+    required _SelectedPackage selected,
+  }) async {
+    final discovery = await discoverPackageAdaptationCandidates(
+      repository: repository,
+      includeExistingPlatform: true,
+    );
+    for (final candidate in discovery.candidates) {
+      if (candidate.path == selected.path ||
+          candidate.name == selected.package.name) {
+        return candidate.adaptationProfile;
+      }
+    }
+    return inferPackageAdaptationProfile(
+      name: selected.package.name,
+      path: selected.path,
+    );
+  }
+
+  String _planProfileLabel(PackageAdaptationProfile profile) {
+    final categories = profile.categories.take(3).join(', ');
+    if (categories.isEmpty) {
+      return profile.complexity;
+    }
+    return '${profile.complexity}: $categories';
   }
 }

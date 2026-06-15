@@ -229,8 +229,9 @@ device/emulator 发现、统一平台自动化、已有平台 example 回归、�
 handoff 和 release 检查的命令队列。当底层命令支持 trace 输出时，`verify`、`build`、`run`、`drive`
 和 `report create` 命令会共用同一个 `.fluoh/traces/<package>/adaptation` session。计划让
 Android、iOS 和 OHOS 的实现细节分别落在平台步骤里，上层通过同一个 `plan package`
-合约调用。它的交付 gate 要求 `check_report.py` 通过，并且最终 `package check`
-带 `--report <report-path>` 执行，避免报告认证失败只降级成非阻断 warning。
+合约调用。它的交付 gate 要求 `check_report.py` 通过、独立审核反馈循环没有未关闭的
+blocker/high/medium 问题，并且最终 `package check` 带 `--report <report-path>` 执行，
+避免报告认证失败只降级成非阻断 warning。
 
 ### `fluoh flutter <args>` 和 `fluohf <args>`
 
@@ -503,15 +504,19 @@ Git 身份；`--org` 用于覆盖给 example 新增 OHOS 平台时传给 `flutte
 organization。
 `--plan --json` 只在临时目录完成 clone 和解析，输出单个机器可读 plan 对象；不会创建仓库、
 写文件、stage 文件或 commit。plan 包含 `warnings[]`，用于报告 Dart SDK 不兼容、
-默认分支未发布版本、federated implementation 推荐等情况。
+默认分支未发布版本、federated implementation 推荐等情况，并包含所选 Package 的
+`adaptationProfile`，让 AI 在 scope confirmation 阶段即可生成官方文档调研依据、
+测试、场景、证据和外部服务 blocker 检查。
 
 `fluoh package discover <upstream> --json` 会把 upstream 仓库 shallow clone 到临时目录，
 扫描非 example 的 `pubspec.yaml`，并报告 `flutter.plugin.platforms` 未声明
 `ohos` 的 Flutter plugin Package。它是只读命令，不会创建 Package 仓库、配置
 remote、checkout 分支或写入项目文件。JSON 输出包含筛选条件、已检查 pubspec
 数量、有效 Flutter plugin 数量、候选和推荐数量、候选 Package 名称、路径、版本、已声明平台、缺失平台、
-federated `default_package` 声明、每个候选的 `createCommand`，当 app-facing
-plugin 应新增 `<package>_ohos` 这类平台实现 Package 时给出的
+federated `default_package` 声明、每个候选的 `adaptationProfile` 能力分类、
+复杂度、风险原因、必需证据、建议覆盖种子、`officialDocsRequired`、
+`officialDocTopics` 和 `createCommand`，当 app-facing plugin 应新增
+`<package>_ohos` 这类平台实现 Package 时给出的
 `implementationRecommendation`、多 Package 的 `queueCommand`，以及非致命
 `issues[]`。默认 `queueCommand` 只包含推荐候选；被 app-facing Package
 的 `default_package` 引用，或属于同一 federated family（例如
@@ -606,6 +611,9 @@ run-preparation 和 target-selection 层。Web run 使用 Chrome 等浏览器 ta
 当存在 `integration_test/` 且有具体 target 时，`fluoh run` 会继续在同一 target 上运行
 `flutter test integration_test -d <device>`。Release 报告应单独记录这条已通过的测试命令，
 因为普通 `fluoh run --json` 行只表示启动证据。
+OHOS grant-path integration test 只有在自动点击允许不会改变测试意图时，才传
+`--ohos-permission-dialog-policy allow`。默认 `disabled` 会把系统权限弹窗交给测试或
+`fluoh drive` 场景处理，避免遮蔽 deny/error 路径。
 `--session-file <path>` 会写入 `flutterRunSession`，包含进程、target、启动、日志以及可用时的
 VM Service URI。`fluoh attach` 可以复用该 session，也可以直接接收
 `--vm-service-uri <uri>` 或 `--device-id <id>`。它优先执行
@@ -711,8 +719,9 @@ JSON 对象，包含 Package 元数据、当前分支、manifest 分支、分支
 handoff 会复用 `.fluoh/traces/<package>/` 下最新的 trace 目录；否则默认使用
 `.fluoh/traces/<package>/adaptation`。下一步命令会先运行报告校验，再运行
 `package check`；已有报告时，`check_report.py` 和 `package check` 都会使用最新
-report 路径。它不修改仓库。AI 任务需要恢复、转交，或确认分支是否可以进入最终
-verify、drive 证据、报告创建、报告校验或 `package check` 时使用它。
+report 路径，并且 AI workflow 必须在声明 ready 前完成独立审核反馈循环。它不修改仓库。
+AI 任务需要恢复、转交，或确认分支是否可以进入最终 verify、drive 证据、报告创建、
+报告校验、独立审核或 `package check` 时使用它。
 
 `fluoh package check` 校验 release 元数据，确认配置的 SDK 版本存在于 source，运行
 `fluoh verify`，确认工作树仍然干净，并报告将要创建的 release tag。它不会创建或推送

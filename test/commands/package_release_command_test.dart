@@ -59,6 +59,12 @@ Future<File> _writeCertificationReport(
 - Dependency constraint changes: none
 - Non-OHOS regression risk: no existing non-OHOS example platform in fixture
 
+## Official Platform Basis
+
+| Topic | Source | Decision / impact |
+| --- | --- | --- |
+| OpenHarmony Flutter platform plugin and package behavior | OpenHarmony official API reference | no additional device-side platform API required for this fixture |
+
 ## Commands
 
 | Command | Exit | Result | Notes |
@@ -73,6 +79,7 @@ $ohosRunRow
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
+- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] OHOS build evidence recorded.
 - [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
@@ -95,7 +102,7 @@ $ohosRunRow
 
 - coveragePolicy.status: readyForExecution
 - readyForAutomation: true
-- qualityGateSummary: ready=9, notReady=0
+- qualityGateSummary: ready=10, notReady=0
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
@@ -104,7 +111,8 @@ $ohosRunRow
 | coverage-items | readyForReview | all applicable capability rows reviewed |
 | capability-inventory-coverage | readyForReview | all package capabilities covered or explicitly notApplicable |
 | blocked-coverage | readyForReview | no blocked rows remain |
-| scenario-evidence-assertions | readyForReview | no interaction scenario required for fixture |
+| scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
+| page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package tests present for fixture library |
 | manifest-permission-coverage | readyForReview | no selected-platform manifest runtime permissions apply |
 | behavior-paths | readyForReview | no device-side behavior path applies to fixture |

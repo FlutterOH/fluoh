@@ -89,11 +89,13 @@ body:
     validations:
       required: false
   - type: textarea
-    id: compatibility
+    id: contract_release_impact
     attributes:
-      label: Compatibility and release impact
+      label: Contract and release impact
       description: Note whether this changes existing CLI output, JSON contracts, config files, source index rules, release artifacts, pub.dev metadata, or Homebrew packaging.
-      placeholder: This is backwards compatible because ...
+      placeholder: |
+        Contract impact:
+        Release impact:
     validations:
       required: false
   - type: textarea

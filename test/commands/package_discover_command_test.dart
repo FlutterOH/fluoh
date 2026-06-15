@@ -53,6 +53,39 @@ void main() {
     expect(camera['sdkConstraint'], '^3.0.0');
     expect(camera['platforms'], ['android', 'ios']);
     expect(camera['role'], 'flutter_plugin');
+    final profile = camera['adaptationProfile'] as Map<String, Object?>;
+    expect(profile['complexity'], 'high');
+    expect(
+      profile['categories'],
+      containsAll(['media-capture', 'runtime-permission']),
+    );
+    expect(
+      profile['riskReasons'],
+      containsAll(['hardware-or-system-picker', 'runtime-permission-matrix']),
+    );
+    expect(
+      profile['requiredEvidence'],
+      containsAll([
+        'capture-picker-success-cancel-error',
+        'official-platform-docs-reviewed',
+        'permission-grant-deny',
+      ]),
+    );
+    expect(profile, containsPair('officialDocsRequired', true));
+    expect(
+      profile['officialDocTopics'],
+      containsAll([contains('permission'), contains('camera')]),
+    );
+    final suggestedCoverage = (profile['suggestedCoverage'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      suggestedCoverage,
+      contains(containsPair('category', 'media-capture')),
+    );
+    expect(
+      suggestedCoverage,
+      contains(containsPair('category', 'runtime-permission')),
+    );
     expect(camera['missingPlatforms'], ['ohos']);
     expect(camera['recommended'], isTrue);
     expect(
@@ -256,6 +289,51 @@ void main() {
     expect(testPlugin['role'], 'test_fixture');
     expect(testPlugin['recommended'], isFalse);
     expect(testPlugin['reason'], 'test_fixture');
+  });
+
+  test('profiles external service plugin blockers as JSON', () async {
+    final environment = await createTestEnvironment();
+    final upstream = await _createExternalServiceDiscoveryRepository(
+      Directory('${environment.homeDirectory.path}/upstream_external_plugins'),
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'discover', upstream.path, '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    final discovery = payload['discovery'] as Map<String, Object?>;
+    final candidates = (discovery['candidates'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final firebase = candidates.singleWhere(
+      (candidate) => candidate['name'] == 'firebase_core',
+    );
+    final profile = firebase['adaptationProfile'] as Map<String, Object?>;
+    expect(profile['complexity'], 'external');
+    expect(
+      profile['categories'],
+      containsAll(['external-service', 'firebase-service']),
+    );
+    expect(profile['riskReasons'], contains('external-service-sdk'));
+    expect(
+      profile['requiredEvidence'],
+      contains('sdk-availability-and-credential-blocker'),
+    );
+    expect(profile, containsPair('officialDocsRequired', true));
+    expect(
+      profile['officialDocTopics'],
+      contains(contains('Official vendor SDK documentation')),
+    );
+    expect(profile['blockerPolicy'], isA<Map<String, Object?>>());
   });
 
   test('can include plugin packages that already declare ohos', () async {
@@ -526,6 +604,31 @@ Future<Directory> _createDiscoveryRoleRepository(Directory repo) async {
   await File('${repo.path}/README.md').writeAsString('# role plugins\n');
   await _runProcess('git', ['add', '.'], repo);
   await _runProcess('git', ['commit', '-m', 'Initial role plugins'], repo);
+  return repo;
+}
+
+Future<Directory> _createExternalServiceDiscoveryRepository(
+  Directory repo,
+) async {
+  await repo.create(recursive: true);
+  await _runProcess('git', ['init', '--initial-branch=main'], repo);
+  await _runProcess('git', [
+    'config',
+    'user.email',
+    'fixture@example.com',
+  ], repo);
+  await _runProcess('git', ['config', 'user.name', 'Fixture'], repo);
+
+  await _writePackage(
+    repo,
+    path: 'packages/firebase_core/firebase_core',
+    name: 'firebase_core',
+    version: '4.0.0',
+    pluginPlatforms: const ['android', 'ios'],
+  );
+  await File('${repo.path}/README.md').writeAsString('# firebase plugins\n');
+  await _runProcess('git', ['add', '.'], repo);
+  await _runProcess('git', ['commit', '-m', 'Initial firebase plugin'], repo);
   return repo;
 }
 

@@ -453,7 +453,36 @@ fi
       details,
       containsPair('vmServiceUri', 'http://127.0.0.1:23456/ohos=/'),
     );
+    final screenshot = details['postLaunchScreenshot'] as Map<String, Object?>;
+    final screenshotPath =
+        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ohos-post-launch.jpeg';
+    expect(screenshot, containsPair('status', 'passed'));
+    expect(screenshot, containsPair('path', screenshotPath));
+    expect(screenshot, containsPair('bytes', greaterThan(0)));
+    expect(File(screenshotPath).existsSync(), isTrue);
+    final gitignore = File(
+      '${environment.workingDirectory.path}/.gitignore',
+    ).readAsStringSync();
+    expect(gitignore, contains('.fluoh/'));
+    expect(gitignore, contains('flutter_*.log'));
     expect(details, isNot(contains('findings')));
+    final workflowEvidence = report['workflowEvidence'] as Map<String, Object?>;
+    expect(
+      workflowEvidence['collectedEvidenceKinds'],
+      contains('postLaunchScreenshot'),
+    );
+    expect(
+      workflowEvidence['notCollectedEvidenceKinds'],
+      isNot(contains('postLaunchScreenshot')),
+    );
+    final observedEvidence =
+        workflowEvidence['observedEvidence'] as Map<String, Object?>;
+    final postLaunchEvidence =
+        observedEvidence['postLaunchScreenshot'] as Map<String, Object?>;
+    expect(
+      postLaunchEvidence,
+      containsPair('status', 'postLaunchScreenshotEvidencePresent'),
+    );
     final sessionFile =
         '${environment.workingDirectory.path}/.fluoh/ohos-session.json';
     expect(details, containsPair('sessionFile', sessionFile));
