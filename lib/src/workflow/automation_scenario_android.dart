@@ -43,7 +43,9 @@ class _AndroidAutomationScenarioDriver
     required _ScenarioExecutionContext context,
     required String nextCommand,
   }) async {
-    final adb = await _androidAdb(context.environment.processEnvironment);
+    final adb = await findWorkflowAndroidAdb(
+      context.environment.processEnvironment,
+    );
     if (adb == null) {
       return _failedAction(
         action,

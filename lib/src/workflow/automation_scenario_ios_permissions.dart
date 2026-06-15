@@ -16,7 +16,7 @@ Future<AutomationScenarioActionResult> _runIosSimulatorPrivacy(
       ],
     );
   }
-  final xcrun = await _xcrun(context.environment.processEnvironment);
+  final xcrun = await findWorkflowXcrun(context.environment.processEnvironment);
   if (xcrun == null) {
     return _failedAction(action, 'xcrun was not found');
   }

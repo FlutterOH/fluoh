@@ -268,6 +268,21 @@ steps:
         (report['targets'] as List<Object?>).single as Map<String, Object?>;
     final steps = (target['steps'] as List<Object?>)
         .cast<Map<String, Object?>>();
+    final runStep = steps.singleWhere(
+      (step) => step['name'] == 'example-run-android',
+    );
+    final runDetails = runStep['details'] as Map<String, Object?>;
+    final postLaunchScreenshot =
+        runDetails['postLaunchScreenshot'] as Map<String, Object?>;
+    final postLaunchScreenshotPath =
+        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-android-post-launch.png';
+    expect(postLaunchScreenshot, containsPair('status', 'passed'));
+    expect(
+      postLaunchScreenshot,
+      containsPair('path', postLaunchScreenshotPath),
+    );
+    expect(postLaunchScreenshot, containsPair('bytes', greaterThan(0)));
+    expect(File(postLaunchScreenshotPath).existsSync(), isTrue);
     final scenarioStep = steps.singleWhere(
       (step) => step['name'] == 'automation-scenario-android-camera-permission',
     );
@@ -306,35 +321,31 @@ steps:
     );
     expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
     expect(File(screenshotPath).existsSync(), isTrue);
+    final adbInvocations = adbLog.readAsStringSync();
     expect(
-      adbLog.readAsStringSync(),
+      adbInvocations,
       contains('-s emulator-5554 shell pm clear com.example.camera'),
     );
     expect(
-      adbLog.readAsStringSync(),
+      adbInvocations,
       contains(
         '-s emulator-5554 shell monkey -p com.example.camera -c android.intent.category.LAUNCHER 1',
       ),
     );
     expect(
-      adbLog.readAsStringSync(),
+      adbInvocations,
       contains('-s emulator-5554 shell input swipe 10 20 30 40 250'),
     );
-    expect(
-      adbLog.readAsStringSync(),
-      contains('-s emulator-5554 shell input tap 60 50'),
-    );
-    expect(
-      adbLog.readAsStringSync(),
-      contains('-s emulator-5554 exec-out screencap -p'),
-    );
+    expect(adbInvocations, contains('-s emulator-5554 shell input tap 60 50'));
+    expect(adbInvocations, contains('-s emulator-5554 exec-out screencap -p'));
+    expect(RegExp('screencap').allMatches(adbInvocations), hasLength(2));
     expect(stderr, isEmpty);
   });
 
   test('drive screenshot rejects output paths outside evidence directory', () async {
     final baseEnvironment = await createTestEnvironment();
     final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
-    await _writeAndroidAdbFixture(
+    final adb = await _writeAndroidAdbFixture(
       Directory(
         '${baseEnvironment.homeDirectory.path}/Library/Android/sdk/platform-tools',
       ),
@@ -348,6 +359,7 @@ steps:
       processEnvironment: {
         ...baseEnvironment.processEnvironment,
         'HOME': baseEnvironment.homeDirectory.path,
+        'FLUOH_ANDROID_ADB': adb.path,
       },
     );
     final outside = File(
@@ -446,7 +458,7 @@ steps:
   test('drive screenshot rejects evidence directory output path', () async {
     final baseEnvironment = await createTestEnvironment();
     final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
-    await _writeAndroidAdbFixture(
+    final adb = await _writeAndroidAdbFixture(
       Directory(
         '${baseEnvironment.homeDirectory.path}/Library/Android/sdk/platform-tools',
       ),
@@ -460,6 +472,7 @@ steps:
       processEnvironment: {
         ...baseEnvironment.processEnvironment,
         'HOME': baseEnvironment.homeDirectory.path,
+        'FLUOH_ANDROID_ADB': adb.path,
       },
     );
     final source = await _createWorkflowSdkSource(

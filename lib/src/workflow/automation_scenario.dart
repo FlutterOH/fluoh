@@ -10,6 +10,7 @@ import '../schema/yaml_utils.dart';
 import 'ios_xctest_project.dart';
 import 'platform_workflow_policy.dart';
 import 'workflow_result.dart';
+import 'workflow_tool_discovery.dart';
 
 part 'automation_scenario_models.dart';
 part 'automation_scenario_android.dart';

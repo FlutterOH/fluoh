@@ -1,58 +1,5 @@
 part of 'automation_scenario.dart';
 
-Future<File?> _androidAdb(Map<String, String> environment) async {
-  final configured = environment['FLUOH_ANDROID_ADB']?.trim();
-  if (configured != null && configured.isNotEmpty) {
-    final file = File(configured);
-    return await file.exists() ? file : null;
-  }
-  final sdkRoot = _androidSdkRootPath(environment);
-  if (sdkRoot != null && sdkRoot.isNotEmpty) {
-    final file = File('$sdkRoot/platform-tools/adb');
-    if (await file.exists()) {
-      return file;
-    }
-  }
-  final result = await Process.run('which', const ['adb']);
-  if (result.exitCode == 0) {
-    final path = result.stdout.toString().trim();
-    if (path.isNotEmpty) {
-      return File(path);
-    }
-  }
-  return null;
-}
-
-String? _androidSdkRootPath(Map<String, String> environment) {
-  for (final key in const ['ANDROID_SDK_ROOT', 'ANDROID_HOME']) {
-    final value = environment[key]?.trim();
-    if (value != null && value.isNotEmpty) {
-      return value;
-    }
-  }
-  final home = environment['HOME']?.trim();
-  if (home != null && home.isNotEmpty) {
-    return '$home/Library/Android/sdk';
-  }
-  return null;
-}
-
-Future<File?> _xcrun(Map<String, String> environment) async {
-  final configured = environment['FLUOH_XCRUN']?.trim();
-  if (configured != null && configured.isNotEmpty) {
-    final file = File(configured);
-    return await file.exists() ? file : null;
-  }
-  final result = await Process.run('which', const ['xcrun']);
-  if (result.exitCode == 0) {
-    final path = result.stdout.toString().trim();
-    if (path.isNotEmpty) {
-      return File(path);
-    }
-  }
-  return null;
-}
-
 Future<File?> _openSimulatorTool(Map<String, String> environment) async {
   final configured = environment['FLUOH_OPEN']?.trim();
   if (configured != null && configured.isNotEmpty) {
@@ -70,14 +17,7 @@ Future<File?> _openSimulatorTool(Map<String, String> environment) async {
   if (await systemOpen.exists()) {
     return systemOpen;
   }
-  final result = await Process.run('which', const ['open']);
-  if (result.exitCode == 0) {
-    final path = result.stdout.toString().trim();
-    if (path.isNotEmpty) {
-      return File(path);
-    }
-  }
-  return null;
+  return findWorkflowExecutableOnPath('open', environment);
 }
 
 Future<_IosXcodebuildTool?> _iosXcodebuild(
@@ -90,22 +30,22 @@ Future<_IosXcodebuildTool?> _iosXcodebuild(
         ? _IosXcodebuildTool(executable: file, prefixArguments: const [])
         : null;
   }
-  final xcrun = await _xcrun(environment);
+  final xcrun = await findWorkflowXcrun(environment);
   if (xcrun != null) {
     return _IosXcodebuildTool(
       executable: xcrun,
       prefixArguments: const ['xcodebuild'],
     );
   }
-  final result = await Process.run('which', const ['xcodebuild']);
-  if (result.exitCode == 0) {
-    final path = result.stdout.toString().trim();
-    if (path.isNotEmpty) {
-      return _IosXcodebuildTool(
-        executable: File(path),
-        prefixArguments: const [],
-      );
-    }
+  final xcodebuild = await findWorkflowExecutableOnPath(
+    'xcodebuild',
+    environment,
+  );
+  if (xcodebuild != null) {
+    return _IosXcodebuildTool(
+      executable: xcodebuild,
+      prefixArguments: const [],
+    );
   }
   return null;
 }

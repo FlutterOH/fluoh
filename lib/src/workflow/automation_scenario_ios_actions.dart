@@ -4,7 +4,7 @@ Future<AutomationScenarioActionResult> _captureIosScreenshot(
   AutomationScenarioAction action,
   _ScenarioExecutionContext context,
 ) async {
-  final xcrun = await _xcrun(context.environment.processEnvironment);
+  final xcrun = await findWorkflowXcrun(context.environment.processEnvironment);
   if (xcrun == null) {
     return _failedAction(
       action,

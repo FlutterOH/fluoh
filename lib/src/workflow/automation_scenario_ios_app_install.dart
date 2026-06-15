@@ -12,7 +12,7 @@ Future<_IosAppInstallCheck> _ensureIosAppInstalled(
       reason: 'iOS scenario target did not expose a simulator id',
     );
   }
-  final xcrun = await _xcrun(context.environment.processEnvironment);
+  final xcrun = await findWorkflowXcrun(context.environment.processEnvironment);
   if (xcrun == null) {
     return const _IosAppInstallCheck(
       passed: false,

@@ -5,6 +5,7 @@ import 'dart:io';
 import '../context/fluoh_environment.dart';
 import '../platform/ohos/ohos_toolchain.dart';
 import '../sdk/sdk_project_environment.dart';
+import 'workflow_tool_discovery.dart';
 
 const _postLaunchScreenshotDirectory = '.fluoh/evidence/screenshots';
 
@@ -212,7 +213,7 @@ Future<MobileRunEvidenceResult> _captureAndroidPostLaunchScreenshot({
     platform: platform,
     extension: 'png',
   );
-  final adb = await _androidAdb(environment.processEnvironment);
+  final adb = await findWorkflowAndroidAdb(environment.processEnvironment);
   if (adb == null) {
     return _skipped(
       platform: platform,
@@ -262,7 +263,7 @@ Future<MobileRunEvidenceResult> _captureIosPostLaunchScreenshot({
     platform: platform,
     extension: 'png',
   );
-  final xcrun = await _xcrun(environment.processEnvironment);
+  final xcrun = await findWorkflowXcrun(environment.processEnvironment);
   if (xcrun == null) {
     return _skipped(
       platform: platform,
@@ -395,80 +396,6 @@ MobileRunEvidenceResult _failed({
     reason: reason,
     details: details,
   );
-}
-
-Future<File?> _androidAdb(Map<String, String> environment) async {
-  final configured = environment['FLUOH_ANDROID_ADB']?.trim();
-  if (configured != null && configured.isNotEmpty) {
-    final file = File(configured);
-    return await file.exists() ? file : null;
-  }
-  final sdkRoot = _androidSdkRootPath(environment);
-  if (sdkRoot != null && sdkRoot.isNotEmpty) {
-    final name = Platform.isWindows ? 'adb.exe' : 'adb';
-    final file = File('$sdkRoot/platform-tools/$name');
-    if (await file.exists()) {
-      return file;
-    }
-  }
-  return _findExecutableOnPath('adb', environment);
-}
-
-String? _androidSdkRootPath(Map<String, String> environment) {
-  for (final key in const ['ANDROID_SDK_ROOT', 'ANDROID_HOME']) {
-    final value = environment[key]?.trim();
-    if (value != null && value.isNotEmpty) {
-      return value;
-    }
-  }
-  final home = environment['HOME']?.trim();
-  if (home != null && home.isNotEmpty && Platform.isMacOS) {
-    return '$home/Library/Android/sdk';
-  }
-  return null;
-}
-
-Future<File?> _xcrun(Map<String, String> environment) async {
-  final configured = environment['FLUOH_XCRUN']?.trim();
-  if (configured != null && configured.isNotEmpty) {
-    final file = File(configured);
-    return await file.exists() ? file : null;
-  }
-  if (Platform.isMacOS) {
-    final systemXcrun = File('/usr/bin/xcrun');
-    if (await systemXcrun.exists()) {
-      return systemXcrun;
-    }
-  }
-  return _findExecutableOnPath('xcrun', environment);
-}
-
-Future<File?> _findExecutableOnPath(
-  String executable,
-  Map<String, String> environment,
-) async {
-  final path = environment['PATH'] ?? Platform.environment['PATH'];
-  if (path == null || path.trim().isEmpty) {
-    return null;
-  }
-  final separator = Platform.isWindows ? ';' : ':';
-  final candidates = Platform.isWindows
-      ? [executable, '$executable.exe', '$executable.bat', '$executable.cmd']
-      : [executable];
-  for (final directory in path.split(separator)) {
-    if (directory.trim().isEmpty) {
-      continue;
-    }
-    for (final candidate in candidates) {
-      final file = File(
-        '${directory.trim()}${Platform.pathSeparator}$candidate',
-      );
-      if (await file.exists()) {
-        return file;
-      }
-    }
-  }
-  return null;
 }
 
 Future<_ToolRun> _runTool(
