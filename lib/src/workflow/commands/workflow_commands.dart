@@ -19,6 +19,7 @@ import '../../package/package_examples.dart';
 import '../../package/package_workflow_runner.dart';
 import '../../platform/ohos/system_permission_dialog_watcher.dart';
 import '../../schema/yaml_utils.dart';
+import '../../task/task_workspace.dart';
 import '../../sdk/flutter_runner.dart';
 import '../automation_scenario.dart';
 import '../mobile_run_evidence.dart';

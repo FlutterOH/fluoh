@@ -21,7 +21,7 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -88,7 +88,7 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -168,7 +168,7 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: workflowEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -178,7 +178,14 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
 
     expect(
       await runFluoh(
-        ['build', 'ohos', '--auto-sign', '--json'],
+        [
+          'build',
+          'ohos',
+          '--auto-sign',
+          '--json',
+          '--trace-dir',
+          '.fluoh/tasks/manual/traces/camera/support',
+        ],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -198,6 +205,18 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     final diagnostics = autoSignStep['diagnostics'] as List<Object?>;
     final diagnostic = diagnostics.single as Map<String, Object?>;
     expect(diagnostic, containsPair('code', 'ohos.toolchain_missing'));
+    expect(
+      diagnostic,
+      containsPair('nextCommand', 'fluoh doctor --platform ohos --json'),
+    );
+    expect(
+      autoSignStep,
+      containsPair('nextCommand', 'fluoh doctor --platform ohos --json'),
+    );
+    expect(
+      target,
+      containsPair('nextCommand', 'fluoh doctor --platform ohos --json'),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -213,7 +232,7 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -267,7 +286,7 @@ void _registerWorkflowCommandsPresetsDiagnosticsTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

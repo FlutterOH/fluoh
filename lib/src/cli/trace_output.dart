@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../context/fluoh_environment.dart';
+import '../task/task_workspace.dart';
 import '../version.dart';
 
 /// Local trace schema written by commands that support `--trace`.
@@ -10,13 +11,16 @@ const traceOutputSchema = 1;
 /// Optional command trace configuration parsed from command-line options.
 class TraceOptions {
   /// Creates trace options.
-  const TraceOptions({required this.enabled, this.directory});
+  const TraceOptions({required this.enabled, this.directory, this.taskId});
 
   /// Whether trace output should be written.
   final bool enabled;
 
   /// Explicit trace directory requested by the caller.
   final FileSystemEntity? directory;
+
+  /// Explicit task id requested by the caller.
+  final String? taskId;
 
   /// No trace output.
   static const disabled = TraceOptions(enabled: false);
@@ -25,13 +29,24 @@ class TraceOptions {
 /// Reference included in machine-readable command output.
 class TraceReference {
   /// Creates a trace reference.
-  const TraceReference({required this.id, required this.path});
+  const TraceReference({
+    required this.id,
+    required this.path,
+    required this.workspaceRoot,
+    this.task,
+  });
 
   /// Stable local trace id.
   final String id;
 
   /// Trace directory.
   final Directory path;
+
+  /// Workspace root used for relative paths.
+  final Directory workspaceRoot;
+
+  /// Task associated with this trace.
+  final FluohTask? task;
 
   /// Trace manifest file.
   File get manifest => File('${path.path}/trace.json');
@@ -43,6 +58,7 @@ class TraceReference {
       'id': id,
       'path': path.path,
       'manifest': manifest.path,
+      if (task != null) 'task': task!.toJson(workspaceRoot),
     };
   }
 }
@@ -79,13 +95,26 @@ Future<TraceWriteResult> writeCommandTrace({
 
   final now = DateTime.now();
   final traceId = _traceId(command, now, options: options);
+  final traceScope = _traceScope(result);
+  final task = await _traceTask(
+    options: options,
+    environment: environment,
+    command: command,
+    traceScope: traceScope,
+  );
   final directory = _traceDirectory(
     options: options,
     environment: environment,
+    task: task,
     traceId: traceId,
-    traceScope: _traceScope(result),
+    traceScope: traceScope,
   );
-  final reference = TraceReference(id: traceId, path: directory);
+  final reference = TraceReference(
+    id: traceId,
+    path: directory,
+    workspaceRoot: environment.workingDirectory,
+    task: task,
+  );
   try {
     await directory.create(recursive: true);
 
@@ -120,6 +149,7 @@ Future<TraceWriteResult> writeCommandTrace({
         'workingDirectory': environment.workingDirectory.path,
         'fluohHome': environment.homeDirectory.path,
       },
+      if (task != null) 'task': task.toJson(environment.workingDirectory),
       'result': result,
       'feedbackCandidates': _allFeedbackCandidates(invocations),
       if (existing.error != null) 'previousManifestError': existing.error,
@@ -165,6 +195,7 @@ String _traceId(String command, DateTime now, {required TraceOptions options}) {
 Directory _traceDirectory({
   required TraceOptions options,
   required FluohEnvironment environment,
+  required FluohTask? task,
   required String traceId,
   required String? traceScope,
 }) {
@@ -181,11 +212,31 @@ Directory _traceDirectory({
         ? directory
         : Directory('${environment.workingDirectory.path}/$path');
   }
-  final base = '${environment.workingDirectory.path}/.fluoh/traces';
+  if (task != null) {
+    return Directory('${task.tracesDirectory.path}/$traceId');
+  }
+  final base =
+      '${environment.workingDirectory.path}/.fluoh/tasks/unscoped/traces';
   if (traceScope != null) {
     return Directory('$base/$traceScope/$traceId');
   }
   return Directory('$base/$traceId');
+}
+
+Future<FluohTask?> _traceTask({
+  required TraceOptions options,
+  required FluohEnvironment environment,
+  required String command,
+  required String? traceScope,
+}) async {
+  if (options.directory != null) {
+    return null;
+  }
+  return TaskWorkspace(environment).resolveOrCreate(
+    taskId: options.taskId,
+    type: 'workflow',
+    scopeName: traceScope ?? command.replaceAll(' ', '-'),
+  );
 }
 
 String? _traceScope(Map<String, Object?> result) {

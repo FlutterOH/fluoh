@@ -68,7 +68,7 @@ class PackageSdkCompatibilityWarning {
   String get nextStep {
     final compatible = latestCompatibleRef;
     final keepLatest =
-        'Keep adapting the selected upstream target $selectedRef. Adapt the '
+        'Keep using the selected upstream target $selectedRef. Update the '
         'package pubspec, example config, and Dart code to the selected '
         'FlutterOH SDK Dart $sdkDartVersion, then rerun verify.';
     if (compatible != null) {
@@ -99,7 +99,7 @@ class PackageSdkCompatibilityWarning {
       },
       'sdk': {'dartVersion': sdkDartVersion.toString()},
       'policy': {
-        'defaultAction': 'adapt-selected-upstream-to-selected-sdk',
+        'defaultAction': 'implement-selected-upstream-for-selected-sdk',
         'keepSelectedUpstream': true,
         'adjustPackageForSelectedSdk': true,
         'suggestedEnvironmentSdkConstraint': suggestedEnvironmentSdkConstraint,

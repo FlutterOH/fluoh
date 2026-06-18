@@ -17,18 +17,24 @@ int _compareManifestReleasesAscending(
   SourceManifestRelease left,
   SourceManifestRelease right,
 ) {
-  final upstream = comparePubVersionsAscending(
-    left.upstreamVersion,
-    right.upstreamVersion,
+  final source = comparePubVersionsAscending(
+    left.sourceVersion,
+    right.sourceVersion,
   );
-  if (upstream != 0) {
-    return upstream;
+  if (source != 0) {
+    return source;
   }
   final release = comparePubVersionsAscending(left.version, right.version);
   if (release != 0) {
     return release;
   }
-  final commit = left.upstreamCommit.compareTo(right.upstreamCommit);
+  final tag = left.tag.compareTo(right.tag);
+  if (tag != 0) {
+    return tag;
+  }
+  final commit = (left.upstreamCommit ?? '').compareTo(
+    right.upstreamCommit ?? '',
+  );
   if (commit != 0) {
     return commit;
   }

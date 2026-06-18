@@ -16,16 +16,16 @@ canonical shape.
 | Kind | Owner | Purpose |
 | --- | --- | --- |
 | `project` | Flutter project | Selected SDK and dependency rewrite policy. |
-| `package` | FlutterOH package adaptation repository | Current adaptation branch metadata. |
+| `package` | FlutterOH package support repository | Current support branch metadata. |
 | `source` | Source root | Source metadata, SDK index, and Manifest routes. |
-| `manifest` | Source package Manifest | Released package adaptation records. |
+| `manifest` | Source package Manifest | Released package support records. |
 
 State owners:
 
 | Owner | Purpose |
 | --- | --- |
 | Project | A local Flutter project selected by the user. |
-| Package | A FlutterOH package adaptation repository and branch. |
+| Package | A FlutterOH package support repository and branch. |
 | Source | A published or local Source such as `FlutterOH/source`. |
 | Manifest | A per-package file routed from a Source root. |
 
@@ -52,6 +52,7 @@ schema: 1
 kind: project
 
 sdk:
+  kind: flutteroh
   version: 3.35.8-ohos-1.0.1
 
 dependencyPolicy:
@@ -61,7 +62,11 @@ dependencyPolicy:
 
 Rules:
 
-- `sdk.version` is required and must exist in the merged Source SDK index.
+- `sdk.kind` is optional in existing files and defaults to `flutteroh`.
+  Canonical output writes it explicitly. Valid values are `flutteroh` and
+  `flutter`; FlutterOH project workflows require `flutteroh`.
+- `sdk.version` is required and must exist in the merged Source SDK index when
+  `sdk.kind: flutteroh`.
 - `dependencyPolicy` is required.
 - `dependencyPolicy.pubspecSection` is `dependency_overrides` or
   `dependencies`.
@@ -73,7 +78,7 @@ Rules:
 
 ## Package `fluoh.yaml`
 
-Package `fluoh.yaml` describes one package adaptation branch. Source Manifests
+Package `fluoh.yaml` describes one package support branch. Source Manifests
 own release history, imported from canonical package release tags.
 
 ```yaml
@@ -81,12 +86,27 @@ schema: 1
 kind: package
 
 sdk:
+  kind: flutteroh
   version: 3.35.8-ohos-1.0.1
+
+platforms:
+  target:
+    - ohos
+  preserved:
+    - android
+    - ios
+
+publishTargets:
+  - pub.dev
+  - flutteroh-source
 
 repository:
   git:
     url: https://github.com/FlutterOH/camera.git
     branch: ohos/3.35/camera
+
+origin:
+  kind: ported
 
 upstream:
   git:
@@ -108,31 +128,47 @@ package:
 Rules:
 
 - `kind` must be `package`.
+- `sdk.kind` is required in canonical output and currently must be `flutteroh`
+  for package support branches. The `ohos` platform target requires a
+  FlutterOH SDK.
 - `sdk.version` is required and must exist in the merged Source SDK index for
   commands that consume SDK data.
+- `platforms.target` lists the platforms implemented or explicitly owned by
+  this support branch. The default is `ohos`.
+- `platforms.preserved` lists existing upstream platforms that must keep
+  passing while the branch adds FlutterOH support. It is omitted when empty.
+- `publishTargets` lists release gates that the branch must check. The default
+  is `pub.dev` plus `flutteroh-source`.
 - `repository.git.url` and `repository.git.branch` are required.
 - `repository.git.branch` must use
   `ohos/<sdkLine>/<package.name>`, for example `ohos/3.35/camera`.
-- `upstream.git.url` and `upstream.git.branch` are required.
+- `origin.kind` is required and is `created` or `ported`.
+- `origin.kind: created` means the package is spec-first and has no upstream
+  package source. `upstream` must be omitted.
+- `origin.kind: ported` means the package is based on an upstream package
+  source. `upstream.git.url`, `upstream.git.branch`,
+  `package.release.upstream.version`, and
+  `package.release.upstream.commit` are required.
 - `package.name` is required.
-- `package.path` is the path in both the adaptation repository and upstream
-  repository.
+- `package.path` is the path in the FlutterOH repository. For ported packages,
+  it is also the path in the upstream repository.
 - `package.release.version` is required and follows pub semver.
-- `package.release.upstream.version` and `package.release.upstream.commit` are
-  required. `package.release.upstream.ref` is optional.
+- `package.release.upstream.ref` is optional for ported packages.
 - `package.release.status` is optional. Omitted or `compatible` means the
   branch is ready for normal consumption; use `experimental` or `broken` only
   for non-default states.
 
-Canonical package release tags use this fixed format:
+Canonical package release tags are origin-specific:
 
 ```text
-<package>-<upstream.version>-ohos-<sdkLine>-<release.version>
+created: <package>-ohos-<sdkLine>-<release.version>
+ported:  <package>-<upstream.version>-ohos-<sdkLine>-<release.version>
 ```
 
 For example:
 
 ```text
+my_plugin-ohos-3.35-1.0.0
 camera-0.11.0-ohos-3.35-1.0.1
 ```
 
@@ -150,7 +186,7 @@ routes to per-package Manifests.
 schema: 1
 kind: source
 name: flutteroh
-description: FlutterOH SDK and package adaptation source.
+description: FlutterOH SDK and package support source.
 
 repository:
   git:
@@ -199,6 +235,9 @@ repository:
   git:
     url: https://github.com/FlutterOH/camera.git
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages.git
@@ -208,22 +247,24 @@ package:
   path: packages/camera/camera
   maintenance:
     frozen: true
-    note: Upstream now supports OHOS natively.
+    note: Upstream now includes native FlutterOH support.
   advisory:
-    message: Prefer upstream camera when OHOS native support is available.
+    message: Prefer upstream camera when native FlutterOH support is available.
     alternatives:
       - name: camera_ohos
-        reason: Provides native OHOS support.
+        reason: Provides native FlutterOH support.
         url: https://pub.dev/packages/camera_ohos
   sdks:
     "3.35":
       releases:
         - version: 0.1.0
+          tag: camera-0.11.0-ohos-3.35-0.1.0
           upstream:
             version: 0.11.0
             ref: camera-v0.11.0
             commit: "0123456789abcdef0123456789abcdef01234567"
         - version: 0.2.0
+          tag: camera-0.20.0-ohos-3.35-0.2.0
           upstream:
             version: 0.20.0
             ref: camera-v0.20.0
@@ -236,11 +277,18 @@ Rules:
 - The route name is owned by the Source root `manifests[].name`, and it must
   match `package.name`.
 - `kind` must be `manifest`.
-- `repository.git.url` and `upstream.git.url` are required.
+- `repository.git.url` is required.
+- `origin.kind` is required and is `created` or `ported`.
+- `origin.kind: created` means the Source route points at a spec-first
+  FlutterOH package. `upstream` and release `upstream` blocks must be omitted.
+- `origin.kind: ported` means the Source route points at a FlutterOH port of an
+  upstream package. `upstream.git.url` and each release `upstream` block are
+  required.
 - Source Manifest repository and upstream blocks contain Git URLs; branch and
   path are owned by Package metadata and release tags.
 - `package` is required and describes exactly one package.
-- `package.path` is the path in both repositories and defaults to `.`.
+- `package.path` is the path in the FlutterOH repository and defaults to `.`.
+  For ported packages, it is also the path in the upstream repository.
 - One Source Manifest has one `package.path` for all release records. `source
   sync` skips release tags whose Package metadata declares a different path.
 - `package.maintenance.frozen` is optional and defaults to `false`.
@@ -254,31 +302,40 @@ Rules:
   and contains at least one release record.
 - Each Package SDK line must exist in the merged Source SDK index used by the
   consuming command.
-- Release records for the same SDK line use unique `upstream.version` and
-  `version` pairs.
-- Release tags are derived from the fixed package release tag rule.
-- `releases[].version` and `releases[].upstream.version` are required.
-- `releases[].upstream.ref` is optional.
-- `releases[].upstream.commit` is required.
+- Release records for the same SDK line use unique `tag` values.
+- `releases[].tag` is required. Created package tags use
+  `<package>-ohos-<sdkLine>-<release.version>`; ported package tags use
+  `<package>-<upstream.version>-ohos-<sdkLine>-<release.version>`.
+- `releases[].version` is required.
+- `releases[].upstream.version` and `releases[].upstream.commit` are required
+  only for ported packages.
+- `releases[].upstream.ref` is optional for ported packages.
 - `releases[].status` is optional. Omitted means `compatible`.
 - Canonical output sorts SDK lines ascending. Releases within a line are sorted
-  oldest first by upstream version and release version, so new releases are
-  appended after older records.
+  oldest first by source version, release version, and release tag, so new
+  releases are appended after older records.
 
-## Generated Markdown Sections
+## Generated FLUOH.md Context
 
-Generated `FLUOH.md` and `AGENTS.md` package repository guidance is versioned
-separately from YAML schema. Generated sections are delimited by Markdown
-comments:
+Generated `FLUOH.md` package context is a fluoh-owned file written by
+`package new`, `package port`, and `package add`. The file is regenerated in full from the
+current Package metadata, selected package pubspec, and built-in context; the
+bottom `FlutterOH Release History` section is preserved when it already exists.
+`FLUOH.md` links the branch-local package spec and support scope instead of
+owning detailed support design.
 
-```text
-<!-- fluoh:generated:start id=<section> template=<templateVersion> -->
-...
-<!-- fluoh:generated:end id=<section> -->
-```
+## Branch-Local Package Spec
 
-Only matching generated sections are tool-owned. Hand-written content around
-them is user-owned and must be preserved.
+`doc/fluoh/<package>/spec.md` is created by `package new`, `package port`, and
+`package add` only when it is missing. It is maintained by the maintainer and
+the fluoh skill, not regenerated by fluoh. It records package requirements,
+public API design or upstream API baseline, platform behavior, OHOS API
+mapping, example flows, and test/evidence plans for the current package branch.
+
+For `origin.kind: ported`, the spec must reference the current upstream version
+and commit from `fluoh.yaml`. After `fluoh package upstream sync` updates the
+upstream baseline, `fluoh package next` reports `spec-review` until the spec is
+updated for that new baseline.
 
 ## Source Cache And Lock Files
 
@@ -319,11 +376,12 @@ Tool config stays JSON because it is machine-owned runtime state:
 Rules:
 
 - The official Source alias is `flutteroh`, with default priority `0`.
-- User-added Sources default to priority `10`. Higher values win.
+- User-enabled Sources default to priority `10`. Higher values win.
 - Source aliases use letters, numbers, `_`, `.`, or `-`; `.` and `..` are
   reserved.
-- `url` supports HTTPS URLs, SSH URLs, and `file:` URLs. `fluoh source add`
-  normalizes user-provided local paths to absolute `file:` URLs.
+- `url` supports HTTPS URLs, SSH URLs, and `file:` URLs. `fluoh source enable`
+  enables the Source on the current machine and normalizes user-provided local
+  paths to absolute `file:` URLs.
 - HTTPS/SSH URLs use Git clone/update. `file:` URLs are copied into validated
   Source snapshots.
 - `path` is the local cache path.
@@ -410,8 +468,8 @@ Rules:
   checks read that state file instead of recursively hashing the snapshot on
   every command. If the state file is missing, the runtime recalculates the
   snapshot hash and writes a fresh state file.
-- Source mutation entrypoints, including `fluoh source add`,
-  `fluoh source remove`, `fluoh source update`, configured snapshot repairs,
+- Local Source configuration entrypoints, including `fluoh source enable`,
+  `fluoh source disable`, `fluoh source update`, configured snapshot repairs,
   configured-snapshot `fluoh source sync`, and first default Source
   initialization, ask the Source runtime to rebuild the lock. Source-consuming
   flows use the same load-index API, which regenerates the lock on demand when

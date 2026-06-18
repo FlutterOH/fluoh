@@ -91,6 +91,8 @@ repository:
   git:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -120,6 +122,8 @@ repository:
   git:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -153,6 +157,8 @@ repository:
   git:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -180,6 +186,8 @@ repository:
   git:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -300,6 +308,7 @@ repository:
       final content = sourceManifestToContent(
         SourceManifest(
           schemaVersion: 1,
+          originKind: packageOriginPorted,
           repositoryGitUrl: 'https://github.com/FlutterOH/camera.git',
           upstreamGitUrl: 'https://github.com/flutter/packages',
           package: const SourceManifestPackage(
@@ -310,6 +319,7 @@ repository:
                 releases: [
                   SourceManifestRelease(
                     version: '0.1.0',
+                    tag: 'camera-0.9.0-ohos-3.36-0.1.0',
                     upstreamVersion: '0.9.0',
                     upstreamCommit: '1111111111111111111111111111111111111111',
                   ),
@@ -320,11 +330,13 @@ repository:
                 releases: [
                   SourceManifestRelease(
                     version: '0.10.0',
+                    tag: 'camera-0.10.0-ohos-3.35-0.10.0',
                     upstreamVersion: '0.10.0',
                     upstreamCommit: '2222222222222222222222222222222222222222',
                   ),
                   SourceManifestRelease(
                     version: '0.9.0',
+                    tag: 'camera-0.9.0-ohos-3.35-0.9.0',
                     upstreamVersion: '0.9.0',
                     upstreamCommit: '3333333333333333333333333333333333333333',
                   ),
@@ -337,8 +349,8 @@ repository:
 
       expect(content.indexOf('"3.35"'), lessThan(content.indexOf('"3.36"')));
       expect(
-        content.indexOf('version: 0.9.0'),
-        lessThan(content.indexOf('version: 0.10.0')),
+        content.indexOf('tag: camera-0.9.0-ohos-3.35-0.9.0'),
+        lessThan(content.indexOf('tag: camera-0.10.0-ohos-3.35-0.10.0')),
       );
     });
 
@@ -372,6 +384,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -381,12 +395,14 @@ package:
     "3.36":
       releases:
         - version: "0.1.0"
+          tag: camera-1.0.0-ohos-3.36-0.1.0
           upstream:
             version: "1.0.0"
             commit: "1111111111111111111111111111111111111111"
     "3.35":
       releases:
         - version: "0.1.0"
+          tag: camera-1.0.0-ohos-3.35-0.1.0
           upstream:
             version: "1.0.0"
             commit: "2222222222222222222222222222222222222222"
@@ -412,6 +428,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -421,10 +439,12 @@ package:
     "3.35":
       releases:
         - version: "0.2.0"
+          tag: camera-2.0.0-ohos-3.35-0.2.0
           upstream:
             version: "2.0.0"
             commit: "2222222222222222222222222222222222222222"
         - version: "0.1.0"
+          tag: camera-1.0.0-ohos-3.35-0.1.0
           upstream:
             version: "1.0.0"
             commit: "1111111111111111111111111111111111111111"
@@ -467,6 +487,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -477,6 +499,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-1.0.0-ohos-3.35-1.0.0
           upstream:
             version: "1.0.0"
             ref: camera-v1.0.0
@@ -493,7 +516,7 @@ package:
       );
     });
 
-    test('rejects explicit source release tags', () {
+    test('rejects non-canonical source release tags', () {
       expect(
         () => parseSourceManifest(
           label: 'manifests/camera/fluoh.yaml',
@@ -503,6 +526,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -513,18 +538,18 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-v1.0.0-ohos-3.35.8-1
           upstream:
             version: "1.0.0"
             ref: camera-v1.0.0
             commit: "2222222222222222222222222222222222222222"
-          tag: camera-v1.0.0-ohos-3.35.8-1
 ''',
         ),
         throwsA(
           isA<FormatException>().having(
             (error) => error.message,
             'message',
-            contains('must not contain "tag"'),
+            contains('release tag upstream version'),
           ),
         ),
       );
@@ -543,6 +568,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -553,6 +580,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-1.0.0-ohos-3.35-1.0.0
           upstream:
 $upstreamFields
 ''',
@@ -616,6 +644,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -626,6 +656,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-1.0.0-ohos-3.35-1.0.0
           upstream:
             version: "1.0.0"
             ref: camera-v1.0.0
@@ -659,6 +690,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -669,6 +702,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-1.0.0-ohos-3.35-1.0.0
           upstream:
 $upstreamFields
 ''',
@@ -700,6 +734,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -710,6 +746,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-1.0.0-ohos-3.35-1.0.0
           upstreamVersion: "1.0.0"
           upstreamRef: camera-v1.0.0
           upstreamCommit: "1111111111111111111111111111111111111111"
@@ -735,6 +772,8 @@ kind: manifest
 repository:
   git:
     url: /tmp/camera
+origin:
+  kind: ported
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -762,7 +801,8 @@ packages:
       final content = sourceManifestToContent(
         SourceManifest(
           schemaVersion: 1,
-          repositoryGitUrl: 'file:/tmp/camera#adaptation',
+          originKind: packageOriginPorted,
+          repositoryGitUrl: 'file:/tmp/camera# support',
           upstreamGitUrl: 'https://github.com/flutter/packages',
           package: const SourceManifestPackage(
             name: 'camera',
@@ -787,6 +827,7 @@ packages:
                 releases: [
                   SourceManifestRelease(
                     version: '1.0.0',
+                    tag: 'camera-1.0.0-ohos-3.35-1.0.0',
                     upstreamVersion: '1.0.0',
                     upstreamRef: 'camera-v1.0.0',
                     upstreamCommit: '1111111111111111111111111111111111111111',
@@ -803,7 +844,7 @@ packages:
         label: 'manifests/camera/fluoh.yaml',
       );
 
-      expect(content, contains('url: "file:/tmp/camera#adaptation"'));
+      expect(content, contains('url: "file:/tmp/camera# support"'));
       expect(
         parsed.package.maintenance!.note,
         'Use upstream: native # available',

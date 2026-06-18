@@ -16,9 +16,10 @@ import '../manifest/pubspec_package.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
 import '../package_sdk_compatibility.dart';
+import '../package_spec.dart';
 import '../upstream_package_ref.dart';
 
-/// Creates another package adaptation branch in an existing repository.
+/// Creates another package support branch in an existing repository.
 class PackageAddCommand extends FluohCommand<int> {
   /// Creates the package add command.
   PackageAddCommand({
@@ -38,14 +39,14 @@ class PackageAddCommand extends FluohCommand<int> {
       'upstream-version',
       valueHelp: 'version',
       help:
-          'Upstream package version to adapt. Defaults to the latest valid '
+          'Upstream package version to target. Defaults to the latest valid '
           'package release tag.',
     );
     argParser.addOption(
       'upstream-ref',
       valueHelp: 'ref',
       help:
-          'Upstream Git ref to adapt. Use only when release tags cannot '
+          'Upstream Git ref to target. Use only when release tags cannot '
           'identify the target package version.',
     );
     argParser.addOption(
@@ -80,7 +81,7 @@ class PackageAddCommand extends FluohCommand<int> {
 
   @override
   String get description =>
-      'Create another package adaptation branch in a FlutterOH repository.';
+      'Create another package support branch in a FlutterOH repository.';
 
   @override
   String get invocation => 'fluoh package add <package-path>';
@@ -101,6 +102,9 @@ class PackageAddCommand extends FluohCommand<int> {
 
     final repository = environment.workingDirectory;
     final manifest = await readPackageManifest(repository);
+    if (!manifest.isPorted) {
+      usageException('package add is only available for ported packages.');
+    }
     final startBranch = await currentBranch(repository);
     if (startBranch != manifest.branch) {
       usageException(
@@ -130,7 +134,7 @@ class PackageAddCommand extends FluohCommand<int> {
     var switchedBranches = false;
     String? createdBranch;
     try {
-      await ensureUpstreamRemote(repository, manifest.upstreamUrl);
+      await ensureUpstreamRemote(repository, manifest.requiredUpstreamUrl);
       await fetchUpstreamRefs(repository);
       final selected = await _resolvePackageRef(
         repository: repository,
@@ -154,7 +158,7 @@ class PackageAddCommand extends FluohCommand<int> {
         usageException(
           'Package branch $branch already exists. Check it out and run '
           '"fluoh package status --package ${selected.package.name}" to inspect '
-          'the existing adaptation, or run '
+          'the existing support branch, or run '
           '"${_syncCommandFor(upstreamTarget)}" from that branch to update it.',
         );
       }
@@ -186,7 +190,7 @@ class PackageAddCommand extends FluohCommand<int> {
         sdkVersion: manifest.sdkVersion,
         repositoryBranch: branch,
         repositoryUrl: manifest.repositoryUrl,
-        upstreamUrl: manifest.upstreamUrl,
+        upstreamUrl: manifest.requiredUpstreamUrl,
         upstreamBranch: manifest.upstreamBranch,
         package: PackageManifestPackage(
           name: selected.package.name,
@@ -199,26 +203,16 @@ class PackageAddCommand extends FluohCommand<int> {
         ),
       );
       await writePackageManifestFile(repository, packageManifest);
+      await writeInitialPackageSpec(
+        repository: repository,
+        manifest: packageManifest,
+      );
       final docPackage = _docPackageForManifest(
         packageManifest.package,
         repositoryUrl: packageManifest.repositoryUrl,
+        sdkVersion: packageManifest.sdkVersion,
       );
-      await writeOrReplacePackageReadmeAdaptation(
-        destination: repository,
-        packages: [docPackage],
-      );
-      await writeOrReplacePackageImplementationGuide(
-        destination: repository,
-        packages: [docPackage],
-      );
-      await File('${repository.path}/FLUOH_CHANGELOG.md').writeAsString(
-        packageFluohChangelogContent(
-          packages: [docPackage],
-          sdkVersion: manifest.sdkVersion,
-          releaseVersion: initialPackageReleaseVersion,
-        ),
-      );
-      await writeOrReplacePackageAgentsInstructions(
+      await writeOrReplacePackageContext(
         destination: repository,
         packages: [docPackage],
       );
@@ -246,10 +240,8 @@ class PackageAddCommand extends FluohCommand<int> {
         '-f',
         '.gitignore',
         'fluoh.yaml',
-        'README.md',
         'FLUOH.md',
-        'FLUOH_CHANGELOG.md',
-        'AGENTS.md',
+        packageSpecRelativePath(selected.package.name),
       ], workingDirectory: repository);
       if (exampleSetupResult.prepared) {
         await runGit([
@@ -263,8 +255,9 @@ class PackageAddCommand extends FluohCommand<int> {
         'Created package branch $branch for ${selected.package.name}',
       );
       _output.next(
-        'Implement OHOS support for ${selected.package.name}, then check it with '
-        '"fluoh package check" and release it with "fluoh package release"',
+        'Implement FlutterOH support for ${selected.package.name}, then check '
+        'it with "fluoh package check" and release it with '
+        '"fluoh package release"',
       );
       return 0;
     } catch (_) {
@@ -296,7 +289,7 @@ extension on PackageAddCommand {
     }
     await fetchUpstreamRefsFromUrl(
       repository,
-      upstreamUrl: manifest.upstreamUrl,
+      upstreamUrl: manifest.requiredUpstreamUrl,
     );
     final selected = await _resolvePackageRef(
       repository: repository,
@@ -330,7 +323,7 @@ extension on PackageAddCommand {
     );
     final plan = _PackageAddPlan(
       repositoryUrl: manifest.repositoryUrl,
-      upstreamUrl: manifest.upstreamUrl,
+      upstreamUrl: manifest.requiredUpstreamUrl,
       upstreamBranch: manifest.upstreamBranch,
       currentBranch: currentBranch,
       sourceBranch: manifest.branch,
@@ -445,7 +438,7 @@ class _PackageAddPlan {
 
   Map<String, Object?> toJson() {
     return {
-      'adaptationKind': 'package',
+      'supportKind': 'package',
       'repository': {
         'url': repositoryUrl,
         'currentBranch': currentBranch,
@@ -482,7 +475,7 @@ class _PackageAddPlan {
               'fetch upstream refs',
               'synchronize upstream branch $upstreamBranch',
               'checkout $branch from selected upstream commit',
-              'write README.md, fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, and AGENTS.md',
+              'write fluoh.yaml, FLUOH.md, and doc/fluoh/$packageName/spec.md',
               'prepare example OHOS platform when an example exists',
               'stage generated files',
             ],
@@ -581,12 +574,12 @@ Future<bool> _branchExists(Directory repository, String branch) async {
 
 String _syncCommandFor(PackageUpstreamTarget target) {
   if (target.version != null) {
-    return 'fluoh package sync --upstream-version ${target.version}';
+    return 'fluoh package upstream sync --upstream-version ${target.version}';
   }
   if (target.ref != null) {
-    return 'fluoh package sync --upstream-ref ${target.ref}';
+    return 'fluoh package upstream sync --upstream-ref ${target.ref}';
   }
-  return 'fluoh package sync';
+  return 'fluoh package upstream sync';
 }
 
 String _addCommandFor({
@@ -671,11 +664,14 @@ Future<_ResolvedPackageRef> _resolvePackageRef({
 PackageRepositoryDocPackage _docPackageForManifest(
   PackageManifestPackage package, {
   required String repositoryUrl,
+  required String sdkVersion,
 }) {
   return PackageRepositoryDocPackage(
     name: package.name,
-    version: package.upstreamVersion,
+    version: package.sourceVersion,
     packagePath: package.path,
+    sdkVersion: sdkVersion,
+    releaseVersion: package.releaseVersion,
     repositoryUrl: repositoryUrl,
   );
 }

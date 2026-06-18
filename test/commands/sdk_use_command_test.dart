@@ -14,7 +14,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -50,10 +50,11 @@ schema: 1
 kind: project
 
 sdk:
+  kind: flutteroh
   version: 3.35.8-ohos-0.0.3
 
 dependencyPolicy:
-  # pubspecSection controls where fluoh deps fix writes OHOS implementations:
+  # pubspecSection controls where fluoh deps fix writes FlutterOH implementations:
   # - dependency_overrides: add dependency_overrides without changing dependencies.
   # - dependencies: replace matching entries in dependencies directly.
   pubspecSection: dependency_overrides
@@ -120,11 +121,13 @@ dependencyPolicy:
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
-    final legacySdk = Directory('${environment.homeDirectory.path}/legacy_sdk');
-    await legacySdk.create(recursive: true);
+    final previousSdk = Directory(
+      '${environment.homeDirectory.path}/previous_sdk',
+    );
+    await previousSdk.create(recursive: true);
     final linkRoot = Directory('${environment.workingDirectory.path}/.fluoh');
     await linkRoot.create(recursive: true);
-    await Link('${linkRoot.path}/flutter_sdk').create(legacySdk.path);
+    await Link('${linkRoot.path}/flutter_sdk').create(previousSdk.path);
     await File(
       '${environment.workingDirectory.path}/.gitignore',
     ).writeAsString('build/\n');
@@ -132,7 +135,7 @@ dependencyPolicy:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -178,7 +181,7 @@ flutter_*.log
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -210,7 +213,7 @@ flutter_*.log
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -266,7 +269,7 @@ flutter_*.log
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -303,7 +306,7 @@ flutter_*.log
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -335,7 +338,7 @@ flutter_*.log
     final source = await createPackageSourceFixture(environment.homeDirectory);
     await writeFlutterProjectFixture(environment.workingDirectory);
     final fvmrc = File('${environment.workingDirectory.path}/.fvmrc');
-    await fvmrc.writeAsString('{"flutter":"legacy"}');
+    await fvmrc.writeAsString('{"flutter":"existing"}');
     final existingSdk = Directory(
       '${environment.workingDirectory.path}/.fvm/flutter_sdk',
     );
@@ -345,7 +348,7 @@ flutter_*.log
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -361,7 +364,7 @@ flutter_*.log
       0,
     );
 
-    expect(fvmrc.readAsStringSync(), '{"flutter":"legacy"}');
+    expect(fvmrc.readAsStringSync(), '{"flutter":"existing"}');
     expect(
       File('${existingSdk.path}/README.md').readAsStringSync(),
       'existing sdk',
@@ -393,7 +396,7 @@ custom:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -429,7 +432,7 @@ custom:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -469,7 +472,7 @@ custom:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -510,6 +513,9 @@ repository:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages.git
@@ -528,7 +534,7 @@ package:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

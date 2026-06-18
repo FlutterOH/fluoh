@@ -65,6 +65,7 @@ Future<List<WorkflowTargetResult>> _runPackageOrProject({
       deviceTimeout: deviceTimeout,
       logDuration: logDuration,
       phase: invocation.phase,
+      traceDir: invocation.traceDir,
     );
     results.add(result);
     if (!result.passed) {
@@ -105,6 +106,7 @@ class _PackageWorkflowInvocation {
     this.emulatorName,
     this.sessionFile,
     this.ohosPermissionDialogPolicy = OhosSystemPermissionDialogPolicy.disabled,
+    this.traceDir,
   });
 
   final String phase;
@@ -119,6 +121,7 @@ class _PackageWorkflowInvocation {
   final String? emulatorName;
   final File? sessionFile;
   final OhosSystemPermissionDialogPolicy ohosPermissionDialogPolicy;
+  final String? traceDir;
 
   String stepMessage(String packageName) {
     if (phase == 'baseline') {
@@ -135,7 +138,7 @@ class _PackageWorkflowInvocation {
 }
 
 class _ProjectWorkflowInvocation {
-  const _ProjectWorkflowInvocation.baseline()
+  const _ProjectWorkflowInvocation.baseline({this.traceDir})
     : kind = 'baseline',
       platform = null,
       debug = false,
@@ -150,6 +153,7 @@ class _ProjectWorkflowInvocation {
     required this.platform,
     required this.debug,
     required this.autoSign,
+    required this.traceDir,
   }) : kind = 'build',
        deviceId = null,
        startEmulator = false,
@@ -165,6 +169,7 @@ class _ProjectWorkflowInvocation {
     required this.sessionFile,
     required this.autoSign,
     required this.ohosPermissionDialogPolicy,
+    required this.traceDir,
   }) : kind = 'run',
        debug = true;
 
@@ -177,6 +182,7 @@ class _ProjectWorkflowInvocation {
   final String? emulatorName;
   final File? sessionFile;
   final OhosSystemPermissionDialogPolicy ohosPermissionDialogPolicy;
+  final String? traceDir;
 }
 
 Future<WorkflowTargetResult> _runProjectWorkflow({
@@ -226,7 +232,10 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
         result: result,
         diagnosticCode: _projectBaselineDiagnosticCode(name),
         diagnosticMessage: _projectBaselineDiagnosticMessage(name),
-        nextCommand: 'fluoh verify --json',
+        nextCommand: _appendWorkflowTraceDir(
+          'fluoh verify --json',
+          invocation.traceDir,
+        ),
       ),
     );
     return result.exitCode == 0;
@@ -304,7 +313,10 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
       usage: usage,
       autoSign: invocation.autoSign,
       doctorNextCommand: policy.doctorCommand(project: true),
-      buildNextCommand: policy.buildCommand(autoSign: invocation.autoSign),
+      buildNextCommand: policy.buildCommand(
+        autoSign: invocation.autoSign,
+        traceDir: invocation.traceDir,
+      ),
     );
     steps.addAll(preparation.steps);
     if (!preparation.passed) {
@@ -419,8 +431,11 @@ Future<WorkflowTargetResult> _runProjectWorkflow({
     output: output,
     usage: usage,
     autoSign: invocation.autoSign,
-    nextCommandForDiagnostic: (code) =>
-        _projectBuildPreparationNextCommand(code, policy),
+    nextCommandForDiagnostic: (code) => _projectBuildPreparationNextCommand(
+      code,
+      policy,
+      traceDir: invocation.traceDir,
+    ),
   );
   if (!buildPreparation.passed) {
     steps.add(buildPreparation.failureStep!);
@@ -680,12 +695,13 @@ String _platformLabel(String platform) {
 
 String? _projectBuildPreparationNextCommand(
   String code,
-  PlatformWorkflowPolicy policy,
-) {
+  PlatformWorkflowPolicy policy, {
+  String? traceDir,
+}) {
   return switch (code) {
     'ohos.ohos_project_missing' => policy.doctorCommand(project: true),
-    'ohos.build_profile_patch_failed' ||
-    'ohos.direct_sign_failed' => policy.buildCommand(autoSign: true),
+    'ohos.build_profile_patch_failed' || 'ohos.direct_sign_failed' =>
+      policy.buildCommand(autoSign: true, traceDir: traceDir),
     _ => policy.doctorCommand(),
   };
 }
@@ -772,9 +788,11 @@ String _projectPlatformNextCommand(_ProjectWorkflowInvocation invocation) {
   if (invocation.kind == 'run') {
     return _projectRunNextCommand(invocation);
   }
-  return platformWorkflowPolicy(
-    platform,
-  ).buildCommand(debug: invocation.debug, autoSign: invocation.autoSign);
+  return platformWorkflowPolicy(platform).buildCommand(
+    debug: invocation.debug,
+    autoSign: invocation.autoSign,
+    traceDir: invocation.traceDir,
+  );
 }
 
 String? _projectNextCommandForDiagnosticCode(
@@ -803,5 +821,13 @@ String _projectRunNextCommand(
     deviceId: invocation.deviceId,
     startEmulator: startEmulator ?? invocation.startEmulator,
     emulatorName: invocation.emulatorName,
+    traceDir: invocation.traceDir,
   );
+}
+
+String _appendWorkflowTraceDir(String command, String? traceDir) {
+  if (traceDir == null || traceDir.isEmpty) {
+    return command;
+  }
+  return '$command --trace-dir $traceDir';
 }

@@ -7,75 +7,53 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
-  test(
-    'removes only project cleanable runtime cache artifacts by default',
-    () async {
-      final environment = await createTestEnvironment();
-      await _writeCacheFixture(environment);
+  test('removes current task scratch output by default', () async {
+    final environment = await createTestEnvironment();
+    final task = await _writeTaskFixture(environment);
+    await Directory(
+      '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+    ).create(recursive: true);
+    await Directory(
+      '${environment.homeDirectory.path}/sources/flutteroh',
+    ).create(recursive: true);
+    await environment.configFile.writeAsString('{}\n');
+    await environment.sourcesLockFile.writeAsString('{}\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['clean'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stdout.join('\n'), contains('Removed fluoh task output'));
+    expect(await Directory('${task.path}/scratch').exists(), isFalse);
+    expect(await File('${task.path}/reports/report.md').exists(), isTrue);
+    expect(
       await Directory(
         '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
-      ).create(recursive: true);
+      ).exists(),
+      isTrue,
+    );
+    expect(
       await Directory(
         '${environment.homeDirectory.path}/sources/flutteroh',
-      ).create(recursive: true);
-      await File(
-        '${environment.homeDirectory.path}/config.json',
-      ).writeAsString('{}\n');
-      await File(
-        '${environment.homeDirectory.path}/sources.lock.json',
-      ).writeAsString('{}\n');
-      await Directory(
-        '${environment.workingDirectory.path}/.fluoh/reports/test',
-      ).create(recursive: true);
-      await File(
-        '${environment.workingDirectory.path}/.fluoh/reports/test/report-test.md',
-      ).writeAsString('report');
-      final stdout = <String>[];
-      final stderr = <String>[];
+      ).exists(),
+      isTrue,
+    );
+    expect(await environment.configFile.exists(), isTrue);
+    expect(await environment.sourcesLockFile.exists(), isTrue);
+    expect(stderr, isEmpty);
+  });
 
-      expect(
-        await runFluoh(
-          ['clean'],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-
-      expect(stdout.join('\n'), contains('Removed fluoh cache'));
-      expect(
-        stdout.join('\n'),
-        contains('Cache path: ${environment.projectCacheDirectory.path}'),
-      );
-      expect(await environment.projectCacheDirectory.exists(), isFalse);
-      expect(
-        await Directory(
-          '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
-        ).exists(),
-        isTrue,
-      );
-      expect(
-        await Directory(
-          '${environment.homeDirectory.path}/sources/flutteroh',
-        ).exists(),
-        isTrue,
-      );
-      expect(await environment.configFile.exists(), isTrue);
-      expect(await environment.sourcesLockFile.exists(), isTrue);
-      expect(
-        await File(
-          '${environment.workingDirectory.path}/.fluoh/reports/test/report-test.md',
-        ).exists(),
-        isTrue,
-      );
-      expect(stderr, isEmpty);
-    },
-  );
-
-  test('dry-run reports cache artifacts without deleting them', () async {
+  test('dry-run reports task scratch output without deleting it', () async {
     final environment = await createTestEnvironment();
-    await _writeCacheFixture(environment);
+    final task = await _writeTaskFixture(environment);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -89,21 +67,15 @@ void main() {
       0,
     );
 
-    expect(stdout.join('\n'), contains('Would remove fluoh cache'));
+    expect(stdout.join('\n'), contains('Would remove fluoh task output'));
     expect(stdout.join('\n'), contains('Files: 2'));
-    expect(await environment.projectCacheDirectory.exists(), isTrue);
-    expect(
-      await File(
-        '${environment.packageRunsDirectory.path}/flutter-run-android.log',
-      ).exists(),
-      isTrue,
-    );
+    expect(await File('${task.path}/scratch/logs/run.log').exists(), isTrue);
     expect(stderr, isEmpty);
   });
 
-  test('prints clean report as json', () async {
+  test('prints task clean report as json', () async {
     final environment = await createTestEnvironment();
-    await _writeCacheFixture(environment);
+    final task = await _writeTaskFixture(environment);
     final stdout = <String>[];
     final stderr = <String>[];
 
@@ -134,33 +106,30 @@ void main() {
         'exitCode',
         'dryRun',
         'deleted',
-        'cache',
+        'targets',
       ]),
     );
-    final cache = report['cache'] as Map<String, Object?>;
-    expect(cache, containsPair('path', environment.projectCacheDirectory.path));
-    expect(cache, containsPair('exists', true));
-    expect(cache, containsPair('files', 2));
-    expect(cache, containsPair('directories', 3));
-    expect(cache, containsPair('bytes', 11));
-    expect(await environment.projectCacheDirectory.exists(), isTrue);
+    final targets = report['targets'] as List<Object?>;
+    expect(targets, hasLength(1));
+    final target = targets.single as Map<String, Object?>;
+    expect(target, containsPair('path', '${task.path}/scratch'));
+    expect(target, containsPair('exists', true));
+    expect(target, containsPair('files', 2));
+    expect(target, containsPair('directories', 3));
+    expect(target, containsPair('bytes', 10));
+    expect(await Directory('${task.path}/scratch').exists(), isTrue);
     expect(stderr, isEmpty);
   });
 
-  test('keeps project fluoh reports when cleaning project cache', () async {
+  test('tasks flag removes the whole current task workspace', () async {
     final environment = await createTestEnvironment();
-    await _writeCacheFixture(environment);
-    final report = File(
-      '${environment.workingDirectory.path}/.fluoh/reports/camera/report.md',
-    );
-    await report.parent.create(recursive: true);
-    await report.writeAsString('report');
+    final task = await _writeTaskFixture(environment);
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        ['clean'],
+        ['clean', '--tasks'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -168,23 +137,52 @@ void main() {
       0,
     );
 
-    expect(await environment.projectCacheDirectory.exists(), isFalse);
-    expect(await report.exists(), isTrue);
+    expect(await task.exists(), isFalse);
+    expect(
+      await File(
+        '${environment.workingDirectory.path}/.fluoh/current-task.json',
+      ).exists(),
+      isFalse,
+    );
     expect(stderr, isEmpty);
   });
 
-  test('reports project cache artifacts in json', () async {
+  test('all flag removes every task workspace', () async {
     final environment = await createTestEnvironment();
-    await environment.packageRunsDirectory.create(recursive: true);
-    await File(
-      '${environment.packageRunsDirectory.path}/flutter-run-android.log',
-    ).writeAsString('run log');
+    final first = await _writeTaskFixture(environment);
+    final second = await _writeTaskFixture(environment, id: 'test-task-two');
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        ['clean', '--dry-run', '--json'],
+        ['clean', '--all'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(await first.exists(), isFalse);
+    expect(await second.exists(), isFalse);
+    expect(
+      await File(
+        '${environment.workingDirectory.path}/.fluoh/current-task.json',
+      ).exists(),
+      isFalse,
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test('all flag is a no-op when no task workspace exists', () async {
+    final environment = await createTestEnvironment();
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['clean', '--all', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -193,12 +191,9 @@ void main() {
     );
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    final cache = report['cache'] as Map<String, Object?>;
-    expect(cache, containsPair('path', environment.projectCacheDirectory.path));
-    expect(cache, containsPair('exists', true));
-    expect(cache, containsPair('files', 1));
-    expect(cache, containsPair('bytes', 7));
-    expect(await environment.projectCacheDirectory.exists(), isTrue);
+    expect(report, containsPair('ok', true));
+    expect(report, containsPair('deleted', false));
+    expect(report['targets'], isEmpty);
     expect(stderr, isEmpty);
   });
 
@@ -207,18 +202,12 @@ void main() {
       return;
     }
     final environment = await createTestEnvironment();
-    await _writeCacheFixture(environment);
-    final chmod = await Process.run('chmod', [
-      'u-w',
-      environment.projectCacheDirectory.path,
-    ]);
+    final task = await _writeTaskFixture(environment);
+    final chmod = await Process.run('chmod', ['u-w', task.path]);
     expect(chmod.exitCode, 0);
     addTearDown(() async {
-      if (await environment.projectCacheDirectory.exists()) {
-        await Process.run('chmod', [
-          'u+w',
-          environment.projectCacheDirectory.path,
-        ]);
+      if (await task.exists()) {
+        await Process.run('chmod', ['u+w', task.path]);
       }
     });
     final stdout = <String>[];
@@ -242,60 +231,64 @@ void main() {
     expect(report, containsPair('exitCode', 1));
     expect(report, containsPair('dryRun', false));
     expect(report, containsPair('deleted', false));
-    expect(
-      report.keys,
-      unorderedEquals([
-        'schema',
-        'command',
-        'ok',
-        'exitCode',
-        'dryRun',
-        'deleted',
-        'cache',
-        'error',
-      ]),
-    );
-    final cache = report['cache'] as Map<String, Object?>;
-    expect(cache, containsPair('path', environment.projectCacheDirectory.path));
-    expect(cache, containsPair('exists', true));
+    expect(report.keys, containsAll(['targets', 'error']));
+    final targets = report['targets'] as List<Object?>;
+    expect(targets, hasLength(1));
     final error = report['error'] as Map<String, Object?>;
     expect(error, containsPair('type', 'filesystem'));
     expect(error['message'], isA<String>());
-    expect(await environment.projectCacheDirectory.exists(), isTrue);
+    expect(await Directory('${task.path}/scratch').exists(), isTrue);
     expect(stderr, isEmpty);
   });
 
-  test('reports missing cache as already clean', () async {
+  test('reports missing current task as an error', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
 
     expect(
       await runFluoh(
-        ['clean'],
+        ['clean', '--json'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       ),
-      0,
+      1,
     );
 
-    expect(stdout.join('\n'), contains('No cleanable cache found'));
-    expect(
-      stdout.join('\n'),
-      contains('Cache path: ${environment.projectCacheDirectory.path}'),
-    );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', false));
+    expect(report, containsPair('deleted', false));
+    expect(report['error'], isA<Map<String, Object?>>());
     expect(stderr, isEmpty);
   });
 }
 
-Future<void> _writeCacheFixture(FluohEnvironment environment) async {
-  await environment.packageRunsDirectory.create(recursive: true);
-  await environment.ohosSigningDirectory.create(recursive: true);
-  await File(
-    '${environment.packageRunsDirectory.path}/flutter-run-android.log',
-  ).writeAsString('run log');
-  await File(
-    '${environment.ohosSigningDirectory.path}/debug-profile.p7b',
-  ).writeAsString('sign');
+Future<Directory> _writeTaskFixture(
+  FluohEnvironment environment, {
+  String id = 'test-task',
+}) async {
+  final task = Directory(
+    '${environment.workingDirectory.path}/.fluoh/tasks/$id',
+  );
+  await Directory('${task.path}/scratch/logs').create(recursive: true);
+  await Directory('${task.path}/scratch/signing').create(recursive: true);
+  await File('${task.path}/scratch/logs/run.log').writeAsString('run log');
+  await File('${task.path}/scratch/signing/debug.p7b').writeAsString('sig');
+  await File('${task.path}/reports/report.md').create(recursive: true);
+  await File('${task.path}/reports/report.md').writeAsString('report');
+  final current = File(
+    '${environment.workingDirectory.path}/.fluoh/current-task.json',
+  );
+  await current.parent.create(recursive: true);
+  await current.writeAsString(
+    jsonEncode({
+      'schema': 1,
+      'kind': 'fluoh.currentTask',
+      'id': id,
+      'path': '.fluoh/tasks/$id',
+      'updatedAt': '2026-06-18T00:00:00.000',
+    }),
+  );
+  return task;
 }

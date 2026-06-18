@@ -13,6 +13,7 @@ import '../sdk/flutter_command.dart';
 import '../sdk/sdk_commands.dart';
 import '../source/source_commands.dart';
 import '../source/source_runtime.dart';
+import '../task/task_command.dart';
 import '../upgrade/upgrade_command.dart';
 import '../version.dart';
 import '../workflow/commands/plan_command.dart';
@@ -101,7 +102,7 @@ class FluohCommandRunner extends CommandRunner<int> {
        ),
        super(
          executableName,
-         'CLI for FlutterOH SDKs, projects, and package adaptation workflows.',
+         'CLI for FlutterOH SDKs, projects, and package support workflows.',
          usageLineLength: fluohUsageLineLength(),
          suggestionDistanceLimit: 0,
        ) {
@@ -169,6 +170,7 @@ class FluohCommandRunner extends CommandRunner<int> {
       ),
     );
     addCommand(PlanCommand(environment: env, stdout: _stdout, output: _output));
+    addCommand(TaskCommand(environment: env, stdout: _stdout, output: _output));
     addCommand(
       PackageCommand(
         environment: env,
@@ -203,7 +205,9 @@ class FluohCommandRunner extends CommandRunner<int> {
     addCommand(
       UpgradeCommand(stdout: _stdout, stderr: _stderr, output: _output),
     );
-    addCommand(SkillCommand(stdout: _stdout, output: _output));
+    addCommand(
+      SkillCommand(environment: env, stdout: _stdout, output: _output),
+    );
     addCommand(
       CleanCommand(environment: env, stdout: _stdout, output: _output),
     );
@@ -323,7 +327,7 @@ class FluohCommandRunner extends CommandRunner<int> {
     final style = _output.style;
     _output.write(
       '${style.header('fluoh')} ${style.value(packageVersion)} - '
-      'CLI for FlutterOH SDKs, projects, and package adaptation workflows',
+      'CLI for FlutterOH SDKs, projects, and package support workflows',
     );
     _output.write('${style.label('Dart')} $dartVersion');
     _output.write(
@@ -489,6 +493,7 @@ const _topLevelCommandSections = [
     'attach',
     'drive',
     'report',
+    'task',
     'clean',
   ]),
   CommandUsageSection('Devices', ['devices', 'emulators']),

@@ -14,11 +14,14 @@ Directory packageDirectory(Directory repository, String packagePath) {
   return Directory('${repository.path}/$packagePath');
 }
 
-/// Reads package name and version from a repository pubspec.
-Future<PubspecPackage> readPubspecPackage(Directory repository) async {
+/// Reads package name and version from a package pubspec.
+Future<PubspecPackage> readPubspecPackage(
+  Directory repository, {
+  String description = 'package directory',
+}) async {
   final pubspec = File('${repository.path}/pubspec.yaml');
   if (!await pubspec.exists()) {
-    throw UsageException('Missing pubspec.yaml in upstream repository.', '');
+    throw UsageException('Missing pubspec.yaml in $description.', '');
   }
   try {
     return PubspecPackage.fromYaml(await pubspec.readAsString());

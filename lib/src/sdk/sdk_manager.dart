@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../context/fluoh_environment.dart';
+import '../schema/version_rules.dart';
 import '../source/source_runtime.dart';
 import 'sdk_project_config.dart';
 import 'sdk_release.dart';
@@ -50,9 +51,23 @@ class SdkManager {
   }
 
   /// Resolves an exact SDK version, tag, or version series.
-  Future<SdkRelease> resolveRelease(String version) async {
+  Future<SdkRelease> resolveRelease(
+    String version, {
+    bool allowUnindexedExact = false,
+  }) async {
     final query = version.trim();
-    final releases = await listReleases();
+    late final List<SdkRelease> releases;
+    try {
+      releases = await listReleases();
+    } on UsageException catch (error) {
+      if (allowUnindexedExact && _isMissingSdkIndex(error)) {
+        final exact = _unindexedExactRelease(query);
+        if (exact != null) {
+          return exact;
+        }
+      }
+      rethrow;
+    }
     final exactMatches = releases.where(
       (release) => release.tag == query || release.version == query,
     );
@@ -210,6 +225,21 @@ class SdkManager {
 
   Future<bool> _isInstalledSdkTag(String tag) async {
     return (await installedSdkTags()).contains(tag);
+  }
+
+  SdkRelease? _unindexedExactRelease(String tag) {
+    try {
+      return SdkRelease(
+        version: tag,
+        versionSeries: sdkLineFromSdkVersion(tag),
+        flutterVersion: flutterVersionFromSdkVersion(tag),
+        channel: 'unknown',
+        repository: '',
+        tag: tag,
+      );
+    } on FormatException {
+      return null;
+    }
   }
 }
 

@@ -13,6 +13,7 @@ class ProjectFluohConfig {
   /// Creates a project configuration value.
   const ProjectFluohConfig({
     required this.schemaVersion,
+    this.sdkKind = defaultSdkKind,
     this.sdkVersion,
     this.dependencyPolicy = const DependencyPolicy(),
   });
@@ -32,11 +33,18 @@ class ProjectFluohConfig {
       throw FluohSchemaException('fluoh.yaml kind must be $projectConfigKind.');
     }
     final sdk = objectMap(yaml['sdk'], 'fluoh.yaml sdk');
-    ensureAllowedKeys(sdk, 'fluoh.yaml sdk', {'version'});
+    ensureAllowedKeys(sdk, 'fluoh.yaml sdk', {'kind', 'version'});
+    final sdkKind = normalizeSdkKind(
+      optionalString(sdk, 'kind'),
+      label: 'fluoh.yaml sdk.kind',
+    );
     final sdkVersion = requiredString(sdk, 'version');
-    flutterVersionFromSdkVersion(sdkVersion);
+    if (isFlutterOhSdkKind(sdkKind)) {
+      flutterVersionFromSdkVersion(sdkVersion);
+    }
     return ProjectFluohConfig(
       schemaVersion: yaml['schema'] as int,
+      sdkKind: sdkKind,
       sdkVersion: sdkVersion,
       dependencyPolicy: parseDependencyPolicy(yaml),
     );
@@ -46,6 +54,9 @@ class ProjectFluohConfig {
   final int schemaVersion;
 
   /// Selected FlutterOH SDK version, when configured.
+  final String sdkKind;
+
+  /// Selected SDK version, when configured.
   final String? sdkVersion;
 
   /// Dependency rewrite policy for this project.
@@ -59,10 +70,11 @@ String newProjectFluohConfigContent(String sdkVersion) {
     'kind: $projectConfigKind',
     '',
     'sdk:',
+    '  kind: $sdkKindFlutterOh',
     '  version: $sdkVersion',
     '',
     'dependencyPolicy:',
-    '  # pubspecSection controls where fluoh deps fix writes OHOS implementations:',
+    '  # pubspecSection controls where fluoh deps fix writes FlutterOH implementations:',
     '  # - dependency_overrides: add dependency_overrides without changing dependencies.',
     '  # - dependencies: replace matching entries in dependencies directly.',
     '  pubspecSection: dependency_overrides',
@@ -85,9 +97,13 @@ String upsertProjectSdkVersion(String content, String sdkVersion) {
   if (sdkIndex != -1) {
     if (_isTopLevelBlockSection(lines[sdkIndex], 'sdk')) {
       _upsertSdkVersion(lines, sdkIndex, sdkVersion);
+      _upsertSdkKind(lines, sdkIndex, sdkKindFlutterOh);
     } else {
       lines[sdkIndex] = 'sdk:';
-      lines.insert(sdkIndex + 1, '  version: $sdkVersion');
+      lines.insertAll(sdkIndex + 1, [
+        '  kind: $sdkKindFlutterOh',
+        '  version: $sdkVersion',
+      ]);
     }
     _ensureSchemaLine(lines);
     _ensureKindLine(lines);
@@ -107,7 +123,13 @@ String upsertProjectSdkVersion(String content, String sdkVersion) {
   final kindIndex = _topLevelKeyIndex(lines, 'kind');
   final insertIndex =
       (kindIndex == -1 ? _topLevelKeyIndex(lines, 'schema') : kindIndex) + 1;
-  lines.insertAll(insertIndex, ['', 'sdk:', '  version: $sdkVersion', '']);
+  lines.insertAll(insertIndex, [
+    '',
+    'sdk:',
+    '  kind: $sdkKindFlutterOh',
+    '  version: $sdkVersion',
+    '',
+  ]);
   return '${lines.join('\n')}\n';
 }
 
@@ -150,6 +172,22 @@ void _upsertSdkVersion(List<String> lines, int sdkIndex, String sdkVersion) {
   }
 
   lines.insert(sdkIndex + 1, '  version: $sdkVersion');
+}
+
+void _upsertSdkKind(List<String> lines, int sdkIndex, String sdkKind) {
+  final end = _topLevelSectionEnd(lines, sdkIndex);
+  for (var i = sdkIndex + 1; i < end; i += 1) {
+    final match = RegExp(
+      r'^([ \t]+)kind\s*:(?:\s*[^#]*)?(\s+#.*)?$',
+    ).firstMatch(lines[i]);
+    if (match == null) {
+      continue;
+    }
+    lines[i] = '${match.group(1)}kind: $sdkKind${match.group(2) ?? ''}';
+    return;
+  }
+
+  lines.insert(sdkIndex + 1, '  kind: $sdkKind');
 }
 
 int _topLevelKeyIndex(List<String> lines, String name) {

@@ -253,6 +253,25 @@ exit 0
       expect(report, containsPair('exitCode', 1));
       expect(report, containsPair('project', true));
       expect(report['issueCount'], isNonZero);
+      expect(report, containsPair('state', 'blocked'));
+      final nextAction = report['nextAction'] as Map<String, Object?>;
+      expect(nextAction, containsPair('type', 'blocked'));
+      expect(nextAction, containsPair('phase', 'doctor'));
+      expect(nextAction, containsPair('reason', 'doctor_warnings'));
+      expect(
+        nextAction,
+        containsPair('rerunCommand', 'fluoh doctor --project --json --strict'),
+      );
+      final failingChecks = nextAction['failingChecks'] as List<Object?>;
+      expect(
+        failingChecks,
+        contains(
+          allOf(
+            containsPair('id', 'project.flutter'),
+            containsPair('title', 'Flutter project'),
+          ),
+        ),
+      );
       final checks = report['checks'] as List<Object?>;
       expect(
         checks,

@@ -7,6 +7,7 @@ import '../platform/ohos/ohos_toolchain.dart';
 import '../sdk/flutter_runner.dart';
 import '../sdk/sdk_manager.dart';
 import '../schema/yaml_utils.dart';
+import '../task/task_workspace.dart';
 import 'ios_xctest_project.dart';
 import 'platform_workflow_policy.dart';
 import 'workflow_result.dart';

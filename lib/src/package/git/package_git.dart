@@ -119,7 +119,7 @@ Future<void> ensureUpstreamRemote(
   ], workingDirectory: repository);
 }
 
-/// Writes local Git author config for package adaptation commits.
+/// Writes local Git author config for package support commits.
 Future<void> configurePackageGitAuthor(
   Directory repository,
   PackageGitAuthor author,

@@ -54,7 +54,7 @@ const sourceRootYamlTemplate = '''
 schema: 1
 kind: source
 name: flutteroh
-description: FlutterOH SDK and package adaptation source.
+description: FlutterOH SDK and package support source.
 
 # repository:
 #   git:
@@ -80,6 +80,9 @@ repository:
   git:
     url: https://github.com/FlutterOH/camera.git
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages.git
@@ -91,6 +94,7 @@ package:
     "3.35":
       releases:
         - version: 0.1.0
+          tag: camera-0.11.0-ohos-3.35-0.1.0
           upstream:
             version: 0.11.0
             ref: camera-v0.11.0

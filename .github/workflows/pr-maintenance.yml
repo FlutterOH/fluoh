@@ -62,7 +62,7 @@ jobs:
               },
               'area:package': {
                 color: '0969DA',
-                description: 'FlutterOH package adaptation workflows.',
+                description: 'FlutterOH package support workflows.',
               },
               'area:workflow': {
                 color: '0969DA',
@@ -161,7 +161,7 @@ jobs:
             if (fileMatches(/^(lib\/src\/upgrade\/|test\/commands\/upgrade_)/)) {
               addArea('area:upgrade', 'dart test test/commands/upgrade_command_test.dart');
             }
-            if (fileMatches(/^(README|CONTRIBUTING|AGENTS|CLAUDE|doc\/commands|doc\/assets|doc\/schema|.*\.md$)/)) {
+            if (fileMatches(/^(README|CONTRIBUTING|AGENTS|doc\/commands|doc\/assets|doc\/schema|.*\.md$)/)) {
               addArea('area:docs', 'dart test test/release/release_artifacts_test.dart');
             }
             if (fileMatches(/^\.github\//)) {
@@ -201,8 +201,8 @@ jobs:
             if (fileNames.includes('lib/src/project/create_command.dart')) {
               highReasons.push('Project creation command changed');
             }
-            if (fileMatches(/^lib\/src\/package\/(commands\/package_(create|sync|release)_command\.dart|package_workflow_runner\.dart|release_validator\.dart|manifest\/)/)) {
-              highReasons.push('Package create, sync, release, or manifest workflow changed');
+            if (fileMatches(/^lib\/src\/package\/(commands\/package_(new|port|upstream|release)_command\.dart|package_workflow_runner\.dart|release_validator\.dart|manifest\/)/)) {
+              highReasons.push('Package new, port, upstream, release, or manifest workflow changed');
             }
             if (fileMatches(/^lib\/src\/workflow\/commands\//)) {
               highReasons.push('Workflow command behavior changed');

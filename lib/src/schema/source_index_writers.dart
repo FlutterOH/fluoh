@@ -56,6 +56,7 @@ String sourceManifestContent(SourceManifestTemplate template) {
   return sourceManifestToContent(
     SourceManifest(
       schemaVersion: sourceManifestSchema,
+      originKind: template.originKind,
       repositoryGitUrl: template.repositoryGitUrl,
       upstreamGitUrl: template.upstreamGitUrl,
       package: SourceManifestPackage(
@@ -67,6 +68,7 @@ String sourceManifestContent(SourceManifestTemplate template) {
             releases: [
               SourceManifestRelease(
                 version: template.package.version,
+                tag: template.package.tag,
                 upstreamVersion: template.package.upstreamVersion,
                 upstreamRef: template.package.upstreamRef,
                 upstreamCommit: template.package.upstreamCommit,
@@ -88,6 +90,8 @@ String sourceManifestToContent(SourceManifest manifest) {
     package.path,
     label: 'Source Manifest package.path',
   );
+  final originKind = _sourceOriginKind(manifest.originKind, 'Source Manifest');
+  final isPorted = originKind == packageOriginPorted;
   final lines = [
     'schema: $sourceManifestSchema',
     'kind: manifest',
@@ -96,10 +100,15 @@ String sourceManifestToContent(SourceManifest manifest) {
     '  git:',
     '    url: ${_yamlScalar(manifest.repositoryGitUrl)}',
     '',
-    'upstream:',
-    '  git:',
-    '    url: ${_yamlScalar(manifest.upstreamGitUrl)}',
+    'origin:',
+    '  kind: $originKind',
     '',
+    if (isPorted) ...[
+      'upstream:',
+      '  git:',
+      '    url: ${_yamlScalar(manifest.upstreamGitUrl)}',
+      '',
+    ],
     'package:',
     '  name: ${_yamlScalar(package.name)}',
     if (packagePath != '.') '  path: ${_yamlScalar(packagePath)}',
@@ -119,20 +128,40 @@ String sourceManifestToContent(SourceManifest manifest) {
     lines.addAll(['    "${sdk.sdkLine}":', '      releases:']);
     for (final release in _sortedManifestReleases(sdk.releases)) {
       validateReleaseVersion(release.version, label: 'release version');
-      final upstreamVersion = _manifestPubVersion(
-        release.upstreamVersion,
-        label: 'release upstream.version',
-      );
-      final upstreamRef = release.upstreamRef == null
+      final tag = normalizeGitRef(release.tag, label: 'release tag');
+      parsePackageReleaseTag(tag);
+      if (isPorted &&
+          (release.upstreamVersion == null || release.upstreamCommit == null)) {
+        throw const FluohSchemaException(
+          'release upstream metadata is required for ported packages.',
+        );
+      }
+      if (!isPorted &&
+          (release.upstreamVersion != null ||
+              release.upstreamCommit != null ||
+              release.upstreamRef != null)) {
+        throw const FluohSchemaException(
+          'release upstream metadata must be omitted for created packages.',
+        );
+      }
+      final upstreamVersion = isPorted
+          ? _manifestPubVersion(
+              release.upstreamVersion!,
+              label: 'release upstream.version',
+            )
+          : null;
+      final upstreamRef = !isPorted || release.upstreamRef == null
           ? null
           : normalizeGitRef(
               release.upstreamRef!,
               label: 'release upstream.ref',
             );
-      final upstreamCommit = normalizeGitCommitHash(
-        release.upstreamCommit,
-        label: 'release upstream.commit',
-      );
+      final upstreamCommit = isPorted
+          ? normalizeGitCommitHash(
+              release.upstreamCommit!,
+              label: 'release upstream.commit',
+            )
+          : null;
       if (!const {
         'compatible',
         'experimental',
@@ -144,10 +173,14 @@ String sourceManifestToContent(SourceManifest manifest) {
       }
       lines.addAll([
         '        - version: ${_yamlScalar(release.version)}',
-        '          upstream:',
-        '            version: ${_yamlScalar(upstreamVersion)}',
-        if (upstreamRef != null) '            ref: ${_yamlScalar(upstreamRef)}',
-        '            commit: ${_yamlScalar(upstreamCommit)}',
+        '          tag: ${_yamlScalar(tag)}',
+        if (isPorted) ...[
+          '          upstream:',
+          '            version: ${_yamlScalar(upstreamVersion!)}',
+          if (upstreamRef != null)
+            '            ref: ${_yamlScalar(upstreamRef)}',
+          '            commit: ${_yamlScalar(upstreamCommit!)}',
+        ],
         if (release.status != 'compatible')
           '          status: ${release.status}',
       ]);

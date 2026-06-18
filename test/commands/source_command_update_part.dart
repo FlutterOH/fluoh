@@ -507,7 +507,7 @@ manifests:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'local', 'package_source'],
+        ['source', 'enable', 'local', 'package_source'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -589,7 +589,7 @@ sdk:
 
       expect(
         await runFluoh(
-          ['source', 'add', '../victim', source.path],
+          ['source', 'enable', '../victim', source.path],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -605,7 +605,7 @@ sdk:
   );
 
   test(
-    'keeps existing cache when adding an invalid local path source',
+    'keeps existing cache when enabling an invalid local path source',
     () async {
       final environment = await createTestEnvironment();
       final validSource = await createPackageSourceFixture(
@@ -635,7 +635,7 @@ manifests:
 
       expect(
         await runFluoh(
-          ['source', 'add', 'local', validSource.path],
+          ['source', 'enable', 'local', validSource.path],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -646,7 +646,7 @@ manifests:
 
       expect(
         await runFluoh(
-          ['source', 'add', 'local', invalidSource.path],
+          ['source', 'enable', 'local', invalidSource.path],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -669,7 +669,7 @@ manifests:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'flutteroh', source.path],
+        ['source', 'enable', 'flutteroh', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -679,7 +679,7 @@ manifests:
     expect(stderr.join('\n'), contains('Cannot replace the official source.'));
   });
 
-  test('removes non-default sources but keeps the official source', () async {
+  test('disables non-default sources but keeps the official source', () async {
     final baseEnvironment = await createTestEnvironment();
     final defaultSource = await createPackageSourceFixture(
       baseEnvironment.homeDirectory.parent,
@@ -698,7 +698,7 @@ manifests:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'team', source.path],
+        ['source', 'enable', 'team', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -707,7 +707,7 @@ manifests:
     );
     expect(
       await runFluoh(
-        ['source', 'remove', 'team'],
+        ['source', 'disable', 'team'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -724,22 +724,22 @@ manifests:
       0,
     );
 
-    expect(stdout, contains('Removed source team'));
+    expect(stdout, contains('Disabled source team'));
     expect(stdout.last, '[1] flutteroh file://${defaultSource.path}');
 
     expect(
       await runFluoh(
-        ['source', 'remove', 'flutteroh'],
+        ['source', 'disable', 'flutteroh'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       ),
       64,
     );
-    expect(stderr.join('\n'), contains('Cannot remove the official source.'));
+    expect(stderr.join('\n'), contains('Cannot disable the official source.'));
   });
 
-  test('reports unknown source names for update and remove', () async {
+  test('reports unknown source names for update and disable', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
@@ -758,7 +758,7 @@ manifests:
     stderr.clear();
     expect(
       await runFluoh(
-        ['source', 'remove', 'missing'],
+        ['source', 'disable', 'missing'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

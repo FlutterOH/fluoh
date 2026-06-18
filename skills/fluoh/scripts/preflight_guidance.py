@@ -31,7 +31,7 @@ def flutter_package_output(project: dict[str, Any]) -> str:
     return f"../{package}_ohos"
 
 
-def adapt_plan_command(project: dict[str, Any]) -> str | None:
+def support_plan_command(project: dict[str, Any]) -> str | None:
     if project["kind"] == "app-project":
         sdk = project["sdkVersion"]
         if sdk:
@@ -67,7 +67,7 @@ def command_queue_item(command: str, project: dict[str, Any]) -> dict[str, Any]:
         item["requiresApproval"] = False
         item["kind"] = "setup-inputs"
     if project["kind"] in {"app-project", "package-repository", "flutter-package"}:
-        item["adaptationKind"] = (
+        item["supportKind"] = (
             "package" if project["kind"] != "app-project" else "app"
         )
     return item
@@ -83,13 +83,13 @@ def command_must_complete(command: str, project: dict[str, Any]) -> bool:
         return False
     return command_phase(command) in {
         "deps",
-        "docs",
         "doctor",
         "verify",
         "target-discovery",
         "platform",
         "automation",
         "regression",
+        "implementation-loop",
         "report",
         "report-check",
         "handoff",
@@ -104,10 +104,14 @@ def command_failure_action(command: str) -> str:
         return "switch to the generated repository and rerun preflight"
     if "--dry-run" in command or "--plan" in command:
         return "inspect the plan output before running the mutating command"
+    if " task start " in command:
+        return "fix the project path or local .fluoh write permissions, then rerun task start"
     if " package handoff " in command:
         return "fix the reported branch, dirty tree, trace, or report gap before continuing"
     if " package check " in command:
         return "fix the release gate finding, rerun the failed command, then rerun package check"
+    if " package next " in command:
+        return "follow nextAction exactly, then rerun package next until it reports ready, blocked, or maintainer decision"
     if " report create " in command:
         return "create or update the report, then run the report check command"
     if "check_report.py" in command:
@@ -116,14 +120,14 @@ def command_failure_action(command: str) -> str:
 
 
 def command_phase(command: str) -> str:
-    if command.startswith("Resolve package setup") or " package create " in command:
+    if command.startswith("Resolve package setup") or " package port " in command:
         return "setup"
     if command.startswith("cd "):
         return "setup"
     if " source update" in command:
         return "setup"
-    if " package docs refresh" in command:
-        return "docs"
+    if " task start " in command:
+        return "task"
     if " deps " in command:
         return "deps"
     if " doctor " in command:
@@ -151,6 +155,8 @@ def command_phase(command: str) -> str:
         return "report-check"
     if " package handoff " in command:
         return "handoff"
+    if " package next " in command:
+        return "implementation-loop"
     if " package status " in command or " package check " in command:
         return "release-check"
     return "other"
@@ -168,6 +174,7 @@ def command_mutates(command: str) -> bool:
         " package handoff ",
         " package check ",
         " package discover ",
+        " package next ",
         " package queue ",
     )
     if command.startswith("Resolve package setup") or command.startswith("cd "):
@@ -177,6 +184,7 @@ def command_mutates(command: str) -> bool:
     return any(
         token in command
         for token in (
+            " task start ",
             " sdk use ",
             " source update",
             " deps fix",
@@ -184,8 +192,7 @@ def command_mutates(command: str) -> bool:
             " build ",
             " run ",
             " drive ",
-            " package create ",
-            " package docs refresh",
+            " package port ",
             " report create ",
         )
     )
@@ -200,6 +207,8 @@ def command_expected_evidence(command: str, phase: str) -> str:
         )
     if " source update" in command:
         return "source update result"
+    if " task start " in command:
+        return "current local task workspace"
     if " deps check " in command:
         return "dependency support JSON"
     if " deps fix --dry-run" in command:
@@ -224,6 +233,8 @@ def command_expected_evidence(command: str, phase: str) -> str:
         return "canonical report validation JSON"
     if " package handoff " in command:
         return "branch state, reports, traces, and next commands"
+    if " package next " in command:
+        return "package nextAction state machine; follow returned commands and edits until ready, blocked, or maintainer decision"
     if " package check " in command:
         return "release gate JSON"
     return "command result"
@@ -234,8 +245,8 @@ def delivery_checks(project: dict[str, Any]) -> list[str]:
     if kind == "app-project":
         scope = slug(project["name"] or "app", "app")
         return [
-            "Confirm preflight upgradeChecks has no migration blocker before editing.",
-            f"Create or update .fluoh/reports/{scope}/report-<timestamp>.md before the final response.",
+            "Confirm preflight upgradeChecks has no schema blocker before editing.",
+            "Create or update the current task report before the final response.",
             "Before final verification, inspect existing tests and integration tests against app behavior; add or repair missing functional tests before claiming ready.",
             "Record deps, doctor, build, and run command results with exit codes.",
             "Use --auto-emulator for OHOS run so a local emulator is tried before connected devices; record signed build-only evidence only when no local target can be started.",
@@ -247,13 +258,13 @@ def delivery_checks(project: dict[str, Any]) -> list[str]:
     if kind == "package-repository":
         package = slug(project["selectedPackage"] or "<name>", "<name>")
         return [
-            "Confirm preflight upgradeChecks has no schema migration blocker and generated docs are current or refreshed before editing.",
-            f"Create or update .fluoh/reports/{package}/report-<timestamp>.md before the final response.",
+            "Confirm preflight upgradeChecks has no schema blocker before editing.",
+            "Create or update the current task report before the final response.",
             "Before final verification, inspect package tests, example tests, and integration tests against public API, platform interfaces, permissions, and behavior paths; add or repair missing functional tests before claiming ready.",
-            f"Record verify, status, and package check results for {package} with exit codes.",
-            f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
-            "Record functional checks for every existing non-OHOS example platform, including Android, iOS, macOS, Linux, Web, and Windows when the current host supports it; record exact diagnostic evidence and skip reasons only for unsupported hosts or toolchains.",
-            "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
+            f"Record package next, status, and package check results for {package} with exit codes.",
+            f"Record target-platform build/run evidence for {package}, including OHOS when in scope; use --auto-emulator for OHOS so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
+            "Record functional checks for every existing example platform, including Android, iOS, macOS, Linux, Web, and Windows when the current host supports it; record exact diagnostic evidence and skip reasons only for unsupported hosts or toolchains.",
+            "Review public API compatibility, dependency constraints, and existing-platform regression risk.",
             "Review the diff and remove unrelated local paths, generated caches, credentials, and private tokens.",
             "Run the report check command against the canonical report and fix every failure before the final response.",
             "State ready, blocked, or needs maintainer decision in the final response.",
@@ -262,14 +273,14 @@ def delivery_checks(project: dict[str, Any]) -> list[str]:
         package = slug(project["name"] or "<package-name>", "<package-name>")
         output = flutter_package_output(project)
         return [
-            "Create a FlutterOH package repository before editing OHOS implementation files.",
+            "Create a FlutterOH package repository before editing platform implementation files.",
             f"Rerun preflight in {output} before using final check commands.",
-            f"Create or update .fluoh/reports/{package}/report-<timestamp>.md in the generated repository before the final response.",
+            "Create or update the current task report in the generated repository before the final response.",
             "Before final verification, inspect package tests, example tests, and integration tests against public API, platform interfaces, permissions, and behavior paths; add or repair missing functional tests before claiming ready.",
-            f"Record verify, status, and package check results for {package} with exit codes.",
-            f"Record OHOS build/run evidence for {package}; use --auto-emulator so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
-            "Record functional checks for every existing non-OHOS example platform after repository creation, including Android, iOS, macOS, Linux, Web, and Windows when the current host supports it; record exact diagnostic evidence and skip reasons only for unsupported hosts or toolchains.",
-            "Review public API compatibility, dependency constraints, and non-OHOS regression risk.",
+            f"Record package next, status, and package check results for {package} with exit codes.",
+            f"Record target-platform build/run evidence for {package}, including OHOS when in scope; use --auto-emulator for OHOS so a local emulator is tried before connected devices, and explain only the remaining device/build blocker.",
+            "Record functional checks for every existing example platform after repository creation, including Android, iOS, macOS, Linux, Web, and Windows when the current host supports it; record exact diagnostic evidence and skip reasons only for unsupported hosts or toolchains.",
+            "Review public API compatibility, dependency constraints, and existing-platform regression risk.",
             "Run the report check command against the canonical report and fix every failure before the final response.",
             "State ready, blocked, or needs maintainer decision in the final response.",
         ]
@@ -330,13 +341,13 @@ def report_check_command() -> str:
 def quality_gates(project: dict[str, Any]) -> list[dict[str, Any]]:
     kind = project["kind"]
     active = kind in {"app-project", "package-repository", "flutter-package"}
-    adaptation_kind = "app" if kind == "app-project" else "package"
+    support_kind = "app" if kind == "app-project" else "package"
     return [
         {
             "id": "functional-test-baseline",
             "requiredForReady": active,
             "description": (
-                f"Before final verification, inspect existing {adaptation_kind} "
+                f"Before final verification, inspect existing {support_kind} "
                 "tests and integration tests against public API, platform "
                 "interfaces, example flows, permissions, and behavior paths; "
                 "add or repair missing functional tests before claiming ready."
@@ -347,7 +358,7 @@ def quality_gates(project: dict[str, Any]) -> list[dict[str, Any]]:
             "requiredForReady": active,
             "description": (
                 "Do not validate only OHOS. Run functional verification for "
-                "OHOS and every existing non-OHOS platform directory when the "
+                "OHOS and every existing platform directory when the "
                 "current host/toolchain supports it; otherwise record the "
                 "diagnostic command, unsupported environment reason, and "
                 "remaining blocker in the report."
@@ -378,6 +389,24 @@ def automation_runbook(project: dict[str, Any]) -> dict[str, Any]:
         mode = "autonomous-to-delivery"
     else:
         mode = "routing-only"
+    execution_rules = [
+        "If fluohSetup.status is needs-cli-setup, fix the fluoh executable or launcher first and rerun preflight before commandQueue.",
+        "Run commandQueue in order after the approved support scope.",
+        "Before final verification, inspect whether existing tests cover the package or app behavior; add or repair missing functional tests before running the final test matrix.",
+        "Parse every --json result before editing or deciding the next step.",
+        "Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.",
+        "After every successful mobile run, capture a screenshot or equivalent UI-state artifact and fix abnormal demo pages before continuing.",
+        "Do not stop after setup, verify, build, run, or screenshot-only smoke evidence.",
+        "Do not focus only on OHOS; every existing platform must have functional evidence or an explicit unsupported-host/toolchain diagnostic blocker.",
+        "Do not skip drive, report creation, report check, package handoff, or package check when they are applicable.",
+        "Create local checkpoint commits after completed phases when command evidence is clean.",
+        "Do not push, release, force-push, or run destructive Git commands without separate maintainer approval.",
+    ]
+    if kind in {"package-repository", "flutter-package"}:
+        execution_rules.insert(
+            2,
+            "For package support, run fluoh package next --json, execute exactly one returned nextAction, then rerun package next until it reports ready, blocked, or maintainer decision.",
+        )
     return {
         "mode": mode,
         "commandSource": "commandQueue",
@@ -390,19 +419,7 @@ def automation_runbook(project: dict[str, Any]) -> dict[str, Any]:
                 "whenNotReady": "fix the fluoh executable or launcher first, rerun preflight, then follow commandQueue",
             }
         ],
-        "executionRules": [
-            "If fluohSetup.status is needs-cli-setup, fix the fluoh executable or launcher first and rerun preflight before commandQueue.",
-            "Run commandQueue in order after the approved adaptation scope.",
-            "Before final verification, inspect whether existing tests cover the package or app behavior; add or repair missing functional tests before running the final test matrix.",
-            "Parse every --json result before editing or deciding the next step.",
-            "Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.",
-            "After every successful mobile run, capture a screenshot or equivalent UI-state artifact and fix abnormal demo pages before continuing.",
-            "Do not stop after setup, verify, build, run, or screenshot-only smoke evidence.",
-            "Do not focus only on OHOS; every existing platform must have functional evidence or an explicit unsupported-host/toolchain diagnostic blocker.",
-            "Do not skip drive, report creation, report check, package handoff, or package check when they are applicable.",
-            "Create local checkpoint commits after completed phases when command evidence is clean.",
-            "Do not push, release, force-push, or run destructive Git commands without separate maintainer approval.",
-        ],
+        "executionRules": execution_rules,
         "checkpointPolicy": {
             "mode": "auto-local-commits",
             "scopeApprovalAuthorizesCommits": True,
@@ -477,21 +494,21 @@ def delivery_gate(
     if kind == "flutter-package":
         gate["status"] = "setup-required"
         gate["readyRequires"] = [
-            "run the package create plan command and confirm the resolved scope",
+            "run the package port plan command and confirm the resolved scope",
             "create the FlutterOH package repository",
             "rerun preflight in the generated repository",
             "complete the generated repository deliveryGate before the final response",
         ]
         return gate
     common = [
-        "upgradeChecks has no schema, generated-doc, or newer-template blocker",
+        "upgradeChecks has no schema, generated-spec, or template blocker",
         "existing tests and integration tests were reviewed against public API, platform interfaces, example flows, permissions, and behavior paths before final verification; missing or weak functional tests were added or a concrete blocker is recorded",
         "each successful mobile run has screenshot or equivalent UI-state evidence, and abnormal demo pages were repaired before continuing",
         "functional evidence validates the library or app behavior, not only build, launch, screenshot, or run-all smoke",
-        "OHOS and every existing non-OHOS platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons",
+        "OHOS and every existing platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons",
         "every commandQueue item marked mustCompleteForDelivery has passed or has a concrete blocker recorded",
         "finalCheckCommands ran after the last implementation edit",
-        "canonical report exists under .fluoh/reports/",
+        "canonical report exists under the current .fluoh task reports directory",
         "reportCheckCommand passes against the canonical report",
         "the final response states exactly one terminal state and only remaining blocking risks",
     ]
@@ -507,7 +524,7 @@ def delivery_gate(
     gate["status"] = "active"
     gate["readyRequires"] = [
         *common,
-        "OHOS build and run evidence are recorded, or the final report records the exact local blocker",
+        "target-platform build and run evidence is recorded, including OHOS when in scope, or the final report records the exact local blocker",
         "interaction evidence uses integration_test, real fluoh drive JSON, or tool-readable manual-assisted evidence",
     ]
     return gate

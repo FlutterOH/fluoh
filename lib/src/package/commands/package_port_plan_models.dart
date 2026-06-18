@@ -1,7 +1,7 @@
-part of 'package_create_command.dart';
+part of 'package_port_command.dart';
 
-class _PackageCreatePlan {
-  const _PackageCreatePlan({
+class _PackagePortPlan {
+  const _PackagePortPlan({
     required this.upstream,
     required this.upstreamBranch,
     required this.repositoryName,
@@ -17,7 +17,7 @@ class _PackageCreatePlan {
     required this.branch,
     required this.gitAuthor,
     required this.flutterCreateOrg,
-    required this.adaptationProfile,
+    required this.supportProfile,
     required this.implementationRecommendation,
     required this.warnings,
   });
@@ -37,13 +37,13 @@ class _PackageCreatePlan {
   final String branch;
   final PackageGitAuthor? gitAuthor;
   final String? flutterCreateOrg;
-  final PackageAdaptationProfile adaptationProfile;
+  final PackageSupportProfile supportProfile;
   final PackageImplementationRecommendation? implementationRecommendation;
-  final List<_PackageCreateWarning> warnings;
+  final List<_PackagePortWarning> warnings;
 
   Map<String, Object?> toJson() {
     return {
-      'adaptationKind': 'package',
+      'supportKind': 'package',
       'upstream': {
         'urlOrPath': upstream,
         'branch': upstreamBranch,
@@ -68,7 +68,7 @@ class _PackageCreatePlan {
           ? null
           : {'name': gitAuthor!.name, 'email': gitAuthor!.email},
       'flutterCreateOrg': flutterCreateOrg,
-      'adaptationProfile': adaptationProfile.toJson(),
+      'supportProfile': supportProfile.toJson(),
       'implementationRecommendation': ?implementationRecommendation?.toJson(),
       'warnings': warnings.map((warning) => warning.toJson()).toList(),
       'willRun': [
@@ -77,7 +77,7 @@ class _PackageCreatePlan {
         if (gitAuthor != null) 'configure local Git author',
         'checkout $branch',
         'configure FlutterOH SDK $sdkVersion',
-        'write README.md, fluoh.yaml, FLUOH.md, FLUOH_CHANGELOG.md, AGENTS.md, and CLAUDE.md',
+        'write fluoh.yaml, FLUOH.md, and doc/fluoh/$packageName/spec.md',
         'prepare example OHOS platform when an example exists',
         'stage generated files',
       ],
@@ -91,13 +91,13 @@ class _PackageCreatePlan {
   }
 }
 
-abstract class _PackageCreateWarning {
+abstract class _PackagePortWarning {
   String get message;
   String get nextStep;
   Map<String, Object?> toJson();
 }
 
-class _SdkCompatibilityPlanWarning implements _PackageCreateWarning {
+class _SdkCompatibilityPlanWarning implements _PackagePortWarning {
   const _SdkCompatibilityPlanWarning(this.warning);
 
   final PackageSdkCompatibilityWarning warning;
@@ -112,7 +112,7 @@ class _SdkCompatibilityPlanWarning implements _PackageCreateWarning {
   Map<String, Object?> toJson() => warning.toJson();
 }
 
-class _DefaultBranchPackageVersionWarning implements _PackageCreateWarning {
+class _DefaultBranchPackageVersionWarning implements _PackagePortWarning {
   const _DefaultBranchPackageVersionWarning({
     required this.packageName,
     required this.packagePath,
@@ -132,13 +132,13 @@ class _DefaultBranchPackageVersionWarning implements _PackageCreateWarning {
   @override
   String get message =>
       'Default branch $defaultBranch declares $packageName '
-      '$defaultBranchVersion, but package create selected latest release tag '
+      '$defaultBranchVersion, but package port selected latest release tag '
       '$selectedRef ($selectedVersion).';
 
   @override
   String get nextStep =>
-      'Keep adapting the selected release tag by default. Use --upstream-ref '
-      '$defaultBranch only if maintainers explicitly approve adapting the '
+      'Keep using the selected release tag by default. Use --upstream-ref '
+      '$defaultBranch only if maintainers explicitly approve targeting the '
       'unreleased default-branch snapshot.';
 
   @override
@@ -155,7 +155,7 @@ class _DefaultBranchPackageVersionWarning implements _PackageCreateWarning {
         'version': defaultBranchVersion,
       },
       'policy': {
-        'defaultAction': 'adapt-selected-release-tag',
+        'defaultAction': 'support-selected-release-tag',
         'defaultBranchSnapshotRequiresApproval': true,
       },
     };

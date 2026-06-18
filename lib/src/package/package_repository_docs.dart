@@ -1,19 +1,21 @@
 import 'dart:io';
 
-import '../workflow/platform_workflow_policy.dart';
 import 'package_discovery.dart';
 import 'manifest/package_manifest.dart';
+import 'package_spec.dart';
 
 part 'package_repository_doc_sections.dart';
-part 'package_repository_generated_sections.dart';
 
-/// Package-specific values used when generating repository guidance documents.
+/// Package-specific values used when generating `FLUOH.md` context.
 class PackageRepositoryDocPackage {
-  /// Creates a documentation package descriptor.
+  /// Creates a package context descriptor.
   const PackageRepositoryDocPackage({
     required this.name,
     required this.version,
     required this.packagePath,
+    this.originKind = packageOriginPorted,
+    this.sdkVersion,
+    this.releaseVersion,
     this.repositoryUrl,
     this.implementationRecommendation,
   });
@@ -21,11 +23,20 @@ class PackageRepositoryDocPackage {
   /// Package name from the upstream pubspec.
   final String name;
 
-  /// Upstream package version targeted by the adaptation.
+  /// Upstream package version targeted by the support work.
   final String version;
+
+  /// Package origin kind from `fluoh.yaml`.
+  final String originKind;
 
   /// Package path inside the FlutterOH repository.
   final String packagePath;
+
+  /// FlutterOH SDK version targeted by the support work.
+  final String? sdkVersion;
+
+  /// FlutterOH release metadata version for this package branch.
+  final String? releaseVersion;
 
   /// FlutterOH package repository URL, when known.
   final String? repositoryUrl;
@@ -38,67 +49,8 @@ class PackageRepositoryDocPackage {
   String get verifyCommand =>
       packagePath == '.' ? 'fluoh verify' : 'fluoh verify --package $name';
 
-  String? get _commandPackageName => packagePath == '.' ? null : name;
-
-  String _runCommand(
-    String platform, {
-    bool startEmulator = false,
-    String? deviceId,
-  }) {
-    return platformWorkflowPolicy(platform).runCommand(
-      packageName: _commandPackageName,
-      startEmulator: startEmulator,
-      deviceId: deviceId,
-    );
-  }
-
-  String _buildCommand(String platform, {bool autoSign = false}) {
-    return platformWorkflowPolicy(
-      platform,
-    ).buildCommand(packageName: _commandPackageName, autoSign: autoSign);
-  }
-
-  /// OHOS run command for default target selection.
-  String get ohosRunCommand => _runCommand('ohos', startEmulator: true);
-
-  /// OHOS run command with an explicit connected device placeholder.
-  String get ohosDeviceRunCommand => _runCommand('ohos', deviceId: '<id>');
-
-  /// OHOS build command used when no runnable target is available.
-  String get ohosBuildCommand => _buildCommand('ohos', autoSign: true);
-
-  /// Android example run command.
-  String get androidRunCommand => _runCommand('android', startEmulator: true);
-
-  /// Android emulator run command alias used by generated guidance.
-  String get androidEmulatorRunCommand => androidRunCommand;
-
-  /// iOS example run command.
-  String get iosRunCommand => _runCommand('ios', startEmulator: true);
-
-  /// iOS simulator run command alias used by generated guidance.
-  String get iosSimulatorRunCommand => iosRunCommand;
-
-  /// macOS example run command.
-  String get macosRunCommand => _runCommand('macos');
-
-  /// Linux example build command.
-  String get linuxBuildCommand => _buildCommand('linux');
-
-  /// Linux example run command.
-  String get linuxRunCommand => _runCommand('linux');
-
-  /// Windows example build command.
-  String get windowsBuildCommand => _buildCommand('windows');
-
-  /// Windows example run command.
-  String get windowsRunCommand => _runCommand('windows');
-
-  /// Web example build command.
-  String get webBuildCommand => _buildCommand('web');
-
-  /// Web example run command.
-  String get webRunCommand => _runCommand('web');
+  /// Command that reports the next package implementation action.
+  String get nextCommand => 'fluoh package next --package $name';
 
   /// Command that completes the fluoh package release by creating the tag.
   String get releaseCommand => packagePath == '.'
@@ -110,11 +62,6 @@ class PackageRepositoryDocPackage {
       ? 'fluoh package check'
       : 'fluoh package check --package $name';
 
-  /// Command that updates package release version metadata.
-  String get versionCommand => packagePath == '.'
-      ? 'fluoh package version'
-      : 'fluoh package version --package $name';
-
   /// Command that reports package release readiness.
   String get statusCommand => packagePath == '.'
       ? 'fluoh package status'
@@ -123,43 +70,37 @@ class PackageRepositoryDocPackage {
   /// Conventional example app path for this package.
   String get examplePath =>
       packagePath == '.' ? 'example' : '$packagePath/example';
+
+  /// Branch-local package design/spec path.
+  String get specPath => packageSpecRelativePath(name);
 }
 
-/// Template version for generated `FLUOH.md` package guidance.
-const int packageImplementationGuideTemplateVersion = 2;
-
-/// Template version for generated `AGENTS.md` package guidance.
-const int packageAgentsInstructionsTemplateVersion = 1;
-
-/// Template version for generated root `README.md` package guidance.
-const int packageReadmeAdaptationTemplateVersion = 1;
-
-const String _reportCheckCommand =
-    'python3 <skill-dir>/scripts/check_report.py <report-path>';
-
-/// Builds documentation package descriptors from a package manifest.
+/// Builds package context descriptors from a package manifest.
 List<PackageRepositoryDocPackage> packageRepositoryDocPackagesForManifest(
   PackageManifest manifest,
 ) {
   return [
     PackageRepositoryDocPackage(
       name: manifest.package.name,
-      version: manifest.package.upstreamVersion,
+      version: manifest.package.sourceVersion,
       packagePath: manifest.package.path,
+      originKind: manifest.originKind,
+      sdkVersion: manifest.sdkVersion,
+      releaseVersion: manifest.package.releaseVersion,
       repositoryUrl: manifest.repositoryUrl,
     ),
   ];
 }
 
-/// Builds documentation package descriptors from a package manifest and the
-/// current checkout.
+/// Builds package context descriptors from a package manifest and the current
+/// checkout.
 Future<List<PackageRepositoryDocPackage>>
 packageRepositoryDocPackagesForCurrentCheckout({
   required Directory repository,
   required PackageManifest manifest,
 }) async {
   final packages = packageRepositoryDocPackagesForManifest(manifest);
-  final discovery = await discoverPackageAdaptationCandidates(
+  final discovery = await discoverPackageSupportCandidates(
     repository: repository,
     missingPlatform: 'ohos',
   );
@@ -169,6 +110,9 @@ packageRepositoryDocPackagesForCurrentCheckout({
         name: package.name,
         version: package.version,
         packagePath: package.packagePath,
+        originKind: package.originKind,
+        sdkVersion: package.sdkVersion,
+        releaseVersion: package.releaseVersion,
         repositoryUrl: package.repositoryUrl,
         implementationRecommendation:
             _implementationRecommendationForDocPackage(
@@ -195,216 +139,99 @@ _implementationRecommendationForDocPackage({
   return null;
 }
 
-/// Writes or updates the generated root `README.md` adaptation section.
+/// Writes the generated `FLUOH.md` package context.
 ///
-/// Package adaptation repositories describe one package per branch, so
-/// [packages] must contain the current branch package only.
-Future<void> writeOrReplacePackageReadmeAdaptation({
-  required Directory destination,
-  required List<PackageRepositoryDocPackage> packages,
-}) async {
-  final file = File('${destination.path}/README.md');
-  final existing = await file.exists() ? await file.readAsString() : null;
-  await file.writeAsString(
-    updatedPackageReadmeAdaptationContent(
-      packages: packages,
-      existing: existing,
-    ),
-  );
-}
-
-/// Returns root `README.md` content with package adaptation guidance refreshed.
-///
-/// Package adaptation repositories describe one package per branch, so
-/// [packages] must contain the current branch package only.
-String updatedPackageReadmeAdaptationContent({
-  required List<PackageRepositoryDocPackage> packages,
-  required String? existing,
-}) {
-  final generated = packageReadmeAdaptationContent(packages: packages);
-  return _contentWithReadmeGeneratedSection(
-    existing,
-    generated,
-    sectionId: _readmeAdaptationSectionId,
-    templateVersion: packageReadmeAdaptationTemplateVersion,
-    fallbackTitle: packages.single.name,
-  );
-}
-
-/// Builds generated root `README.md` package adaptation guidance.
-///
-/// Package adaptation repositories describe one package per branch, so
-/// [packages] must contain the current branch package only.
-String packageReadmeAdaptationContent({
-  required List<PackageRepositoryDocPackage> packages,
-}) {
-  final package = packages.single;
-  final badge = _latestReleaseBadgeMarkdown(package);
-  final lines = <String>[
-    '## FlutterOH adaptation',
-    '',
-    ?badge,
-    if (badge != null) '',
-    'This branch maintains the FlutterOH adaptation for this package. The original README continues below.',
-    '',
-    '- Metadata: [fluoh.yaml](fluoh.yaml)',
-    '- Maintainer guide: [FLUOH.md](FLUOH.md)',
-    '- Release notes: [FLUOH_CHANGELOG.md](FLUOH_CHANGELOG.md)',
-  ];
-  if (package.packagePath != '.') {
-    lines.add(
-      '- Package path: [${package.packagePath}](${package.packagePath})',
-    );
-  }
-  lines.add('- Validation: `${package.releaseCheckCommand}`');
-  lines.add('');
-  return lines.join('\n');
-}
-
-String? _latestReleaseBadgeMarkdown(PackageRepositoryDocPackage package) {
-  final githubRepository = _githubRepositoryPath(package.repositoryUrl);
-  if (githubRepository == null) {
-    return null;
-  }
-  final badgeUrl =
-      'https://img.shields.io/github/v/tag/$githubRepository'
-      '?label=release&sort=date&filter=${package.name}-*';
-  final tagsUrl = 'https://github.com/$githubRepository/tags';
-  return '[![Latest release]($badgeUrl)]($tagsUrl)';
-}
-
-String? _githubRepositoryPath(String? repositoryUrl) {
-  final value = repositoryUrl?.trim();
-  if (value == null || value.isEmpty) {
-    return null;
-  }
-
-  final scpLike = RegExp(
-    r'^(?:git@)?github\.com:([^/]+)/(.+)$',
-    caseSensitive: false,
-  ).firstMatch(value);
-  if (scpLike != null) {
-    return _normalizedGithubRepositoryPath(
-      owner: scpLike.group(1)!,
-      repository: scpLike.group(2)!,
-    );
-  }
-
-  final uri = Uri.tryParse(value);
-  if (uri == null || uri.host.toLowerCase() != 'github.com') {
-    return null;
-  }
-  final segments = uri.pathSegments
-      .where((segment) => segment.trim().isNotEmpty)
-      .toList(growable: false);
-  if (segments.length < 2) {
-    return null;
-  }
-  return _normalizedGithubRepositoryPath(
-    owner: segments[0],
-    repository: segments[1],
-  );
-}
-
-String? _normalizedGithubRepositoryPath({
-  required String owner,
-  required String repository,
-}) {
-  final normalizedOwner = owner.trim();
-  final normalizedRepository = repository
-      .trim()
-      .replaceFirst(RegExp(r'/+$'), '')
-      .replaceFirst(RegExp(r'\.git$', caseSensitive: false), '');
-  if (normalizedOwner.isEmpty || normalizedRepository.isEmpty) {
-    return null;
-  }
-  return '$normalizedOwner/$normalizedRepository';
-}
-
-/// Writes or updates the generated `FLUOH.md` implementation guide section.
-Future<void> writeOrReplacePackageImplementationGuide({
+/// This is a fluoh-owned file. It is rewritten in full, while preserving an
+/// existing bottom `FlutterOH Release History` section when present.
+Future<void> writeOrReplacePackageContext({
   required Directory destination,
   required List<PackageRepositoryDocPackage> packages,
 }) async {
   final file = File('${destination.path}/FLUOH.md');
   final existing = await file.exists() ? await file.readAsString() : null;
   await file.writeAsString(
-    updatedPackageImplementationGuideContent(
-      packages: packages,
-      existing: existing,
+    updatedPackageContextContent(packages: packages, existing: existing),
+  );
+}
+
+/// Writes the fixed repository-index README for spec-created package repos.
+Future<void> writePackageRepositoryIndexReadme({
+  required Directory destination,
+  required String repositoryName,
+  required String packageName,
+  required String packageBranch,
+}) async {
+  await File('${destination.path}/README.md').writeAsString(
+    packageRepositoryIndexReadmeContent(
+      repositoryName: repositoryName,
+      packageName: packageName,
+      packageBranch: packageBranch,
     ),
   );
 }
 
-/// Returns `FLUOH.md` content with the generated implementation guide refreshed.
-String updatedPackageImplementationGuideContent({
+/// Builds the fixed repository-index README for `main` in created package repos.
+String packageRepositoryIndexReadmeContent({
+  required String repositoryName,
+  required String packageName,
+  required String packageBranch,
+}) {
+  return '''
+# $repositoryName
+
+This repository hosts FlutterOH package branches.
+
+## Package Branches
+
+- `$packageBranch`: `$packageName`
+
+The default branch contains repository metadata only. Package source, examples, tests, generated fluoh context, and release metadata live on package branches.
+''';
+}
+
+/// Returns full `FLUOH.md` content with current package context regenerated.
+String updatedPackageContextContent({
   required List<PackageRepositoryDocPackage> packages,
   required String? existing,
 }) {
-  final generated = packageImplementationGuideContent(
+  final generated = packageContextContent(
     packages: packages,
     includeTitle: true,
   );
-  return _contentWithGeneratedSection(
-    existing,
-    generated,
-    sectionId: _implementationGuideSectionId,
-    templateVersion: packageImplementationGuideTemplateVersion,
-  );
+  final existingHistory = _existingReleaseHistorySection(existing);
+  if (existingHistory == null) {
+    return generated;
+  }
+  return _contentWithReleaseHistory(generated, existingHistory);
 }
 
-/// Writes or updates the generated package instructions in `AGENTS.md`.
-Future<void> writeOrReplacePackageAgentsInstructions({
-  required Directory destination,
-  required List<PackageRepositoryDocPackage> packages,
-}) async {
-  final file = File('${destination.path}/AGENTS.md');
-  final existing = await file.exists() ? await file.readAsString() : null;
-  await file.writeAsString(
-    updatedPackageAgentsInstructionsContent(
-      packages: packages,
-      existing: existing,
-    ),
-  );
+String? _existingReleaseHistorySection(String? content) {
+  if (content == null) {
+    return null;
+  }
+  final match = RegExp(
+    r'^## FlutterOH Release History\s*$',
+    multiLine: true,
+  ).firstMatch(content);
+  if (match == null) {
+    return null;
+  }
+  final history = content.substring(match.start).trimRight();
+  if (history.isEmpty) {
+    return null;
+  }
+  return '$history\n';
 }
 
-/// Returns `AGENTS.md` content with the generated package instructions refreshed.
-String updatedPackageAgentsInstructionsContent({
-  required List<PackageRepositoryDocPackage> packages,
-  required String? existing,
-}) {
-  final generated = packageAgentsInstructionsContent(
-    packages: packages,
-    includeTitle: _generatedSectionOwnsFile(
-      existing,
-      sectionId: _agentsInstructionsSectionId,
-    ),
-  );
-  return _contentWithGeneratedSection(
-    existing,
-    generated,
-    sectionId: _agentsInstructionsSectionId,
-    templateVersion: packageAgentsInstructionsTemplateVersion,
-  );
-}
-
-/// Builds generated `AGENTS.md` guidance for one or more package entries.
-String packageAgentsInstructionsContent({
-  required List<PackageRepositoryDocPackage> packages,
-  required bool includeTitle,
-}) {
-  final packageLine = packages.length == 1
-      ? '- Current package: `${packages.single.name}`.'
-      : '- Current packages: ${packages.map((package) => '`${package.name}`').join(', ')}.';
-  return [
-    if (includeTitle) '# AGENTS.md',
-    if (includeTitle) '',
-    '## FlutterOH/OHOS Adaptation',
-    '',
-    'For FlutterOH/OHOS package adaptation tasks, follow `FLUOH.md`.',
-    '',
-    'Keep the existing instructions in this `AGENTS.md` as the primary repository rules. Use `FLUOH.md` only for fluoh package workflow, verification, release evidence, and handoff requirements.',
-    packageLine,
-    '',
-  ].join('\n');
+String _contentWithReleaseHistory(String generated, String releaseHistory) {
+  final match = RegExp(
+    r'^## FlutterOH Release History\s*$',
+    multiLine: true,
+  ).firstMatch(generated);
+  if (match == null) {
+    final separator = generated.endsWith('\n') ? '\n' : '\n\n';
+    return '$generated$separator$releaseHistory';
+  }
+  final prefix = generated.substring(0, match.start).trimRight();
+  return '$prefix\n\n$releaseHistory';
 }

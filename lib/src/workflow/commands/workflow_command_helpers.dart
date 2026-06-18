@@ -10,11 +10,11 @@ int _lastExitCode(List<WorkflowStepResult> steps) {
 
 const _allWorkflowPlatform = 'all';
 
-const _buildRunPlatforms = [_allWorkflowPlatform, ...workflowPlatformNames];
+final _buildRunPlatforms = [_allWorkflowPlatform, ...workflowPlatformNames];
 
-const _attachPlatforms = workflowPlatformNames;
+final _attachPlatforms = workflowPlatformNames;
 
-const _drivePlatforms = ['all', 'ohos', 'android', 'ios'];
+final _drivePlatforms = [_allWorkflowPlatform, ...workflowDrivePlatformNames];
 
 Future<List<String>> _workflowPlatformsFromArgument(
   String platform, {
@@ -633,8 +633,14 @@ Future<TraceWriteResult> _printWorkflowJson({
   Map<String, Object?> extraFields = const {},
 }) async {
   final exitCode = _firstFailure(results);
+  final nextAction = _workflowNextAction(
+    command: command,
+    arguments: arguments,
+    results: results,
+  );
   final resultFields = {
     'targets': results.map((result) => result.toJson()).toList(),
+    'nextAction': ?nextAction,
     ...extraFields,
   };
   final traceResult = await writeCommandTrace(
@@ -663,6 +669,96 @@ Future<TraceWriteResult> _printWorkflowJson({
     },
   );
   return traceResult;
+}
+
+Map<String, Object?>? _workflowNextAction({
+  required String command,
+  required List<String> arguments,
+  required List<WorkflowTargetResult> results,
+}) {
+  WorkflowTargetResult? failedTarget;
+  for (final result in results) {
+    if (!result.passed) {
+      failedTarget = result;
+      break;
+    }
+  }
+  if (failedTarget == null) {
+    return null;
+  }
+
+  final failedStep = _firstIncompleteStep(failedTarget);
+  final diagnostic = failedStep == null
+      ? null
+      : _firstDiagnosticWithMessage(failedStep);
+  final nextCommand = failedTarget.nextCommand;
+  final reason =
+      diagnostic?.message ??
+      failedStep?.reason ??
+      'Workflow command failed for ${failedTarget.targetKind} ${failedTarget.targetName}.';
+  final rerunCommand = _workflowRerunCommand(command, arguments);
+  final target = {
+    'kind': failedTarget.targetKind,
+    'name': failedTarget.targetName,
+  };
+  final step = failedStep == null
+      ? null
+      : {
+          'name': failedStep.name,
+          'command': failedStep.command,
+          'status': failedStep.status,
+          if (failedStep.exitCode != null) 'exitCode': failedStep.exitCode,
+        };
+  if (nextCommand != null) {
+    return {
+      'type': 'commandRequired',
+      'state': 'active',
+      'reason': reason,
+      'command': nextCommand,
+      'rerunCommand': rerunCommand,
+      'target': target,
+      'step': ?step,
+      if (diagnostic != null) 'diagnosticCode': diagnostic.code,
+    };
+  }
+  return {
+    'type': 'blocked',
+    'state': 'blocked',
+    'reason': reason,
+    'rerunCommand': rerunCommand,
+    'target': target,
+    'step': ?step,
+    if (diagnostic != null) 'diagnosticCode': diagnostic.code,
+  };
+}
+
+WorkflowStepResult? _firstIncompleteStep(WorkflowTargetResult target) {
+  for (final step in target.steps) {
+    if (step.status == 'failed' ||
+        (step.exitCode != null && step.exitCode != 0)) {
+      return step;
+    }
+  }
+  for (final step in target.steps) {
+    if (step.status != 'passed') {
+      return step;
+    }
+  }
+  return target.steps.isEmpty ? null : target.steps.last;
+}
+
+WorkflowDiagnostic? _firstDiagnosticWithMessage(WorkflowStepResult step) {
+  for (final diagnostic in step.diagnostics) {
+    if (diagnostic.message.trim().isNotEmpty) {
+      return diagnostic;
+    }
+  }
+  return step.diagnostics.isEmpty ? null : step.diagnostics.first;
+}
+
+String _workflowRerunCommand(String command, List<String> arguments) {
+  final parts = ['fluoh', ...command.split(' '), ...arguments];
+  return parts.map(_workflowShellQuote).join(' ');
 }
 
 void _writeTraceStatus(TerminalOutput output, TraceWriteResult result) {

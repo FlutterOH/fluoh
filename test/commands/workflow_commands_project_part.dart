@@ -13,7 +13,7 @@ void _registerWorkflowCommandsProjectTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -37,6 +37,20 @@ void _registerWorkflowCommandsProjectTests() {
     expect(await invocations.exists(), isFalse);
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('ok', false));
+    final nextAction = report['nextAction'] as Map<String, Object?>;
+    expect(nextAction, containsPair('type', 'commandRequired'));
+    expect(
+      nextAction,
+      containsPair('command', 'fluoh doctor --platform ohos --project --json'),
+    );
+    expect(
+      nextAction,
+      containsPair('rerunCommand', 'fluoh build ohos --auto-sign --json'),
+    );
+    expect(
+      nextAction,
+      containsPair('diagnosticCode', 'ohos.ohos_project_missing'),
+    );
     final targets = report['targets'] as List<Object?>;
     final target = targets.single as Map<String, Object?>;
     expect(target, containsPair('phase', 'build-ohos'));
@@ -74,7 +88,7 @@ void _registerWorkflowCommandsProjectTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -123,7 +137,7 @@ void _registerWorkflowCommandsProjectTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -147,6 +161,17 @@ void _registerWorkflowCommandsProjectTests() {
     expect(await invocations.exists(), isFalse);
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('ok', false));
+    final nextAction = report['nextAction'] as Map<String, Object?>;
+    expect(nextAction, containsPair('type', 'commandRequired'));
+    expect(
+      nextAction,
+      containsPair('command', 'fluoh doctor --platform ohos --project --json'),
+    );
+    expect(nextAction, containsPair('rerunCommand', 'fluoh run ohos --json'));
+    expect(
+      nextAction,
+      containsPair('diagnosticCode', 'ohos.ohos_project_missing'),
+    );
     final targets = report['targets'] as List<Object?>;
     final target = targets.single as Map<String, Object?>;
     expect(target, containsPair('phase', 'run-ohos'));
@@ -213,7 +238,7 @@ void _registerWorkflowCommandsProjectTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -311,7 +336,7 @@ fi
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: workflowEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -362,8 +387,9 @@ fi
     final preparation = runDetails['runPreparation'] as Map<String, Object?>;
     expect(
       preparation['signingDirectory'],
-      startsWith(
-        '${environment.workingDirectory.path}/.fluoh/cache/ohos-signing/project/com.example.camera',
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        contains('/scratch/ohos-signing/project/com.example.camera'),
       ),
     );
     final sessionFile =
@@ -371,10 +397,15 @@ fi
     expect(runDetails, containsPair('sessionFile', sessionFile));
     final screenshot =
         runDetails['postLaunchScreenshot'] as Map<String, Object?>;
-    final screenshotPath =
-        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/current-ohos-post-launch.jpeg';
+    final screenshotPath = screenshot['path'] as String;
     expect(screenshot, containsPair('status', 'passed'));
-    expect(screenshot, containsPair('path', screenshotPath));
+    expect(
+      screenshotPath,
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        endsWith('/evidence/screenshots/current-ohos-post-launch.jpeg'),
+      ),
+    );
     expect(screenshot, containsPair('bytes', greaterThan(0)));
     expect(File(screenshotPath).existsSync(), isTrue);
     final session =
@@ -417,7 +448,7 @@ fi
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -516,7 +547,7 @@ fi
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: commandEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -584,7 +615,7 @@ fi
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: workflowEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -657,7 +688,7 @@ fi
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

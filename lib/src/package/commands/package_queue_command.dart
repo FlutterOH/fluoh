@@ -13,7 +13,7 @@ import '../manifest/package_manifest.dart';
 import '../package_sdk_compatibility.dart';
 import '../upstream_package_ref.dart';
 
-/// Resolves a read-only package adaptation queue for monorepos.
+/// Resolves a read-only package support queue for monorepos.
 class PackageQueueCommand extends FluohCommand<int> {
   /// Creates the package queue command.
   PackageQueueCommand({
@@ -27,14 +27,14 @@ class PackageQueueCommand extends FluohCommand<int> {
         'upstream-version',
         valueHelp: 'version',
         help:
-            'Upstream package version to adapt for every queued path. '
+            'Upstream package version to target for every queued path. '
             'Defaults to the latest valid package release tag.',
       )
       ..addOption(
         'upstream-ref',
         valueHelp: 'ref',
         help:
-            'Upstream Git ref to adapt for every queued path. Use only when '
+            'Upstream Git ref to target for every queued path. Use only when '
             'release tags cannot identify the target package version.',
       )
       ..addOption(
@@ -60,8 +60,7 @@ class PackageQueueCommand extends FluohCommand<int> {
   String get name => 'queue';
 
   @override
-  String get description =>
-      'Resolve a read-only multi-package adaptation queue.';
+  String get description => 'Resolve a read-only multi-package support queue.';
 
   @override
   String get invocation => 'fluoh package queue <package-path>...';
@@ -91,6 +90,9 @@ class PackageQueueCommand extends FluohCommand<int> {
         : _output;
     final repository = environment.workingDirectory;
     final manifest = await readPackageManifest(repository);
+    if (!manifest.isPorted) {
+      usageException('package queue is only available for ported packages.');
+    }
     final current = await currentBranch(repository);
     if (current != manifest.branch) {
       usageException(
@@ -105,7 +107,7 @@ class PackageQueueCommand extends FluohCommand<int> {
     }
     await fetchUpstreamRefsFromUrl(
       repository,
-      upstreamUrl: manifest.upstreamUrl,
+      upstreamUrl: manifest.requiredUpstreamUrl,
     );
     final status = await runGit(
       ['status', '--porcelain'],
@@ -161,7 +163,7 @@ class PackageQueueCommand extends FluohCommand<int> {
     }
     final queue = _PackageQueue(
       repositoryUrl: manifest.repositoryUrl,
-      upstreamUrl: manifest.upstreamUrl,
+      upstreamUrl: manifest.requiredUpstreamUrl,
       upstreamBranch: manifest.upstreamBranch,
       currentBranch: current,
       sourceBranch: manifest.branch,
@@ -219,7 +221,7 @@ class _PackageQueue {
 
   Map<String, Object?> toJson() {
     return {
-      'adaptationKind': 'package',
+      'supportKind': 'package',
       'repository': {
         'url': repositoryUrl,
         'currentBranch': currentBranch,

@@ -11,22 +11,12 @@ void main() {
   test('reports package handoff state as json', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
-    final trace = File(
-      '${packageRepository.path}/.fluoh/traces/camera/adaptation/trace.json',
-    );
+    final task = await _ensureTask(packageRepository, 'camera');
+    final trace = File('${task.path}/traces/support/trace.json');
     await trace.parent.create(recursive: true);
-    await trace.writeAsString(jsonEncode({'id': 'camera-adaptation'}));
-    final unrelatedTrace = File(
-      '${packageRepository.path}/.fluoh/traces/share_plus/adaptation/trace.json',
-    );
-    await unrelatedTrace.parent.create(recursive: true);
-    await unrelatedTrace.writeAsString(jsonEncode({'id': 'share-plus'}));
-    final oldReportFile = File(
-      '${packageRepository.path}/.fluoh/reports/camera/report-1781092800122.md',
-    );
-    final reportFile = File(
-      '${packageRepository.path}/.fluoh/reports/camera/report-1781092800123.md',
-    );
+    await trace.writeAsString(jsonEncode({'id': 'camera- support'}));
+    final oldReportFile = File('${task.path}/reports/report-1781092800122.md');
+    final reportFile = File('${task.path}/reports/report-1781092800123.md');
     await oldReportFile.parent.create(recursive: true);
     await oldReportFile.writeAsString('# old camera report\n');
     await reportFile.writeAsString('# camera report\n');
@@ -62,10 +52,9 @@ void main() {
     expect(package, containsPair('upstreamVersion', '0.11.0'));
     final evidence = handoff['evidence'] as Map<String, Object?>;
     expect(evidence, containsPair('latestTrace', trace.path));
-    expect(
-      evidence,
-      containsPair('traceDir', '.fluoh/traces/camera/adaptation'),
-    );
+    final traceDir = evidence['traceDir'] as String;
+    expect(traceDir, startsWith('.fluoh/tasks/'));
+    expect(traceDir, endsWith('/traces/support'));
     expect(
       evidence['reports'],
       containsAll([oldReportFile.path, reportFile.path]),
@@ -73,17 +62,20 @@ void main() {
     expect(evidence, containsPair('latestReport', reportFile.path));
     final nextCommands = (handoff['nextCommands'] as List<Object?>)
         .cast<String>();
+    expect(nextCommands.first, 'fluoh package next --package camera --json');
     expect(
       nextCommands,
       containsAllInOrder([
-        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh package next --package camera --json',
+        'fluoh verify --package camera --json --trace-dir $traceDir',
         'fluoh doctor --platform ohos --project --json --strict',
-        'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh build ohos --package camera --auto-sign --json --trace-dir $traceDir',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
-        'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh run ohos --package camera --auto-emulator --json --trace-dir $traceDir',
+        'fluoh package next --package camera --json',
+        'fluoh drive ohos --package camera --dry-run --json --trace-dir $traceDir',
+        'fluoh drive ohos --package camera --json --trace-dir $traceDir',
         'python3 <skill-dir>/scripts/check_report.py ${reportFile.path}',
         'fluoh package check --package camera --report ${reportFile.path} --json',
       ]),
@@ -92,7 +84,7 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test('package handoff defaults next commands to the adaptation trace', () async {
+  test('package handoff defaults next commands to the support trace', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
     final packageEnvironment = FluohEnvironment(
@@ -115,24 +107,26 @@ void main() {
     final handoff = jsonDecode(stdout.single) as Map<String, Object?>;
     final evidence = handoff['evidence'] as Map<String, Object?>;
     expect(evidence, isNot(contains('latestTrace')));
-    expect(
-      evidence,
-      containsPair('traceDir', '.fluoh/traces/camera/adaptation'),
-    );
+    final traceDir = evidence['traceDir'] as String;
+    expect(traceDir, startsWith('.fluoh/tasks/'));
+    expect(traceDir, endsWith('/traces/support'));
     final nextCommands = (handoff['nextCommands'] as List<Object?>)
         .cast<String>();
+    expect(nextCommands.first, 'fluoh package next --package camera --json');
     expect(
       nextCommands,
       containsAllInOrder([
-        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh package next --package camera --json',
+        'fluoh verify --package camera --json --trace-dir $traceDir',
         'fluoh doctor --platform ohos --project --json --strict',
-        'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh build ohos --package camera --auto-sign --json --trace-dir $traceDir',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
-        'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+        'fluoh run ohos --package camera --auto-emulator --json --trace-dir $traceDir',
+        'fluoh package next --package camera --json',
+        'fluoh drive ohos --package camera --dry-run --json --trace-dir $traceDir',
+        'fluoh drive ohos --package camera --json --trace-dir $traceDir',
+        'fluoh report create --scope camera --package camera --trace-dir $traceDir --json',
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
         'fluoh package check --package camera --report <report-path> --json',
       ]),
@@ -177,31 +171,36 @@ void main() {
     );
 
     final handoff = jsonDecode(stdout.single) as Map<String, Object?>;
+    final evidence = handoff['evidence'] as Map<String, Object?>;
+    final traceDir = evidence['traceDir'] as String;
     final nextCommands = (handoff['nextCommands'] as List<Object?>)
         .cast<String>();
+    expect(nextCommands.first, 'fluoh package next --package camera --json');
     expect(
       nextCommands,
       containsAllInOrder([
-        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh package next --package camera --json',
+        'fluoh verify --package camera --json --trace-dir $traceDir',
         'fluoh doctor --platform ohos --project --json --strict',
-        'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh build ohos --package camera --auto-sign --json --trace-dir $traceDir',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
-        'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh run ohos --package camera --auto-emulator --json --trace-dir $traceDir',
+        'fluoh package next --package camera --json',
+        'fluoh drive ohos --package camera --dry-run --json --trace-dir $traceDir',
+        'fluoh drive ohos --package camera --json --trace-dir $traceDir',
         'fluoh doctor --platform android --json --strict',
-        'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive android --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+        'fluoh run android --package camera --auto-emulator --json --trace-dir $traceDir',
+        'fluoh drive android --package camera --dry-run --json --trace-dir $traceDir',
+        'fluoh drive android --package camera --json --trace-dir $traceDir',
         if (Platform.isMacOS) 'fluoh doctor --platform ios --json --strict',
         if (Platform.isMacOS)
-          'fluoh run ios --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run ios --package camera --auto-emulator --json --trace-dir $traceDir',
         if (Platform.isMacOS)
-          'fluoh drive ios --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ios --package camera --dry-run --json --trace-dir $traceDir',
         if (Platform.isMacOS)
-          'fluoh drive ios --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
+          'fluoh drive ios --package camera --json --trace-dir $traceDir',
+        'fluoh report create --scope camera --package camera --trace-dir $traceDir --json',
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
         'fluoh package check --package camera --report <report-path> --json',
       ]),
@@ -211,7 +210,7 @@ void main() {
         nextCommands,
         isNot(
           contains(
-            'fluoh drive ios --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+            'fluoh drive ios --package camera --json --trace-dir $traceDir',
           ),
         ),
       );
@@ -281,9 +280,27 @@ void main() {
     expect(report, containsPair('command', 'package status'));
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 0));
+    expect(report, containsPair('state', 'blocked'));
     expect(report, containsPair('branchMatches', true));
     expect(report, containsPair('workingTreeClean', true));
     expect(report, containsPair('ready', false));
+    expect(
+      report['nextAction'],
+      allOf(
+        containsPair('type', 'commandRequired'),
+        containsPair('state', 'blocked'),
+        containsPair('package', 'camera'),
+        containsPair('blockerCode', 'evidence.ohos_run_missing'),
+        containsPair(
+          'command',
+          'fluoh run ohos --package camera --auto-emulator --json',
+        ),
+        containsPair(
+          'rerunCommand',
+          'fluoh package status --package camera --json',
+        ),
+      ),
+    );
     final blockers = report['readinessBlockers'] as List<Object?>;
     expect(
       blockers,
@@ -327,6 +344,114 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('uses support trace evidence for release evidence blockers', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    await _writeSupportEvidenceTrace(packageRepository, 'camera');
+    final packageEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'status', '--package', 'camera', '--json'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final blockers = (report['readinessBlockers'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      blockers.map((blocker) => blocker['code']),
+      isNot(contains('evidence.ohos_run_missing')),
+    );
+    expect(
+      blockers.map((blocker) => blocker['code']),
+      isNot(contains('evidence.interaction_missing')),
+    );
+    expect(
+      blockers.map((blocker) => blocker['code']),
+      contains('evidence.visual_page_readiness_missing'),
+    );
+    await _writeVisualPageReadiness(packageRepository, 'camera');
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'status', '--package', 'camera', '--json'],
+        environment: packageEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final reviewedReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    final reviewedBlockers =
+        (reviewedReport['readinessBlockers'] as List<Object?>)
+            .cast<Map<String, Object?>>();
+    expect(
+      reviewedBlockers.map((blocker) => blocker['code']),
+      isNot(contains('evidence.ohos_run_missing')),
+    );
+    expect(
+      reviewedBlockers.map((blocker) => blocker['code']),
+      isNot(contains('evidence.interaction_missing')),
+    );
+    expect(
+      reviewedBlockers.map((blocker) => blocker['code']),
+      isNot(contains('evidence.visual_page_readiness_missing')),
+    );
+    expect(stderr, isEmpty);
+  });
+
+  test(
+    'does not treat exploratory smoke as functional interaction evidence',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      await _writeExploratorySmokeTrace(packageRepository, 'camera');
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['package', 'status', '--package', 'camera', '--json'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final blockers = (report['readinessBlockers'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        blockers.map((blocker) => blocker['code']),
+        isNot(contains('evidence.ohos_run_missing')),
+      );
+      expect(
+        blockers.map((blocker) => blocker['code']),
+        contains('evidence.interaction_missing'),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
   test('reports the current package branch by default', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -344,7 +469,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -353,7 +478,7 @@ void main() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'package_status_multi',
@@ -413,7 +538,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -422,7 +547,7 @@ void main() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'path_provider',
@@ -479,6 +604,18 @@ void main() {
       ),
     );
     expect(blocker, isNot(containsPair('nextCommand', anything)));
+    expect(
+      report['nextAction'],
+      allOf(
+        containsPair('type', 'editRequired'),
+        containsPair('blockerCode', 'platform.ohos_default_package_missing'),
+        containsPair('package', 'path_provider'),
+        containsPair(
+          'rerunCommand',
+          'fluoh package status --package path_provider --json',
+        ),
+      ),
+    );
     final details = blocker['details'] as Map<String, Object?>;
     expect(details, containsPair('kind', 'federated_platform_package'));
     expect(details, containsPair('platform', 'ohos'));
@@ -517,7 +654,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -526,7 +663,7 @@ void main() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'path_provider',
@@ -623,6 +760,89 @@ void main() {
   });
 
   test(
+    'accepts federated OHOS default package dependency override path',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await _createFederatedStatusWorkspace(
+        Directory(
+          '${environment.homeDirectory.path}/upstream_status_override_path',
+        ),
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/path_provider_status_override_path',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await runFluoh(
+        ['source', 'enable', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      expect(
+        await runFluoh(
+          [
+            'package',
+            'port',
+            upstream.path,
+            '--repository-name',
+            'path_provider',
+            '--output',
+            packageRepository.path,
+            '--sdk',
+            '3.35.8-ohos-0.0.3',
+            '--package-path',
+            'packages/path_provider/path_provider',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      await commitGeneratedPackageRepository(packageRepository);
+      await _addOhosDefaultPackageOnly(packageRepository);
+      await _addOhosImplementationPackage(packageRepository);
+      await _setOhosImplementationDependencyOverridePath(packageRepository);
+      await runGit(packageRepository, ['add', '.']);
+      await runGit(packageRepository, [
+        'commit',
+        '-m',
+        'Use OHOS dependency override path',
+      ]);
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      stdout.clear();
+      stderr.clear();
+
+      expect(
+        await runFluoh(
+          ['package', 'status', '--package', 'path_provider', '--json'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      final blockers = (report['readinessBlockers'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        blockers.map((blocker) => blocker['code']),
+        isNot(contains('platform.ohos_default_package_incomplete')),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
     'reports federated OHOS default package dependency path mismatch',
     () async {
       final environment = await createTestEnvironment();
@@ -639,7 +859,7 @@ void main() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -648,7 +868,7 @@ void main() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--repository-name',
             'path_provider',
@@ -908,4 +1128,117 @@ Future<void> _setOhosImplementationDependencyPath(
       '  path_provider_ohos:\n    path: $path',
     ),
   );
+}
+
+Future<void> _setOhosImplementationDependencyOverridePath(
+  Directory packageRepository,
+) async {
+  final appPubspec = File(
+    '${packageRepository.path}/packages/path_provider/path_provider/pubspec.yaml',
+  );
+  final content = await appPubspec.readAsString();
+  final updated = content.replaceFirst(
+    '  path_provider_ohos:\n    path: ../path_provider_ohos',
+    '  path_provider_ohos: ^2.1.0',
+  );
+  await appPubspec.writeAsString('''
+$updated
+
+dependency_overrides:
+  path_provider_ohos:
+    path: ../path_provider_ohos
+''');
+}
+
+Future<void> _writeSupportEvidenceTrace(
+  Directory packageRepository,
+  String packageName,
+) async {
+  final task = await _ensureTask(packageRepository, packageName);
+  final trace = File('${task.path}/traces/support/trace.json');
+  await trace.parent.create(recursive: true);
+  await trace.writeAsString(
+    jsonEncode({
+      'schema': 1,
+      'kind': 'fluoh.trace',
+      'invocations': [
+        {
+          'ok': true,
+          'commandLine':
+              'fluoh run ohos --package $packageName --auto-emulator --json',
+        },
+        {
+          'ok': true,
+          'commandLine': 'fluoh drive ohos --package $packageName --json',
+        },
+      ],
+    }),
+  );
+}
+
+Future<void> _writeExploratorySmokeTrace(
+  Directory packageRepository,
+  String packageName,
+) async {
+  final task = await _ensureTask(packageRepository, packageName);
+  final trace = File('${task.path}/traces/support/trace.json');
+  await trace.parent.create(recursive: true);
+  await trace.writeAsString(
+    jsonEncode({
+      'schema': 1,
+      'kind': 'fluoh.trace',
+      'invocations': [
+        {
+          'ok': true,
+          'commandLine':
+              'fluoh run ohos --package $packageName --auto-emulator --json',
+        },
+        {
+          'ok': true,
+          'commandLine':
+              'fluoh drive ohos --package $packageName --profile exploratory-smoke --json',
+        },
+      ],
+    }),
+  );
+}
+
+Future<Directory> _ensureTask(
+  Directory packageRepository,
+  String packageName,
+) async {
+  final taskId = 'test-packageSupport-$packageName';
+  final task = Directory('${packageRepository.path}/.fluoh/tasks/$taskId');
+  await task.create(recursive: true);
+  final current = File('${packageRepository.path}/.fluoh/current-task.json');
+  await current.parent.create(recursive: true);
+  await current.writeAsString(
+    jsonEncode({
+      'schema': 1,
+      'kind': 'fluoh.currentTask',
+      'id': taskId,
+      'path': '.fluoh/tasks/$taskId',
+      'updatedAt': '2026-06-18T00:00:00.000',
+    }),
+  );
+  return task;
+}
+
+Future<void> _writeVisualPageReadiness(
+  Directory packageRepository,
+  String packageName,
+) async {
+  final task = await _ensureTask(packageRepository, packageName);
+  final readiness = File('${task.path}/evidence/visual-readiness.yaml');
+  await readiness.parent.create(recursive: true);
+  await readiness.writeAsString('''
+schema: 1
+kind: fluoh.visualPageReadiness
+package: $packageName
+platform: ohos
+status: passed
+screenshots:
+  - .fluoh/tasks/test-packageSupport-$packageName/evidence/screenshots/$packageName-ohos-post-launch.jpeg
+result: Screenshot shows the functional page, not a blank shell.
+''');
 }

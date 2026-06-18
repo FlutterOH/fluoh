@@ -15,9 +15,9 @@
 
 - ...
 
-## Adaptation Responsibility
+## Support Responsibility
 
-- AI owns adaptation implementation, project/package rewrites, command
+- AI owns support implementation, project/package rewrites, command
   execution, evidence collection, report composition, and release
   recommendation.
 - The maintainer owns final release approval and any publish, push, tag, store, or release action.
@@ -35,6 +35,31 @@
 - Public Dart API changes:
 - Dependency constraint changes:
 - Non-OHOS regression risk:
+
+## Support Scope
+
+Record the package support scope from
+`doc/fluoh/<package>/scope.yaml`. A ready recommendation needs
+P0 per-platform support decisions, platform API basis or reasons,
+implementation plans where implementation is required, test cases, and
+functional or regression evidence.
+
+- path: doc/fluoh/<package>/scope.yaml
+- exists: true | false
+- planningReady: true | false
+- functionalEvidenceReady: true | false
+- complete: true | false
+- p0: total=<count>, supportedOrDegraded=<count>, functionalEvidence=<count>
+
+Use this statement only when all P0 scope entry gates are complete:
+
+No support scope issues: P0 planning and functional evidence gates are complete.
+
+Otherwise include concrete issue rows:
+
+| Code | Phase | Severity | Scope Entry | Platform | Field | Message |
+| --- | --- | --- | --- | --- | --- | --- |
+| `...` | research | actionRequired | scope_entry_id | ohos | platforms.ohos.decision.sources | concrete blocker |
 
 ## Official Platform Basis
 
@@ -60,10 +85,17 @@ ready recommendation.
 - [ ] Existing package/app tests, example tests, and `integration_test/` were
   inspected against public API, platform interfaces, permissions, and behavior
   paths before final verification.
+- [ ] P0 support scope includes per-platform support decisions, platform
+  API basis or reasons, implementation plans where required, test cases, and
+  functional or regression evidence.
 - [ ] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
-- [ ] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
-- [ ] OHOS build evidence recorded.
-- [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
+- [ ] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
+- [ ] Target-platform build evidence recorded, including OHOS when in scope.
+- [ ] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.
+- [ ] Pub.dev publishability checked with `dart pub publish --dry-run`, or a
+  concrete not-applicable reason is recorded.
+- [ ] FlutterOH support checked with fluoh verify/build/run/drive/report
+  gates.
 - [ ] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was
   functionally checked when supported by the current host/toolchain, or exact
   diagnostic evidence and skip reason are recorded.
@@ -71,14 +103,14 @@ ready recommendation.
   `flutter test integration_test -d <device>` command or real
   `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [ ] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
-- [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.
+- [ ] Public API, dependency constraints, and existing-platform regression risk reviewed.
 - [ ] Remaining risks and release decision are explicit.
 
 ## Independent Review
 
 This section records the host-agent supervision loop after `check_report.py`
 passes. It is not a fluoh CLI gate; a separate reviewer agent owns the
-judgment, and the adaptation AI owns repairs.
+judgment, and the implementation AI owns repairs.
 
 - Reviewer agent: not started
 - Verdict: pending
@@ -138,11 +170,11 @@ completion checks, and the `validation` rerun hint. Include
 
 | Gate | Status | Evidence / blocker |
 | --- | --- | --- |
-| coverage-inventory | readyForReview | capability inventory reviewed |
+| coverage-inventory | readyForReview | scope inventory reviewed |
 | coverage-metadata | readyForReview | every scenario declares coverage metadata or has an explicit no-interaction reason |
-| coverage-items | readyForReview | every applicable capability has a coverage row |
+| coverage-items | readyForReview | every applicable scope entry has a coverage row |
 | capability-inventory-coverage | readyForReview | all public API/platform/example rows covered or notApplicable |
-| blocked-coverage | readyForReview | no capability row remains blocked; demo defects and missing automation were repaired |
+| blocked-coverage | readyForReview | no scope row remains blocked; demo defects and missing automation were repaired |
 | scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
 | page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |
 | existing-test-baseline | readyForReview | package and integration tests reviewed |
@@ -158,12 +190,12 @@ Otherwise include at least one concrete row. Use `integration_test` when the
 flow is encoded under `integration_test/`; the Commands table must include the
 passed `flutter test integration_test -d <device>` command row, whether the
 test was run directly or by `fluoh run`. Use `manual-assisted` only when the
-user had to operate a device or emulator during adaptation, and mark it passed
+user had to operate a device or emulator during support work, and mark it passed
 only after recording what was checked plus the environment, target id, visible
 status, log marker, meaningful session state beyond launch, stable text,
 semantics, test keys, command JSON, hilog, app log marker, or other
 tool-readable confirmation.
-Scenario notes should live under `.fluoh/scenarios/<package-or-scope>/`.
+Scenario notes should live under `doc/fluoh/<package-or-scope>/scenarios/`.
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |

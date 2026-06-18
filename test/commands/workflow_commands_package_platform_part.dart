@@ -46,7 +46,7 @@ void _registerWorkflowCommandsPackagePlatformTests() {
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ohos-permission.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/ohos-permission.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -90,7 +90,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: workflowEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -175,7 +175,10 @@ steps:
     final screenshotPath = screenshotDetails['path'] as String;
     expect(
       screenshotPath,
-      '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ohos-granted.jpeg',
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        endsWith('/evidence/screenshots/camera-ohos-granted.jpeg'),
+      ),
     );
     expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
     expect(File(screenshotPath).existsSync(), isTrue);
@@ -238,7 +241,7 @@ steps:
     expect(
       invocations,
       contains(
-        '-t emulator-5554 file recv /data/local/tmp/fluoh-ohos-permission-step-11.jpeg ${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ohos-granted.jpeg',
+        '-t emulator-5554 file recv /data/local/tmp/fluoh-ohos-permission-step-11.jpeg $screenshotPath',
       ),
     );
     expect(stderr, isEmpty);
@@ -279,7 +282,7 @@ steps:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -333,7 +336,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -391,7 +394,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -448,7 +451,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -507,7 +510,7 @@ steps:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -575,7 +578,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -632,7 +635,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -642,7 +645,14 @@ steps:
 
     expect(
       await runFluoh(
-        ['build', 'ohos', '--debug', '--json'],
+        [
+          'build',
+          'ohos',
+          '--debug',
+          '--json',
+          '--trace-dir',
+          '.fluoh/tasks/manual/traces/camera/support',
+        ],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -662,7 +672,24 @@ steps:
     expect(diagnostic, containsPair('code', 'ohos.hap_build_failed'));
     expect(
       diagnostic,
-      containsPair('nextCommand', 'fluoh build ohos --package camera --json'),
+      containsPair(
+        'nextCommand',
+        'fluoh build ohos --package camera --json --trace-dir .fluoh/tasks/manual/traces/camera/support',
+      ),
+    );
+    expect(
+      buildStep,
+      containsPair(
+        'nextCommand',
+        'fluoh build ohos --package camera --json --trace-dir .fluoh/tasks/manual/traces/camera/support',
+      ),
+    );
+    expect(
+      target,
+      containsPair(
+        'nextCommand',
+        'fluoh build ohos --package camera --json --trace-dir .fluoh/tasks/manual/traces/camera/support',
+      ),
     );
     expect(stderr, isEmpty);
   });
@@ -683,7 +710,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -735,7 +762,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

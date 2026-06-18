@@ -9,7 +9,7 @@ import '../helpers/package_test_context.dart';
 
 void main() {
   test(
-    'chains source add, package create, deps, verify, check, and release',
+    'chains source setup, package port, deps, verify, check, and release',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -24,9 +24,9 @@ void main() {
       final stdout = <String>[];
       final stderr = <String>[];
 
-      // Phase 1: Register source and create package repository.
+      // Phase 1: Register source and port package repository.
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -35,7 +35,7 @@ void main() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--repository-name',
             'camera',

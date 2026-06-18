@@ -9,7 +9,7 @@ import 'package:yaml/yaml.dart';
 void main() {
   test('builds release tags from the FlutterOH SDK line', () {
     expect(
-      packageReleaseTagForPackage(
+      portedPackageReleaseTagForPackage(
         packageName: 'image_gallery_saver',
         upstreamVersion: '2.0.3',
         sdkVersion: '3.35.8-ohos-0.0.3',
@@ -20,13 +20,13 @@ void main() {
   });
 
   test('keeps FlutterOH patch releases on the same baseline tag line', () {
-    final firstPatch = packageReleaseTagForPackage(
+    final firstPatch = portedPackageReleaseTagForPackage(
       packageName: 'image_gallery_saver',
       upstreamVersion: '2.0.3',
       sdkVersion: '3.35.8-ohos-0.0.3',
       releaseVersion: '0.1.0',
     );
-    final secondPatch = packageReleaseTagForPackage(
+    final secondPatch = portedPackageReleaseTagForPackage(
       packageName: 'image_gallery_saver',
       upstreamVersion: '2.0.3',
       sdkVersion: '3.35.8-ohos-0.0.4',
@@ -95,7 +95,14 @@ void main() {
     expect(yaml['schema'], 1);
     expect(yaml['kind'], 'package');
     expect(yaml.containsKey('name'), isFalse);
+    expect((yaml['sdk'] as YamlMap)['kind'], 'flutteroh');
     expect((yaml['sdk'] as YamlMap)['version'], '3.35.8-ohos-0.0.3');
+    final platforms = yaml['platforms'] as YamlMap;
+    expect(platforms['target'], contains('ohos'));
+    expect(
+      yaml['publishTargets'],
+      containsAll(['pub.dev', 'flutteroh-source']),
+    );
     expect(
       repositoryGit['url'],
       'https://github.com/FlutterOH/image_gallery_saver.git',
@@ -138,6 +145,9 @@ void main() {
     expect(manifest.package.path, '.');
     expect(manifest.primaryPackage.path, '.');
     expect(manifest.primaryPackage.upstreamRef, isNull);
+    expect(manifest.sdkKind, 'flutteroh');
+    expect(manifest.targetPlatforms, ['ohos']);
+    expect(manifest.publishTargets, ['pub.dev', 'flutteroh-source']);
     expect(manifest.releaseTag, 'image_gallery_saver-2.0.3-ohos-3.35-0.1.0');
   });
 

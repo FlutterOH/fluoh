@@ -10,7 +10,7 @@ import '../../cli/terminal_output.dart';
 import '../git/package_git.dart';
 import '../package_discovery.dart';
 
-/// Discovers upstream packages that are candidates for OHOS adaptation.
+/// Discovers upstream packages that are candidates for FlutterOH support.
 class PackageDiscoverCommand extends FluohCommand<int> {
   /// Creates the package discover command.
   PackageDiscoverCommand({required OutputWriter stdout, TerminalOutput? output})
@@ -46,7 +46,7 @@ class PackageDiscoverCommand extends FluohCommand<int> {
 
   @override
   String get description =>
-      'Discover Flutter plugin packages that may need OHOS adaptation.';
+      'Discover Flutter plugin packages that may need FlutterOH support.';
 
   @override
   String get invocation => 'fluoh package discover <upstream>';
@@ -90,7 +90,7 @@ class PackageDiscoverCommand extends FluohCommand<int> {
         output.step('Inspecting upstream repository');
       }
       await _cloneUpstreamForDiscovery(upstream, scratchRepository);
-      final discovery = await discoverPackageAdaptationCandidates(
+      final discovery = await discoverPackageSupportCandidates(
         repository: scratchRepository,
         missingPlatform: missingPlatform,
         includeExistingPlatform: includeExistingPlatform,
@@ -189,9 +189,7 @@ void _printDiscovery({
   final recommendedCandidates = discovery.recommendedCandidates(
     missingPlatform,
   );
-  output.info(
-    'Recommended adaptation entries: ${recommendedCandidates.length}',
-  );
+  output.info('Recommended support entries: ${recommendedCandidates.length}');
   if (discovery.candidates.isEmpty) {
     output.info('No matching package candidates found.');
     _printDiscoveryIssues(output, discovery);
@@ -222,7 +220,7 @@ void _printDiscovery({
           discovery.candidates[i].platforms.isEmpty
               ? '-'
               : discovery.candidates[i].platforms.join(', '),
-          _profileLabel(discovery.candidates[i].adaptationProfile),
+          _profileLabel(discovery.candidates[i].supportProfile),
           _recommendationLabel(discovery.candidates[i], missingPlatform),
         ],
     ],
@@ -230,7 +228,7 @@ void _printDiscovery({
   output.blank();
   if (recommendedCandidates.isNotEmpty) {
     output.next(
-      packageDiscoveryCreateCommand(
+      packageDiscoveryPortCommand(
         upstream: upstream,
         candidate: recommendedCandidates.first,
       ),
@@ -248,7 +246,7 @@ void _printDiscovery({
   _printDiscoveryIssues(output, discovery);
 }
 
-String _profileLabel(PackageAdaptationProfile profile) {
+String _profileLabel(PackageSupportProfile profile) {
   final categories = profile.categories.take(3).join(', ');
   if (categories.isEmpty) {
     return profile.complexity;
@@ -300,7 +298,7 @@ void _printImplementationRecommendations({
     }
     output.next(
       'Start with '
-      '${packageDiscoveryCreateCommand(upstream: upstream, candidate: candidate)}, '
+      '${packageDiscoveryPortCommand(upstream: upstream, candidate: candidate)}, '
       'then create ${recommendation.implementationPackageName} at '
       '${recommendation.implementationPackagePath} and add '
       '$missingPlatform.default_package to '

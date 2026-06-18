@@ -15,16 +15,16 @@ void _registerPackageReleaseMetadataTests() {
       final stdout = <String>[];
       final stderr = <String>[];
 
-      await File('${packageRepository.path}/FLUOH_CHANGELOG.md').writeAsString(
-        '''
-# FlutterOH Changelog
+      await File('${packageRepository.path}/FLUOH.md').writeAsString('''
+# FlutterOH Implementation
 
-## camera-0.11.0-ohos-3.35-0.1.0
+## FlutterOH Release History
+
+### camera-0.11.0-ohos-3.35-0.1.0
 
 - TODO: Replace this generated placeholder with actual release notes before release.
-''',
-      );
-      await runGit(packageRepository, ['add', 'FLUOH_CHANGELOG.md']);
+''');
+      await runGit(packageRepository, ['add', 'FLUOH.md']);
       await runGit(packageRepository, [
         'commit',
         '-m',
@@ -81,7 +81,7 @@ void _registerPackageReleaseMetadataTests() {
     );
   });
 
-  test('release accepts changelog entries under subsections', () async {
+  test('release accepts release history entries under subsections', () async {
     final environment = await createTestEnvironment();
     final packageRepository = await createPackageRepositoryFixture(environment);
     final releaseEnvironment = FluohEnvironment(
@@ -91,20 +91,22 @@ void _registerPackageReleaseMetadataTests() {
     final stdout = <String>[];
     final stderr = <String>[];
 
-    await File('${packageRepository.path}/FLUOH_CHANGELOG.md').writeAsString('''
-# FlutterOH Changelog
+    await File('${packageRepository.path}/FLUOH.md').writeAsString('''
+# FlutterOH Implementation
 
-## 0.1.0
+## FlutterOH Release History
 
-### Fixed
+### camera-0.11.0-ohos-3.35-0.1.0
+
+#### Fixed
 
 - Fix OHOS permission handling.
 ''');
-    await runGit(packageRepository, ['add', 'FLUOH_CHANGELOG.md']);
+    await runGit(packageRepository, ['add', 'FLUOH.md']);
     await runGit(packageRepository, [
       'commit',
       '-m',
-      'Group changelog entries',
+      'Group release history entries',
     ]);
 
     expect(

@@ -231,7 +231,12 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
     '-r',
     ...haps.map((file) => file.path),
   ]);
-  final install = await _runHdc(toolchain, installArguments);
+  final hdcTimeout = _ohosHdcCommandTimeout(environment.processEnvironment);
+  final install = await _runHdc(
+    toolchain,
+    installArguments,
+    timeout: hdcTimeout,
+  );
   if (_isHdcCommandFailure(install)) {
     final effectiveExitCode = _effectiveHdcExitCode(install);
     return OhosDeviceRunResult(
@@ -301,7 +306,7 @@ Future<OhosDeviceRunResult> runOhosHapsOnDevice({
     '-b',
     launchInfo.bundleName,
   ]);
-  final launch = await _runHdc(toolchain, launchArguments);
+  final launch = await _runHdc(toolchain, launchArguments, timeout: hdcTimeout);
 
   if (logDuration > Duration.zero) {
     await Future<void>.delayed(logDuration);

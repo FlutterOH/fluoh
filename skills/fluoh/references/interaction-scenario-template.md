@@ -1,6 +1,6 @@
 # fluoh Interaction Scenario
 
-Use this template for `.fluoh/scenarios/<package-or-app>/<platform>-<name>.md`
+Use this template for `doc/fluoh/<package-or-app>/scenarios/<platform>-<name>.md`
 when a device-side functional flow cannot be fully covered by `integration_test/`.
 The goal is functional correctness, not visual appearance, unless the package
 is specifically visual.
@@ -38,7 +38,7 @@ and add separate rows for grant, deny, success, failure, or error paths when the
 package reports different states. Do not sample a representative item when the
 package exposes more.
 When `fluoh package discover --json` or a package plan provides
-`adaptationProfile.suggestedCoverage`, copy those suggested categories, items,
+`supportProfile.suggestedCoverage`, copy those suggested categories, items,
 and paths into this matrix first, then refine them against the actual public
 API, example controls, and platform behavior.
 
@@ -164,8 +164,8 @@ Supported first-pass actions:
   `inputText`, `press`, `captureScreenshot`/`screenshot`, `assertLog`,
   `assertSession`, `wait`.
   Text actions match UIAutomator text, content description, resource id, or
-  resource id suffix. Screenshot actions save a local file under
-  `.fluoh/evidence/screenshots/`; custom `outputPath` may be a file name such
+  resource id suffix. Screenshot actions save a local file under the current
+  task's `evidence/screenshots/` directory; custom `outputPath` may be a file name such
   as `main.png` or a relative path that stays inside that directory.
 - iOS: `resetPermission`, coordinate `tap`, `swipe`, `drag`, `tapText`,
   `waitText`, `assertText`, `allowPermission`, `denyPermission`,
@@ -186,7 +186,7 @@ Supported first-pass actions:
   `denyPermission` click the
   visible system permission prompt through the same runner when `bundleId` is
   present. The runner uses Xcode/`xcodebuild` and writes a temporary helper
-  project under `.fluoh/cache/automation/ios-xctest`. If XCTest cannot run
+  project under the current task's `scratch/automation/ios-xctest` directory. If XCTest cannot run
   in the current environment, record that blocker instead of treating the
   package behavior as fixed.
 - OHOS: `clearAppData`, `launchApp`, coordinate `tap`, `swipe`, `drag`,
@@ -209,7 +209,7 @@ UI-state artifact and repair the demo first if it is blank, stuck on splash, or
 not on the expected functional screen.
 
 `coverage` metadata is included in `fluoh drive --dry-run --json` and real
-run JSON. Use it to make AI package adaptation auditable: every applicable
+run JSON. Use it to make AI package support auditable: every applicable
 package API, permission, picker, media flow, callback, lifecycle path, and
 negative path should have a `covered`, `notApplicable`, or `blocked` row before
 the package is marked ready for review. `blocked` rows keep the package out of

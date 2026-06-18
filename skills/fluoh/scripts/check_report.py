@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a fluoh AI adaptation report before final delivery."""
+"""Validate a fluoh AI support report before final delivery."""
 
 from __future__ import annotations
 
@@ -43,11 +43,16 @@ REQUIRED_AUTOMATION_COVERAGE_GATES = (
 REQUIRED_READY_CHECKLIST_PHRASES = (
     "Existing package/app tests, example tests",
     "Missing or weak functional tests",
+    "Target-platform build evidence",
+    "Target-platform run evidence",
+    "Pub.dev publishability",
+    "FlutterOH support",
     "Every existing Android, iOS, macOS, Linux, Web, and Windows platform",
-    "Official OHOS/platform documentation",
+    "Official platform documentation",
+    "existing-platform regression risk",
 )
 
-REPORT_FILENAME_PATTERN = re.compile(r"^report-\d+\.md$")
+REPORT_FILENAME_PATTERN = re.compile(r"^(?:report|report-\d+)\.md$")
 
 
 PLACEHOLDER_PATTERNS = (
@@ -61,7 +66,7 @@ PLACEHOLDER_PATTERNS = (
 def report_filename_error(path: Path) -> str | None:
     if REPORT_FILENAME_PATTERN.match(path.name):
         return None
-    return "Report filename must match report-<timestamp>.md using an integer timestamp."
+    return "Report filename must be report.md or report-<timestamp>.md using an integer timestamp."
 
 
 def read_text(path: Path) -> str:
@@ -354,6 +359,74 @@ def automation_section_field(section: str, key: str) -> str | None:
     return value or None
 
 
+def scope_status(content: str) -> dict[str, str | None]:
+    section = section_content(content, "## Support Scope")
+    return {
+        "path": simple_section_field(section, "path"),
+        "exists": simple_section_field(section, "exists"),
+        "planningReady": simple_section_field(section, "planningReady"),
+        "functionalEvidenceReady": simple_section_field(
+            section, "functionalEvidenceReady"
+        ),
+        "complete": simple_section_field(section, "complete"),
+        "p0": simple_section_field(section, "p0"),
+    }
+
+
+def simple_section_field(section: str, key: str) -> str | None:
+    escaped = re.escape(key)
+    match = re.search(
+        rf"^\s*[-*]\s*`?{escaped}`?\s*:\s*(.+?)\s*$",
+        section,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def scope_complete(status: dict[str, str | None]) -> bool:
+    return (status.get("complete") or "").strip().lower() == "true"
+
+
+def scope_has_issues(content: str) -> bool:
+    section = section_content(content, "## Support Scope")
+    found_header = False
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        columns = [column.strip() for column in stripped.strip("|").split("|")]
+        if len(columns) < 6:
+            continue
+        if columns[:6] == [
+            "Code",
+            "Phase",
+            "Severity",
+            "Scope Entry",
+            "Field",
+            "Message",
+        ] or columns[:7] == [
+            "Code",
+            "Phase",
+            "Severity",
+            "Scope Entry",
+            "Platform",
+            "Field",
+            "Message",
+        ]:
+            found_header = True
+            continue
+        if not found_header:
+            continue
+        if all(re.fullmatch(r":?-{3,}:?", column.strip()) for column in columns):
+            continue
+        if any(column.strip() for column in columns[:6]):
+            return True
+    return False
+
+
 def quality_gate_summary_ready(value: str | None) -> bool:
     if value is None or "..." in value:
         return False
@@ -431,7 +504,6 @@ def is_launch_only_evidence(evidence: str) -> bool:
         "capturescreenshot",
         "post-launch screenshot",
         "post launch screenshot",
-        ".fluoh/evidence/screenshots",
         "screenshot only",
         "launched=true",
         "launchdetected true",
@@ -441,7 +513,9 @@ def is_launch_only_evidence(evidence: str) -> bool:
         "app launched",
         "flutter run launched",
     )
-    return any(marker in evidence for marker in markers)
+    return mentions_task_screenshot(evidence) or any(
+        marker in evidence for marker in markers
+    )
 
 
 def has_functional_tool_evidence(evidence: str) -> bool:
@@ -498,7 +572,6 @@ def platform_matrix_row_passed(row: dict[str, str]) -> bool:
 def positive_post_launch_visual_evidence(row: str) -> bool:
     evidence = row.lower()
     markers = (
-        ".fluoh/evidence/screenshots",
         "post-launch screenshot",
         "post launch screenshot",
         "postlaunchscreenshot",
@@ -511,7 +584,9 @@ def positive_post_launch_visual_evidence(row: str) -> bool:
         "screenshot:",
         "screen recording",
     )
-    if not any(marker in evidence for marker in markers):
+    if not mentions_task_screenshot(evidence) and not any(
+        marker in evidence for marker in markers
+    ):
         return False
     negative_markers = (
         "not captured",
@@ -524,6 +599,10 @@ def positive_post_launch_visual_evidence(row: str) -> bool:
         "skipped",
     )
     return not any(marker in evidence for marker in negative_markers)
+
+
+def mentions_task_screenshot(evidence: str) -> bool:
+    return ".fluoh/tasks/" in evidence and "/evidence/screenshots" in evidence
 
 
 def has_post_launch_visual_evidence(
@@ -741,9 +820,26 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
             )
         if not official_platform_basis_satisfied(content):
             errors.append(
-                "Ready reports must record official OHOS/platform documentation basis, "
+                "Ready reports must record official platform documentation basis, "
                 "or an explicit 'No official platform basis required: <reason>' statement."
             )
+    scope_section_present = "## Support Scope" in content
+    scope_status_value = scope_status(content)
+    scope_complete_value = scope_complete(scope_status_value)
+    scope_issues_value = scope_has_issues(content)
+    if recommendation == "ready" and scope_section_present:
+        if not scope_complete_value:
+            errors.append(
+                "Ready reports must include a complete Support Scope with P0 planning and functional evidence gates complete."
+            )
+        if scope_issues_value:
+            errors.append(
+                "Ready reports must not contain unresolved Support Scope issue rows."
+            )
+    elif recommendation == "ready":
+        warnings.append(
+            "Ready report does not include a Support Scope section; future reports should be generated with current fluoh report create."
+        )
     rows = command_rows(content)
     evidence_rows = [
         row
@@ -761,7 +857,9 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
     if recommendation == "ready" and not passed_verify:
         errors.append("Ready reports must include passed fluoh verify evidence.")
     if recommendation == "ready" and not (passed_ohos_build or passed_ohos_run):
-        errors.append("Ready reports must include passed OHOS build or run evidence.")
+        errors.append(
+            "Ready reports must include passed OHOS build or run evidence as target-platform evidence."
+        )
     if recommendation == "ready" and require_ohos_run and not passed_ohos_run:
         errors.append(
             "Ready reports must include passed fluoh run ohos evidence."
@@ -951,6 +1049,9 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
         "coveragePolicyStatus": coverage_status["coveragePolicyStatus"],
         "readyForAutomation": coverage_status["readyForAutomation"],
         "qualityGateSummary": coverage_status["qualityGateSummary"],
+        "scopeComplete": scope_complete_value,
+        "scopeIssues": scope_issues_value,
+        "scope": scope_status_value,
         "automationCoverageRows": len(coverage_rows),
         "readyAutomationCoverageRows": len(ready_coverage_rows),
         "interactionRows": len(concrete_interactions),
@@ -968,11 +1069,11 @@ def validate(path: Path, *, require_ohos_run: bool = False) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate a fluoh AI adaptation report.",
+        description="Validate a fluoh AI support report.",
     )
     parser.add_argument(
         "report",
-        help="Path to .fluoh/reports/<scope>/report-<timestamp>.md",
+        help="Path to a current-task fluoh support report",
     )
     parser.add_argument(
         "--require-ohos-run",

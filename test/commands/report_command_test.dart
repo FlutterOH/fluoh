@@ -46,15 +46,19 @@ void main() {
     );
     final content = await output.readAsString();
     expect(content, contains('# fluoh AI Report'));
-    expect(content, contains('Interaction evidence missing:'));
+    expect(content, contains('- qualityGateSummary: ready=0, notReady=10'));
+    expect(content, contains('| coverage-inventory | blocked |'));
+    expect(content, contains('| behavior-paths | blocked |'));
+    expect(content, contains('| `functional-interaction-evidence` |'));
     expect(content, isNot(contains('\nNo interaction required:')));
+    expect(content, isNot(contains('Interaction evidence missing:')));
     expect(stderr, isEmpty);
   });
 
   test('report create writes an AI report from trace and automation json', () async {
     final environment = await createTestEnvironment();
     final traceDir = Directory(
-      '${environment.workingDirectory.path}/.fluoh/traces/camera/session',
+      '${environment.workingDirectory.path}/.fluoh/tasks/camera-support/traces/session',
     );
     await traceDir.create(recursive: true);
     await File('${traceDir.path}/trace.json').writeAsString(
@@ -94,7 +98,7 @@ void main() {
         'exitCode': 0,
         'automation': {
           'rerunCommand':
-              'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json',
+              'fluoh drive ohos --package camera --scenario doc/fluoh/camera/scenarios/ohos-permission.md --json',
           'coveragePolicy': {
             'status': 'readyForReview',
             'readyForAutomation': true,
@@ -163,12 +167,18 @@ void main() {
     expect(report, containsPair('report', output.path));
     expect(report, isNot(contains('reports')));
     expect(report, containsPair('scope', 'camera'));
+    final scope = report['supportScope'] as Map<String, Object?>;
+    expect(scope, containsPair('exists', false));
+    expect(scope, containsPair('complete', false));
     expect(report['commandRows'], 3);
-    expect(report['automationRows'], 1);
+    expect(report['automationRows'], 10);
     expect(report['interactionRows'], 1);
     final content = output.readAsStringSync();
     expect(content, contains('# fluoh AI Report'));
-    expect(content, contains('## Adaptation Responsibility'));
+    expect(content, contains('## Support Responsibility'));
+    expect(content, contains('## Support Scope'));
+    expect(content, contains('- path: doc/fluoh/camera/scope.yaml'));
+    expect(content, contains('- complete: false'));
     expect(content, contains('## Platform Matrix'));
     expect(content, contains('## Automation Coverage'));
     expect(
@@ -188,10 +198,13 @@ void main() {
       ),
     );
     expect(content, contains('automation-scenario-camera-permission'));
+    expect(content, contains('- coveragePolicy.status: blocked'));
+    expect(content, contains('- qualityGateSummary: ready=1, notReady=9'));
+    expect(content, contains('| behavior-paths | blocked |'));
     expect(
       content,
       contains(
-        'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json',
+        'fluoh drive ohos --package camera --scenario doc/fluoh/camera/scenarios/ohos-permission.md --json',
       ),
     );
     expect(content, contains('fluoh.automation.retry'));
@@ -202,19 +215,67 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('report create includes completed package support scope', () async {
+    final environment = await createTestEnvironment();
+    await _writeCapabilityNotes(environment.workingDirectory);
+    final output = File(
+      '${environment.workingDirectory.path}/reports/camera-scope.md',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'report',
+          'create',
+          '--scope',
+          'camera',
+          '--package',
+          'camera',
+          '--output',
+          output.path,
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(payload, containsPair('scope', 'camera'));
+    final scope = payload['supportScope'] as Map<String, Object?>;
+    expect(scope, containsPair('exists', true));
+    expect(scope, containsPair('planningReady', true));
+    expect(scope, containsPair('functionalEvidenceReady', true));
+    expect(scope, containsPair('complete', true));
+    final content = output.readAsStringSync();
+    expect(content, contains('## Support Scope'));
+    expect(content, contains('- complete: true'));
+    expect(
+      content,
+      contains(
+        'No support scope issues: P0 planning and functional evidence gates are complete.',
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('report create imports automation evidence from trace manifests', () async {
     final environment = await createTestEnvironment();
     final traceDir = Directory(
-      '${environment.workingDirectory.path}/.fluoh/traces/camera/adaptation',
+      '${environment.workingDirectory.path}/.fluoh/tasks/camera-support/traces/support',
     );
     await traceDir.create(recursive: true);
     await File('${traceDir.path}/trace.json').writeAsString(
       jsonEncode({
-        'id': 'trace-camera-adaptation',
+        'id': 'trace-camera- support',
         'invocations': [
           {
             'commandLine':
-                'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
+                'fluoh drive ohos --package camera --scenario doc/fluoh/camera/scenarios/ohos-permission.md --dry-run --json --trace-dir .fluoh/tasks/camera-support/traces/support',
             'ok': true,
             'exitCode': 0,
             'result': {
@@ -241,7 +302,7 @@ void main() {
           },
           {
             'commandLine':
-                'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json --trace-dir .fluoh/traces/camera/adaptation',
+                'fluoh drive ohos --package camera --scenario doc/fluoh/camera/scenarios/ohos-permission.md --json --trace-dir .fluoh/tasks/camera-support/traces/support',
             'ok': true,
             'exitCode': 0,
             'result': {
@@ -280,14 +341,15 @@ void main() {
                     },
                     {
                       'name': 'automation-scenario-ohos-camera-permission',
-                      'path': '.fluoh/scenarios/camera',
+                      'path': 'doc/fluoh/camera/scenarios',
                       'command':
-                          'fluoh drive ohos --package camera --scenario .fluoh/scenarios/camera/ohos-permission.md --json --trace-dir .fluoh/traces/camera/adaptation',
+                          'fluoh drive ohos --package camera --scenario doc/fluoh/camera/scenarios/ohos-permission.md --json --trace-dir .fluoh/tasks/camera-support/traces/support',
                       'status': 'passed',
                       'exitCode': 0,
                       'details': {
                         'scenario': {
-                          'path': '.fluoh/scenarios/camera/ohos-permission.md',
+                          'path':
+                              'doc/fluoh/camera/scenarios/ohos-permission.md',
                           'name': 'camera permission',
                           'platform': 'ohos',
                         },
@@ -298,7 +360,7 @@ void main() {
                             'status': 'passed',
                             'details': {
                               'path':
-                                  '.fluoh/evidence/screenshots/camera-ohos-main.png',
+                                  '.fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png',
                               'bytes': 128,
                             },
                           },
@@ -308,7 +370,7 @@ void main() {
                             'status': 'passed',
                             'details': {
                               'hilog':
-                                  '.fluoh/traces/camera/adaptation/ohos.hilog',
+                                  '.fluoh/tasks/camera-support/traces/support/ohos.hilog',
                             },
                           },
                         ],
@@ -350,10 +412,11 @@ void main() {
 
     final payload = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(payload, containsPair('commandRows', 2));
-    expect(payload, containsPair('automationRows', 1));
+    expect(payload, containsPair('automationRows', 10));
     expect(payload, containsPair('interactionRows', 1));
     final content = output.readAsStringSync();
-    expect(content, contains('- coveragePolicy.status: readyForExecution'));
+    expect(content, contains('- coveragePolicy.status: blocked'));
+    expect(content, contains('- qualityGateSummary: ready=1, notReady=9'));
     expect(content, isNot(contains('stale dry-run coverage inventory')));
     expect(content, isNot(contains('| coverage-inventory | needsInventory |')));
     expect(content, isNot(contains('No automation JSON supplied')));
@@ -363,7 +426,7 @@ void main() {
     expect(
       content,
       contains(
-        'post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png',
+        'post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png',
       ),
     );
     expect(content, contains('assertLog passed with hilog'));
@@ -429,7 +492,7 @@ void main() {
     );
 
     final payload = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(payload, containsPair('automationRows', 1));
+    expect(payload, containsPair('automationRows', 10));
     expect(payload, isNot(contains('reports')));
     final content = output.readAsStringSync();
     expect(content, contains('flutter test integration_test -d <device>'));
@@ -439,6 +502,7 @@ void main() {
         '| coverage-inventory | needsInventory | Add scenario coverage metadata. |',
       ),
     );
+    expect(content, contains('| behavior-paths | blocked |'));
     expect(stderr, isEmpty);
   });
 
@@ -570,51 +634,46 @@ void main() {
     expect(stderr, isEmpty);
   });
 
-  test(
-    'report create reports empty trace directory as machine error',
-    () async {
-      final environment = await createTestEnvironment();
-      final traceDir = Directory(
-        '${environment.workingDirectory.path}/.fluoh/traces/camera/empty',
-      );
-      await traceDir.create(recursive: true);
-      final stdout = <String>[];
-      final stderr = <String>[];
+  test('report create reports empty trace directory as machine error', () async {
+    final environment = await createTestEnvironment();
+    final traceDir = Directory(
+      '${environment.workingDirectory.path}/.fluoh/tasks/camera-support/traces/empty',
+    );
+    await traceDir.create(recursive: true);
+    final stdout = <String>[];
+    final stderr = <String>[];
 
-      expect(
-        await runFluoh(
-          [
-            'report',
-            'create',
-            '--scope',
-            'camera',
-            '--trace-dir',
-            traceDir.path,
-            '--json',
-          ],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        64,
-      );
+    expect(
+      await runFluoh(
+        [
+          'report',
+          'create',
+          '--scope',
+          'camera',
+          '--trace-dir',
+          traceDir.path,
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      64,
+    );
 
-      final payload = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(
-        payload['error'],
-        allOf(
-          containsPair('type', 'format'),
-          containsPair(
-            'message',
-            contains(
-              'Trace path ${traceDir.path} does not contain trace.json.',
-            ),
-          ),
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(
+      payload['error'],
+      allOf(
+        containsPair('type', 'format'),
+        containsPair(
+          'message',
+          contains('Trace path ${traceDir.path} does not contain trace.json.'),
         ),
-      );
-      expect(stderr, isEmpty);
-    },
-  );
+      ),
+    );
+    expect(stderr, isEmpty);
+  });
 
   test('report create defaults scope to package before root pubspec', () async {
     final environment = await createTestEnvironment();
@@ -640,12 +699,10 @@ name: root_workspace
     expect(payload, containsPair('command', 'report create'));
     expect(payload, containsPair('ok', true));
     expect(payload, containsPair('scope', 'camera'));
+    expect(payload, contains('supportScope'));
     final reportPath = payload['report'] as String;
-    expect(reportPath, contains('/.fluoh/reports/camera/report-'));
-    expect(
-      File(reportPath).uri.pathSegments.last,
-      matches(RegExp(r'^report-\d+\.md$')),
-    );
+    expect(reportPath, contains('/.fluoh/tasks/'));
+    expect(File(reportPath).uri.pathSegments.last, 'report.md');
     final content = File(reportPath).readAsStringSync();
     expect(content, contains('- Scope: camera'));
     expect(content, contains('- Package: camera'));
@@ -675,18 +732,15 @@ name: "root_workspace" # keep comment out of the scope
     final payload = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(payload, containsPair('scope', 'root_workspace'));
     final reportPath = payload['report'] as String;
-    expect(reportPath, contains('/.fluoh/reports/root_workspace/'));
-    expect(
-      File(reportPath).uri.pathSegments.last,
-      matches(RegExp(r'^report-\d+\.md$')),
-    );
+    expect(reportPath, contains('/.fluoh/tasks/'));
+    expect(File(reportPath).uri.pathSegments.last, 'report.md');
     expect(stderr, isEmpty);
   });
 
   test('report create keeps failed command evidence failed in the matrix', () async {
     final environment = await createTestEnvironment();
     final traceDir = Directory(
-      '${environment.workingDirectory.path}/.fluoh/traces/camera/failures',
+      '${environment.workingDirectory.path}/.fluoh/tasks/camera-support/traces/failures',
     );
     await traceDir.create(recursive: true);
     await File('${traceDir.path}/trace.json').writeAsString(
@@ -771,4 +825,43 @@ name: "root_workspace" # keep comment out of the scope
     );
     expect(stderr, isEmpty);
   });
+}
+
+Future<void> _writeCapabilityNotes(Directory root) async {
+  final scope = File('${root.path}/doc/fluoh/camera/scope.yaml');
+  await scope.parent.create(recursive: true);
+  await scope.writeAsString('''
+schema: 1
+kind: fluoh.packageScope
+package: camera
+platform: ohos
+scope:
+  - id: camera_preview
+    priority: p0
+    category: methodApi
+    publicApis:
+      - CameraController.initialize
+    platforms:
+      ohos:
+        role: implementationTarget
+        decision:
+          support: supported
+          confidence: medium
+          reason: OHOS camera API supports preview startup.
+          sources:
+            - title: OHOS camera API
+              url: https://example.invalid/ohos-camera
+        implementation:
+          status: done
+          files:
+            - ohos/src/main/ets/CameraPlugin.ets
+          tasks:
+            - map preview startup
+        tests:
+          required: true
+          cases:
+            - camera_preview_launch
+        evidence:
+          level: functional
+''');
 }

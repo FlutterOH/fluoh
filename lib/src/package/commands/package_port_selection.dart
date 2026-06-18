@@ -1,4 +1,4 @@
-part of 'package_create_command.dart';
+part of 'package_port_command.dart';
 
 String? _packageRepositoryNameSuggestion(String? packagePath) {
   if (packagePath == null) {
@@ -148,12 +148,16 @@ Future<void> _warnForSelectedPackageSdkCompatibility({
 PackageRepositoryDocPackage _docPackageForSelection({
   required _SelectedPackage selectedPackage,
   required String repositoryUrl,
+  required String sdkVersion,
+  required String releaseVersion,
   PackageImplementationRecommendation? implementationRecommendation,
 }) {
   return PackageRepositoryDocPackage(
     name: selectedPackage.package.name,
     version: selectedPackage.package.version,
     packagePath: selectedPackage.path,
+    sdkVersion: sdkVersion,
+    releaseVersion: releaseVersion,
     repositoryUrl: repositoryUrl,
     implementationRecommendation: implementationRecommendation,
   );

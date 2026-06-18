@@ -79,7 +79,7 @@ class ToolConfig {
   /// Returns a copy with [name] removed.
   ToolConfig removeSource(String name) {
     if (name == defaultSourceName) {
-      throw ArgumentError('Cannot remove the official source.');
+      throw ArgumentError('Cannot disable the official source.');
     }
     if (!sources.containsKey(name)) {
       throw ArgumentError('Unknown source "$name".');

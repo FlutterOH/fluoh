@@ -108,7 +108,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -172,6 +172,62 @@ void main() {
     expect(stderr, isEmpty);
   });
 
+  test('installs SDKs from source-relative repository paths', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory(
+      '${environment.homeDirectory.path}/relative_source',
+    );
+    await source.create(recursive: true);
+    await createTaggedGitRepository(
+      Directory('${environment.homeDirectory.path}/relative_flutteroh_sdk'),
+      tag: '3.35.8-ohos-0.0.3',
+      readme: '# Relative Mock FlutterOH SDK\n',
+    );
+    await File('${source.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: source
+name: relative-flutteroh-source
+repository:
+  git:
+    url: file:${source.path}
+sdk:
+  git:
+    url: ../relative_flutteroh_sdk
+  versions:
+    - 3.35.8-ohos-0.0.3
+manifests: []
+''');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['source', 'enable', 'relative', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+    expect(
+      await runFluoh(
+        ['sdk', 'install', '3.35.8-ohos-0.0.3'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(
+      Directory(
+        '${environment.homeDirectory.path}/sdks/3.35.8-ohos-0.0.3',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(stderr, isEmpty);
+  });
+
   test('lists installed SDKs that are missing from source indexes', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
@@ -183,7 +239,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -219,7 +275,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -279,7 +335,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -307,7 +363,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -446,7 +502,7 @@ dependencyPolicy:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -486,14 +542,14 @@ dependencyPolicy:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'first', firstSource.path, '--priority', '100'],
+        ['source', 'enable', 'first', firstSource.path, '--priority', '100'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       );
       expect(
         await runFluoh(
-          ['source', 'add', 'second', secondSource.path, '--priority', '100'],
+          ['source', 'enable', 'second', secondSource.path, '--priority', '100'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -522,7 +578,7 @@ dependencyPolicy:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

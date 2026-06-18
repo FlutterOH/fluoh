@@ -20,7 +20,10 @@ void _registerReleaseArtifactsSkillTests() {
       'skills/fluoh/references/independent-review-flow.md',
     ).readAsStringSync();
     final packageFlow = File(
-      'skills/fluoh/references/package-adaptation-flow.md',
+      'skills/fluoh/references/package-support-flow.md',
+    ).readAsStringSync();
+    final packageSpecTemplate = File(
+      'skills/fluoh/references/package-spec-template.md',
     ).readAsStringSync();
     final sourceFlow = File(
       'skills/fluoh/references/source-maintenance-flow.md',
@@ -49,12 +52,12 @@ void _registerReleaseArtifactsSkillTests() {
     expect(skill.split('\n').length, lessThanOrEqualTo(350));
     expectContainsAll(skill, [
       'name: fluoh',
-      'adapting Flutter apps',
+      'adding or maintaining FlutterOH support',
       '## Helper Scripts',
       '## Request Routing',
       '## Start',
       '## CLI Setup',
-      '## Adaptation Scope Gate',
+      '## Support Scope Gate',
       '## Preflight Routing',
       '## JSON Diagnostics',
       '## Evidence Loop',
@@ -64,7 +67,7 @@ void _registerReleaseArtifactsSkillTests() {
       'automationRunbook',
       'deliveryGate',
       'upgradeChecks',
-      'final adaptation scope confirmation',
+      'final support scope confirmation',
       'explicit user',
       'approval unless',
       'operations that will not run',
@@ -83,7 +86,8 @@ void _registerReleaseArtifactsSkillTests() {
       'reinstall or reload',
       'overwriting any existing fluoh',
       'references/app-project-flow.md',
-      'references/package-adaptation-flow.md',
+      'references/package-support-flow.md',
+      'references/package-spec-template.md',
       'references/automation-evidence-flow.md',
       'references/independent-review-flow.md',
       'references/source-maintenance-flow.md',
@@ -101,8 +105,15 @@ void _registerReleaseArtifactsSkillTests() {
       'sessionAttachCommand',
       'deliveryGate.readyRequires',
       'Session attach command',
+      'package contract',
+      'package purpose',
+      'public Dart API',
+      'acceptance evidence',
+      'package-spec-template.md',
       'python3 <skill-dir>/scripts/check_report.py <report-path>',
       'manual-assisted',
+      '.fluoh/tasks/<task-id>/evidence/visual-readiness.yaml',
+      'fluoh.visualPageReadiness',
       'reviewer feedback packets',
     ]);
     expect(skill, isNot(contains('Codex')));
@@ -115,8 +126,11 @@ void _registerReleaseArtifactsSkillTests() {
       'fluoh run ohos --auto-emulator --json',
     ]);
     expectContainsAll(packageFlow, [
-      '# Package Adaptation Flow',
+      '# Package Support Flow',
       '## End-to-End Contract',
+      '## Requirements And API Analysis',
+      '**Analyze package contract**',
+      '**Record contract**',
       'fluoh package discover <upstream> --json',
       '--repository-name',
       '--repository',
@@ -124,13 +138,38 @@ void _registerReleaseArtifactsSkillTests() {
       '--git-author-email',
       '--plan --json',
       'repository.git.url',
-      'fluoh package docs refresh',
-      'fluoh package docs refresh --allow-dirty',
+      'there is no separate generated-context command',
+      'Branch-local requirements, API design, platform behavior, and test plans live',
+      'references/package-spec-template.md',
+      'Generated quick context lives in `FLUOH.md`',
+      'For spec-first packages, do not treat `package new` as the analysis step',
+      'For upstream-first packages, extract the contract from the selected upstream',
+      'baseline before implementation',
+      '`lib/` APIs',
+      'platform-interface packages or method-channel/event-channel',
+      'generated spec TODOs',
+      'template placeholders',
+      'confirmed',
+      'upstream README or agent-policy files',
+      'fluoh-owned context',
+      'platform API mapping',
+      'scope-by-platform matrix',
       'fluoh package queue',
+      'fluoh package next --package <name> --json',
+      'fluoh package scope init --package <name> --json',
+      'fluoh package scope check --package <name> --json',
+      'doc/fluoh/<package>/scope.yaml',
+      '.fluoh/tasks/<task-id>/evidence/visual-readiness.yaml',
+      'fluoh.visualPageReadiness',
+      'scope.planningReady',
+      'scope.functionalEvidenceReady',
       'fluoh verify --package <name> --json',
       'fluoh run ohos --package <name> --auto-emulator --json',
       'fluoh drive ohos --package <name> --json',
-      'fluoh report create --scope <name> --package <name>',
+      'fluoh drive ohos --package <name> --profile exploratory-smoke --json',
+      'report creation',
+      'report checks',
+      'package next until nextAction.type is ready',
       'python3 <skill-dir>/scripts/check_report.py <report-path>',
       'independent reviewer agent pass',
       'feedback packet',
@@ -145,6 +184,23 @@ void _registerReleaseArtifactsSkillTests() {
       'delivery report handoff',
       'still require separate maintainer approval',
     ]);
+    expectContainsAll(packageSpecTemplate, [
+      '# <package> FlutterOH Spec',
+      'SPEC-TODO:',
+      '## Package Contract',
+      '## Public API',
+      '## Platform Behavior',
+      '## Platform API Mapping',
+      '## Examples',
+      '## Tests and Evidence',
+      '## Support Scope Seeds',
+      '## Upstream Review Notes',
+      '## Maintainer Decisions',
+      'created|ported',
+      'upstream version/ref/commit',
+      'doc/fluoh/<package>/scope.yaml',
+      'manual-assisted',
+    ]);
     expectContainsAll(automationFlow, [
       '# Automation Evidence Flow',
       'fluoh drive <platform> --package <name> --dry-run --json',
@@ -152,6 +208,8 @@ void _registerReleaseArtifactsSkillTests() {
       '--require-vm-service',
       'integration_test',
       'manual-assisted',
+      '.fluoh/tasks/<task-id>/evidence/visual-readiness.yaml',
+      'fluoh.visualPageReadiness',
       'manifestPermissionCoverage',
       'permissionCoverage',
       'readyForAutomation',
@@ -170,7 +228,7 @@ void _registerReleaseArtifactsSkillTests() {
       'no open blocker/high findings',
       'Verdict: pass | needs-fixes | blocked',
       '## Independent Review',
-      'send the feedback packet back to the adaptation AI',
+      'send the feedback packet back to the implementation AI',
       'not a deterministic `check_report.py` or fluoh CLI gate',
     ]);
     expectContainsAll(sourceFlow, [
@@ -188,18 +246,21 @@ void _registerReleaseArtifactsSkillTests() {
     expect(openai, contains('display_name: "FlutterOH fluoh"'));
     expect(
       openai,
-      contains('short_description: "FlutterOH adaptation and Source checks"'),
+      contains('short_description: "FlutterOH support and Source checks"'),
     );
     expect(
       openai,
       contains(
-        'default_prompt: "Use \$fluoh to install fluoh if needed, adapt this Flutter project or package for OHOS, or precheck this FlutterOH Source change."',
+        'default_prompt: "Use \$fluoh to install fluoh if needed, add FlutterOH support to this Flutter project or package, or precheck this FlutterOH Source change."',
       ),
     );
 
     expect(reportTemplate, contains('# fluoh AI Report'));
-    expect(reportTemplate, contains('## Adaptation Responsibility'));
+    expect(reportTemplate, contains('## Support Responsibility'));
     expect(reportTemplate, contains('## Public API / Compatibility'));
+    expect(reportTemplate, contains('## Support Scope'));
+    expect(reportTemplate, contains('doc/fluoh/<package>/scope.yaml'));
+    expect(reportTemplate, contains('P0 support scope'));
     expect(reportTemplate, contains('## Delivery Checklist'));
     expect(reportTemplate, contains('## Independent Review'));
     expect(reportTemplate, contains('not a fluoh CLI gate'));
@@ -222,12 +283,12 @@ void _registerReleaseArtifactsSkillTests() {
     );
     expect(reportTemplate, contains('manual-assisted'));
     expect(reportTemplate, contains('meaningful session state beyond launch'));
-    expect(reportTemplate, contains('.fluoh/scenarios/'));
+    expect(reportTemplate, contains('doc/fluoh/<package-or-scope>/scenarios/'));
     expect(reportTemplate, contains('debug/semantic/log evidence'));
     expect(reportTemplate, contains('screenshot or UI-state evidence'));
     expect(newSummary, contains('fluoh Monorepo Summary'));
     expect(newSummary, contains('Package Matrix'));
-    expect(newSummary, contains('.fluoh/reports'));
+    expect(newSummary, contains('.fluoh/tasks'));
 
     expect(scenarioTemplate, contains('# fluoh Interaction Scenario'));
     expect(scenarioTemplate, contains('## Preconditions'));
@@ -253,9 +314,6 @@ void _registerReleaseArtifactsSkillTests() {
     expectContainsAll(preflight, [
       'schema',
       'upgradeChecks',
-      'PACKAGE_DOC_TEMPLATE_VERSION',
-      'fluoh package docs refresh --dry-run',
-      'fluoh package docs refresh --allow-dirty',
       'suggestedCommands',
       'finalCheckCommands',
       'deliveryChecks',

@@ -1,8 +1,8 @@
-part of 'package_sync_command_test.dart';
+part of 'package_upstream_command_test.dart';
 
-void _registerPackageSyncCoreTests() {
+void _registerPackageUpstreamSyncCoreTests() {
   test(
-    'package sync fast-forwards upstream, merges the package branch, and refreshes upstream metadata',
+    'package upstream sync fast-forwards upstream, merges the package branch, and refreshes upstream metadata',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -12,13 +12,13 @@ void _registerPackageSyncCoreTests() {
         Directory('${environment.homeDirectory.path}/upstream_sync'),
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync',
+        '${environment.homeDirectory.path}/package_upstream',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -26,7 +26,7 @@ void _registerPackageSyncCoreTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -48,7 +48,7 @@ void _registerPackageSyncCoreTests() {
       );
       expect(
         await runFluoh(
-          ['package', 'sync'],
+          ['package', 'upstream', 'sync'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -77,6 +77,23 @@ void _registerPackageSyncCoreTests() {
       expect(manifest, contains('    version: 0.1.0'));
       expect(manifest, contains('    upstream:\n      version: 0.12.0'));
       expect(subject.stdout.toString().trim(), 'Sync upstream package');
+      final syncOutput = List<String>.from(stdout);
+      stdout.clear();
+      stderr.clear();
+      expect(
+        await runFluoh(
+          ['package', 'next', '--package', 'camera', '--json'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      final next = jsonDecode(stdout.single) as Map<String, Object?>;
+      final nextAction = next['nextAction'] as Map<String, Object?>;
+      expect(nextAction, containsPair('phase', 'spec-review'));
+      final spec = next['spec'] as Map<String, Object?>;
+      expect(spec, containsPair('reviewRequired', true));
 
       await runGit(packageRepository, ['checkout', 'main']);
       final upstreamPubspec = File(
@@ -87,15 +104,18 @@ void _registerPackageSyncCoreTests() {
         File('${packageRepository.path}/fluoh.yaml').existsSync(),
         isFalse,
       );
-      expect(stdout, contains('Synchronized main from upstream/main'));
-      expect(stdout, contains('Merged main into ohos/3.35/camera'));
-      expect(stdout, contains('Updated upstream metadata for package branch'));
+      expect(syncOutput, contains('Synchronized main from upstream/main'));
+      expect(syncOutput, contains('Merged main into ohos/3.35/camera'));
+      expect(
+        syncOutput,
+        contains('Updated upstream metadata for package branch'),
+      );
       expect(stderr, isEmpty);
     },
   );
 
   test(
-    'package sync merges latest release tag instead of upstream HEAD',
+    'package upstream sync merges latest release tag instead of upstream HEAD',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -106,13 +126,13 @@ void _registerPackageSyncCoreTests() {
       );
       await runGit(upstream, ['tag', 'v0.11.0']);
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_tag',
+        '${environment.homeDirectory.path}/package_upstream_tag',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -120,7 +140,7 @@ void _registerPackageSyncCoreTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -144,7 +164,7 @@ void _registerPackageSyncCoreTests() {
       );
       expect(
         await runFluoh(
-          ['package', 'sync'],
+          ['package', 'upstream', 'sync'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -171,8 +191,71 @@ void _registerPackageSyncCoreTests() {
     },
   );
 
+  test('package upstream check reports an available upstream target', () async {
+    final environment = await createTestEnvironment();
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final upstream = await createUpstreamPackageRepository(
+      Directory('${environment.homeDirectory.path}/upstream_check'),
+    );
+    await runGit(upstream, ['tag', 'v0.11.0']);
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/package_upstream_check',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'enable', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await runFluoh(
+      [
+        'package',
+        'port',
+        upstream.path,
+        '--repository-name',
+        'camera',
+        '--output',
+        packageRepository.path,
+        '--sdk',
+        '3.35.8-ohos-0.0.3',
+      ],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await commitGeneratedPackageRepository(packageRepository);
+    await bumpUpstreamPackageVersion(upstream, version: '0.12.0');
+    await runGit(upstream, ['tag', 'v0.12.0']);
+    stdout.clear();
+    stderr.clear();
+
+    expect(
+      await runFluoh(
+        ['package', 'upstream', 'check', '--json'],
+        environment: FluohEnvironment(
+          homeDirectory: environment.homeDirectory,
+          workingDirectory: packageRepository,
+        ),
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('command', 'package upstream check'));
+    expect(report, containsPair('status', 'update_available'));
+    expect(report, containsPair('targetUpstreamVersion', '0.12.0'));
+    expect(report, containsPair('targetUpstreamRef', 'v0.12.0'));
+    expect(report, containsPair('specReviewRequiredAfterSync', true));
+    expect(stderr, isEmpty);
+  });
+
   test(
-    'package sync reports when the latest release is already adapted',
+    'package upstream sync reports when the latest release is already targeted',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -183,13 +266,13 @@ void _registerPackageSyncCoreTests() {
       );
       await runGit(upstream, ['tag', 'v0.11.0']);
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_current',
+        '${environment.homeDirectory.path}/package_upstream_current',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -197,7 +280,7 @@ void _registerPackageSyncCoreTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -220,7 +303,7 @@ void _registerPackageSyncCoreTests() {
       );
       expect(
         await runFluoh(
-          ['package', 'sync'],
+          ['package', 'upstream', 'sync'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -232,7 +315,7 @@ void _registerPackageSyncCoreTests() {
       expect(
         stdout,
         contains(
-          'Package branch ohos/3.35/camera already adapts upstream 0.11.0 (v0.11.0)',
+          'Package branch ohos/3.35/camera already targets upstream 0.11.0 (v0.11.0)',
         ),
       );
       expect(status.stdout.toString(), isEmpty);
@@ -240,7 +323,7 @@ void _registerPackageSyncCoreTests() {
     },
   );
 
-  test('package sync accepts an explicit upstream version', () async {
+  test('package upstream sync accepts an explicit upstream version', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
@@ -249,13 +332,13 @@ void _registerPackageSyncCoreTests() {
     );
     await runGit(upstream, ['tag', 'v0.10.0']);
     final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_version',
+      '${environment.homeDirectory.path}/package_upstream_version',
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -263,7 +346,7 @@ void _registerPackageSyncCoreTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -288,7 +371,7 @@ void _registerPackageSyncCoreTests() {
     );
     expect(
       await runFluoh(
-        ['package', 'sync', '--upstream-version', '0.11.0'],
+        ['package', 'upstream', 'sync', '--upstream-version', '0.11.0'],
         environment: packageEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -307,7 +390,7 @@ void _registerPackageSyncCoreTests() {
     expect(stderr, isEmpty);
   });
 
-  test('package sync refuses an explicit upstream downgrade', () async {
+  test('package upstream sync refuses an explicit upstream downgrade', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
@@ -316,13 +399,13 @@ void _registerPackageSyncCoreTests() {
     );
     await runGit(upstream, ['tag', 'v0.10.0']);
     final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_downgrade',
+      '${environment.homeDirectory.path}/package_upstream_downgrade',
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -330,7 +413,7 @@ void _registerPackageSyncCoreTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -353,7 +436,7 @@ void _registerPackageSyncCoreTests() {
     );
     expect(
       await runFluoh(
-        ['package', 'sync'],
+        ['package', 'upstream', 'sync'],
         environment: packageEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -365,7 +448,7 @@ void _registerPackageSyncCoreTests() {
 
     expect(
       await runFluoh(
-        ['package', 'sync', '--upstream-version', '0.10.0'],
+        ['package', 'upstream', 'sync', '--upstream-version', '0.10.0'],
         environment: packageEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -378,7 +461,7 @@ void _registerPackageSyncCoreTests() {
     expect(
       stderr.join('\n'),
       contains(
-        'package sync does not downgrade camera upstream version 0.11.0 -> 0.10.0',
+        'package upstream sync does not downgrade camera upstream version 0.11.0 -> 0.10.0',
       ),
     );
     expect(
@@ -387,20 +470,20 @@ void _registerPackageSyncCoreTests() {
     );
   });
 
-  test('package sync can emit json results', () async {
+  test('package upstream sync can emit json results', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
       Directory('${environment.homeDirectory.path}/upstream_sync_json'),
     );
     final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_json',
+      '${environment.homeDirectory.path}/package_upstream_json',
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -408,7 +491,7 @@ void _registerPackageSyncCoreTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -427,7 +510,7 @@ void _registerPackageSyncCoreTests() {
 
     expect(
       await runFluoh(
-        ['package', 'sync', '--json'],
+        ['package', 'upstream', 'sync', '--json'],
         environment: FluohEnvironment(
           homeDirectory: environment.homeDirectory,
           workingDirectory: packageRepository,
@@ -440,7 +523,7 @@ void _registerPackageSyncCoreTests() {
 
     final report = jsonDecode(stdout.single) as Map<String, Object?>;
     expect(report, containsPair('schema', 1));
-    expect(report, containsPair('command', 'package sync'));
+    expect(report, containsPair('command', 'package upstream sync'));
     expect(report, containsPair('ok', true));
     expect(report, containsPair('exitCode', 0));
     expect(report, containsPair('status', 'synced'));
@@ -450,7 +533,7 @@ void _registerPackageSyncCoreTests() {
   });
 
   test(
-    'package sync restores the starting branch when fast-forward fails',
+    'package upstream sync restores the starting branch when fast-forward fails',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -460,13 +543,13 @@ void _registerPackageSyncCoreTests() {
         Directory('${environment.homeDirectory.path}/upstream_sync_diverged'),
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_diverged',
+        '${environment.homeDirectory.path}/package_upstream_diverged',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -474,7 +557,7 @@ void _registerPackageSyncCoreTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -502,7 +585,7 @@ void _registerPackageSyncCoreTests() {
       );
       expect(
         await runFluoh(
-          ['package', 'sync'],
+          ['package', 'upstream', 'sync'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -520,7 +603,7 @@ void _registerPackageSyncCoreTests() {
   );
 
   test(
-    'package sync refuses dirty package branches before switching branches',
+    'package upstream sync refuses dirty package branches before switching branches',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -530,13 +613,13 @@ void _registerPackageSyncCoreTests() {
         Directory('${environment.homeDirectory.path}/upstream_sync_dirty'),
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_dirty',
+        '${environment.homeDirectory.path}/package_upstream_dirty',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -544,7 +627,7 @@ void _registerPackageSyncCoreTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -573,7 +656,7 @@ void _registerPackageSyncCoreTests() {
       );
       expect(
         await runFluoh(
-          ['package', 'sync'],
+          ['package', 'upstream', 'sync'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -596,150 +679,167 @@ void _registerPackageSyncCoreTests() {
     },
   );
 
-  test('package sync continuation commands require an active merge', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_sync_no_merge'),
-    );
-    final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_no_merge',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'package upstream sync continuation commands require an active merge',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_sync_no_merge'),
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_upstream_no_merge',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      [
-        'package',
-        'create',
-        upstream.path,
-        '--repository-name',
-        'camera',
-        '--output',
-        packageRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await commitGeneratedPackageRepository(packageRepository);
-
-    final packageEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: packageRepository,
-    );
-    expect(
       await runFluoh(
-        ['package', 'sync', '--continue'],
-        environment: packageEnvironment,
+        ['source', 'enable', 'fixture', source.path],
+        environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      64,
-    );
-    expect(
+      );
       await runFluoh(
-        ['package', 'sync', '--abort'],
-        environment: packageEnvironment,
+        [
+          'package',
+          'port',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      64,
-    );
-    expect(
-      stderr.where(
-        (message) => message == 'No package sync merge is in progress.',
-      ),
-      hasLength(2),
-    );
-  });
+      );
+      await commitGeneratedPackageRepository(packageRepository);
 
-  test('package sync abort validates the current package branch', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_sync_abort_branch'),
-    );
-    final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_abort_branch',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      expect(
+        await runFluoh(
+          ['package', 'upstream', 'sync', '--continue'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(
+        await runFluoh(
+          ['package', 'upstream', 'sync', '--abort'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(
+        stderr.where(
+          (message) =>
+              message == 'No package upstream sync merge is in progress.',
+        ),
+        hasLength(2),
+      );
+    },
+  );
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      [
-        'package',
-        'create',
-        upstream.path,
-        '--repository-name',
-        'camera',
-        '--output',
-        packageRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await commitGeneratedPackageRepository(packageRepository);
+  test(
+    'package upstream sync abort validates the current package branch',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamPackageRepository(
+        Directory(
+          '${environment.homeDirectory.path}/upstream_sync_abort_branch',
+        ),
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_upstream_abort_branch',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runGit(packageRepository, ['checkout', '-b', 'feature/manual-merge']);
-    await runGit(packageRepository, ['checkout', 'ohos/3.35/camera']);
-    await File(
-      '${packageRepository.path}/UPSTREAM_NOTE.md',
-    ).writeAsString('upstream note\n');
-    await runGit(packageRepository, ['add', 'UPSTREAM_NOTE.md']);
-    await runGit(packageRepository, ['commit', '-m', 'Add upstream note']);
-    await runGit(packageRepository, ['checkout', 'feature/manual-merge']);
-    await runGit(packageRepository, [
-      'merge',
-      '--no-ff',
-      '--no-commit',
-      'ohos/3.35/camera',
-    ]);
-
-    final packageEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: packageRepository,
-    );
-    expect(
       await runFluoh(
-        ['package', 'sync', '--abort'],
-        environment: packageEnvironment,
+        ['source', 'enable', 'fixture', source.path],
+        environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      64,
-    );
+      );
+      await runFluoh(
+        [
+          'package',
+          'port',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await commitGeneratedPackageRepository(packageRepository);
 
-    final mergeHead = await runGit(packageRepository, [
-      'rev-parse',
-      '--verify',
-      'MERGE_HEAD',
-    ]);
-    expect(mergeHead.stdout.toString().trim(), isNotEmpty);
-    expect(
-      stderr.join('\n'),
-      contains(
-        'Current branch feature/manual-merge does not match package branch '
-        'ohos/3.35/camera.',
-      ),
-    );
-    await runGit(packageRepository, ['merge', '--abort']);
-  });
+      await runGit(packageRepository, [
+        'checkout',
+        '-b',
+        'feature/manual-merge',
+      ]);
+      await runGit(packageRepository, ['checkout', 'ohos/3.35/camera']);
+      await File(
+        '${packageRepository.path}/UPSTREAM_NOTE.md',
+      ).writeAsString('upstream note\n');
+      await runGit(packageRepository, ['add', 'UPSTREAM_NOTE.md']);
+      await runGit(packageRepository, ['commit', '-m', 'Add upstream note']);
+      await runGit(packageRepository, ['checkout', 'feature/manual-merge']);
+      await runGit(packageRepository, [
+        'merge',
+        '--no-ff',
+        '--no-commit',
+        'ohos/3.35/camera',
+      ]);
+
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      expect(
+        await runFluoh(
+          ['package', 'upstream', 'sync', '--abort'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      final mergeHead = await runGit(packageRepository, [
+        'rev-parse',
+        '--verify',
+        'MERGE_HEAD',
+      ]);
+      expect(mergeHead.stdout.toString().trim(), isNotEmpty);
+      expect(
+        stderr.join('\n'),
+        contains(
+          'Current branch feature/manual-merge does not match package branch '
+          'ohos/3.35/camera.',
+        ),
+      );
+      await runGit(packageRepository, ['merge', '--abort']);
+    },
+  );
 }

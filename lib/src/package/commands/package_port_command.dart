@@ -19,19 +19,19 @@ import '../package_discovery.dart';
 import '../package_examples.dart';
 import '../package_repository_docs.dart';
 import '../package_sdk_compatibility.dart';
+import '../package_spec.dart';
 import '../repository_url.dart';
 import '../upstream_package_ref.dart';
 
-part 'package_create_plan_flow.dart';
-part 'package_create_plan_models.dart';
-part 'package_create_upstream_git.dart';
-part 'package_create_selection.dart';
-part 'package_create_agent_docs.dart';
+part 'package_port_plan_flow.dart';
+part 'package_port_plan_models.dart';
+part 'package_port_upstream_git.dart';
+part 'package_port_selection.dart';
 
-/// Initializes a FlutterOH package repository from an upstream package repo.
-class PackageCreateCommand extends FluohCommand<int> {
-  /// Creates the package repository initialization command.
-  PackageCreateCommand({
+/// Ports an upstream Flutter package repository to a FlutterOH package repo.
+class PackagePortCommand extends FluohCommand<int> {
+  /// Creates the package repository port command.
+  PackagePortCommand({
     required this.environment,
     required OutputWriter stdout,
     required OutputWriter stderr,
@@ -51,14 +51,14 @@ class PackageCreateCommand extends FluohCommand<int> {
         'upstream-version',
         valueHelp: 'version',
         help:
-            'Upstream package version to adapt. Defaults to the latest valid '
+            'Upstream package version to target. Defaults to the latest valid '
             'package release tag.',
       )
       ..addOption(
         'upstream-ref',
         valueHelp: 'ref',
         help:
-            'Upstream Git ref to adapt. Use only when release tags cannot '
+            'Upstream Git ref to target. Use only when release tags cannot '
             'identify the target package version.',
       )
       ..addOption(
@@ -94,24 +94,24 @@ class PackageCreateCommand extends FluohCommand<int> {
       ..addOption(
         'git-author-name',
         valueHelp: 'name',
-        help: 'Configure local Git user.name for adaptation commits.',
+        help: 'Configure local Git user.name for support commits.',
       )
       ..addOption(
         'git-author-email',
         valueHelp: 'email',
-        help: 'Configure local Git user.email for adaptation commits.',
+        help: 'Configure local Git user.email for support commits.',
       )
       ..addFlag(
         'plan',
         negatable: false,
         help:
-            'Inspect the upstream repository and print the creation plan '
+            'Inspect the upstream repository and print the port plan '
             'without creating the destination repository.',
       )
       ..addFlag(
         'json',
         negatable: false,
-        help: 'Print the creation plan as JSON. Requires --plan.',
+        help: 'Print the port plan as JSON. Requires --plan.',
       );
   }
 
@@ -122,13 +122,13 @@ class PackageCreateCommand extends FluohCommand<int> {
   late final TerminalOutput _output;
 
   @override
-  String get name => 'create';
+  String get name => 'port';
 
   @override
-  String get description => 'Initialize a FlutterOH package repository.';
+  String get description => 'Port an upstream Flutter package repository.';
 
   @override
-  String get invocation => 'fluoh package create <upstream>';
+  String get invocation => 'fluoh package port <upstream>';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -148,9 +148,7 @@ class PackageCreateCommand extends FluohCommand<int> {
     final planOnly = argResults!.flag('plan');
     final json = argResults!.flag('json');
     if (json && !planOnly) {
-      usageException(
-        '--json is supported only with --plan for package create.',
-      );
+      usageException('--json is supported only with --plan for package port.');
     }
     final rest = expectArgumentCount(
       argResults!,
@@ -171,8 +169,8 @@ class PackageCreateCommand extends FluohCommand<int> {
     if (!json) {
       _output.step('Resolving FlutterOH SDK');
     }
-    final release = await _resolveSdkRelease();
-    final destination = _packageCreateDestination(
+    final release = await _resolveSdkRelease(allowUnindexedExact: planOnly);
+    final destination = _packagePortDestination(
       environment: environment,
       output: argResults!.option('output'),
       repositoryName: packageRepositoryName,
@@ -252,6 +250,8 @@ class PackageCreateCommand extends FluohCommand<int> {
         _docPackageForSelection(
           selectedPackage: selected,
           repositoryUrl: repositoryUrl,
+          sdkVersion: release.tag,
+          releaseVersion: initialPackageReleaseVersion,
           implementationRecommendation: implementationRecommendation,
         ),
       ];
@@ -291,45 +291,31 @@ class PackageCreateCommand extends FluohCommand<int> {
       _output.info('IDE Flutter SDK link: ${_output.style.path(ideLink.path)}');
       _output.next('Use this link as your IDE Flutter SDK path');
       _output.blank();
-      await writePackageManifestFile(
-        destination,
-        PackageManifest(
-          sdkVersion: release.tag,
-          repositoryBranch: branch,
-          upstreamUrl: upstream,
-          upstreamBranch: upstreamBranch,
-          repositoryUrl: repositoryUrl,
-          package: PackageManifestPackage(
-            name: selected.package.name,
-            path: selected.path,
-            upstreamVersion: selected.package.version,
-            upstreamRef: selected.upstreamRef,
-            upstreamCommit: selected.upstreamCommit!,
-            version: initialPackageReleaseVersion,
-            status: 'experimental',
-          ),
+      final manifest = PackageManifest(
+        sdkVersion: release.tag,
+        repositoryBranch: branch,
+        upstreamUrl: upstream,
+        upstreamBranch: upstreamBranch,
+        repositoryUrl: repositoryUrl,
+        package: PackageManifestPackage(
+          name: selected.package.name,
+          path: selected.path,
+          upstreamVersion: selected.package.version,
+          upstreamRef: selected.upstreamRef,
+          upstreamCommit: selected.upstreamCommit!,
+          version: initialPackageReleaseVersion,
+          status: 'experimental',
         ),
       );
-      await writeOrReplacePackageReadmeAdaptation(
+      await writePackageManifestFile(destination, manifest);
+      await writeInitialPackageSpec(
+        repository: destination,
+        manifest: manifest,
+      );
+      await writeOrReplacePackageContext(
         destination: destination,
         packages: docPackages,
       );
-      await writeOrReplacePackageImplementationGuide(
-        destination: destination,
-        packages: docPackages,
-      );
-      await File('${destination.path}/FLUOH_CHANGELOG.md').writeAsString(
-        packageFluohChangelogContent(
-          packages: docPackages,
-          sdkVersion: release.tag,
-          releaseVersion: initialPackageReleaseVersion,
-        ),
-      );
-      await writeOrReplacePackageAgentsInstructions(
-        destination: destination,
-        packages: docPackages,
-      );
-      await _writeClaudeInstructions(destination);
       final preparedExample = await preparePackageExample(
         environment: packageEnvironment,
         repository: destination,
@@ -358,13 +344,10 @@ class PackageCreateCommand extends FluohCommand<int> {
       await runGit([
         'add',
         '-f',
-        'AGENTS.md',
-        'CLAUDE.md',
         'FLUOH.md',
-        'FLUOH_CHANGELOG.md',
-        'README.md',
         '.gitignore',
         'fluoh.yaml',
+        packageSpecRelativePath(selected.package.name),
       ], workingDirectory: destination);
       if (preparedExample.prepared) {
         await runGit([
@@ -404,7 +387,9 @@ class PackageCreateCommand extends FluohCommand<int> {
           '${implementationRecommendation.appFacingPackage}',
         );
       }
-      _output.next('See FLUOH.md and AGENTS.md for implementation steps');
+      _output.next(
+        'Read FLUOH.md and doc/fluoh/${selected.package.name}/spec.md, then run fluoh package next --json',
+      );
       shouldRollbackDestination = false;
       return 0;
     } catch (_) {
@@ -415,11 +400,16 @@ class PackageCreateCommand extends FluohCommand<int> {
     }
   }
 
-  Future<SdkRelease> _resolveSdkRelease() async {
+  Future<SdkRelease> _resolveSdkRelease({
+    required bool allowUnindexedExact,
+  }) async {
     final manager = SdkManager(environment);
     final sdk = argResults!.option('sdk');
     if (sdk != null) {
-      return manager.resolveRelease(sdk);
+      return manager.resolveRelease(
+        sdk,
+        allowUnindexedExact: allowUnindexedExact,
+      );
     }
 
     final releases = await manager.listReleases();
@@ -488,7 +478,7 @@ class PackageCreateCommand extends FluohCommand<int> {
     }).length;
     if (occurrences > 1) {
       usageException(
-        'package create creates one package branch. Pass one --package-path '
+        'package port creates one package branch. Pass one --package-path '
         'and use "fluoh package add <package-path>" for additional packages.',
       );
     }

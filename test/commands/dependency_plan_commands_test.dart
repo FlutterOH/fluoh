@@ -23,7 +23,7 @@ Future<FluohEnvironment> _preparedEnvironment() async {
   final stderr = <String>[];
 
   await runFluoh(
-    ['source', 'add', 'fixture', source.path],
+    ['source', 'enable', 'fixture', source.path],
     environment: environment,
     stdout: stdout.add,
     stderr: stderr.add,
@@ -147,7 +147,7 @@ Future<void> _setImplementationStatus(
     upstreamRef: packageName == 'camera' ? 'camera-v0.11.0' : 'v1.0.0',
     implementationRef: packageName == 'camera'
         ? 'camera-0.11.0-ohos-3.35-1.0.0'
-        : '$packageName-v1.0.0-ohos-3.35.8-1',
+        : '$packageName-1.0.0-ohos-3.35-1.0.0',
     status: status,
   );
 }
@@ -169,6 +169,7 @@ Future<void> _appendImplementationVersion(
   await manifest.writeAsString(
     '$content'
     '        - version: $releaseVersion\n'
+    '          tag: $implementationRef\n'
     '          upstream:\n'
     '            version: $upstreamVersion\n'
     '            ref: $upstreamRef\n'
@@ -294,6 +295,9 @@ repository:
   git:
     url: $repositoryUrl
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: $upstreamUrl
@@ -305,6 +309,7 @@ package:
     "3.35":
       releases:
         - version: $releaseVersion
+          tag: $implementationRef
           upstream:
             version: $upstreamVersion
             ref: $upstreamRef

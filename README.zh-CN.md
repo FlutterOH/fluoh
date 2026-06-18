@@ -4,7 +4,7 @@
 </h1>
 
 <p align="center">
-  用 AI 将 Flutter App 和 Package 适配到 OHOS。
+  面向 Flutter App 和 Package 的 FlutterOH 优先 AI 工作流。
 </p>
 
 <p align="center">
@@ -24,15 +24,15 @@
 </p>
 
 <p align="center">
-  <img src="doc/assets/svg/readme-hero.zh-CN.svg" alt="fluoh AI 适配提示预览">
+  <img src="doc/assets/svg/readme-hero.zh-CN.svg" alt="fluoh AI 支持提示预览">
 </p>
 
 ## 快速开始
 
 ### AI 优先
 
-适配 App 或 Package 时，可以优先使用 fluoh AI skill。它会先确认适配范围，
-再完成代码调整、运行验证，并生成本地报告。
+为 App 或 Package 增加 FlutterOH 支持时，可以优先使用 fluoh AI skill。它会先确认支持范围，
+再完成代码调整、运行目标平台和保留平台验证，并生成本地报告。
 
 在 AI agent 中安装内置 skill：
 
@@ -43,9 +43,9 @@
 然后按 App 或 Package 场景输入一句话：
 
 ```text
-使用 $fluoh，必要时先安装 fluoh，然后把当前 Flutter 项目适配到 OHOS。
-使用 $fluoh，把 <upstream-git-url> 适配为 FlutterOH Package。
-使用 $fluoh，继续适配 <package-name> 到 OHOS。
+使用 $fluoh，必要时先安装 fluoh，然后为当前 Flutter 项目增加 FlutterOH 支持。
+使用 $fluoh，将 <upstream-git-url> 移植为 FlutterOH Package。
+使用 $fluoh，继续为 <package-name> 实现 FlutterOH 支持。
 使用 $fluoh，预检查这个 FlutterOH Source 变更。
 ```
 
@@ -95,20 +95,20 @@ cd demo_app
 
 ### Package 维护者
 
-先发现 upstream 包，再创建 FlutterOH 适配仓库：
+可以先基于 spec 新建 FlutterOH Package 仓库，也可以发现并移植 upstream Package 仓库：
 
 ```sh
+fluoh package new <name> --repository-name <flutteroh-repo-name>
 fluoh package discover <upstream-git-url>
-fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
+fluoh package port <upstream-git-url> --repository-name <flutteroh-repo-name>
 cd <flutteroh-repo-name>
-fluoh verify --package <name>
-fluoh run ohos --package <name> --auto-emulator
-fluoh attach ohos --session-file <session-file>
+fluoh package next --package <name>
 fluoh package status --package <name>
 ```
 
-`fluoh attach` 会复用 Flutter run session，优先连接 VM Service URI；如果
-session 没有提供 URI，则退回使用目标设备 id。
+`fluoh package next` 每次只输出一个聚焦的实现动作。按打印的动作执行并重复
+运行，直到 ready 或 blocked，再用 `package status`、`package handoff` 和
+`package check` 检查发布就绪状态。
 
 需要时，在生成仓库中追加另一个 Package 分支：
 
@@ -116,6 +116,12 @@ session 没有提供 URI，则退回使用目标设备 id。
 fluoh package queue <package-path>...
 fluoh package add <package-path>
 fluoh verify --package <name>
+```
+
+首次发布后，把 Package 分支注册到 Source：
+
+```sh
+fluoh source register . --source <source-repo>
 ```
 
 使用已选择的 FlutterOH SDK 执行 Flutter 命令：

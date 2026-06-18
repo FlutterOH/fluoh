@@ -9,7 +9,10 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../../package/package_scope.dart';
 import '../../schema/yaml_utils.dart';
+import '../../task/task_workspace.dart';
+import '../platform_workflow_policy.dart';
 
 /// Top-level `fluoh report` command group.
 class ReportCommand extends FluohCommand<int> {
@@ -34,7 +37,7 @@ class ReportCommand extends FluohCommand<int> {
   String get name => 'report';
 
   @override
-  String get description => 'Create a local AI adaptation report.';
+  String get description => 'Create a local AI support report.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -69,7 +72,7 @@ class ReportCommand extends FluohCommand<int> {
   }
 }
 
-/// Creates a local AI adaptation report from collected evidence.
+/// Creates a local AI support report from collected evidence.
 class ReportCreateCommand extends FluohCommand<int> {
   /// Creates the report creation command.
   ReportCreateCommand({
@@ -88,9 +91,9 @@ class ReportCreateCommand extends FluohCommand<int> {
       ..addOption(
         'output',
         valueHelp: 'path',
-        help:
-            'Report path. Defaults to .fluoh/reports/<scope>/report-<timestamp>.md.',
+        help: 'Report path. Defaults to the current task report.',
       )
+      ..addOption('task', valueHelp: 'id', help: 'Task workspace id.')
       ..addMultiOption(
         'trace-dir',
         valueHelp: 'path',
@@ -103,6 +106,7 @@ class ReportCreateCommand extends FluohCommand<int> {
       )
       ..addOption(
         'recommendation',
+        valueHelp: 'recommendation',
         allowed: const ['ready', 'needs-maintainer-decision', 'blocked'],
         defaultsTo: 'blocked',
         help: 'Release recommendation to write.',
@@ -123,21 +127,32 @@ class ReportCreateCommand extends FluohCommand<int> {
 
   @override
   String get description =>
-      'Create an AI adaptation report from trace and automation JSON.';
+      'Create an AI support report from trace and automation JSON.';
 
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final scope = _scope();
+    final packageName = argResults!.option('package')?.trim();
+    final task = await TaskWorkspace(environment).resolveOrCreate(
+      taskId: argResults!.option('task')?.trim(),
+      type: 'report',
+      scopeName: scope,
+      packageName: packageName,
+    );
+    final tracePaths = argResults!.multiOption('trace-dir');
+    final effectiveTracePaths = tracePaths.isEmpty
+        ? await _defaultTracePaths(task)
+        : tracePaths;
     final report = await _composeReport(
       environment: environment,
       scope: scope,
-      packageName: argResults!.option('package')?.trim(),
-      tracePaths: argResults!.multiOption('trace-dir'),
+      packageName: packageName,
+      tracePaths: effectiveTracePaths,
       automationPaths: argResults!.multiOption('automation-json'),
       recommendation: argResults!.option('recommendation') ?? 'blocked',
     );
-    final output = _resolveReportOutput(scope);
+    final output = _resolveReportOutput(scope, task);
     await output.parent.create(recursive: true);
     await output.writeAsString(report.content);
     if (argResults!.flag('json')) {
@@ -150,9 +165,12 @@ class ReportCreateCommand extends FluohCommand<int> {
           'changed': true,
           'report': output.path,
           'scope': scope,
+          'task': task.toJson(environment.workingDirectory),
           'commandRows': report.commandRows,
           'automationRows': report.automationRows,
           'interactionRows': report.interactionRows,
+          if (report.supportScope != null)
+            'supportScope': report.supportScope!.toJson(),
         },
       );
     } else {
@@ -192,7 +210,7 @@ class ReportCreateCommand extends FluohCommand<int> {
     return 'app';
   }
 
-  File _resolveReportOutput(String scope) {
+  File _resolveReportOutput(String scope, FluohTask task) {
     final output = argResults!.option('output')?.trim();
     if (output != null && output.isNotEmpty) {
       final file = File(output);
@@ -200,12 +218,21 @@ class ReportCreateCommand extends FluohCommand<int> {
           ? file
           : File('${environment.workingDirectory.path}/$output');
     }
-    final slug = _slug(scope);
-    final stamp = _timestamp(DateTime.now());
-    return File(
-      '${environment.workingDirectory.path}/.fluoh/reports/$slug/report-$stamp.md',
-    );
+    return File('${task.reportsDirectory.path}/report.md');
   }
+}
+
+Future<List<String>> _defaultTracePaths(FluohTask task) async {
+  final traces = task.tracesDirectory;
+  if (!await traces.exists()) {
+    return const [];
+  }
+  await for (final entity in traces.list(recursive: true, followLinks: false)) {
+    if (entity is File && entity.path.endsWith('/trace.json')) {
+      return [traces.path];
+    }
+  }
+  return const [];
 }
 
 Future<_ComposedReport> _composeReport({
@@ -234,11 +261,21 @@ Future<_ComposedReport> _composeReport({
   ];
   final releaseAutomation = _latestAutomationCoverageEvidence(allAutomation);
   final commandRows = _commandRows(traces, explicitAutomation);
-  final automationRows = _automationCoverageRows(releaseAutomation);
-  final automationGatesReady = _automationGatesReady(releaseAutomation);
+  final automationGates = _automationCoverageGates(releaseAutomation);
+  final automationRows = _automationCoverageRows(automationGates);
+  final automationGatesReady = _automationGatesReady(
+    automationGates,
+    releaseAutomation,
+  );
   final interactionRows = _interactionRows(releaseAutomation);
   final feedbackRows = _feedbackRows(traces);
   final packageValue = packageName?.isNotEmpty == true ? packageName! : '';
+  final scopeStatus = packageValue.isEmpty
+      ? null
+      : await inspectPackageScope(
+          repository: environment.workingDirectory,
+          packageName: packageValue,
+        );
   final generatedAt = DateTime.now().toIso8601String();
   return _ComposedReport(
     content: _englishReportContent(
@@ -251,9 +288,11 @@ Future<_ComposedReport> _composeReport({
       automationCount: releaseAutomation.length,
       commandRows: commandRows,
       automationRows: automationRows,
+      automationGates: automationGates,
       automationGatesReady: automationGatesReady,
       interactionRows: interactionRows,
       feedbackRows: feedbackRows,
+      scopeStatus: scopeStatus,
       automation: releaseAutomation,
       diagnosticAutomation: allAutomation,
       traces: traces,
@@ -261,6 +300,7 @@ Future<_ComposedReport> _composeReport({
     commandRows: commandRows.length,
     automationRows: automationRows.length,
     interactionRows: interactionRows.length,
+    supportScope: scopeStatus,
   );
 }
 
@@ -274,9 +314,11 @@ String _englishReportContent({
   required int automationCount,
   required List<_CommandEvidence> commandRows,
   required List<String> automationRows,
+  required List<_AutomationCoverageGate> automationGates,
   required bool automationGatesReady,
   required List<String> interactionRows,
   required List<String> feedbackRows,
+  required PackageScopeStatus? scopeStatus,
   required List<Map<String, Object?>> traces,
   required List<Map<String, Object?>> automation,
   required List<Map<String, Object?>> diagnosticAutomation,
@@ -295,10 +337,10 @@ String _englishReportContent({
     '## Summary',
     '',
     '- Report composed from $traceCount trace manifest(s) and $automationCount automation evidence object(s).',
-    '- AI owns adaptation changes, command execution, evidence collection, report composition, and the release recommendation.',
+    '- AI owns support changes, command execution, evidence collection, report composition, and the release recommendation.',
     '- The maintainer owns the final publish, push, tag, store, or release approval decision.',
     '',
-    '## Adaptation Responsibility',
+    '## Support Responsibility',
     '',
     '- AI automation completes implementation, verification, repair loops, platform evidence, and release readiness recommendation.',
     '- Human approval is reserved for the final release decision after reviewing the machine-readable evidence.',
@@ -312,7 +354,16 @@ String _englishReportContent({
     '',
     '- Public Dart API changes:',
     '- Dependency constraint changes:',
-    '- Non-OHOS regression risk:',
+    '- Existing-platform regression risk:',
+    '',
+    '## Official Platform Basis',
+    '',
+    '- Official platform documentation basis:',
+    '- Impact on implementation and tests:',
+    '',
+    '## Support Scope',
+    '',
+    ..._supportScopeLines(scopeStatus),
     '',
     '## Commands',
     '',
@@ -328,14 +379,18 @@ String _englishReportContent({
     '- [ ] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.',
     '- [${commandRows.isEmpty ? ' ' : 'x'}] Commands table includes exit codes and enough evidence to reproduce the decision.',
     '- [ ] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.',
+    '- [${scopeStatus?.complete == true ? 'x' : ' '}] P0 support scope includes per-platform support decisions, platform API basis or reasons, implementation plans where required, test cases, and functional or regression evidence.',
     '- [ ] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.',
-    '- [ ] OHOS build evidence recorded.',
-    '- [ ] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.',
+    '- [ ] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.',
+    '- [ ] Target-platform build evidence recorded, including OHOS when in scope.',
+    '- [ ] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.',
+    '- [ ] Pub.dev publishability checked with `dart pub publish --dry-run`, or a concrete not-applicable reason is recorded.',
+    '- [ ] FlutterOH support checked with fluoh verify/build/run/drive/report gates.',
     '- [ ] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.',
     '- [ ] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.',
     '- [${automationGatesReady ? 'x' : ' '}] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.',
     '- [${interactionRows.isEmpty ? ' ' : 'x'}] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.',
-    '- [ ] Public API, dependency constraints, and non-OHOS regression risk reviewed.',
+    '- [ ] Public API, dependency constraints, and existing-platform regression risk reviewed.',
     '- [ ] Remaining risks and release decision are explicit.',
     '',
     '## Platform Matrix',
@@ -346,24 +401,20 @@ String _englishReportContent({
     '',
     '## Automation Coverage',
     '',
-    ..._automationSummaryLines(automation),
+    ..._automationSummaryLines(automation, automationGates),
     '',
     '| Gate | Status | Evidence / blocker |',
     '| --- | --- | --- |',
-    if (automationRows.isEmpty)
-      '| coverage-inventory | blocked | No automation JSON supplied. |'
-    else
-      ...automationRows,
+    ...automationRows,
     '',
     '## Interaction Evidence',
     '',
+    '| Scenario | Method | Platform | Target | Result | Evidence / blocker |',
+    '| --- | --- | --- | --- | --- | --- |',
     if (interactionRows.isEmpty)
-      'Interaction evidence missing: no passed scenario evidence was supplied to report create. Add concrete interaction rows or replace this line with `No interaction required: <reason>` only when no device-side interaction flow exists.'
-    else ...[
-      '| Scenario | Method | Platform | Target | Result | Evidence / blocker |',
-      '| --- | --- | --- | --- | --- | --- |',
+      '| `functional-interaction-evidence` | AI-assisted | ${_escapeCell(_selectedInteractionPlatform(commandRows))} | n/a | blocked | No passed scenario, integration_test, or manual-assisted tool-readable evidence was supplied to report create. |'
+    else
       ...interactionRows,
-    ],
     '',
     '## Diagnostics',
     '',
@@ -410,12 +461,46 @@ class _ComposedReport {
     required this.commandRows,
     required this.automationRows,
     required this.interactionRows,
+    required this.supportScope,
   });
 
   final String content;
   final int commandRows;
   final int automationRows;
   final int interactionRows;
+  final PackageScopeStatus? supportScope;
+}
+
+List<String> _supportScopeLines(PackageScopeStatus? status) {
+  if (status == null) {
+    return const [
+      '- path: n/a',
+      '- exists: false',
+      '- planningReady: false',
+      '- functionalEvidenceReady: false',
+      '- complete: false',
+      '- p0: total=0, supportedOrDegraded=0, functionalEvidence=0',
+      '',
+      'No package support scope supplied: report create did not receive --package.',
+    ];
+  }
+  return [
+    '- path: ${status.path}',
+    '- exists: ${status.exists}',
+    '- planningReady: ${status.planningReady}',
+    '- functionalEvidenceReady: ${status.functionalEvidenceReady}',
+    '- complete: ${status.complete}',
+    '- p0: total=${status.p0Count}, supportedOrDegraded=${status.p0SupportedOrDegradedCount}, functionalEvidence=${status.p0FunctionalEvidenceCount}',
+    '',
+    if (status.issues.isEmpty)
+      'No support scope issues: P0 planning and functional evidence gates are complete.'
+    else ...[
+      '| Code | Phase | Severity | Scope Entry | Field | Message |',
+      '| --- | --- | --- | --- | --- | --- |',
+      for (final issue in status.issues)
+        '| ${_escapeCell(issue.code)} | ${_escapeCell(issue.phase)} | ${_escapeCell(issue.severity)} | ${_escapeCell(issue.scopeEntry ?? '')} | ${_escapeCell(issue.field ?? '')} | ${_escapeCell(issue.message)} |',
+    ],
+  ];
 }
 
 Future<List<File>> _traceManifests(
@@ -668,8 +753,46 @@ String _rowNote(Map<String, Object?> item) {
   return '';
 }
 
-List<String> _automationCoverageRows(List<Map<String, Object?>> automation) {
-  final rows = <String>[];
+const _requiredAutomationCoverageGates = [
+  'coverage-inventory',
+  'coverage-metadata',
+  'coverage-items',
+  'capability-inventory-coverage',
+  'blocked-coverage',
+  'scenario-evidence-assertions',
+  'page-readiness',
+  'existing-test-baseline',
+  'manifest-permission-coverage',
+  'behavior-paths',
+];
+
+const _blockedAutomationCoverageReasons = {
+  'coverage-inventory':
+      'No complete automation coverage inventory was supplied; run fluoh drive --dry-run --json to generate the required gate set.',
+  'coverage-metadata':
+      'Scenario coverage metadata is missing or was not supplied.',
+  'coverage-items':
+      'No scenario, integration_test, or manual-assisted rows were supplied for discovered capabilities.',
+  'capability-inventory-coverage':
+      'Public API, example flow, and platform capability coverage still need review.',
+  'blocked-coverage':
+      'Coverage cannot be marked ready until blocked rows are repaired or explicitly classified.',
+  'scenario-evidence-assertions':
+      'Functional assertions such as assertText, waitText, assertLog, semantics, test keys, or app logs were not supplied.',
+  'page-readiness': 'No post-launch page-readiness evidence was supplied.',
+  'existing-test-baseline':
+      'Existing package, example, and integration test coverage review was not supplied.',
+  'manifest-permission-coverage':
+      'Manifest permission grant and denied/error path coverage was not supplied.',
+  'behavior-paths':
+      'Success and negative/error behavior path coverage remains unverified.',
+};
+
+List<_AutomationCoverageGate> _automationCoverageGates(
+  List<Map<String, Object?>> automation,
+) {
+  final gates = <_AutomationCoverageGate>[];
+  final reportedRequiredGates = <String>{};
   for (final item in automation) {
     final automationJson = item['automation'];
     final coveragePolicy = automationJson is Map
@@ -686,15 +809,50 @@ List<String> _automationCoverageRows(List<Map<String, Object?>> automation) {
       if (gate is! Map) {
         continue;
       }
-      rows.add(
-        '| ${_escapeCell('${gate['id'] ?? ''}')} | ${_escapeCell('${gate['status'] ?? ''}')} | ${_escapeCell('${gate['repair'] ?? gate['evidence'] ?? ''}')} |',
+      final id = _nonEmptyString(gate['id']) ?? '';
+      gates.add(
+        _AutomationCoverageGate(
+          id: id,
+          status: _nonEmptyString(gate['status']) ?? '',
+          evidence: _nonEmptyString(gate['repair'] ?? gate['evidence']) ?? '',
+          generated: false,
+        ),
       );
+      if (_requiredAutomationCoverageGates.contains(id)) {
+        reportedRequiredGates.add(id);
+      }
     }
   }
-  return rows;
+  for (final gate in _requiredAutomationCoverageGates) {
+    if (!reportedRequiredGates.contains(gate)) {
+      gates.add(_blockedAutomationCoverageGate(gate));
+    }
+  }
+  return gates;
 }
 
-bool _automationGatesReady(List<Map<String, Object?>> automation) {
+_AutomationCoverageGate _blockedAutomationCoverageGate(String gate) {
+  return _AutomationCoverageGate(
+    id: gate,
+    status: 'blocked',
+    evidence:
+        _blockedAutomationCoverageReasons[gate] ??
+        'Required automation coverage gate was not supplied.',
+    generated: true,
+  );
+}
+
+List<String> _automationCoverageRows(List<_AutomationCoverageGate> gates) {
+  return [
+    for (final gate in gates)
+      '| ${_escapeCell(gate.id)} | ${_escapeCell(gate.status)} | ${_escapeCell(gate.evidence)} |',
+  ];
+}
+
+bool _automationGatesReady(
+  List<_AutomationCoverageGate> gates,
+  List<Map<String, Object?>> automation,
+) {
   var hasCoveragePolicy = false;
   for (final item in automation) {
     final automationJson = item['automation'];
@@ -708,17 +866,18 @@ bool _automationGatesReady(List<Map<String, Object?>> automation) {
     if (coveragePolicy['readyForAutomation'] != true) {
       return false;
     }
-    final qualityGates = coveragePolicy['qualityGates'];
-    if (qualityGates is! List<Object?> || qualityGates.isEmpty) {
+  }
+  if (!hasCoveragePolicy) {
+    return false;
+  }
+  final gatesById = {for (final gate in gates) gate.id: gate};
+  for (final id in _requiredAutomationCoverageGates) {
+    final gate = gatesById[id];
+    if (gate == null || !_automationCoverageGateReady(gate)) {
       return false;
     }
-    for (final gate in qualityGates) {
-      if (gate is! Map || gate['status'] != 'readyForReview') {
-        return false;
-      }
-    }
   }
-  return hasCoveragePolicy;
+  return true;
 }
 
 List<String> _interactionRows(List<Map<String, Object?>> automation) {
@@ -908,7 +1067,7 @@ String? _platformFromText(String? value) {
   if (value == null) {
     return null;
   }
-  for (final platform in const ['ohos', 'android', 'ios']) {
+  for (final platform in workflowDrivePlatformNames) {
     if (RegExp('(^|-)${RegExp.escape(platform)}(-|\$)').hasMatch(value)) {
       return platform;
     }
@@ -925,17 +1084,10 @@ String? _nonEmptyString(Object? value) {
 }
 
 List<String> _platformRows(List<_CommandEvidence> commandRows) {
-  final platforms = const [
-    'OHOS',
-    'Android',
-    'iOS',
-    'macOS',
-    'Linux',
-    'Web',
-    'Windows',
-  ];
   return [
-    for (final platform in platforms)
+    for (final platform in workflowPlatformNames.map(
+      (platform) => platformWorkflowPolicy(platform).label,
+    ))
       '| $platform | ${_platformCommandStatus(commandRows, platform, 'build')} | ${_platformCommandStatus(commandRows, platform, 'run')} | n/a | n/a | composed from command rows |',
   ];
 }
@@ -956,25 +1108,47 @@ String _platformCommandStatus(
   return 'skipped';
 }
 
-List<String> _automationSummaryLines(List<Map<String, Object?>> automation) {
+List<String> _automationSummaryLines(
+  List<Map<String, Object?>> automation,
+  List<_AutomationCoverageGate> gates,
+) {
+  final readyCount = gates.where(_automationCoverageGateReady).length;
+  final notReadyCount = gates.length - readyCount;
+  final hasGeneratedGates = gates.any((gate) => gate.generated);
   for (final item in automation) {
     final automationJson = item['automation'];
     final coveragePolicy = automationJson is Map
         ? automationJson['coveragePolicy']
         : null;
     if (coveragePolicy is Map) {
+      final rawReadyForAutomation =
+          coveragePolicy['readyForAutomation'] == true;
       return [
-        '- coveragePolicy.status: ${coveragePolicy['status'] ?? 'unknown'}',
-        '- readyForAutomation: ${coveragePolicy['readyForAutomation'] ?? 'unknown'}',
-        '- qualityGateSummary: ${coveragePolicy['qualityGateSummary'] ?? 'unknown'}',
+        '- coveragePolicy.status: ${hasGeneratedGates ? 'blocked' : coveragePolicy['status'] ?? 'unknown'}',
+        '- readyForAutomation: ${!hasGeneratedGates && notReadyCount == 0 && rawReadyForAutomation}',
+        '- qualityGateSummary: ready=$readyCount, notReady=$notReadyCount',
       ];
     }
   }
-  return const [
+  return [
     '- coveragePolicy.status: blocked',
     '- readyForAutomation: false',
-    '- qualityGateSummary: ready=0, notReady=1',
+    '- qualityGateSummary: ready=$readyCount, notReady=$notReadyCount',
   ];
+}
+
+bool _automationCoverageGateReady(_AutomationCoverageGate gate) {
+  return gate.status == 'readyForReview';
+}
+
+String _selectedInteractionPlatform(List<_CommandEvidence> commandRows) {
+  for (final platform in workflowDrivePlatformNames) {
+    final token = 'fluoh run $platform';
+    if (commandRows.any((row) => row.command.contains(token))) {
+      return platform;
+    }
+  }
+  return 'n/a';
 }
 
 List<String> _diagnosticLines(
@@ -1034,18 +1208,6 @@ List<String> _feedbackRows(List<Map<String, Object?>> traces) {
   return rows;
 }
 
-String _slug(String value) {
-  final slug = value
-      .trim()
-      .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
-      .replaceAll(RegExp(r'^[-._]+|[-._]+$'), '');
-  return slug.isEmpty ? 'report' : slug;
-}
-
-String _timestamp(DateTime now) {
-  return now.millisecondsSinceEpoch.toString();
-}
-
 String _escapeCell(String value) {
   return value.replaceAll('|', r'\|').replaceAll('\n', ' ').trim();
 }
@@ -1068,4 +1230,18 @@ class _CommandEvidence {
   String toMarkdownRow() {
     return '| `${_escapeCell(command)}` | $exitCode | $status | ${_escapeCell(note)} |';
   }
+}
+
+class _AutomationCoverageGate {
+  const _AutomationCoverageGate({
+    required this.id,
+    required this.status,
+    required this.evidence,
+    required this.generated,
+  });
+
+  final String id;
+  final String status;
+  final String evidence;
+  final bool generated;
 }

@@ -19,7 +19,7 @@
 - `lib/src/deps/`: project dependency analysis, policy, plan, pubspec rewrite helpers, and top-level `deps` command entry points.
 - `lib/src/workflow/commands/`: workflow command entry points for `plan`, `verify`, `build`, `run`, `attach`, `drive`, `report`, and `clean`.
 - `lib/src/workflow/`: shared workflow result models, automation scenarios, and platform automation helpers.
-- `lib/src/package/`: package repository create, sync, and release workflows.
+- `lib/src/package/`: package repository new, port, upstream sync, notes, handoff, and release workflows.
 - `lib/src/doctor/` and `lib/src/upgrade/`: command-specific implementations.
 - `skills/fluoh/`: bundled AI agent workflow, helper scripts, and report templates.
 - `test/`: unit, command, integration, fixture, and release artifact tests.
@@ -48,6 +48,12 @@ If a local shell has multiple Dart installations, using an explicit Dart SDK pat
 ## Coding Standards
 
 Use idiomatic Dart and keep formatting delegated to `dart format`. File names are `snake_case.dart`; classes, enums, and extensions are `PascalCase`; functions, fields, variables, and command identifiers are `lowerCamelCase`.
+
+Terminology in user-facing docs, command descriptions, prompts, reports, and
+skill routing should call the workflow `FlutterOH support` or `FlutterOH
+support workflow`. Reserve `ohos` and `OHOS` for platform IDs, command
+arguments, directory names, generated platform files, and low-level technical
+diagnostics such as device, build, signing, permission, or toolchain details.
 
 Keep command classes focused on argument parsing and user-visible output. Put reusable behavior in the matching domain helper under `lib/src/<domain>/`. Keep internal implementation under `lib/src/`; only export intentional public API from `lib/fluoh.dart`.
 
@@ -83,11 +89,12 @@ State must have one owner. Do not bypass these owners in command implementations
 - `$FLUOH_HOME/config.json`: Source configuration and first default Source initialization through `lib/src/source/`.
 - `$FLUOH_HOME/sources/<name>` and `$FLUOH_HOME/sources.lock.json`: Source runtime snapshots and lock generation in `lib/src/source/`.
 - `$FLUOH_HOME/sdks/<version>`: SDK install, remove, and on-demand wrapper setup in `lib/src/sdk/`.
-- Project `.fluoh/cache/`: cleanable runtime artifacts produced by workflow, platform, and package commands; cleanup is owned by `fluoh clean`.
+- Project `.fluoh/tasks/<task-id>/`: cleanable task-local traces, reports, evidence, logs, sessions, commands, and scratch artifacts; cleanup is owned by `fluoh task clean` and `fluoh clean`.
+- Project `.fluoh/current-task.json`: current local task pointer used by workflow trace/report/evidence commands.
 - Project `fluoh.yaml` and `.fluoh/flutter_sdk`: SDK selection and dependency workflow configuration.
 - Project `pubspec.yaml`: `deps` command entry points under `lib/src/deps/commands/`, using rewrite helpers under `lib/src/deps/`.
 - FlutterOH package repository `fluoh.yaml`, generated docs, examples, and release metadata: package workflow commands under `lib/src/package/`.
-- Source root and Manifest files: `source init`, `source sync`, and Source validation commands.
+- Source root and Manifest files: `source init`, `source register`, `source sync`, and Source validation commands.
 
 ## Testing Standards
 
@@ -102,7 +109,7 @@ Documentation and generated-guidance tests should protect stable release contrac
 - Prefer structured parsing for generated YAML, JSON, Markdown sections, and command output when a parser or local helper is available.
 - Assert stable contracts: required files, schema keys, package names, versions, paths, command names, links, headings, non-empty generated sections, and positive/negative workflow outcomes.
 - Avoid broad `contains(...)` checks for full sentences, explanatory paragraphs, translated wording, comments, or guidance prose. Short stable tokens are acceptable when they are part of the contract, such as command names, schema keys, release tags, or file names.
-- For generated README, FLUOH, AGENTS, schema, and command-design documents, check structure and required anchors rather than prose details. This keeps documentation editable for clarity without brittle test failures.
+- For generated FLUOH context, package specs, schema docs, and command-design documents, check structure and required anchors rather than prose details. This keeps documentation editable for clarity without brittle test failures.
 - For CLI output, assert the exit code, changed files or parsed result, and essential next-step command when needed. Do not require incidental progress text or descriptive wording unless that exact message is the behavior under test.
 
 ## Documentation Standards
@@ -113,7 +120,7 @@ Contributor and maintainer details belong in `CONTRIBUTING.md` and `CONTRIBUTING
 
 Command design details belong in `doc/commands.md` and `doc/commands.zh-CN.md`. Keep those files as the source of truth for command behavior, state ownership, workflow sequencing, and machine-readable output details.
 
-AI-driven adaptation routing belongs in `skills/fluoh/SKILL.md`. Detailed app, package, automation, Source, report, and scenario flows belong in `skills/fluoh/references/` and the referenced helper scripts/templates. Keep README links and `fluoh skill` metadata aligned, but do not duplicate the full skill workflow in public docs or this file.
+AI-driven support routing belongs in `skills/fluoh/SKILL.md`. Detailed app, package, automation, Source, report, and scenario flows belong in `skills/fluoh/references/` and the referenced helper scripts/templates. Keep README links and `fluoh skill` metadata aligned, but do not duplicate the full skill workflow in public docs or this file.
 
 `AGENTS.md` is for coding agents and maintainers working inside the repository. It should summarize current project conventions and link behavior through concrete files or commands, not duplicate long user documentation.
 

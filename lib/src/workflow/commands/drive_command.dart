@@ -44,14 +44,21 @@ class DriveCommand extends FluohCommand<int> {
       ..addOption(
         'session-dir',
         valueHelp: 'path',
-        defaultsTo: '.fluoh/run-sessions/automation',
-        help: 'Directory for Android and iOS flutterRunSession files.',
+        help:
+            'Directory for Android and iOS flutterRunSession files. Defaults to the current task evidence.',
       )
       ..addMultiOption(
         'scenario',
         valueHelp: 'path',
         help:
             'Automation scenario YAML, JSON, or Markdown file to execute after the app launches.',
+      )
+      ..addOption(
+        'profile',
+        valueHelp: 'name',
+        allowed: const ['exploratory-smoke'],
+        help:
+            'Run a built-in bounded automation profile. exploratory-smoke records launch/session/screenshots and optional scroll evidence; it does not prove functional correctness.',
       )
       ..addFlag(
         'dry-run',
@@ -116,14 +123,24 @@ class DriveCommand extends FluohCommand<int> {
     );
     final deviceTimeout = _durationOption('device-timeout');
     final logDuration = _durationOption('log-duration');
-    final sessionDirectory = _resolveOutputDirectory(
-      environment.workingDirectory,
-      argResults!.option('session-dir') ?? '.fluoh/run-sessions/automation',
-    );
+    final profile = _trimmedOption(argResults!, 'profile');
     final inventory = await _automationInventory(
       environment: environment,
       packageName: packageName,
     );
+    final task = await TaskWorkspace(environment).resolveOrCreate(
+      taskId: _trimmedOption(argResults!, 'task'),
+      type: 'automation',
+      scopeName: inventory.targetName,
+      packageName: packageName,
+    );
+    final sessionDirectoryOption = _trimmedOption(argResults!, 'session-dir');
+    final sessionDirectory = sessionDirectoryOption == null
+        ? task.sessionDirectory
+        : _resolveOutputDirectory(
+            environment.workingDirectory,
+            sessionDirectoryOption,
+          );
     final scenarios = await _readAutomationScenarios(
       argResults!.multiOption('scenario'),
       workingDirectory: environment.workingDirectory,
@@ -132,6 +149,12 @@ class DriveCommand extends FluohCommand<int> {
       usageException: usageException,
     );
     _validateAutomationScenarios(scenarios, platforms, usageException);
+    final profileScenarios = _automationProfileScenarios(
+      profile: profile,
+      platforms: platforms,
+      workingDirectory: environment.workingDirectory,
+      task: task,
+    );
     final plan = _automationPlan(
       platforms: platforms,
       packageName: packageName,
@@ -144,23 +167,31 @@ class DriveCommand extends FluohCommand<int> {
       sessionDirectory: sessionDirectory,
       traceOptions: _traceOptionsFrom(argResults!),
       scenarios: scenarios,
+      profile: profile,
+      profileScenarios: profileScenarios,
       inventory: inventory,
     );
     final json = argResults!.flag('json');
     if (argResults!.flag('dry-run')) {
-      if (json) {
-        writeMachineOutput(
-          _stdout,
-          command: 'drive',
-          ok: true,
-          exitCode: 0,
-          fields: {
-            'automation': plan.toJson(dryRun: true),
-            'targets': const [],
-          },
-        );
-      } else {
+      final dryRunResults = _dryRunAutomationResults(
+        plan,
+        argResults!.arguments,
+      );
+      final traceResult = await _printWorkflowJson(
+        json: json,
+        stdout: _stdout,
+        environment: environment,
+        command: 'drive',
+        arguments: argResults!.arguments,
+        results: dryRunResults,
+        traceOptions: _traceOptionsFrom(argResults!),
+        extraFields: {'automation': plan.toJson(dryRun: true)},
+      );
+      if (!json) {
+        _writeTraceStatus(_output, traceResult);
         _printAutomationPlan(plan, _output);
+      } else {
+        // JSON output was written by _printWorkflowJson.
       }
       return 0;
     }
@@ -173,6 +204,10 @@ class DriveCommand extends FluohCommand<int> {
       output.step('Automating ${_platformLabel(platform)} run');
       final platformScenarios = _automationScenariosForPlatform(
         scenarios,
+        platform,
+      );
+      final platformProfileScenarios = _automationScenariosForPlatform(
+        profileScenarios,
         platform,
       );
       final platformResults = await _runPackageOrProject(
@@ -203,7 +238,7 @@ class DriveCommand extends FluohCommand<int> {
       results.addAll(
         await _runAutomationScenariosForPlatform(
           platformResults,
-          scenarios: platformScenarios,
+          scenarios: [...platformScenarios, ...platformProfileScenarios],
           platform: platform,
           environment: environment,
           output: output,
@@ -243,4 +278,49 @@ class DriveCommand extends FluohCommand<int> {
     }
     return Duration(seconds: seconds);
   }
+}
+
+List<WorkflowTargetResult> _dryRunAutomationResults(
+  _AutomationPlan plan,
+  List<String> arguments,
+) {
+  final command = 'fluoh drive ${arguments.join(' ')}';
+  final step = WorkflowStepResult(
+    name: 'automation-dry-run',
+    path: '.',
+    command: command,
+    status: 'passed',
+    exitCode: 0,
+    details: {
+      'platforms': plan.platforms,
+      'scenarioCount': plan.scenarios.length,
+      'profileScenarioCount': plan.profileScenarios.length,
+      'readyForAutomation':
+          (_AutomationCoveragePolicy(
+                scenarios: plan.scenarios,
+                inventory: plan.inventory,
+                platforms: plan.platforms,
+              ).toJson()['readyForAutomation']
+              as bool? ??
+          false),
+    },
+  );
+  if (plan.packageName != null) {
+    return [
+      WorkflowTargetResult.package(
+        packageName: plan.packageName!,
+        exitCode: 0,
+        steps: [step],
+        phase: 'automation-dry-run',
+      ),
+    ];
+  }
+  return [
+    WorkflowTargetResult.project(
+      projectName: 'current',
+      exitCode: 0,
+      steps: [step],
+      phase: 'automation-dry-run',
+    ),
+  ];
 }

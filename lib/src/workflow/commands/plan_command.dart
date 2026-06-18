@@ -43,7 +43,7 @@ class PlanCommand extends FluohCommand<int> {
   String get name => 'plan';
 
   @override
-  String get description => 'Plan AI-assisted FlutterOH adaptation work.';
+  String get description => 'Print read-only FlutterOH support command queues.';
 
   @override
   String get usage => '$description\n\n$_usageWithoutDescription';
@@ -66,7 +66,7 @@ class PlanCommand extends FluohCommand<int> {
       formatCommandUsage(
         subcommands,
         sections: const [
-          CommandUsageSection('Adaptation plans:', ['app', 'package']),
+          CommandUsageSection('Support plans:', ['app', 'package']),
         ],
         isSubcommand: true,
         lineLength: argParser.usageLineLength,
@@ -80,7 +80,7 @@ class PlanCommand extends FluohCommand<int> {
 
 /// Prints a read-only plan for continuing a FlutterOH package branch.
 class PlanPackageCommand extends FluohCommand<int> {
-  /// Creates the package adaptation planning command.
+  /// Creates the package support planning command.
   PlanPackageCommand({
     required this.environment,
     required this.stdout,
@@ -107,13 +107,14 @@ class PlanPackageCommand extends FluohCommand<int> {
   String get name => 'package';
 
   @override
-  String get description => 'Plan adapting the current package branch to OHOS.';
+  String get description =>
+      'Inspect the current package branch and print a support command queue.';
 
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final json = argResults!.flag('json');
-    final plan = await _buildPackageAdaptationPlan(
+    final plan = await _buildPackageSupportPlan(
       environment,
       requestedPackage: argResults!.option('package')?.trim(),
     );
@@ -132,7 +133,7 @@ class PlanPackageCommand extends FluohCommand<int> {
   }
 
   void _printPlan(Map<String, Object?> plan) {
-    _output.success('Package adaptation plan');
+    _output.success('Package support plan');
     final package = plan['package'] as Map<String, Object?>?;
     _output.info('Package: ${package?['name'] ?? '<unknown>'}');
     _output.info('SDK: ${(plan['sdk'] as Map<String, Object?>)['selected']}');
@@ -145,9 +146,9 @@ class PlanPackageCommand extends FluohCommand<int> {
   }
 }
 
-/// Prints a read-only plan for adapting a Flutter app project to OHOS.
+/// Prints a read-only plan for targeting a Flutter app project to OHOS.
 class PlanAppCommand extends FluohCommand<int> {
-  /// Creates the app adaptation planning command.
+  /// Creates the app support planning command.
   PlanAppCommand({
     required this.environment,
     required this.stdout,
@@ -174,13 +175,14 @@ class PlanAppCommand extends FluohCommand<int> {
   String get name => 'app';
 
   @override
-  String get description => 'Plan adapting the current Flutter app to OHOS.';
+  String get description =>
+      'Inspect the current Flutter app and print a FlutterOH support command queue.';
 
   @override
   Future<int> run() async {
     expectNoArguments(argResults!, usageException);
     final json = argResults!.flag('json');
-    final plan = await _buildAppAdaptationPlan(
+    final plan = await _buildAppSupportPlan(
       environment,
       requestedSdk: argResults!.option('sdk')?.trim(),
     );
@@ -199,7 +201,7 @@ class PlanAppCommand extends FluohCommand<int> {
   }
 
   void _printPlan(Map<String, Object?> plan) {
-    _output.success('App adaptation plan');
+    _output.success('App support plan');
     _output.info('Project: ${plan['projectName'] ?? '<unknown>'}');
     _output.info('SDK: ${(plan['sdk'] as Map<String, Object?>)['selected']}');
     _output.info(
@@ -213,7 +215,7 @@ class PlanAppCommand extends FluohCommand<int> {
   }
 }
 
-Future<Map<String, Object?>> _buildAppAdaptationPlan(
+Future<Map<String, Object?>> _buildAppSupportPlan(
   FluohEnvironment environment, {
   required String? requestedSdk,
 }) async {
@@ -232,8 +234,6 @@ Future<Map<String, Object?>> _buildAppAdaptationPlan(
       : await readProjectSdkVersion(root);
   final sdkValue = selectedSdk ?? '<sdk-version-or-line>';
   final scope = projectName ?? _scopePlaceholder();
-  final traceDir =
-      '.fluoh/traces/${_scopeSlug(projectName ?? 'app', fallback: 'app')}/adaptation';
   final platforms = {
     for (final platform in const [
       'ohos',
@@ -248,7 +248,7 @@ Future<Map<String, Object?>> _buildAppAdaptationPlan(
   };
   return {
     'schema': 1,
-    'adaptationKind': 'app',
+    'supportKind': 'app',
     'readyToPlan': readyToPlan,
     'workingDirectory': root.path,
     'projectName': projectName,
@@ -273,29 +273,22 @@ Future<Map<String, Object?>> _buildAppAdaptationPlan(
           : 'fluoh.yaml',
     },
     'queue': readyToPlan
-        ? _appAdaptationQueue(
-            sdkValue,
-            platforms,
-            scope: scope,
-            traceDir: traceDir,
-          )
+        ? _appSupportQueue(sdkValue, platforms, scope: scope)
         : const <Map<String, Object?>>[],
     'automationRunbook': _automationRunbook('app', active: readyToPlan),
     'deliveryGate': _deliveryGate(
       kind: 'app',
       active: readyToPlan,
       finalCheckCommands: readyToPlan
-          ? _appFinalCheckCommands(platforms, traceDir: traceDir)
+          ? _appFinalCheckCommands(platforms)
           : const <String>[],
-      reportCommand:
-          'fluoh report create --scope $scope '
-          '--trace-dir $traceDir --json',
+      reportCommand: 'fluoh report create --scope $scope --json',
     ),
-    'safety': _adaptationSafety(),
+    'safety': _supportSafety(),
   };
 }
 
-Future<Map<String, Object?>> _buildPackageAdaptationPlan(
+Future<Map<String, Object?>> _buildPackageSupportPlan(
   FluohEnvironment environment, {
   required String? requestedPackage,
 }) async {
@@ -310,7 +303,7 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
   if (manifest == null) {
     return {
       'schema': 1,
-      'adaptationKind': 'package',
+      'supportKind': 'package',
       'readyToPlan': false,
       'workingDirectory': root.path,
       'error': {
@@ -326,9 +319,9 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
         active: false,
         finalCheckCommands: const <String>[],
         reportCommand:
-            'fluoh report create --scope <name> --package <name> --trace-dir .fluoh/traces/<name>/adaptation --json',
+            'fluoh report create --scope <name> --package <name> --json',
       ),
-      'safety': _adaptationSafety(),
+      'safety': _supportSafety(),
     };
   }
 
@@ -346,10 +339,9 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
   final exampleDirectory = Directory('${packageDirectory.path}/example');
   final platforms = _packageExamplePlatforms(exampleDirectory);
   final scope = package.name;
-  final traceDir = '.fluoh/traces/$scope/adaptation';
   return {
     'schema': 1,
-    'adaptationKind': 'package',
+    'supportKind': 'package',
     'readyToPlan': true,
     'workingDirectory': root.path,
     'repository': {
@@ -380,31 +372,32 @@ Future<Map<String, Object?>> _buildPackageAdaptationPlan(
       'hasExample': exampleDirectory.existsSync(),
       'examplePlatforms': platforms,
     },
-    'queue': _packageAdaptationQueue(scope, traceDir, platforms),
+    'queue': _packageSupportQueue(scope),
     'automationRunbook': _automationRunbook('package', active: true),
     'deliveryGate': _deliveryGate(
       kind: 'package',
       active: true,
-      finalCheckCommands: _packageFinalCheckCommands(
-        scope,
-        platforms,
-        traceDir: traceDir,
-      ),
+      finalCheckCommands: _packageFinalCheckCommands(scope, platforms),
       reportCommand:
-          'fluoh report create --scope $scope --package $scope --trace-dir $traceDir --json',
+          'fluoh report create --scope $scope --package $scope --json',
       packageName: scope,
     ),
-    'safety': _adaptationSafety(),
+    'safety': _supportSafety(),
   };
 }
 
-List<Map<String, Object?>> _appAdaptationQueue(
+List<Map<String, Object?>> _appSupportQueue(
   String sdk,
   Map<String, bool> platforms, {
   required String scope,
-  required String traceDir,
 }) {
   final items = <Map<String, Object?>>[
+    _queueItem(
+      phase: 'task',
+      command: 'fluoh task start --type appSupport --scope $scope --json',
+      mutating: true,
+      evidence: 'current local task workspace',
+    ),
     _queueItem(
       phase: 'setup',
       command: 'fluoh source update',
@@ -438,8 +431,15 @@ List<Map<String, Object?>> _appAdaptationQueue(
       requiresApproval: true,
       evidence: 'pubspec dependency rewrite summary',
     ),
-    ..._ohosAdaptationQueue(traceDir: traceDir),
-    ..._mobileDriveQueueItems('ohos', traceDir: traceDir),
+    _queueItem(
+      phase: 'deps',
+      command: 'fluoh deps get',
+      mutating: true,
+      requiresApproval: true,
+      evidence: 'dependency resolution result',
+    ),
+    ..._ohosSupportQueue(),
+    ..._mobileDriveQueueItems('ohos'),
   ];
   for (final platform in const [
     'android',
@@ -465,20 +465,19 @@ List<Map<String, Object?>> _appAdaptationQueue(
       ..add(
         _queueItem(
           phase: 'regression',
-          command: _regressionCommand(platform, traceDir),
+          command: _regressionCommand(platform),
           mutating: true,
           evidence: '$platform functional regression evidence',
         ),
       );
     if (_shouldDriveMobilePlatform(platform, platforms)) {
-      items.addAll(_mobileDriveQueueItems(platform, traceDir: traceDir));
+      items.addAll(_mobileDriveQueueItems(platform));
     }
   }
   items.add(
     _queueItem(
       phase: 'report',
-      command:
-          'fluoh report create --scope $scope --trace-dir $traceDir --json',
+      command: 'fluoh report create --scope $scope --json',
       mutating: true,
       evidence: 'local AI report path',
     ),
@@ -494,122 +493,42 @@ List<Map<String, Object?>> _appAdaptationQueue(
   return items;
 }
 
-List<Map<String, Object?>> _packageAdaptationQueue(
-  String packageName,
-  String traceDir,
-  Map<String, bool> platforms,
-) {
-  final items = <Map<String, Object?>>[
+List<Map<String, Object?>> _packageSupportQueue(String packageName) {
+  return [
     _queueItem(
-      phase: 'docs',
-      command: 'fluoh package docs refresh --dry-run',
-      mutating: false,
-      evidence: 'generated package docs refresh plan',
-    ),
-    _queueItem(
-      phase: 'docs',
-      command: 'fluoh package docs refresh',
-      mutating: true,
-      requiresApproval: true,
-      evidence: 'refreshed FLUOH.md and AGENTS.md generated sections',
-    ),
-    _queueItem(
-      phase: 'verify',
+      phase: 'task',
       command:
-          'fluoh verify --package $packageName --json --trace-dir $traceDir',
-      mutating: false,
-      evidence: 'pub get, analysis, tests, and trace manifest',
+          'fluoh task start --type packageSupport --scope $packageName --package $packageName --json',
+      mutating: true,
+      evidence: 'current local task workspace',
     ),
-    ..._ohosAdaptationQueue(packageName: packageName, traceDir: traceDir),
-    ..._mobileDriveQueueItems(
-      'ohos',
-      packageName: packageName,
-      traceDir: traceDir,
+    _queueItem(
+      phase: 'implementation-loop',
+      command: 'fluoh package next --package $packageName --json',
+      mutating: false,
+      evidence:
+          'package nextAction state machine; follow returned commands and edits until ready, blocked, or maintainer decision',
+    ),
+    _queueItem(
+      phase: 'release-check',
+      command: 'fluoh package status --package $packageName --json',
+      mutating: false,
+      evidence: 'release readiness summary after package next is ready',
+    ),
+    _queueItem(
+      phase: 'handoff',
+      command: 'fluoh package handoff --package $packageName --json',
+      mutating: false,
+      evidence: 'branch state, reports, traces, and next commands',
+    ),
+    _queueItem(
+      phase: 'release-check',
+      command:
+          'fluoh package check --package $packageName --report <report-path> --json',
+      mutating: false,
+      evidence: 'release gate JSON with certification report validation',
     ),
   ];
-  for (final platform in const [
-    'android',
-    'ios',
-    'macos',
-    'linux',
-    'web',
-    'windows',
-  ]) {
-    if (platforms[platform] != true) {
-      continue;
-    }
-    final policy = platformWorkflowPolicy(platform);
-    items
-      ..add(
-        _queueItem(
-          phase: 'doctor',
-          command: policy.doctorCommand(strict: true),
-          mutating: false,
-          evidence: '${policy.label} toolchain diagnostic JSON',
-        ),
-      )
-      ..add(
-        _queueItem(
-          phase: 'regression',
-          command: _packageRegressionCommand(platform, packageName, traceDir),
-          mutating: true,
-          evidence: '$platform package example functional evidence',
-        ),
-      );
-    if (_shouldDriveMobilePlatform(platform, platforms)) {
-      items.addAll(
-        _mobileDriveQueueItems(
-          platform,
-          packageName: packageName,
-          traceDir: traceDir,
-        ),
-      );
-    }
-  }
-  items
-    ..add(
-      _queueItem(
-        phase: 'release-check',
-        command: 'fluoh package status --package $packageName',
-        mutating: false,
-        evidence: 'release readiness summary',
-      ),
-    )
-    ..add(
-      _queueItem(
-        phase: 'report',
-        command:
-            'fluoh report create --scope $packageName --package $packageName --trace-dir $traceDir --json',
-        mutating: true,
-        evidence: 'local AI report path',
-      ),
-    )
-    ..add(
-      _queueItem(
-        phase: 'report-check',
-        command: _reportCheckCommand,
-        mutating: false,
-        evidence: 'canonical report validation JSON',
-      ),
-    )
-    ..add(
-      _queueItem(
-        phase: 'handoff',
-        command: 'fluoh package handoff --package $packageName --json',
-        mutating: false,
-        evidence: 'branch state, reports, traces, and next commands',
-      ),
-    )
-    ..add(
-      _queueItem(
-        phase: 'release-check',
-        command:
-            'fluoh package check --package $packageName --report <report-path> --json',
-        mutating: false,
-        evidence: 'release gate JSON with certification report validation',
-      ),
-    );
-  return items;
 }
 
 Map<String, Object?> _queueItem({
@@ -630,7 +549,7 @@ Map<String, Object?> _queueItem({
   };
 }
 
-Map<String, Object?> _adaptationSafety() {
+Map<String, Object?> _supportSafety() {
   return {
     'requiresConfirmationBeforeMutation': true,
     'autoCheckpointCommits': true,
@@ -646,13 +565,13 @@ Map<String, Object?> _adaptationSafety() {
 }
 
 List<Map<String, Object?>> _qualityGates(String kind, {required bool active}) {
-  final adaptationKind = kind == 'app' ? 'app' : 'package';
+  final supportKind = kind == 'app' ? 'app' : 'package';
   return [
     {
       'id': 'functional-test-baseline',
       'requiredForReady': active,
       'description':
-          'Before final verification, inspect existing $adaptationKind tests '
+          'Before final verification, inspect existing $supportKind tests '
           'and integration tests against public API, platform interfaces, '
           'example flows, permissions, and behavior paths; add or repair '
           'missing functional tests before claiming ready.',
@@ -662,7 +581,7 @@ List<Map<String, Object?>> _qualityGates(String kind, {required bool active}) {
       'requiredForReady': active,
       'description':
           'Do not validate only OHOS. Run functional verification for OHOS '
-          'and every existing non-OHOS platform directory when the current '
+          'and every existing platform directory when the current '
           'host/toolchain supports it; otherwise record the diagnostic '
           'command, unsupported environment reason, and remaining blocker in '
           'the report.',
@@ -689,7 +608,9 @@ Map<String, Object?> _automationRunbook(String kind, {required bool active}) {
         'run, parse, fix, rerun until deliveryGate is satisfied or an explicit blocker remains',
     'qualityGates': _qualityGates(kind, active: active),
     'executionRules': [
-      'Run queue commands in order after the approved adaptation scope.',
+      'Run queue commands in order after the approved support scope.',
+      if (kind == 'package')
+        'For package support, run fluoh package next --json, execute exactly one returned nextAction, then rerun package next until it reports ready, blocked, or maintainer decision.',
       'Before final verification, inspect whether existing tests cover the package or app behavior; add or repair missing functional tests before running the final test matrix.',
       'Parse every --json result before editing or deciding the next step.',
       'Follow diagnostics.nextCommand when present; otherwise rerun the failed command after the smallest relevant fix.',
@@ -736,7 +657,7 @@ Map<String, Object?> _automationRunbook(String kind, {required bool active}) {
         'a maintainer decision listed in deliveryGate.needsMaintainerDecision is required',
       ],
     },
-    'adaptationKind': kind,
+    'supportKind': kind,
   };
 }
 
@@ -751,10 +672,10 @@ Map<String, Object?> _deliveryGate({
     'existing tests and integration tests were reviewed against public API, platform interfaces, example flows, permissions, and behavior paths before final verification; missing or weak functional tests were added or a concrete blocker is recorded',
     'each successful mobile run has screenshot or equivalent UI-state evidence, and abnormal demo pages were repaired before continuing',
     'functional evidence validates the library or app behavior, not only build, launch, screenshot, or run-all smoke',
-    'OHOS and every existing non-OHOS platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons',
+    'OHOS and every existing platform directory has functional build/run/integration/drive evidence when the current host supports it; unsupported platforms have exact diagnostic evidence and skip reasons',
     'all queue items marked mustCompleteForDelivery passed or have a concrete blocker recorded',
     'finalCheckCommands ran after the last implementation edit',
-    'canonical report exists under .fluoh/reports/',
+    'canonical report exists under the current .fluoh task reports directory',
     'reportCheckCommand passes against the canonical report',
     'the final response states exactly one terminal state and only remaining blocking risks',
   ];
@@ -770,7 +691,7 @@ Map<String, Object?> _deliveryGate({
         ? [
             ...commonReadyRequires,
             if (kind == 'app') ...[
-              'OHOS build and run evidence are recorded, or the final report records the exact local blocker',
+              'target-platform build and run evidence is recorded, including OHOS when in scope, or the final report records the exact local blocker',
               'interaction evidence uses integration_test, real fluoh drive JSON, or tool-readable manual-assisted evidence',
             ],
             if (kind == 'package') ...[
@@ -800,8 +721,8 @@ bool _mustCompleteForDelivery(String command, String phase) {
   }
   return const {
     'deps',
-    'docs',
     'doctor',
+    'implementation-loop',
     'verify',
     'ohos',
     'automation',
@@ -823,6 +744,9 @@ String _failureAction(String command) {
   if (command.contains(' package check ')) {
     return 'fix the release gate finding, rerun the failed command, then rerun package check';
   }
+  if (command.contains(' package next ')) {
+    return 'follow nextAction exactly, then rerun package next until it reports ready, blocked, or maintainer decision';
+  }
   if (command.contains('check_report.py')) {
     return 'fix report validation failures, update the report evidence, then rerun report check';
   }
@@ -832,15 +756,11 @@ String _failureAction(String command) {
   return 'parse JSON diagnostics, make the smallest fix, and rerun this command or its nextCommand';
 }
 
-List<String> _appFinalCheckCommands(
-  Map<String, bool> platforms, {
-  required String traceDir,
-}) {
+List<String> _appFinalCheckCommands(Map<String, bool> platforms) {
   return [
     'git diff --check',
-    for (final item in _ohosAdaptationQueue(traceDir: traceDir))
-      item['command']! as String,
-    _mobileDriveCommand('ohos', traceDir: traceDir),
+    for (final item in _ohosSupportQueue()) item['command']! as String,
+    _mobileDriveCommand('ohos'),
     for (final platform in const [
       'android',
       'ios',
@@ -851,9 +771,9 @@ List<String> _appFinalCheckCommands(
     ])
       if (platforms[platform] == true) ...[
         platformWorkflowPolicy(platform).doctorCommand(strict: true),
-        _regressionCommand(platform, traceDir),
+        _regressionCommand(platform),
         if (_shouldDriveMobilePlatform(platform, platforms))
-          _mobileDriveCommand(platform, traceDir: traceDir),
+          _mobileDriveCommand(platform),
       ],
     _reportCheckCommand,
   ];
@@ -861,18 +781,15 @@ List<String> _appFinalCheckCommands(
 
 List<String> _packageFinalCheckCommands(
   String packageName,
-  Map<String, bool> platforms, {
-  required String traceDir,
-}) {
+  Map<String, bool> platforms,
+) {
   return [
     'git diff --check',
-    'fluoh verify --package $packageName --json --trace-dir $traceDir',
-    for (final item in _ohosAdaptationQueue(
-      packageName: packageName,
-      traceDir: traceDir,
-    ))
+    'fluoh package next --package $packageName --json',
+    'fluoh verify --package $packageName --json --trace',
+    for (final item in _ohosSupportQueue(packageName: packageName))
       item['command']! as String,
-    _mobileDriveCommand('ohos', packageName: packageName, traceDir: traceDir),
+    _mobileDriveCommand('ohos', packageName: packageName),
     for (final platform in const [
       'android',
       'ios',
@@ -883,15 +800,11 @@ List<String> _packageFinalCheckCommands(
     ])
       if (platforms[platform] == true) ...[
         platformWorkflowPolicy(platform).doctorCommand(strict: true),
-        _packageRegressionCommand(platform, packageName, traceDir),
+        _packageRegressionCommand(platform, packageName),
         if (_shouldDriveMobilePlatform(platform, platforms))
-          _mobileDriveCommand(
-            platform,
-            packageName: packageName,
-            traceDir: traceDir,
-          ),
+          _mobileDriveCommand(platform, packageName: packageName),
       ],
-    'fluoh package status --package $packageName',
+    'fluoh package status --package $packageName --json',
     _reportCheckCommand,
     'fluoh package handoff --package $packageName --json',
     'fluoh package check --package $packageName --report <report-path> --json',
@@ -901,7 +814,6 @@ List<String> _packageFinalCheckCommands(
 List<Map<String, Object?>> _mobileDriveQueueItems(
   String platform, {
   String? packageName,
-  required String traceDir,
 }) {
   return [
     _queueItem(
@@ -909,7 +821,6 @@ List<Map<String, Object?>> _mobileDriveQueueItems(
       command: _mobileDriveCommand(
         platform,
         packageName: packageName,
-        traceDir: traceDir,
         dryRun: true,
       ),
       mutating: false,
@@ -918,11 +829,7 @@ List<Map<String, Object?>> _mobileDriveQueueItems(
     ),
     _queueItem(
       phase: 'automation',
-      command: _mobileDriveCommand(
-        platform,
-        packageName: packageName,
-        traceDir: traceDir,
-      ),
+      command: _mobileDriveCommand(platform, packageName: packageName),
       mutating: true,
       evidence:
           'post-launch screenshot, UI-state, automation coverage policy, '
@@ -934,13 +841,12 @@ List<Map<String, Object?>> _mobileDriveQueueItems(
 String _mobileDriveCommand(
   String platform, {
   String? packageName,
-  required String traceDir,
   bool dryRun = false,
 }) {
   return 'fluoh drive $platform'
       '${packageName == null ? '' : ' --package $packageName'}'
       '${dryRun ? ' --dry-run' : ''}'
-      ' --json --trace-dir $traceDir';
+      ' --json --trace';
 }
 
 bool _shouldDriveMobilePlatform(String platform, Map<String, bool> platforms) {
@@ -956,10 +862,7 @@ bool _shouldDriveMobilePlatform(String platform, Map<String, bool> platforms) {
   return false;
 }
 
-List<Map<String, Object?>> _ohosAdaptationQueue({
-  String? packageName,
-  required String traceDir,
-}) {
+List<Map<String, Object?>> _ohosSupportQueue({String? packageName}) {
   final policy = platformWorkflowPolicy('ohos');
   return [
     _queueItem(
@@ -973,7 +876,7 @@ List<Map<String, Object?>> _ohosAdaptationQueue({
       command: policy.buildCommand(
         packageName: packageName,
         autoSign: true,
-        traceDir: traceDir,
+        trace: true,
       ),
       mutating: true,
       evidence: 'signed HAP build JSON',
@@ -995,7 +898,7 @@ List<Map<String, Object?>> _ohosAdaptationQueue({
       command: policy.runCommand(
         packageName: packageName,
         startEmulator: true,
-        traceDir: traceDir,
+        trace: true,
       ),
       mutating: true,
       evidence: 'install, launch, hilog, and runtime findings',
@@ -1003,31 +906,17 @@ List<Map<String, Object?>> _ohosAdaptationQueue({
   ];
 }
 
-String _regressionCommand(String platform, String traceDir) {
-  return platformWorkflowPolicy(platform).regressionCommand(traceDir: traceDir);
+String _regressionCommand(String platform) {
+  return platformWorkflowPolicy(platform).regressionCommand(trace: true);
 }
 
-String _packageRegressionCommand(
-  String platform,
-  String packageName,
-  String traceDir,
-) {
+String _packageRegressionCommand(String platform, String packageName) {
   return platformWorkflowPolicy(
     platform,
-  ).regressionCommand(packageName: packageName, traceDir: traceDir);
+  ).regressionCommand(packageName: packageName, trace: true);
 }
 
 String _scopePlaceholder() => '<scope>';
-
-String _scopeSlug(String value, {required String fallback}) {
-  if (value.startsWith('<') && value.endsWith('>')) {
-    return fallback;
-  }
-  final normalized = value
-      .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
-      .replaceAll(RegExp(r'^[-._]+|[-._]+$'), '');
-  return normalized.isEmpty ? fallback : normalized;
-}
 
 Map<String, bool> _packageExamplePlatforms(Directory exampleDirectory) {
   return {

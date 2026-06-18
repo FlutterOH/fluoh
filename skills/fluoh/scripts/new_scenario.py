@@ -120,7 +120,7 @@ def run_command_for(
 
 
 def session_file_for(scope: str, platform: str) -> str:
-    return f".fluoh/run-sessions/{slug(scope)}/{platform}-session.json"
+    return f".fluoh/tasks/<task-id>/evidence/sessions/{slug(scope)}-{platform}-session.json"
 
 
 def session_command_for(platform: str, package: str, app: bool, scope: str) -> str:
@@ -199,7 +199,7 @@ def unique_path(output_root: Path, name: str) -> Path:
 
 
 def default_output_root(root: Path, scope: str) -> Path:
-    return root / ".fluoh" / "scenarios" / slug(scope)
+    return root / "doc" / "fluoh" / slug(scope) / "scenarios"
 
 
 def main() -> int:
@@ -224,7 +224,7 @@ def main() -> int:
     parser.add_argument(
         "--output-root",
         default="",
-        help="Scenario directory. Defaults to <path>/.fluoh/scenarios/<scope>.",
+        help="Scenario directory. Defaults to <path>/doc/fluoh/<scope>/scenarios.",
     )
     parser.add_argument(
         "--template",

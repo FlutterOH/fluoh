@@ -41,7 +41,7 @@ void main() {
     expect(
       stdout,
       contains(
-        'Update FLUOH_CHANGELOG.md, review fluoh.yaml, commit release metadata, then run fluoh package check --package camera',
+        'Update the FLUOH.md FlutterOH Release History, review fluoh.yaml, commit release metadata, then run fluoh package check --package camera',
       ),
     );
     expect(stderr, isEmpty);

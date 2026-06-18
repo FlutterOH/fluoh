@@ -24,7 +24,7 @@ void _registerWorkflowCommandsDriveScenarioTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -73,8 +73,14 @@ void _registerWorkflowCommandsDriveScenarioTests() {
       (step) => step['name'] == 'example-run-android',
     );
     final details = runStep['details'] as Map<String, Object?>;
-    final sessionFile =
-        '${environment.workingDirectory.path}/.fluoh/run-sessions/automation/camera-android-session.json';
+    final sessionFile = details['sessionFile'] as String;
+    expect(
+      sessionFile,
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        endsWith('/evidence/sessions/camera-android-session.json'),
+      ),
+    );
     expect(details, containsPair('sessionFile', sessionFile));
     expect(
       details,
@@ -143,7 +149,7 @@ void _registerWorkflowCommandsDriveScenarioTests() {
 </plist>
 ''');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-xctest-permission.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/ios-xctest-permission.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -165,7 +171,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -264,8 +270,9 @@ steps:
     expect(allowDetails, containsPair('driver', 'xctest'));
     expect(allowDetails, containsPair('method', 'xcodebuildTest'));
     expect(allowDetails, containsPair('bundleId', 'com.example.camera'));
-    final generatedTest = File(
-      '${environment.projectCacheDirectory.path}/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+    final generatedTest = await _findTaskFile(
+      environment.workingDirectory,
+      'scratch/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
     );
     expect(await generatedTest.exists(), isTrue);
     final generatedSource = await generatedTest.readAsString();
@@ -360,7 +367,7 @@ exit 0
 </plist>
 ''');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-xctest-text.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/ios-xctest-text.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -378,7 +385,7 @@ steps:
     bundleId: com.example.camera
     labels: [PermissionStatus.granted]
   - action: captureScreenshot
-    outputPath: .fluoh/evidence/screenshots/camera-ios-granted.png
+    outputPath: camera-ios-granted.png
   - action: assertLog
     contains: Application running.
   - action: assertSession
@@ -388,7 +395,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -478,7 +485,10 @@ steps:
     final screenshotPath = screenshotDetails['path'] as String;
     expect(
       screenshotPath,
-      '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ios-granted.png',
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        endsWith('/evidence/screenshots/camera-ios-granted.png'),
+      ),
     );
     expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
     expect(File(screenshotPath).existsSync(), isTrue);
@@ -488,8 +498,9 @@ steps:
     final assertLogDetails = assertLogAction['details'] as Map<String, Object?>;
     expect(assertLogDetails, containsPair('source', 'flutterRunOutput'));
     expect(assertLogDetails['path'], isA<String>());
-    final generatedTest = File(
-      '${environment.projectCacheDirectory.path}/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+    final generatedTest = await _findTaskFile(
+      environment.workingDirectory,
+      'scratch/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
     );
     expect(await generatedTest.exists(), isTrue);
     final generatedSource = await generatedTest.readAsString();
@@ -522,9 +533,7 @@ steps:
     expect(invocations, contains('simctl launch ios-sim com.example.camera'));
     expect(
       invocations,
-      contains(
-        'simctl io ios-sim screenshot ${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-ios-granted.png',
-      ),
+      contains('simctl io ios-sim screenshot $screenshotPath'),
     );
     expect(invocations, contains('build/ios/iphonesimulator/Runner.app'));
     expect(invocations, isNot(contains('Debug-iphonesimulator/Runner.app')));
@@ -572,7 +581,7 @@ steps:
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-xctest-gestures.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/ios-xctest-gestures.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -599,7 +608,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -662,8 +671,9 @@ steps:
         containsPair('durationMilliseconds', 250),
       ),
     );
-    final generatedTest = File(
-      '${environment.projectCacheDirectory.path}/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
+    final generatedTest = await _findTaskFile(
+      environment.workingDirectory,
+      'scratch/automation/ios-xctest/FluohIosAutomationUITests/PermissionPromptUITests.swift',
     );
     expect(await generatedTest.exists(), isTrue);
     final generatedSource = await generatedTest.readAsString();
@@ -673,4 +683,15 @@ steps:
     expect(RegExp('xcodebuild test').allMatches(invocations), hasLength(2));
     expect(stderr, isEmpty);
   });
+}
+
+Future<File> _findTaskFile(Directory workingDirectory, String suffix) async {
+  final tasksDirectory = Directory('${workingDirectory.path}/.fluoh/tasks');
+  final matches = await tasksDirectory
+      .list(recursive: true)
+      .where((entity) => entity is File && entity.path.endsWith(suffix))
+      .cast<File>()
+      .toList();
+  expect(matches, hasLength(1));
+  return matches.single;
 }

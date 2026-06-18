@@ -131,7 +131,7 @@ void _registerPackageReleaseCoreTests() {
     await report.writeAsString(
       content
           .replaceFirst(
-            '| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |\n',
+            '| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |\n',
             '| `flutter test integration_test -d emulator` | 0 | passed | integration_test exercised camera preview on OHOS emulator |\n',
           )
           .replaceFirst(

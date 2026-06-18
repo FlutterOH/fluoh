@@ -182,8 +182,8 @@ void _registerPackageReleaseValidationTests() {
       ).readAsStringSync();
       await File('${packageRepository.path}/fluoh.yaml').writeAsString(
         manifest.replaceFirst(
-          'sdk:\n  version: 3.35.8-ohos-0.0.3',
-          'sdk:\n  version: 3.35.8-ohos-9.9.9',
+          '  version: 3.35.8-ohos-0.0.3',
+          '  version: 3.35.8-ohos-9.9.9',
         ),
       );
       await runGit(packageRepository, ['add', 'fluoh.yaml']);
@@ -212,8 +212,8 @@ void _registerPackageReleaseValidationTests() {
       ).readAsStringSync();
       await File('${packageRepository.path}/fluoh.yaml').writeAsString(
         manifest.replaceFirst(
-          'sdk:\n  version: 3.35.8-ohos-9.9.9',
-          'sdk:\n  version: 3.35.8-ohos-0.0.3',
+          '  version: 3.35.8-ohos-9.9.9',
+          '  version: 3.35.8-ohos-0.0.3',
         ),
       );
       await runGit(packageRepository, ['add', 'fluoh.yaml']);
@@ -254,8 +254,8 @@ void _registerPackageReleaseValidationTests() {
     final stdout = <String>[];
     final stderr = <String>[];
 
-    await File('${packageRepository.path}/FLUOH_CHANGELOG.md').delete();
-    await runGit(packageRepository, ['add', 'FLUOH_CHANGELOG.md']);
+    await File('${packageRepository.path}/FLUOH.md').delete();
+    await runGit(packageRepository, ['add', 'FLUOH.md']);
     await runGit(packageRepository, ['commit', '-m', 'Remove release notes']);
 
     expect(
@@ -267,7 +267,7 @@ void _registerPackageReleaseValidationTests() {
       ),
       0,
     );
-    expect(stderr.join('\n'), contains('Missing FLUOH_CHANGELOG.md'));
+    expect(stderr.join('\n'), contains('Missing FLUOH.md release history'));
     expect(
       stdout,
       contains('Created release tag camera-0.11.0-ohos-3.35-0.1.0'),
@@ -284,14 +284,16 @@ void _registerPackageReleaseValidationTests() {
     final stdout = <String>[];
     final stderr = <String>[];
 
-    await File('${packageRepository.path}/FLUOH_CHANGELOG.md').writeAsString('''
-# FlutterOH Changelog
+    await File('${packageRepository.path}/FLUOH.md').writeAsString('''
+# FlutterOH Implementation
 
-## 0.2.0
+## FlutterOH Release History
+
+### 0.2.0
 
 - Other release notes.
 ''');
-    await runGit(packageRepository, ['add', 'FLUOH_CHANGELOG.md']);
+    await runGit(packageRepository, ['add', 'FLUOH.md']);
     await runGit(packageRepository, ['commit', '-m', 'Change release notes']);
 
     expect(
@@ -305,7 +307,7 @@ void _registerPackageReleaseValidationTests() {
     );
     expect(
       stderr.join('\n'),
-      contains('FLUOH_CHANGELOG.md does not contain a non-empty entry'),
+      contains('FLUOH.md FlutterOH Release History does not contain'),
     );
     expect(
       stdout,

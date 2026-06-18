@@ -64,6 +64,9 @@ repository:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages.git

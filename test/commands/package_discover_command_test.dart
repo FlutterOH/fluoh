@@ -53,7 +53,7 @@ void main() {
     expect(camera['sdkConstraint'], '^3.0.0');
     expect(camera['platforms'], ['android', 'ios']);
     expect(camera['role'], 'flutter_plugin');
-    final profile = camera['adaptationProfile'] as Map<String, Object?>;
+    final profile = camera['supportProfile'] as Map<String, Object?>;
     expect(profile['complexity'], 'high');
     expect(
       profile['categories'],
@@ -89,8 +89,8 @@ void main() {
     expect(camera['missingPlatforms'], ['ohos']);
     expect(camera['recommended'], isTrue);
     expect(
-      camera['createCommand'],
-      'fluoh package create ${upstream.path} --repository-name camera '
+      camera['portCommand'],
+      'fluoh package port ${upstream.path} --repository-name camera '
       '--package-path packages/camera/camera',
     );
 
@@ -155,7 +155,7 @@ void main() {
     expect(recommendation['platform'], 'ohos');
     expect(
       recommendation['setupCommand'],
-      'fluoh package create ${upstream.path} --repository-name camera '
+      'fluoh package port ${upstream.path} --repository-name camera '
       '--package-path packages/camera/camera',
     );
     expect(recommendation['sourceRoute'], {
@@ -317,7 +317,7 @@ void main() {
     final firebase = candidates.singleWhere(
       (candidate) => candidate['name'] == 'firebase_core',
     );
-    final profile = firebase['adaptationProfile'] as Map<String, Object?>;
+    final profile = firebase['supportProfile'] as Map<String, Object?>;
     expect(profile['complexity'], 'external');
     expect(
       profile['categories'],
@@ -398,7 +398,7 @@ void main() {
     expect(output, contains('camera'));
     expect(output, contains('packages/camera/camera'));
     expect(output, isNot(contains('share_plus')));
-    expect(output, contains('fluoh package create ${upstream.path}'));
+    expect(output, contains('fluoh package port ${upstream.path}'));
   });
 
   test('prints discovery issues when no human candidates match', () async {
@@ -457,8 +457,8 @@ void main() {
     final candidates = discovery['candidates'] as List<Object?>;
     final candidate = candidates.single as Map<String, Object?>;
     expect(
-      candidate['createCommand'],
-      "fluoh package create '${upstream.path}' --repository-name "
+      candidate['portCommand'],
+      "fluoh package port '${upstream.path}' --repository-name "
       "fancy_plugin --package-path 'packages/fancy plugin'",
     );
   });

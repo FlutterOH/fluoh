@@ -1,327 +1,318 @@
 ---
 name: fluoh
-description: Use this skill when adapting Flutter apps or Flutter package repositories to FlutterOH/OHOS with the fluoh CLI, or when maintaining FlutterOH Source data with fluoh source checks. Trigger for requests like making a project support OHOS, adapting a third-party Flutter package for FlutterOH, running fluoh doctor/verify/build/run/source check diagnostics, interpreting fluoh JSON nextCommand/diagnostics, prechecking a FlutterOH/source pull request, or producing a FlutterOH adaptation report.
+description: Use this skill when adding or maintaining FlutterOH support for Flutter apps and Flutter package repositories with the fluoh CLI, or when maintaining FlutterOH Source data with fluoh source checks. Trigger for requests like making a project FlutterOH-ready, porting a third-party Flutter package for FlutterOH, running fluoh doctor/verify/build/run/source check diagnostics, interpreting fluoh JSON nextAction/nextCommand/diagnostics, prechecking a FlutterOH/source pull request, or producing a FlutterOH support report.
 ---
 
 # fluoh
 
-Use `fluoh` as the deterministic toolchain and this skill as the AI
-orchestration layer. The CLI owns SDK selection, dependency rewrites, doctor
-checks, package repository setup, build/run execution, signing, automation
-drivers, and JSON diagnostics. The agent owns code inspection, implementation,
-test updates, diagnostic routing, repair loops, and the completion report.
+Use `fluoh` as the deterministic workflow state machine. The agent is a
+short-loop repair worker: read one machine result, do the one requested action,
+then rerun the tool-provided validation command. Do not maintain a parallel
+long checklist in chat when a `fluoh` JSON field, report, or helper script can
+own that state.
 
-Keep the tool/skill boundary explicit. `fluoh` commands provide hands and eyes:
-repeatable command execution, target selection, signing/setup shortcuts,
-device actions, screenshots and UI/log/session observations, artifact paths,
-diagnostics, and machine-readable tool commands. This skill is the brain: it
-decides what to inspect, what to fix, which evidence is sufficient, and what
-delivery state to report. No single build, run, screenshot, or matrix-smoke
-command means "fully tested" unless this skill has reviewed the functional
-evidence, coverage matrix, report, and release checks.
+Prefer `nextAction` when present. It is the single state exit for AI loops:
 
-Keep this file as the routing surface. Open the referenced workflow file only
-when the current request needs it.
+- `ready`: stop implementation work and report the ready evidence; use
+  `nextAction.nextCommands` for release-readiness commands only after the
+  implementation action and bundled report check are ready.
+- `commandRequired`: run `nextAction.command`, then rerun
+  `nextAction.rerunCommand` when present.
+- `editRequired`: inspect only the named blocker/details, make the smallest
+  code or project edit, then run `nextAction.rerunCommand`.
+- `blocked`: stop and report the blocker; do not invent extra workflow steps.
+
+For `fluoh package next --json`, read `qualityProfile`,
+`visualPageReadiness`, `evidenceSummary`, `notes`, `remainingRisks`, and
+`failureStreak` as context, but still execute only `nextAction`. Treat
+`quality.functional_surface_missing` and notes issues as reportable quality
+risks, not a separate self-invented checklist. Treat
+`failureStreak.blocking: true` or `nextAction.type: blocked` as a hard stop
+for automatic repair.
+When `qualityProfile.example.existingPlatforms` lists Android, iOS, macOS,
+Linux, Web, or Windows, `package next` adds platform-policy
+`existing-<platform>-regression` phases. Run those exact `nextAction` commands;
+they may be build or run commands depending on the platform. Existing Android
+and host-supported iOS examples also add
+`existing-<platform>-automation-dry-run` and
+`existing-<platform>-automation-run` phases. Do not collapse these phases to
+launch smoke; selecting the FlutterOH SDK can regress existing examples even
+when OHOS work passes.
+
+Keep this file as the routing surface. Open referenced workflow files only
+when the current request needs their domain details.
 
 ## Helper Scripts
 
-The bundled scripts are optional, agent-neutral shortcuts. They use only the
-Python standard library and do not replace the `fluoh --json` diagnostic
-contract.
+The bundled scripts are optional shortcuts around the JSON contract:
 
-- `scripts/preflight.py`: read-only workspace classifier. It reports
-  `upgradeChecks`, `suggestedCommands`, `finalCheckCommands`,
-  `deliveryChecks`, `automationRunbook`, `deliveryGate`, `reportCommand`,
-  `summaryCommand`, `scenarioCommand`, `sessionInspectCommand`, and
-  `sessionAttachCommand`.
-- `scripts/new_report.py`: creates the canonical report
-  `.fluoh/reports/<report-group>/report-<timestamp>.md` from
+- `scripts/preflight.py`: read-only classifier. It reports `upgradeChecks`,
+  `suggestedCommands`, `finalCheckCommands`, `deliveryChecks`,
+  `automationRunbook`, `deliveryGate`, `reportCommand`, `summaryCommand`,
+  `scenarioCommand`, `sessionInspectCommand`, and `sessionAttachCommand`.
+  When the selected `fluoh` executable is ready, it uses `fluoh plan app` or
+  `fluoh plan package` as the primary command queue source. If
+  `--fluoh-command` or `FLUOH_BIN` selects an executable other than `fluoh`,
+  prefer `executableCommandQueue`, `executableFinalCheckCommands`, and
+  `executableReportCommand` for actual execution while treating
+  `commandQueue` as the canonical workflow description.
+- `scripts/new_report.py`: creates a report under the current local task,
+  `.fluoh/tasks/<task-id>/reports/report-<timestamp>.md`, from
   `references/report-template.md`.
-- `scripts/new_summary.py`: creates a monorepo summary report for
-  multi-package work.
-- `scripts/check_report.py`: fails when the report is missing required
-  evidence, checklist state, Fluoh Feedback, or still has placeholders.
-- `scripts/collect_feedback.py`: summarizes trace feedback candidates for the
-  report.
+- `scripts/new_summary.py`: creates a monorepo summary report.
+- `scripts/check_report.py`: validates required evidence and checklist gates.
+- `scripts/collect_feedback.py`: summarizes trace feedback candidates.
 - `scripts/new_scenario.py`: creates a local interaction scenario from
   `references/interaction-scenario-template.md`, including the
   `Session attach command` field.
-- `scripts/inspect_session.py`: reads a `flutterRunSession` JSON file from
-  `fluoh run --session-file` and reports launch state, VM Service URI when
-  available, output or hilog logs, `fluoh attach` hints, and the recommended
-  next step.
+- `scripts/inspect_session.py`: inspects a `flutterRunSession` JSON file and
+  reports launch/session state, logs, attach hints, and a recommended next
+  step.
+
+Package support scopes live at
+`doc/fluoh/<package>/scope.yaml`. They are support-scope records
+edited by the agent or maintainer after reading the public Dart API, target
+platform behavior, existing implementations, examples, tests, and platform API
+sources. The CLI checks that P0 scope entries have per-platform support
+decisions, implementation plan status where implementation is required, test
+cases, and functional or regression evidence; it does not decide API
+equivalence by itself.
+Branch-local package requirements, API design, platform behavior, platform API
+mapping, example flows, and test plans live at
+`doc/fluoh/<package>/spec.md`. Use
+`references/package-spec-template.md` as the fill-in shape when reviewing that
+spec. `FLUOH.md` is generated quick context that links the spec and support
+scope; do not use it as the detailed design document.
+For both spec-first and upstream-first package work, extract or confirm the
+package contract before implementation: package purpose, public Dart API,
+platform behavior, platform API mapping, example flows, test expectations, and
+acceptance evidence. Keep that contract in the branch-local spec and mirror P0
+scope entries into the support scope as a platform matrix.
+After `fluoh package upstream sync` on a ported package, update the spec to the
+current upstream version and commit before continuing implementation.
+Visual page-readiness evidence lives under the current task at
+`.fluoh/tasks/<task-id>/evidence/visual-readiness.yaml`. Write it only after
+opening the captured mobile screenshot or equivalent UI-state evidence and
+confirming the functional demo page is visible, usable, and not blank, splash
+only, hidden, or just a template shell.
 
 ## Request Routing
 
 - Install, update, or reload the skill: if needed, run CLI Setup, run
   `fluoh upgrade`, then run `fluoh skill --path` and reinstall or reload the
-  printed skill path, overwriting any existing fluoh skill when the host agent
-  supports it. Use `fluoh skill --json` only when script metadata, reference
-  paths, `skillVersion`, `installPrompt`, or `upgradePrompt` are needed. If the
-  host cannot reload skills now, report that blocker.
-- Install or set up fluoh: run the CLI Setup section, then continue with the
-  requested workflow.
-- Make an existing Flutter app support OHOS: run preflight, then use
-  `references/app-project-flow.md`.
-- Adapt a third-party package or upstream Git URL: run preflight or
-  `fluoh package discover <upstream> --json`, then use
-  `references/package-adaptation-flow.md`. Treat each candidate
-  `adaptationProfile` as the first capability inventory seed for tests,
-  scenarios, risk routing, and maintainer-decision blockers.
-- Validate emulator/device UI behavior, permission prompts, or automatic
+  printed path, overwriting any existing fluoh skill when supported. Use
+  `fluoh skill --json` only for metadata such as `skillVersion`,
+  `upgradePrompt`, script paths, or reference paths.
+- Install or set up fluoh: run CLI Setup, then continue.
+- Add FlutterOH support to an existing Flutter app: run preflight, then use
+  `references/app-project-flow.md`. App work uses `fluoh create . --platforms`
+  for project skeleton/platform files and `fluoh deps` for dependency
+  compatibility; do not route apps through package lifecycle commands.
+- Create a new FlutterOH package from a user spec: use `fluoh package new`
+  after the public API, platform matrix, example behavior, and test
+  expectations are clear, then use `references/package-support-flow.md`.
+- Port a third-party package or upstream Git URL: run preflight or
+  `fluoh package discover <upstream> --json`, create the package repository
+  with `fluoh package port <upstream>`, then use
+  `references/package-support-flow.md`.
+- Sync a ported package to a newer upstream baseline: use
+  `fluoh package upstream check` or `fluoh package upstream sync`. These
+  commands are not available for `origin.kind: created`; Source metadata sync
+  remains `fluoh source sync` for both created and ported packages.
+- Validate emulator/device UI behavior, permission prompts, or automation
   coverage repair: use `references/automation-evidence-flow.md`.
 - Check or precheck FlutterOH Source data: use
   `references/source-maintenance-flow.md`.
-- Review-only requests: stop after read-only commands and dry-runs. Do not
-  apply dependency fixes, project writes, releases, pushes, force-pushes, or
-  destructive Git operations.
+- Review-only requests: stop after read-only commands and dry-runs.
 
 ## Start
 
-1. Read the repository `AGENTS.md` first when it exists.
-2. Run the CLI Setup section before the first workflow command, or run
+1. Read repository `AGENTS.md` when it exists.
+2. Run CLI Setup before the first workflow command, or run
    `scripts/preflight.py` to collect the same version and workspace shape.
-3. When working inside the fluoh CLI repository itself, use
-   `dart run bin/fluoh.dart` only for validating the CLI. For user project
-   automation and every JSON diagnostic command, use the installed `fluoh`
-   executable because the Dart launcher can print dependency text before fluoh
-   starts.
-4. Inspect the current directory from preflight JSON when available:
-   `app-project`, `flutter-package`, `package-repository`, `dart-package`, or
-   `unknown`.
-5. Route by preflight `project.kind`, `selectedPackage`, `examplePlatforms`,
-   `upgradeChecks`, `suggestedCommands`, `finalCheckCommands`, and
-   `deliveryChecks`, `automationRunbook`, and `deliveryGate`.
-6. If the user specified an SDK version or line, use it. Otherwise keep the SDK
-   recorded in `fluoh.yaml`; when none is recorded, run `fluoh sdk list` and
-   choose the latest stable FlutterOH SDK line.
+3. Inside the fluoh CLI repository, use `dart run bin/fluoh.dart` only for
+   validating fluoh itself. For user project automation and every strict JSON
+   diagnostic command, use the installed `fluoh` executable.
+4. Route by preflight `project.kind`, selected package, `upgradeChecks`,
+   `finalCheckCommands`, `deliveryChecks`, `automationRunbook`, and
+   `deliveryGate`.
+5. In a package repository, run `fluoh package next --json` or
+   `fluoh package next --package <name> --json` and follow `nextAction`.
+   If it asks for `package scope init` or a support scope edit,
+   maintain `doc/fluoh/<package>/scope.yaml` before implementation
+   work. `package scope init` imports concrete rows from the spec's
+   `Support Scope Seeds` table by default; use `--no-from-spec` only when that
+   table is stale or intentionally empty.
+6. If no SDK is recorded and the user did not specify one, run
+   `fluoh sdk list` and choose the latest stable FlutterOH SDK line.
 
 ## CLI Setup
 
 1. Run `fluoh --version`.
-2. If `fluoh` is missing and the user asked to use `$fluoh`, set up fluoh, or
-   adapt a project/package, install the CLI without another confirmation. This
-   setup step does not authorize project, package, Source, or Git state
+2. If `fluoh` is missing and the user asked to use `$fluoh`, set up fluoh.
+   This setup step does not authorize project, package, Source, or Git state
    changes.
-3. If `fluoh --version` exists but fails with Flutter Dart cache startup
-   errors such as `update_engine_version.sh`, `engine.stamp.tmp`,
-   `engine.realm`, or `Operation not permitted`, classify it as a CLI launcher
-   or local sandbox issue, not a project/package issue. Prefer a native or
-   Homebrew `fluoh` executable, set `FLUOH_BIN` to a working executable, or
-   pass `--fluoh-command` to preflight. When validating the fluoh repository
-   itself, use `dart run bin/fluoh.dart`.
-4. Prefer Dart pub when `dart --version` works:
-   `dart pub global activate fluoh`.
-5. If the Dart global install succeeds but `fluoh` is still not on `PATH`, use
-   `$HOME/.pub-cache/bin/fluoh` for this session and tell the user to add
-   `$HOME/.pub-cache/bin` to `PATH`.
-6. For strict JSON automation, prefer the native/Homebrew executable when it is
-   available. Dart pub global shims are acceptable only after confirming a
-   `--json` command starts stdout with `{`.
-7. On macOS, if Dart is unavailable or the Dart pub shim emits non-JSON startup
-   text before JSON diagnostics, and Homebrew is available, run
-   `brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git` and
-   `brew install FlutterOH/fluoh/fluoh`. Do not use
+3. Select a `fluoh` executable in this order for strict JSON automation:
+   native/Homebrew, compiled current-repo exe, then Dart pub global shim. Set
+   `FLUOH_BIN` or pass `--fluoh-command` when the chosen executable is not
+   first on `PATH`.
+4. If `fluoh --version` fails with Flutter Dart cache startup errors such as
+   `update_engine_version.sh`, `engine.stamp.tmp`, `engine.realm`, or
+   `Operation not permitted`, treat it as a launcher/sandbox issue and move to
+   the next executable source.
+5. On macOS, if no native/Homebrew executable is available and Homebrew is
+   available, run `brew tap FlutterOH/fluoh https://github.com/FlutterOH/fluoh.git`
+   and `brew install FlutterOH/fluoh/fluoh`; do not use
    `brew tap FlutterOH/tap` unless that official tap repository is available.
-8. If neither Dart nor Homebrew can install the CLI, ask the user to install
-   Dart or provide a `fluoh` executable path.
-9. After installation, run `fluoh --version`, then continue with preflight.
+6. Inside the fluoh repository, if native/Homebrew is unavailable, compile the
+   repo and use that executable: `dart compile exe bin/fluoh.dart -o /tmp/fluoh-native`.
+   When that executable runs outside the checkout and needs bundled skill
+   scripts or `fluoh skill --path`, set `FLUOH_SKILL_PATH` to the checkout's
+   `skills/fluoh` directory.
+7. Use `dart pub global activate fluoh` only as fallback. If the Dart global
+   install succeeds but `fluoh` is not on `PATH`, use
+   `$HOME/.pub-cache/bin/fluoh` and tell the user to add it to `PATH`.
+8. Dart pub global shims may emit dependency-resolution text before fluoh
+   starts; for strict JSON, use them only after confirming stdout starts with
+   `{`, otherwise switch to native/Homebrew or compiled repo exe.
+9. If none of native/Homebrew, compiled repo exe, or Dart pub global shim works,
+   ask the user to install Dart/Homebrew or provide a `fluoh` executable path.
+10. After selecting the executable, run `fluoh --version`, then continue.
 
-## Adaptation Scope Gate
+## Support Scope Gate
 
-Treat a request to adapt, fix, make OHOS support, or hand work to AI as
+Treat a request to add support, fix, make FlutterOH support, or hand work to AI as
 authorization to install or locate the CLI, run read-only preflight, and
-discover adaptation values. It is not authorization to change project files,
+discover support values. It is not authorization to change project files,
 package repositories, Source files, local Git configuration, or implementation
 code.
 
 Before any mutating project, package, Source, Git, or implementation edit,
-present a final adaptation scope confirmation and wait for explicit user
-approval unless the user already approved the same resolved adaptation scope in
-this task. The confirmation must list:
-
-- adaptation kind and working directory;
-- output directory when applicable;
-- SDK version or SDK line;
-- package name and package path when applicable;
-- FlutterOH repository URL or path when applicable;
-- Git author identity when commits may be created;
-- explicit `--org` override when one will be passed;
-- mutating commands or file edits that will run;
-- operations that will not run without separate approval, such as release,
-  push, force-push, destructive Git commands, public API breaks, or manual
-  release version overrides.
+present a final support scope confirmation and wait for explicit user
+approval unless the user already approved the same resolved support scope in
+this task. The confirmation must list kind, working directory, output
+directory, SDK, package, repository URL/path, Git author identity when commits
+may be created, mutating commands or edits, and operations that will not run
+without separate approval.
 
 After approval, local code edits, project-file edits, and phase checkpoint
-commits are part of the automatic adaptation workflow. Create small local
-commits after completed phases with clean command evidence, such as generated
-baseline, selected-SDK baseline, implementation, tests and example
-verification, release metadata, and delivery report handoff. Keep release,
-push, force-push, destructive Git operations, public API breaks, SDK line
-changes, upstream downgrades, and manual release version overrides separately
-approved.
+commits are allowed when they are the direct response to `nextAction` or a
+tool-provided command. Release, push, force-push, destructive Git operations,
+public API breaks, SDK line changes, upstream downgrades, and manual release
+version overrides still require separate approval.
 
 ## Preflight Routing
 
 When using `scripts/preflight.py`, route by the returned JSON:
 
-- `fluohSetup`: when `status` is `needs-cli-setup`, fix the CLI executable or
-  launcher first, rerun preflight, and only then follow `commandQueue`. Do not
-  classify launcher or local sandbox failures as project/package
-  implementation failures.
-- Missing path, unknown project, or `dart-package`: do not edit. Ask for the
-  project path, or create a package repository only when the user gave an
+- `fluohSetup`: fix CLI executable or launcher first, rerun preflight, then
+  follow the command queue.
+- Missing path, unknown project, or `dart-package`: do not edit. Ask for a
+  project path, create a spec-first package only after the user confirms the
+  package contract, or port a package repository only when the user gave an
   upstream Git URL.
-- `app-project`: use `references/app-project-flow.md`.
-- `flutter-package`: create a FlutterOH package repository first; do not add
-  OHOS implementation files directly in the upstream checkout.
-- `package-repository`: use `references/package-adaptation-flow.md` and confirm
-  the selected package matches the user's request.
-- `upgradeChecks`: when preflight requires a newer fluoh, run `fluoh upgrade`,
-  refresh the skill with `fluoh skill --path` when the host supports it, then
-  handle schema migration and generated-doc refresh blockers before
-  implementation edits. Generated `README.md`, `FLUOH.md`, and `AGENTS.md`
-  sections are tool-owned; do not edit inside `fluoh:generated` blocks by hand.
+- `app-project`, `flutter-package`, `package-repository`, and Source tasks:
+  use the matching reference file listed in Request Routing.
 - `reportCommand`, `summaryCommand`, `scenarioCommand`,
   `sessionInspectCommand`, and `sessionAttachCommand`: prefer these exact
-  helper commands over reconstructing paths manually.
-- `automationRunbook` and `deliveryGate`: treat these as the stop condition.
-  Do not end the adaptation until `deliveryGate.readyRequires` is satisfied,
-  `deliveryGate.blockedWhen` explains the remaining blocker, or
-  `deliveryGate.needsMaintainerDecision` applies.
+  helper commands over reconstructing paths. If preflight also prints an
+  `executable...` variant for the selected local fluoh executable, run that
+  variant.
+- `automationRunbook` and `deliveryGate`: treat tool-provided
+  `deliveryGate.readyRequires`, `blockedWhen`, and `needsMaintainerDecision`
+  as the stop-condition source.
 
 ## JSON Diagnostics
 
 For every `--json` command:
 
 - Invoke the installed `fluoh` executable, not `dart run bin/fluoh.dart`.
-- Parse the JSON object before editing.
-- Follow top-level or step-level `nextCommand` when present.
-- Route by `diagnostics[].code` and inspect `stdoutTail`, `stderrTail`, saved
-  logs, and trace manifests before changing code.
-- For `verify`, `build`, and `run`, prefer
-  `--trace-dir .fluoh/traces/<scope>/<session-id>` during AI-driven loops.
-  Reuse the same trace directory for related commands so evidence accumulates.
-- Read `dirtyAfterVerify`, `workingTreeChanges`, `feedbackCandidates`, and
-  `traceError`; classify findings as fluoh CLI, Source data, AI skill, local
-  environment, upstream package, or user project follow-up.
-- Read `workflowEvidence` from `build` and `run` as factual tool output.
-  `classification: buildOnly` means only artifacts were built.
-  `classification: launchSmoke` means the app launched, not that UI behavior
-  passed. `fluoh run` automatically attempts a best-effort post-launch
-  screenshot for OHOS, Android, and iOS under `details.postLaunchScreenshot`;
-  if it is skipped or failed, collect equivalent UI-state evidence with
-  `fluoh drive`. Every successful mobile run still needs a tool-readable page
-  assertion.
-  If the example/demo page is visually stuck, blank, hidden behind splash, or
-  otherwise unusable, repair the demo before continuing to broader automation.
-  Use `observedEvidence`, `collectedEvidenceKinds`,
-  `notCollectedEvidenceKinds`, `workflowContinuations`, and `toolCommands` to
-  choose the next run smoke, `fluoh drive --dry-run`, scenario,
-  integration-test, report, or check action.
-  `collectedEvidenceKinds` means the command collected a result or artifact;
-  check `observedEvidence` before treating that result as passed evidence.
-  For `observedEvidence.interaction.status`,
-  `integrationTestEvidenceFailed` overrides any passed integration-test rows in
-  the same matrix, and `partialIntegrationTestEvidence` means only some targets
-  produced passed integration-test evidence. Neither status is release-ready.
-  OHOS integration steps may include `details.systemPermissionDialogs` when
-  `--ohos-permission-dialog-policy allow` handled prompts; use it as prompt
-  evidence, then still verify behavior through tests, drive, or assertions.
+- Parse exactly one JSON object before editing.
+- Follow `nextAction` first. If absent, follow top-level or step-level
+  `nextCommand`.
+- Route by `diagnostics[].code`, `stdoutTail`, `stderrTail`, saved logs, trace
+  manifests, `workingTreeChanges`, and `feedbackCandidates`.
+- For `package next`, summarize `notes`, `visualPageReadiness`,
+  `qualityProfile`, `evidenceSummary`, `reportCheck`, and `remainingRisks`
+  only when reporting status or blockers; do not turn them into an independent
+  checklist.
+- Prefer `--task <task-id>` or the current task for verify/build/run loops.
+  When an explicit path is unavoidable, keep it under
+  `.fluoh/tasks/<task-id>/traces/...` so report creation can consume evidence
+  files.
 - Treat doctor, toolchain, and device diagnostics as local-environment work
   until the local diagnostic is clean.
-- Treat build failures, install failures, launch failures, runtime crashes,
-  Flutter channel errors, integration-test failures, and package test failures
-  as code or project issues only after the local toolchain diagnostic is clean.
+- For `fluoh doctor --json --strict`, follow the top-level `nextAction` when
+  present. `blocked` means local environment or project setup must be repaired
+  before implementation, build, run, or automation failures should be treated
+  as package code issues.
+- Treat build, install, launch, runtime, channel, integration-test, and package
+  test failures as code/project issues only after local toolchain diagnostics
+  are clean.
 
 ## Evidence Loop
 
-1. Run preflight and select exactly one package when selection is required.
-2. Before final verification, inspect existing package/app tests,
-   `integration_test/`, examples, public API, platform interfaces,
-   permissions, behavior paths, and official OHOS/platform documentation. If
-   the existing tests do not cover the adapted library behavior, add or repair
-   focused functional tests first. For package work, start from
-   `package discover` or package plan
-   `adaptationProfile` categories, required evidence, suggested coverage, and
-   blocker policy before adding custom rows.
-3. Run the suggested verify/build/run commands until diagnostics are clean or a
-   blocker is explicit. Clean build/run JSON is not the end of the workflow.
-   After every successful mobile run, inspect `details.postLaunchScreenshot`
-   or collect equivalent UI-state evidence, then confirm the example/demo page
-   is the expected functional screen. If the page is abnormal, fix it first.
-   Inspect `workflowEvidence.notCollectedEvidenceKinds` and
-   `workflowEvidence.workflowContinuations` and continue until functional
-   evidence, coverage review, report creation, and report checks are handled.
-4. When an interactive flow, permission prompt, file picker, camera, location,
-   media, deep link, external app callback, or lifecycle behavior matters, use
-   `references/automation-evidence-flow.md`.
-   For OHOS grant-path integration tests, use
-   `--ohos-permission-dialog-policy allow` only when automatic allow preserves
-   test intent; keep repairing missing deny-path or page-readiness assertions.
-5. Make the smallest implementation, scenario, test, or project-file change
-   needed for the next clean verification result.
-6. Rerun the exact failed command, or the printed rerun/validation command from
-   JSON diagnostics.
-7. Run `scripts/collect_feedback.py` on the trace session when feedback
-   candidates exist.
-8. Write/check the report, then run `references/independent-review-flow.md`; feed reviewer feedback packets into repairs before `ready`.
+Run a short deterministic loop:
 
-Launch success is smoke evidence. Release-ready interaction evidence must come
-from a passed `flutter test integration_test -d <device>` command row, real
-`fluoh drive --scenario <path> --json`, or manual-assisted tool-readable
-verification with a concrete blocker or result. `manual-assisted` is an
-operation mode, not a human-only pass; a passed row must still cite logs,
-meaningful session state beyond launch, stable text, semantics, test keys,
-command JSON, hilog, or app log markers. When `integration_test/` exists,
-platform run commands, including OHOS, must execute it and the report must
-record the resulting test command and result in the Commands table.
-`assertSession`, `launchApp`, `wait`, and screenshots prove launch or visual
-sanity only. They cannot satisfy permission grant/deny, public API,
-method-channel, platform-channel, example-flow, or negative-path coverage
-unless the scenario also performs the relevant interaction and records a
-post-interaction functional assertion such as `assertText`, `waitText`, or
-`assertLog`.
-When `fluoh run all` succeeds, use it only as platform launch-smoke coverage
-for the existing project or package example platform directories it selected.
-Continue with the printed `fluoh drive all --dry-run --json` or
-platform-specific `drive` commands, capture screenshots for each mobile target,
-repair any abnormal demo page, then add or repair scenarios until grant, deny,
-gestures, and result assertions are fully covered. `blocked` coverage rows are
-repair items, not a release-complete state.
-Do not focus only on OHOS for package adaptations. Existing Android, iOS,
-macOS, Linux, Web, and Windows example/platform directories are in scope for
-functional verification. Run the platform commands when the current host and
-toolchain support them; otherwise record the exact diagnostic command, host or
-toolchain limitation, and skip reason in the report. A `ready` recommendation
-requires either passed functional evidence for each existing platform or a
-concrete unsupported-environment blocker.
-Do not rely on screenshot recognition as the primary assertion; use it as the
-mandatory visual sanity check after launch, backed by text, session, log, or
-interaction assertions for pass/fail behavior.
-If `automation.coveragePolicy.scenarioEvidence` or `repairQueue` reports
-`needsFunctionalEvidence`, keep the adaptation loop running: update the
-scenario, example app, or test so the adaptation AI can tap/request/deny the
-flow and assert the resulting text/log/state, then rerun the printed drive
-command. Do not downgrade those rows to ready in the report.
-If `page-readiness` reports `needsPageReadinessEvidence`, repair the scenario
-or demo page until a post-launch `assertText`, `waitText`, or `assertLog`
-proves the functional screen is ready. Use `suggestedScenarioPatch` from JSON
-when present so step bindings and TODO assertions stay machine-readable.
+1. Run preflight or `fluoh package next --json`.
+2. Follow one `nextAction`.
+3. For `editRequired`, inspect the smallest relevant code surface and edit only
+   what the blocker requires.
+4. Run `nextAction.rerunCommand`, the failed command, or the printed
+   validation command.
+5. Repeat until `ready`, `blocked`, or maintainer decision.
+
+Do not decide release readiness from chat memory. Launch success is smoke
+evidence only. `fluoh drive --profile exploratory-smoke` is useful for bounded
+generic exploration and crash or blank-page discovery, but it is not functional
+correctness evidence and does not clear `quality.functional_surface_missing`.
+The support scope is the planning and evidence contract: P0 platform rows
+must not stay `unknown`; `supported` or `degraded` rows need platform research
+sources, implementation plan status, test cases, and functional evidence;
+`preserved` rows need baseline sources, regression test cases, and regression
+evidence; `unsupported`, `notApplicable`, or `manualRequired` rows need a
+reason.
+If `nextAction.phase` is `visual-page-readiness`, inspect the screenshot path
+or UI-state evidence named by `details.visualPageReadiness`; write
+`.fluoh/tasks/<task-id>/evidence/visual-readiness.yaml` with
+`kind: fluoh.visualPageReadiness` and `status: passed` only when the functional
+page is actually visible and usable. If it is blank, stuck, hidden, or a
+template shell, repair the example instead of writing passed evidence. If a UI
+tree, semantics dump, or text assertion claims widgets exist but the screenshot
+shows a blank or wrong page, treat visual page-readiness as failed and repair
+the app before automation.
+`manual-assisted` means a person may operate the device, but pass/fail still
+needs tool-readable logs, session state beyond launch, stable text, semantics,
+test keys, command JSON, hilog, or app log markers. Use
+`references/independent-review-flow.md` only when a release/check flow requests
+reviewer feedback packets or the user asks for independent review.
 
 ## Completion Report
 
-Before the final response, create the local report under:
+For package repositories, let `fluoh package next --json` emit report creation,
+report repair, and report-check actions; do not bypass the package state
+machine to hand-fill a ready report. For app projects, prefer
+`fluoh report create --json` with trace and automation inputs and avoid
+hand-filling gates the CLI can derive. When a package report command is emitted,
+pass `--package <name>` so the report records the Support Scope from
+`doc/fluoh/<package>/scope.yaml` and emits `supportScope` in JSON.
+The generated report includes an `Official Platform Basis` section, but ready
+delivery still needs the agent to fill reviewed official platform sources or a
+concrete not-applicable reason when the CLI cannot derive it from evidence.
+Reports live under:
 
 ```text
-.fluoh/reports/<report-group>/report-<timestamp>.md
+.fluoh/tasks/<task-id>/reports/report.md
 ```
 
-For package work, `<report-group>` is normally the package name slug. For
-multi-package monorepos, also create a summary report under:
+`fluoh report create` uses `report.md` by default. The helper
+`scripts/new_report.py` creates `report-<timestamp>.md`; both generated
+filenames are valid report-check inputs.
+
+For multi-package monorepos, also create:
 
 ```text
-.fluoh/reports/<scope-slug>/summary-<timestamp>.md
+.fluoh/tasks/<task-id>/reports/summary-<timestamp>.md
 ```
 
 Prefer preflight `reportCommand` and `summaryCommand`, or run:
@@ -332,17 +323,11 @@ python3 <skill-dir>/scripts/new_summary.py <project-path> --scope <scope>
 python3 <skill-dir>/scripts/check_report.py <report-path>
 ```
 
-Complete the report with commands, exit codes, changed files, platform matrix,
-automation coverage gates, interaction evidence, diagnostics, Fluoh Feedback,
-remaining risks, and release recommendation. Mark every applicable Delivery
-Checklist item as done, or leave it unchecked and explain the blocker. A ready
-recommendation requires checklist completion, `check_report.py` pass, and no
-open blocker/high/medium independent-review feedback.
+Use `scripts/check_report.py` as the report gate. The final response should
+state ready, blocked, or needs maintainer decision; point to the report path;
+and list only remaining blocking risks. Ready reports with a Support Scope
+must show complete P0 planning and functional evidence gates.
 
-The AI adaptation loop ends at a release recommendation and evidence report.
-The maintainer still makes the final release approval and owns publish, push,
-tag, app-store, or package-registry actions.
-
-The final response should state whether the work is ready, blocked, or needs a
-maintainer decision; point to the report path; and list only the remaining
-blocking risks.
+Use `fluoh package status --json`, `fluoh package check --json`, and
+`fluoh package release` only after the implementation loop is ready or the user
+explicitly asks for release readiness.

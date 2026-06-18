@@ -12,6 +12,8 @@ _AutomationPlan _automationPlan({
   required Directory sessionDirectory,
   required TraceOptions traceOptions,
   required List<AutomationScenario> scenarios,
+  required String? profile,
+  required List<AutomationScenario> profileScenarios,
   required _AutomationInventory inventory,
 }) {
   return _AutomationPlan(
@@ -26,6 +28,8 @@ _AutomationPlan _automationPlan({
     sessionDirectory: sessionDirectory,
     traceOptions: traceOptions,
     scenarios: scenarios,
+    profile: profile,
+    profileScenarios: profileScenarios,
     inventory: inventory,
   );
 }
@@ -43,6 +47,8 @@ class _AutomationPlan {
     required this.sessionDirectory,
     required this.traceOptions,
     required this.scenarios,
+    required this.profile,
+    required this.profileScenarios,
     required this.inventory,
   });
 
@@ -57,6 +63,8 @@ class _AutomationPlan {
   final Directory sessionDirectory;
   final TraceOptions traceOptions;
   final List<AutomationScenario> scenarios;
+  final String? profile;
+  final List<AutomationScenario> profileScenarios;
   final _AutomationInventory inventory;
 
   Map<String, Object?> toJson({
@@ -113,6 +121,11 @@ class _AutomationPlan {
       'sessionDirectory': sessionDirectory.path,
       if (scenarios.isNotEmpty)
         'scenarios': scenarios.map((scenario) => scenario.toJson()).toList(),
+      if (profile != null)
+        'profile': _automationProfileJson(
+          profile!,
+          profileScenarios: profileScenarios,
+        ),
       'trace': {
         'enabled': traceOptions.enabled || traceOptions.directory != null,
         if (traceOptions.directory != null)
@@ -159,6 +172,7 @@ class _AutomationPlan {
       '--session-dir',
       sessionDirectory.path,
       for (final scenario in scenarios) ...['--scenario', scenario.path.path],
+      if (profile != null) ...['--profile', profile!],
       if (traceOptions.enabled && traceOptions.directory == null) '--trace',
       if (traceOptions.directory != null) ...[
         '--trace-dir',
@@ -595,7 +609,7 @@ class _AutomationPlan {
         {
           'platform': targetPlatform,
           'path':
-              '${inventory.rootPath}/.fluoh/scenarios/$scope/$targetPlatform-$itemSlug.md',
+              '${inventory.rootPath}/doc/fluoh/$scope/scenarios/$targetPlatform-$itemSlug.md',
         },
     ];
   }
@@ -1029,6 +1043,91 @@ class _AutomationPlan {
     }
     return queue;
   }
+}
+
+Map<String, Object?> _automationProfileJson(
+  String profile, {
+  required List<AutomationScenario> profileScenarios,
+}) {
+  return switch (profile) {
+    'exploratory-smoke' => {
+      'name': profile,
+      'classification': 'exploratory-smoke',
+      'releaseGate': false,
+      'purpose':
+          'Bounded generic exploration for crash, blank page, and basic scroll evidence. It is discovery evidence, not functional correctness proof.',
+      'resultSemantics': {
+        'passed':
+            'The generated profile actions completed without failing required launch/session/screenshot checks.',
+        'notSufficientForRelease':
+            'A passed exploratory-smoke profile does not satisfy functional scenario, integration_test, or no-interaction-required release evidence.',
+      },
+      'generatedScenarios': profileScenarios
+          .map((scenario) => scenario.toJson())
+          .toList(),
+    },
+    _ => {
+      'name': profile,
+      'classification': 'unknown',
+      'releaseGate': false,
+      'generatedScenarios': profileScenarios
+          .map((scenario) => scenario.toJson())
+          .toList(),
+    },
+  };
+}
+
+List<AutomationScenario> _automationProfileScenarios({
+  required String? profile,
+  required List<String> platforms,
+  required Directory workingDirectory,
+  required FluohTask task,
+}) {
+  if (profile == null) {
+    return const [];
+  }
+  return switch (profile) {
+    'exploratory-smoke' => [
+      for (final platform in platforms)
+        AutomationScenario(
+          path: File(
+            '${task.evidenceDirectory.path}/profiles/exploratory-smoke-$platform.json',
+          ),
+          name: 'exploratory-smoke',
+          platform: platform,
+          steps: const [
+            AutomationScenarioAction(action: 'assertSession', index: 1),
+            AutomationScenarioAction(action: 'screenshot', index: 2),
+            AutomationScenarioAction(
+              action: 'wait',
+              index: 3,
+              timeout: Duration(seconds: 1),
+            ),
+            AutomationScenarioAction(
+              action: 'swipe',
+              index: 4,
+              x: 540,
+              y: 1600,
+              endX: 540,
+              endY: 600,
+              durationMilliseconds: 300,
+              optional: true,
+              repairHints: [
+                'This generic scroll is exploratory only. Replace it with a scenario using stable text, semantics, test keys, or integration_test assertions for release evidence.',
+              ],
+            ),
+            AutomationScenarioAction(
+              action: 'wait',
+              index: 5,
+              timeout: Duration(seconds: 1),
+            ),
+            AutomationScenarioAction(action: 'screenshot', index: 6),
+            AutomationScenarioAction(action: 'assertSession', index: 7),
+          ],
+        ),
+    ],
+    _ => const [],
+  };
 }
 
 bool _isAutomationCoverageGapStatus(String status) {

@@ -37,7 +37,7 @@ body:
     attributes:
       label: fluoh version
       description: Run `fluoh --version` and paste the first line.
-      placeholder: fluoh 0.1.0 - CLI for FlutterOH SDKs, projects, and package adaptation workflows
+      placeholder: fluoh 0.1.0 - CLI for FlutterOH SDKs, projects, and package support workflows
     validations:
       required: true
   - type: input
@@ -45,7 +45,7 @@ body:
     attributes:
       label: Command or workflow
       description: Paste the exact command that failed, or describe the workflow if no single command applies.
-      placeholder: fluoh package create https://github.com/upstream/package.git --package-path packages/example
+      placeholder: fluoh package port https://github.com/upstream/package.git --repository-name example --package-path packages/example
     validations:
       required: true
   - type: textarea

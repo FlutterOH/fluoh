@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Create a local fluoh monorepo adaptation summary report."""
+"""Create a local fluoh monorepo support summary report."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 from datetime import datetime
@@ -21,6 +22,72 @@ def slug(value: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip())
     normalized = normalized.strip("-._")
     return normalized or "monorepo"
+
+
+def ensure_task_root(root: Path, scope: str, task_type: str) -> Path:
+    current_file = root / ".fluoh" / "current-task.json"
+    if current_file.is_file():
+        try:
+            current = json.loads(current_file.read_text(encoding="utf-8"))
+            relative = str(current.get("path") or "")
+            task_root = root / relative
+            if relative and task_root.is_dir():
+                return task_root
+        except (OSError, ValueError, TypeError):
+            pass
+    now = datetime.now().astimezone()
+    task_id = f"{now.strftime('%Y%m%d-%H%M%S')}-{slug(task_type)}-{slug(scope)}"
+    task_root = root / ".fluoh" / "tasks" / task_id
+    task_root.mkdir(parents=True, exist_ok=True)
+    created_at = now.isoformat()
+    (task_root / "task.yaml").write_text(
+        "\n".join(
+            [
+                "schema: 1",
+                "kind: fluoh.task",
+                f"id: {task_id}",
+                f"type: {task_type}",
+                "scope:",
+                f"  name: {slug(scope)}",
+                f"createdAt: {created_at}",
+                f"updatedAt: {created_at}",
+                "status: running",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (task_root / "state.json").write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "kind": "fluoh.taskState",
+                "taskId": task_id,
+                "status": "running",
+                "createdAt": created_at,
+                "updatedAt": created_at,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    current_file.parent.mkdir(parents=True, exist_ok=True)
+    current_file.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "kind": "fluoh.currentTask",
+                "id": task_id,
+                "path": f".fluoh/tasks/{task_id}",
+                "updatedAt": created_at,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return task_root
 
 
 def clean_scalar(value: str) -> str:
@@ -157,7 +224,7 @@ def build_summary(root: Path, scope: str, packages: list[str], sdk: str) -> str:
             "| Command | Exit code | Status | Notes |",
             "| --- | ---: | --- | --- |",
             "| `fluoh package queue <package-path>... --json` | <exit> | <status> | queue resolved |",
-            "| `fluoh verify --package <name> --json --trace-dir <trace-dir>` | <exit> | <status> | per-package verification |",
+            "| `fluoh verify --package <name> --json --trace` | <exit> | <status> | per-package verification |",
             "",
             "## Repository State",
             "",
@@ -183,7 +250,7 @@ def build_summary(root: Path, scope: str, packages: list[str], sdk: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Create a .fluoh monorepo adaptation summary report.",
+        description="Create a .fluoh monorepo support summary report.",
     )
     parser.add_argument("path", nargs="?", default=".", help="Project directory")
     parser.add_argument(
@@ -201,7 +268,7 @@ def main() -> int:
     parser.add_argument(
         "--output-root",
         default="",
-        help="Report directory. Defaults to <path>/.fluoh/reports/<scope>.",
+        help="Report directory. Defaults to the current task reports directory.",
     )
     args = parser.parse_args()
 
@@ -213,7 +280,7 @@ def main() -> int:
     output_root = (
         Path(args.output_root).expanduser().resolve()
         if args.output_root
-        else root / ".fluoh" / "reports" / slug(scope)
+        else ensure_task_root(root, scope, "summary") / "reports"
     )
     output_root.mkdir(parents=True, exist_ok=True)
     timestamp = str(int(datetime.now().astimezone().timestamp() * 1000))

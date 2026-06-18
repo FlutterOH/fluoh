@@ -28,7 +28,7 @@ void _registerWorkflowCommandsProjectRunTargetTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -120,7 +120,7 @@ void _registerWorkflowCommandsProjectRunTargetTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: commandEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -228,7 +228,7 @@ void _registerWorkflowCommandsProjectRunTargetTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: workflowEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -308,7 +308,7 @@ void _registerWorkflowCommandsProjectRunTargetTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -438,7 +438,7 @@ exit 0
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: commandEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -514,7 +514,7 @@ exit 0
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,

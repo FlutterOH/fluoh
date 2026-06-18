@@ -10,7 +10,7 @@ import '../manifest/package_manifest.dart';
 /// Updates package release version metadata in `fluoh.yaml`.
 ///
 /// This command is the maintainer-facing version bump step for FlutterOH
-/// package adaptations. It changes only release metadata and leaves tag
+/// package support work. It changes only release metadata and leaves tag
 /// creation to `fluoh package release`.
 class PackageVersionCommand extends FluohCommand<int> {
   /// Creates the `fluoh package version` command.
@@ -28,16 +28,18 @@ class PackageVersionCommand extends FluohCommand<int> {
       )
       ..addOption(
         'bump',
+        valueHelp: 'part',
         allowed: const ['major', 'minor', 'patch'],
-        help: 'Bump the FlutterOH adaptation package release version.',
+        help: 'Bump the FlutterOH package support release version.',
       )
       ..addOption(
         'set',
         valueHelp: 'version',
-        help: 'Set the FlutterOH adaptation package release version.',
+        help: 'Set the FlutterOH package support release version.',
       )
       ..addOption(
         'status',
+        valueHelp: 'status',
         allowed: const ['experimental', 'compatible', 'broken'],
         help:
             'Set release status. compatible removes the status field from fluoh.yaml.',
@@ -160,7 +162,7 @@ class PackageVersionCommand extends FluohCommand<int> {
     }
     if (!dryRun) {
       _output.next(
-        'Update FLUOH_CHANGELOG.md, review fluoh.yaml, commit release metadata, then run '
+        'Update the FLUOH.md FlutterOH Release History, review fluoh.yaml, commit release metadata, then run '
         'fluoh package check --package ${package.name}',
       );
     }

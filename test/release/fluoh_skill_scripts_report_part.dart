@@ -2,7 +2,7 @@ part of 'fluoh_skill_scripts_test.dart';
 
 void _registerFluohSkillScriptsReportTests() {
   test(
-    'preflight reports schema migration blockers before adaptation',
+    'preflight reports schema blockers before support',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -24,292 +24,14 @@ sdk:
       final schema = upgradeChecks['schema'] as Map<String, Object?>;
 
       expect(schema['status'], 'missing');
-      expect(upgradeChecks['needsMigration'], isTrue);
+      expect(upgradeChecks['blocksEditing'], isTrue);
       expect(
         stringList(upgradeChecks['notes']),
         contains(contains('current canonical schema')),
       );
       expect(
         stringList(report['deliveryChecks']),
-        contains(contains('upgradeChecks has no migration blocker')),
-      );
-    },
-    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
-  );
-
-  test(
-    'preflight reports current-marker package docs when dry-run finds changes',
-    () async {
-      final root = await createTempRoot();
-      addTearDown(() => root.delete(recursive: true));
-      final fluoh = await writeFakeFluoh(
-        root,
-        docsDryRunOutput: '''
-Package docs would be refreshed
-    - README.md
-    - FLUOH.md
-    - AGENTS.md
-''',
-      );
-
-      await File('${root.path}/fluoh.yaml').writeAsString('''
-schema: 1
-kind: package
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-package:
-  name: camera
-  path: packages/camera/camera
-  release:
-    version: "0.1.0"
-    upstream:
-      version: "0.11.0"
-      commit: "1111111111111111111111111111111111111111"
-''');
-      await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide template=2 -->
-Generated content.
-<!-- fluoh:generated:end id=package-implementation-guide -->
-''');
-      await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-agents-instructions -->
-''');
-      await File('${root.path}/README.md').writeAsString('''
-<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-readme-adaptation -->
-''');
-
-      final report = await runPreflight(root, fluohCommand: fluoh.path);
-      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
-      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
-      final dryRun = packageDocs['dryRun'] as Map<String, Object?>;
-
-      expect(packageDocs['needsRefresh'], isTrue);
-      expect(dryRun['ok'], isTrue);
-      expect(dryRun['needsRefresh'], isTrue);
-      expect(dryRun['files'], ['README.md', 'FLUOH.md', 'AGENTS.md']);
-      expect(
-        stringList(report['suggestedCommands']),
-        containsAll([
-          'fluoh package docs refresh --dry-run',
-          'fluoh package docs refresh',
-        ]),
-      );
-    },
-    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
-  );
-
-  test(
-    'preflight suggests allow-dirty docs refresh in dirty package repos',
-    () async {
-      final root = await createTempRoot();
-      addTearDown(() => root.delete(recursive: true));
-      final fluoh = await writeFakeFluoh(
-        root,
-        docsDryRunOutput: '''
-Package docs would be refreshed
-- FLUOH.md
-''',
-      );
-
-      await File('${root.path}/fluoh.yaml').writeAsString('''
-schema: 1
-kind: package
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-package:
-  name: camera
-  path: .
-  release:
-    version: "0.1.0"
-    upstream:
-      version: "0.11.0"
-      commit: "1111111111111111111111111111111111111111"
-''');
-      await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-implementation-guide -->
-''');
-      await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-agents-instructions -->
-''');
-      await File('${root.path}/README.md').writeAsString('''
-<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-readme-adaptation -->
-''');
-      await runProcess('git', ['init', '--initial-branch=main'], root);
-      await runProcess('git', [
-        'config',
-        'user.email',
-        'fixture@example.com',
-      ], root);
-      await runProcess('git', ['config', 'user.name', 'Fixture'], root);
-      await runProcess('git', ['add', '.'], root);
-      await runProcess('git', ['commit', '-m', 'Initial package repo'], root);
-      await File('${root.path}/LOCAL_NOTES.md').writeAsString('local notes\n');
-
-      final report = await runPreflight(root, fluohCommand: fluoh.path);
-      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
-      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
-
-      expect(packageDocs['needsRefresh'], isTrue);
-      expect(
-        packageDocs['allowDirtyRefreshCommand'],
-        'fluoh package docs refresh --allow-dirty',
-      );
-      expect(
-        stringList(upgradeChecks['commands']),
-        containsAll([
-          'fluoh package docs refresh --dry-run',
-          'fluoh package docs refresh --allow-dirty',
-        ]),
-      );
-      expect(
-        stringList(upgradeChecks['commands']),
-        isNot(contains('fluoh package docs refresh')),
-      );
-      expect(
-        stringList(upgradeChecks['notes']),
-        contains(
-          contains('The worktree is dirty, so use the explicit --allow-dirty'),
-        ),
-      );
-    },
-    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
-  );
-
-  test(
-    'preflight upgrades before refreshing newer-template package docs',
-    () async {
-      final root = await createTempRoot();
-      addTearDown(() => root.delete(recursive: true));
-      final fluoh = await writeFakeFluoh(
-        root,
-        docsDryRunOutput: '''
-Package docs would be refreshed
-    - README.md
-    - FLUOH.md
-    - AGENTS.md
-''',
-      );
-
-      await File('${root.path}/fluoh.yaml').writeAsString('''
-schema: 1
-kind: package
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-package:
-  name: camera
-  path: packages/camera/camera
-  release:
-    version: "0.1.0"
-    upstream:
-      version: "0.11.0"
-      commit: "1111111111111111111111111111111111111111"
-''');
-      await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide template=2 -->
-Generated content.
-<!-- fluoh:generated:end id=package-implementation-guide -->
-''');
-      await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions template=2 -->
-Generated content.
-<!-- fluoh:generated:end id=package-agents-instructions -->
-''');
-      await File('${root.path}/README.md').writeAsString('''
-<!-- fluoh:generated:start id=package-readme-adaptation template=2 -->
-Generated content.
-<!-- fluoh:generated:end id=package-readme-adaptation -->
-''');
-
-      final report = await runPreflight(root, fluohCommand: fluoh.path);
-      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
-      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
-
-      expect(packageDocs['hasNewerTemplate'], isTrue);
-      expect(packageDocs['needsRefresh'], isFalse);
-      expect(stringList(upgradeChecks['commands']), ['fluoh upgrade']);
-      expect(stringList(report['suggestedCommands']).take(3).toList(), [
-        'fluoh upgrade',
-        'fluoh deps get',
-        'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-      ]);
-    },
-    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
-  );
-
-  test(
-    'preflight reports unknown package docs state when dry-run fails',
-    () async {
-      final root = await createTempRoot();
-      addTearDown(() => root.delete(recursive: true));
-      final fluoh = await writeFakeFluoh(
-        root,
-        docsDryRunOutput: 'dry-run failed',
-        docsDryRunExitCode: 64,
-      );
-
-      await File('${root.path}/fluoh.yaml').writeAsString('''
-schema: 1
-kind: package
-
-sdk:
-  version: 3.35.8-ohos-0.0.3
-
-package:
-  name: camera
-  path: packages/camera/camera
-  release:
-    version: "0.1.0"
-    upstream:
-      version: "0.11.0"
-      commit: "1111111111111111111111111111111111111111"
-''');
-      await File('${root.path}/FLUOH.md').writeAsString('''
-<!-- fluoh:generated:start id=package-implementation-guide template=2 -->
-Generated content.
-<!-- fluoh:generated:end id=package-implementation-guide -->
-''');
-      await File('${root.path}/AGENTS.md').writeAsString('''
-<!-- fluoh:generated:start id=package-agents-instructions template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-agents-instructions -->
-''');
-      await File('${root.path}/README.md').writeAsString('''
-<!-- fluoh:generated:start id=package-readme-adaptation template=1 -->
-Generated content.
-<!-- fluoh:generated:end id=package-readme-adaptation -->
-''');
-
-      final report = await runPreflight(root, fluohCommand: fluoh.path);
-      final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
-      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
-      final dryRun = packageDocs['dryRun'] as Map<String, Object?>;
-
-      expect(packageDocs['needsRefresh'], isFalse);
-      expect(packageDocs['needsRefreshUnknown'], isTrue);
-      expect(dryRun['ok'], isFalse);
-      expect(
-        stringList(upgradeChecks['commands']),
-        contains('fluoh package docs refresh --dry-run'),
-      );
-      expect(
-        stringList(upgradeChecks['notes']),
-        contains(contains('dry-run did not complete')),
+        contains(contains('upgradeChecks has no schema blocker')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -328,6 +50,19 @@ kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: https://github.com/FlutterOH/share_plus.git
+    branch: ohos/3.35/share_plus
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/fluttercommunity/plus_plugins.git
+    branch: main
 
 package:
   name: share_plus
@@ -372,28 +107,11 @@ package:
       expect(sharePlusPlatforms['linux'], isTrue);
       expect(sharePlusPlatforms['web'], isTrue);
       expect(sharePlusPlatforms['windows'], isTrue);
-      const sharePlusTraceDir = '.fluoh/traces/share_plus/adaptation';
       final packageSuggestedCommands = [
-        'fluoh verify --package share_plus --json --trace-dir $sharePlusTraceDir',
-        'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir $sharePlusTraceDir',
-        'fluoh drive ohos --package share_plus --json --trace-dir $sharePlusTraceDir',
-        if (Platform.isMacOS) ...[
-          'fluoh doctor --platform ios --json --strict',
-          'fluoh run ios --package share_plus --auto-emulator --json --trace-dir $sharePlusTraceDir',
-          'fluoh drive ios --package share_plus --json --trace-dir $sharePlusTraceDir',
-          'fluoh doctor --platform macos --json --strict',
-          'fluoh run macos --package share_plus --json --trace-dir $sharePlusTraceDir',
-        ],
-        if (Platform.isLinux) ...[
-          'fluoh doctor --platform linux --json --strict',
-          'fluoh build linux --package share_plus --json --trace-dir $sharePlusTraceDir',
-        ],
-        'fluoh doctor --platform web --json --strict',
-        'fluoh run web --package share_plus --json --trace-dir $sharePlusTraceDir',
-        if (Platform.isWindows) ...[
-          'fluoh doctor --platform windows --json --strict',
-          'fluoh build windows --package share_plus --json --trace-dir $sharePlusTraceDir',
-        ],
+        'fluoh package next --package share_plus --json',
+        'fluoh package status --package share_plus --json',
+        'fluoh package handoff --package share_plus --json',
+        'fluoh package check --package share_plus --report <report-path> --json',
       ];
       expect(
         stringList(report['suggestedCommands']),
@@ -401,27 +119,25 @@ package:
       );
       expect(
         stringList(report['finalCheckCommands']),
-        contains(
-          'fluoh verify --package share_plus --json --trace-dir $sharePlusTraceDir',
-        ),
+        contains('fluoh package next --package share_plus --json'),
       );
       expect(
         stringList(report['finalCheckCommands']),
-        contains(
-          'fluoh drive ohos --package share_plus --json --trace-dir $sharePlusTraceDir',
-        ),
+        contains('fluoh verify --package share_plus --json --trace'),
+      );
+      expect(
+        stringList(report['finalCheckCommands']),
+        contains('fluoh drive ohos --package share_plus --json --trace'),
       );
       if (Platform.isMacOS) {
         expect(
           stringList(report['finalCheckCommands']),
-          contains(
-            'fluoh drive ios --package share_plus --json --trace-dir $sharePlusTraceDir',
-          ),
+          contains('fluoh drive ios --package share_plus --json --trace'),
         );
       }
       expect(
         stringList(report['deliveryChecks']),
-        contains(contains('.fluoh/reports/share_plus/report-<timestamp>.md')),
+        contains(contains('current task report')),
       );
       expect(stringList(report['notes']), isEmpty);
       expect(
@@ -445,6 +161,19 @@ kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: https://github.com/FlutterOH/share_plus.git
+    branch: ohos/3.35/share_plus
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/fluttercommunity/plus_plugins.git
+    branch: main
 
 package:
   name: share_plus
@@ -490,13 +219,8 @@ package:
       expect(
         stringList(selected['suggestedCommands']),
         containsAllInOrder([
-          'fluoh verify --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh drive ohos --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh doctor --platform android --json --strict',
-          'fluoh run android --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh drive android --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'python3 <skill-dir>/scripts/check_report.py <report-path>',
+          'fluoh package next --package share_plus --json',
+          'fluoh package status --package share_plus --json',
           'fluoh package handoff --package share_plus --json',
           'fluoh package check --package share_plus --report <report-path> --json',
         ]),
@@ -505,13 +229,14 @@ package:
         stringList(selected['finalCheckCommands']),
         containsAllInOrder([
           'git diff --check',
-          'fluoh verify --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh run ohos --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh drive ohos --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
+          'fluoh package next --package share_plus --json',
+          'fluoh verify --package share_plus --json --trace',
+          'fluoh run ohos --package share_plus --auto-emulator --json --trace',
+          'fluoh drive ohos --package share_plus --json --trace',
           'fluoh doctor --platform android --json --strict',
-          'fluoh run android --package share_plus --auto-emulator --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh drive android --package share_plus --json --trace-dir .fluoh/traces/share_plus/adaptation',
-          'fluoh package status --package share_plus',
+          'fluoh run android --package share_plus --auto-emulator --json --trace',
+          'fluoh drive android --package share_plus --json --trace',
+          'fluoh package status --package share_plus --json',
           'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package share_plus --json',
           'fluoh package check --package share_plus --report <report-path> --json',
@@ -551,6 +276,19 @@ kind: package
 sdk:
   version: 3.35.8-ohos-0.0.3
 
+repository:
+  git:
+    url: https://github.com/FlutterOH/camera.git
+    branch: ohos/3.35/camera
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
 package:
   name: camera
   path: packages/camera/camera
@@ -581,13 +319,11 @@ package:
       expect(stringList(selected['notes']).single, contains('camera'));
       expect(
         stringList(selected['suggestedCommands']),
-        contains(
-          'fluoh verify --package <name> --json --trace-dir .fluoh/traces/<name>/adaptation',
-        ),
+        contains('fluoh package next --package <name> --json'),
       );
       expect(
         stringList(selected['deliveryChecks']),
-        contains(contains('.fluoh/reports/<name>/report-<timestamp>.md')),
+        contains(contains('current task report')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
@@ -715,7 +451,7 @@ package:
       );
       expect(
         defaultReport.path,
-        contains('${root.path}/.fluoh/reports/camera/report-'),
+        allOf(contains('/.fluoh/tasks/'), contains('/reports/report-')),
       );
       expect(
         report.uri.pathSegments.last,
@@ -732,7 +468,7 @@ package:
       expect(content, contains('## Interaction Evidence'));
       expect(content, contains('## Fluoh Feedback'));
       expect(content, contains('Diff reviewed'));
-      expect(content, contains('OHOS build evidence recorded'));
+      expect(content, contains('Target-platform build evidence recorded'));
       expect(content, contains('Functional interaction evidence recorded'));
       expect(content, contains('Release recommendation: ready'));
     },
@@ -751,7 +487,7 @@ sdk:
   version: 3.35.8-ohos-0.0.3
 ''');
       final cameraReportDirectory = Directory(
-        '${root.path}/.fluoh/reports/camera',
+        '${root.path}/.fluoh/tasks/camera-support/reports',
       );
       await cameraReportDirectory.create(recursive: true);
       await File(
@@ -781,7 +517,7 @@ sdk:
       expect(summary.existsSync(), isTrue);
       expect(
         summary.path,
-        contains('${root.path}/.fluoh/reports/flutter-packages/summary-'),
+        allOf(contains('/.fluoh/tasks/'), contains('/reports/summary-')),
       );
       expect(
         summary.uri.pathSegments.last,
@@ -792,10 +528,9 @@ sdk:
       expect(content, contains('- Scope: flutter packages'));
       expect(content, contains('- Packages: camera, share_plus'));
       expect(content, contains('| camera |'));
-      expect(
-        content,
-        contains('.fluoh/reports/camera/report-1781092800123.md'),
-      );
+      expect(content, contains('| camera | <branch> |'));
+      expect(content, contains('| share_plus | <branch> |'));
+      expect(content, contains('| <report> |'));
       expect(content, isNot(contains('report-1781092800122.md')));
       expect(content, contains('| share_plus |'));
       expect(content, contains('## Package Matrix'));

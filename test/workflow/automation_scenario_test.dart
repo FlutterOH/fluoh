@@ -57,7 +57,7 @@ actions:
     );
   });
 
-  test('OHOS UI parsing ignores hidden or transparent text nodes', () {
+  test('OHOS UI parsing keeps Flutter text nodes with zero opacity', () {
     final nodes = parseOhosUiNodes(
       jsonEncode({
         'attributes': {'bounds': '[0,0][1272,2756]'},
@@ -93,6 +93,9 @@ actions:
       }),
     );
 
-    expect(nodes.map((node) => node.label), ['Permission.microphone']);
+    expect(nodes.map((node) => node.label), [
+      'Permission.camera',
+      'Permission.microphone',
+    ]);
   });
 }

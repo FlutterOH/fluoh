@@ -61,7 +61,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -129,6 +129,9 @@ repository:
     url: git@github.com:FlutterOH/camera.git
     branch: ohos/3.35/camera
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages.git
@@ -149,7 +152,7 @@ package:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -194,7 +197,7 @@ package:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

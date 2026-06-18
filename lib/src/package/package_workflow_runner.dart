@@ -44,6 +44,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
   Duration logDuration = const Duration(seconds: 8),
   String? preset,
   String? phase,
+  String? traceDir,
 }) async {
   final repository = environment.workingDirectory;
   final packageRoot = packageDirectory(repository, package.path);
@@ -75,6 +76,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       flutter: isFlutterPackage,
       arguments: const ['pub', 'get'],
       result: packagePubGet,
+      traceDir: traceDir,
     ),
   );
   if (packagePubGet.exitCode != 0) {
@@ -107,6 +109,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       flutter: isFlutterPackage,
       arguments: const ['analyze'],
       result: packageAnalyze,
+      traceDir: traceDir,
     ),
   );
   if (packageAnalyze.exitCode != 0) {
@@ -141,6 +144,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         flutter: isFlutterPackage,
         arguments: const ['test'],
         result: packageTest,
+        traceDir: traceDir,
       ),
     );
     if (packageTest.exitCode != 0) {
@@ -232,6 +236,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       flutter: true,
       arguments: const ['pub', 'get'],
       result: examplePubGet,
+      traceDir: traceDir,
     ),
   );
   if (examplePubGet.exitCode != 0) {
@@ -264,6 +269,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       flutter: true,
       arguments: const ['analyze'],
       result: exampleAnalyze,
+      traceDir: traceDir,
     ),
   );
   if (exampleAnalyze.exitCode != 0) {
@@ -312,6 +318,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         flutter: true,
         arguments: const ['test'],
         result: exampleTest,
+        traceDir: traceDir,
       ),
     );
     if (exampleTest.exitCode != 0) {
@@ -375,6 +382,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
         policy: buildPolicy,
         debug: buildExampleDebug,
         autoSign: autoSignExample,
+        traceDir: traceDir,
       ),
     );
     steps.addAll(buildPreparation.steps);
@@ -511,6 +519,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
           packageName: package.name,
           debug: buildExampleDebug,
           autoSign: autoSignExample,
+          traceDir: traceDir,
         ),
       ),
     );
@@ -547,6 +556,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
       buildNextCommand: runPlatform.buildCommand(
         packageName: package.name,
         autoSign: autoSignExample,
+        traceDir: traceDir,
       ),
     );
     steps.addAll(preparation.steps);
@@ -616,6 +626,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
                   nextCommand: _nextCommandForDiagnosticCode(
                     diagnostic.code,
                     package.name,
+                    traceDir: traceDir,
                   ),
                 ),
               )
@@ -698,6 +709,7 @@ Future<WorkflowTargetResult> runPackageWorkflow({
               deviceId: deviceId,
               startEmulator: startEmulator,
               emulatorName: emulatorName,
+              traceDir: traceDir,
             ),
             details: {
               'platform': runResult.platform,

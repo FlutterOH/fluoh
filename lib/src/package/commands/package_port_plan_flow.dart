@@ -1,6 +1,6 @@
-part of 'package_create_command.dart';
+part of 'package_port_command.dart';
 
-extension on PackageCreateCommand {
+extension on PackagePortCommand {
   Future<int> _runPlan({
     required String upstream,
     required List<String> packagePaths,
@@ -20,7 +20,7 @@ extension on PackageCreateCommand {
       if (!json) {
         _output.step('Inspecting upstream repository');
       }
-      final cloneMode = await _cloneUpstreamForPackageCreatePlan(
+      final cloneMode = await _cloneUpstreamForPackagePortPlan(
         upstream: upstream,
         scratchRepository: scratchRepository,
         packagePaths: packagePaths,
@@ -34,7 +34,7 @@ extension on PackageCreateCommand {
         scratchRepository,
         branch: upstreamBranch,
       );
-      await _prepareUpstreamRefsForPackageCreatePlan(
+      await _prepareUpstreamRefsForPackagePortPlan(
         repository: scratchRepository,
         cloneMode: cloneMode,
         packagePaths: packagePaths,
@@ -70,7 +70,7 @@ extension on PackageCreateCommand {
             selected: selected,
             missingPlatform: 'ohos',
           );
-      final adaptationProfile = await _adaptationProfileForSelectedPackage(
+      final supportProfile = await _supportProfileForSelectedPackage(
         repository: scratchRepository,
         selected: selected,
       );
@@ -87,11 +87,11 @@ extension on PackageCreateCommand {
             .toList(),
         sdkDirectory: SdkManager(environment).sdkDirectory(release.tag),
       );
-      final warnings = <_PackageCreateWarning>[
+      final warnings = <_PackagePortWarning>[
         ?defaultBranchVersionWarning,
         ...compatibilityWarnings.map(_SdkCompatibilityPlanWarning.new),
       ];
-      final plan = _PackageCreatePlan(
+      final plan = _PackagePortPlan(
         upstream: upstream,
         upstreamBranch: upstreamBranch,
         repositoryName: repositoryName,
@@ -107,14 +107,14 @@ extension on PackageCreateCommand {
         branch: branch,
         gitAuthor: gitAuthor,
         flutterCreateOrg: flutterCreateOrg,
-        adaptationProfile: adaptationProfile,
+        supportProfile: supportProfile,
         implementationRecommendation: implementationRecommendation,
         warnings: warnings,
       );
       if (json) {
         writeMachineOutput(
           _stdout,
-          command: 'package create',
+          command: 'package port',
           ok: true,
           exitCode: 0,
           fields: {'changed': false, 'applied': false, 'plan': plan.toJson()},
@@ -130,17 +130,15 @@ extension on PackageCreateCommand {
     }
   }
 
-  void _printPlan(_PackageCreatePlan plan) {
-    _output.success('Package creation plan');
+  void _printPlan(_PackagePortPlan plan) {
+    _output.success('Package port plan');
     _output.info('Repository name: ${plan.repositoryName}');
     _output.info('Output path: ${_output.style.path(plan.outputPath)}');
     _output.info('Origin: ${_output.style.url(plan.repositoryUrl)}');
     _output.info('Package: ${plan.packageName} at ${plan.packagePath}');
     _output.info('SDK: ${plan.sdkVersion} (${plan.sdkLine})');
     _output.info('Branch: ${plan.branch}');
-    _output.info(
-      'Adaptation profile: ${_planProfileLabel(plan.adaptationProfile)}',
-    );
+    _output.info('Support profile: ${_planProfileLabel(plan.supportProfile)}');
     if (plan.gitAuthor != null) {
       _output.info(
         'Git author: ${plan.gitAuthor!.name} <${plan.gitAuthor!.email}>',
@@ -169,27 +167,27 @@ extension on PackageCreateCommand {
     _output.next('Run without --plan after confirming these values');
   }
 
-  Future<PackageAdaptationProfile> _adaptationProfileForSelectedPackage({
+  Future<PackageSupportProfile> _supportProfileForSelectedPackage({
     required Directory repository,
     required _SelectedPackage selected,
   }) async {
-    final discovery = await discoverPackageAdaptationCandidates(
+    final discovery = await discoverPackageSupportCandidates(
       repository: repository,
       includeExistingPlatform: true,
     );
     for (final candidate in discovery.candidates) {
       if (candidate.path == selected.path ||
           candidate.name == selected.package.name) {
-        return candidate.adaptationProfile;
+        return candidate.supportProfile;
       }
     }
-    return inferPackageAdaptationProfile(
+    return inferPackageSupportProfile(
       name: selected.package.name,
       path: selected.path,
     );
   }
 
-  String _planProfileLabel(PackageAdaptationProfile profile) {
+  String _planProfileLabel(PackageSupportProfile profile) {
     final categories = profile.categories.take(3).join(', ');
     if (categories.isEmpty) {
       return profile.complexity;

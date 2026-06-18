@@ -325,6 +325,55 @@ repository:
     expect(stderr, isEmpty);
   });
 
+  test(
+    'source stats summarizes FlutterOH SDK package coverage as json',
+    () async {
+      final baseEnvironment = await createTestEnvironment();
+      final defaultSource = await createPackageSourceFixture(
+        baseEnvironment.homeDirectory.parent,
+      );
+      await initializeGitRepository(defaultSource);
+      final environment = FluohEnvironment(
+        homeDirectory: baseEnvironment.homeDirectory,
+        workingDirectory: baseEnvironment.workingDirectory,
+        processEnvironment: {
+          'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+        },
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      await environment.homeDirectory.delete(recursive: true);
+
+      expect(
+        await runFluoh(
+          ['source', 'stats', '--sdk', '3.35.8-ohos-0.0.3', '--json'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      expect(stderr, isEmpty);
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'source stats'));
+      expect(report, containsPair('ok', true));
+      expect(report, containsPair('packageCount', 2));
+      final sdks = report['sdks'] as List<Object?>;
+      expect(sdks, hasLength(1));
+      final sdk = sdks.single as Map<String, Object?>;
+      expect(sdk, containsPair('version', '3.35.8-ohos-0.0.3'));
+      expect(sdk, containsPair('line', '3.35'));
+      expect(sdk, containsPair('compatibleCount', 2));
+      expect(sdk, containsPair('experimentalCount', 0));
+      expect(sdk, containsPair('brokenCount', 0));
+      final packagesByStatus = sdk['packagesByStatus'] as Map<String, Object?>;
+      expect(packagesByStatus['implemented'], contains('camera'));
+      expect(packagesByStatus['implemented'], contains('share_plus'));
+    },
+  );
+
   test('lists sources as json without decorated repair progress', () async {
     final root = await Directory.systemTemp.createTemp('fluoh_cli_');
     addTearDown(() async {
@@ -511,7 +560,7 @@ repository:
 
     expect(stdout, isEmpty);
     expect(stderr.join('\n'), contains('Source local cache is missing'));
-    expect(stderr.join('\n'), contains('fluoh source add local <path>'));
+    expect(stderr.join('\n'), contains('fluoh source enable local <path>'));
   });
 
   test('reports malformed source configuration without replacing it', () async {
@@ -606,7 +655,7 @@ repository:
     expect(File('${victim.path}/keep.txt').readAsStringSync(), 'user file\n');
   });
 
-  test('adds, lists, and updates a named pub source', () async {
+  test('enables, lists, and updates a named pub source', () async {
     final baseEnvironment = await createTestEnvironment();
     final defaultSource = await createPackageSourceFixture(
       baseEnvironment.homeDirectory.parent,
@@ -636,7 +685,7 @@ repository:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -662,7 +711,7 @@ repository:
       0,
     );
 
-    expect(stdout, contains('Added source fixture: ${source.path}'));
+    expect(stdout, contains('Enabled source fixture: ${source.path}'));
     expect(stdout, contains('[2] fixture ${Uri.file(source.path)}'));
     expect(stdout, contains('Updated source fixture'));
     expect(File('${cachedSource.path}/fluoh.yaml').existsSync(), isTrue);
@@ -679,6 +728,119 @@ repository:
     expect(Directory('${cachedSource.path}/packages').existsSync(), isFalse);
     expect(Directory('${cachedSource.path}/.git').existsSync(), isFalse);
     expect(stderr, isEmpty);
+  });
+
+  test('enables, updates, and disables a source as json', () async {
+    final baseEnvironment = await createTestEnvironment();
+    final defaultSource = await createPackageSourceFixture(
+      baseEnvironment.homeDirectory.parent,
+    );
+    await initializeGitRepository(defaultSource);
+    final environment = FluohEnvironment(
+      homeDirectory: baseEnvironment.homeDirectory,
+      workingDirectory: baseEnvironment.workingDirectory,
+      processEnvironment: {
+        'FLUOH_DEFAULT_SOURCE_URL': 'file://${defaultSource.path}',
+      },
+    );
+    final source = await createPackageSourceFixture(environment.homeDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'source',
+          'enable',
+          'fixture',
+          source.path,
+          '--priority',
+          '30',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final enableReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(enableReport, containsPair('schema', 1));
+    expect(enableReport, containsPair('command', 'source enable'));
+    expect(enableReport, containsPair('ok', true));
+    expect(enableReport, containsPair('exitCode', 0));
+    expect(enableReport, containsPair('name', 'fixture'));
+    expect(enableReport, containsPair('source', source.path));
+    expect(enableReport, containsPair('url', Uri.file(source.path).toString()));
+    expect(
+      enableReport,
+      containsPair('path', '${environment.homeDirectory.path}/sources/fixture'),
+    );
+    expect(enableReport, containsPair('priority', 30));
+    expect(
+      File(
+        '${environment.homeDirectory.path}/sources/fixture/fluoh.yaml',
+      ).existsSync(),
+      isTrue,
+    );
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['source', 'update', 'fixture', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final updateReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(updateReport, containsPair('schema', 1));
+    expect(updateReport, containsPair('command', 'source update'));
+    expect(updateReport, containsPair('ok', true));
+    expect(updateReport, containsPair('exitCode', 0));
+    expect(updateReport, containsPair('count', 1));
+    final updatedSources = updateReport['sources'] as List<Object?>;
+    expect(
+      updatedSources.single,
+      allOf(
+        containsPair('name', 'fixture'),
+        containsPair('source', Uri.file(source.path).toString()),
+        containsPair('url', Uri.file(source.path).toString()),
+        containsPair(
+          'path',
+          '${environment.homeDirectory.path}/sources/fixture',
+        ),
+        containsPair('priority', 30),
+      ),
+    );
+
+    stdout.clear();
+    expect(
+      await runFluoh(
+        ['source', 'disable', 'fixture', '--json'],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    expect(stdout, hasLength(1));
+    final disableReport = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(disableReport, containsPair('schema', 1));
+    expect(disableReport, containsPair('command', 'source disable'));
+    expect(disableReport, containsPair('ok', true));
+    expect(disableReport, containsPair('exitCode', 0));
+    expect(disableReport, containsPair('name', 'fixture'));
+    expect(disableReport, containsPair('disabled', true));
   });
 
   test('creates a complete local source template', () async {
@@ -698,7 +860,7 @@ repository:
     );
     expect(
       await runFluoh(
-        ['source', 'add', 'local', source.path],
+        ['source', 'enable', 'local', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -743,9 +905,9 @@ description: "Local FlutterOH source maintained by fluoh users."
     expect(stdout.join('\n'), contains('fluoh source sync ${source.path}'));
     expect(
       stdout.join('\n'),
-      contains('fluoh source add <name> ${source.path}'),
+      contains('fluoh source enable <name> ${source.path}'),
     );
-    expect(stdout, contains('Added source local: ${source.path}'));
+    expect(stdout, contains('Enabled source local: ${source.path}'));
     expect(stderr, isEmpty);
   });
 
@@ -771,7 +933,7 @@ description: "Local FlutterOH source maintained by fluoh users."
 
       expect(File('${source.path}/fluoh.yaml').existsSync(), isTrue);
       final readme = File('${source.path}/README.md').readAsStringSync();
-      expect(readme, contains('fluoh source add <name> .'));
+      expect(readme, contains('fluoh source enable <name> .'));
       expect(readme, contains('fluoh source sync .'));
       expect(readme, contains('fluoh.yaml'));
       expect(readme, contains('manifests/example/fluoh.yaml'));
@@ -791,7 +953,7 @@ description: "Local FlutterOH source maintained by fluoh users."
 
     expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -850,7 +1012,7 @@ description: "Local FlutterOH source maintained by fluoh users."
 
     expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -912,7 +1074,7 @@ description: "Local FlutterOH source maintained by fluoh users."
     );
     expect(
       await runFluoh(
-        ['source', 'add', 'empty', source.path],
+        ['source', 'enable', 'empty', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -940,7 +1102,7 @@ description: "Local FlutterOH source maintained by fluoh users."
     expect(lock['packageRoutes'], isEmpty);
 
     expect(stdout, contains('Created local source template at ${source.path}'));
-    expect(stdout, contains('Added source empty: ${source.path}'));
+    expect(stdout, contains('Enabled source empty: ${source.path}'));
     expect(stderr, isEmpty);
   });
 }

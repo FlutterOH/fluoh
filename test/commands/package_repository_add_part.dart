@@ -1,7 +1,7 @@
-part of 'package_create_command_test.dart';
+part of 'package_repository_command_test.dart';
 
-void _registerPackageCreateAddTests() {
-  test('rejects package create --json without --plan', () async {
+void _registerPackageRepositoryAddTests() {
+  test('rejects package port --json without --plan', () async {
     final environment = await createTestEnvironment();
     final stdout = <String>[];
     final stderr = <String>[];
@@ -10,7 +10,7 @@ void _registerPackageCreateAddTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           'https://github.com/example/camera.git',
           '--repository-name',
           'camera',
@@ -26,12 +26,12 @@ void _registerPackageCreateAddTests() {
     expect(stderr, isEmpty);
     expect(stdout, hasLength(1));
     final payload = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(payload['command'], 'package create');
+    expect(payload['command'], 'package port');
     expect(payload['ok'], isFalse);
     expect(payload['exitCode'], 64);
     expect(payload['error'], {
       'type': 'usage',
-      'message': '--json is supported only with --plan for package create.',
+      'message': '--json is supported only with --plan for package port.',
     });
   });
 
@@ -54,7 +54,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -64,7 +64,7 @@ void _registerPackageCreateAddTests() {
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'flutter-widgets-root',
@@ -123,7 +123,7 @@ void _registerPackageCreateAddTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -133,7 +133,7 @@ void _registerPackageCreateAddTests() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--repository-name',
             'syncfusion_flutter_pdf',
@@ -201,7 +201,7 @@ void _registerPackageCreateAddTests() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             'https://github.com/flutter/packages.git',
             '--package-path',
             'packages/syncfusion_flutter_pdf',
@@ -225,7 +225,7 @@ void _registerPackageCreateAddTests() {
     },
   );
 
-  test('rejects package create with multiple package paths', () async {
+  test('rejects package port with multiple package paths', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamWorkspaceRepository(
@@ -246,7 +246,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -255,7 +255,7 @@ void _registerPackageCreateAddTests() {
     final createResult = await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -275,7 +275,7 @@ void _registerPackageCreateAddTests() {
     expect(createResult, 64);
     expect(
       stderr.join('\n'),
-      contains('package create creates one package branch'),
+      contains('package port creates one package branch'),
     );
     expect(packageRepository.existsSync(), isFalse);
   });
@@ -305,7 +305,7 @@ void _registerPackageCreateAddTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -315,7 +315,7 @@ void _registerPackageCreateAddTests() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--package-path',
             'packages/camera/camera',
@@ -363,7 +363,7 @@ void _registerPackageCreateAddTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -373,7 +373,7 @@ void _registerPackageCreateAddTests() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--repository-name',
             'camera',
@@ -394,7 +394,7 @@ void _registerPackageCreateAddTests() {
       );
       expect(
         stderr.join('\n'),
-        contains('package create creates one package branch'),
+        contains('package port creates one package branch'),
       );
       expect(packageRepository.existsSync(), isFalse);
     },
@@ -422,7 +422,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -430,7 +430,7 @@ void _registerPackageCreateAddTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -485,34 +485,30 @@ void _registerPackageCreateAddTests() {
     expect(pubspec, contains('version: 9.1.0'));
     expect(pubspec, isNot(contains('version: 10.0.0')));
     const packages = [
-      _GuidancePackage(
+      _ContextPackage(
         name: 'share_plus',
         version: '9.1.0',
         path: 'packages/share_plus/share_plus',
       ),
     ];
     final guide = File('${packageRepository.path}/FLUOH.md').readAsStringSync();
-    _expectImplementationGuide(guide, packages: packages);
-    final agents = File(
-      '${packageRepository.path}/AGENTS.md',
-    ).readAsStringSync();
-    _expectAgentsInstructions(agents, packages: packages);
-    expect(agents, isNot(contains('Upstream branch at creation')));
+    _expectPackageContext(guide, packages: packages);
+    expect(File('${packageRepository.path}/AGENTS.md').existsSync(), isFalse);
     final readme = File(
       '${packageRepository.path}/README.md',
     ).readAsStringSync();
-    _expectReadmeAdaptation(readme, package: packages.single);
-    final changelog = File(
-      '${packageRepository.path}/FLUOH_CHANGELOG.md',
-    ).readAsStringSync();
-    _expectChangelogEntry(changelog, 'share_plus-9.1.0-ohos-3.35-0.1.0');
+    expect(readme, '# workspace\n');
+    _expectChangelogEntry(guide, 'share_plus-9.1.0-ohos-3.35-0.1.0');
     final status = await runGit(packageRepository, ['status', '--porcelain']);
     expect(status.stdout.toString(), contains('A  .gitignore'));
     expect(status.stdout.toString(), contains('A  fluoh.yaml'));
-    expect(status.stdout.toString(), contains('A  AGENTS.md'));
     expect(status.stdout.toString(), contains('A  FLUOH.md'));
-    expect(status.stdout.toString(), contains('A  FLUOH_CHANGELOG.md'));
-    expect(status.stdout.toString(), contains('M  README.md'));
+    expect(
+      status.stdout.toString(),
+      contains('A  doc/fluoh/share_plus/spec.md'),
+    );
+    expect(status.stdout.toString(), isNot(contains('AGENTS.md')));
+    expect(status.stdout.toString(), isNot(contains('README.md')));
     expect(status.stdout.toString(), isNot(contains('.fluoh')));
     expect(
       File('${packageRepository.path}/.gitignore').readAsStringSync(),
@@ -527,7 +523,7 @@ void _registerPackageCreateAddTests() {
 
   test('package add creates a clean package branch from upstream', () async {
     final environment = await createTestEnvironment();
-    final source = await _createPackageCreateSdkSource(
+    final source = await _createPackageRepositorySdkSource(
       environment.homeDirectory,
       logName: 'package_add_rollback_flutter_args.log',
     );
@@ -550,7 +546,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -558,7 +554,7 @@ void _registerPackageCreateAddTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -604,7 +600,7 @@ void _registerPackageCreateAddTests() {
 
   test('package add prints a read-only plan as JSON', () async {
     final environment = await createTestEnvironment();
-    final source = await _createPackageCreateSdkSource(
+    final source = await _createPackageRepositorySdkSource(
       environment.homeDirectory,
       logName: 'package_add_plan_flutter_args.log',
     );
@@ -627,7 +623,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -635,7 +631,7 @@ void _registerPackageCreateAddTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -714,7 +710,7 @@ void _registerPackageCreateAddTests() {
 
   test('package queue resolves multiple package add commands as JSON', () async {
     final environment = await createTestEnvironment();
-    final source = await _createPackageCreateSdkSource(
+    final source = await _createPackageRepositorySdkSource(
       environment.homeDirectory,
       logName: 'package_queue_flutter_args.log',
     );
@@ -742,7 +738,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -750,7 +746,7 @@ void _registerPackageCreateAddTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -814,7 +810,7 @@ void _registerPackageCreateAddTests() {
 
   test('package add can use an explicit version removed from main', () async {
     final environment = await createTestEnvironment();
-    final source = await _createPackageCreateSdkSource(
+    final source = await _createPackageRepositorySdkSource(
       environment.homeDirectory,
       logName: 'package_add_removed_flutter_args.log',
     );
@@ -842,7 +838,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -850,7 +846,7 @@ void _registerPackageCreateAddTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -903,7 +899,7 @@ void _registerPackageCreateAddTests() {
 
   test('package add uses latest package tag removed from main', () async {
     final environment = await createTestEnvironment();
-    final source = await _createPackageCreateSdkSource(
+    final source = await _createPackageRepositorySdkSource(
       environment.homeDirectory,
       logName: 'package_add_removed_latest_flutter_args.log',
     );
@@ -939,7 +935,7 @@ void _registerPackageCreateAddTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -947,7 +943,7 @@ void _registerPackageCreateAddTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',

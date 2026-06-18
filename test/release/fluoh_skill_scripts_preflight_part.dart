@@ -47,44 +47,44 @@ sdk:
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 9.9.9');
       expect(schema['status'], 'current');
-      expect(upgradeChecks['needsMigration'], isFalse);
+      expect(upgradeChecks['blocksEditing'], isFalse);
       expect(
-        report['adaptPlanCommand'],
+        report['supportPlanCommand'],
         'fluoh plan app --sdk 3.35.8-ohos-0.0.3 --json',
       );
-      const appTraceDir = '.fluoh/traces/example_app/adaptation';
       final appRegressionCommands = [
         'fluoh doctor --platform android --json --strict',
-        'fluoh run android --auto-emulator --json --trace-dir $appTraceDir',
-        'fluoh drive android --dry-run --json --trace-dir $appTraceDir',
-        'fluoh drive android --json --trace-dir $appTraceDir',
+        'fluoh run android --auto-emulator --json --trace',
+        'fluoh drive android --dry-run --json --trace',
+        'fluoh drive android --json --trace',
         if (Platform.isLinux) ...[
           'fluoh doctor --platform linux --json --strict',
-          'fluoh build linux --json --trace-dir $appTraceDir',
+          'fluoh build linux --json --trace',
         ],
         'fluoh doctor --platform web --json --strict',
-        'fluoh run web --json --trace-dir $appTraceDir',
+        'fluoh run web --json --trace',
         if (Platform.isWindows) ...[
           'fluoh doctor --platform windows --json --strict',
-          'fluoh build windows --json --trace-dir $appTraceDir',
+          'fluoh build windows --json --trace',
         ],
       ];
       expect(stringList(report['suggestedCommands']), [
+        'fluoh task start --type appSupport --scope example_app --json',
         'fluoh source update',
         'fluoh sdk use 3.35.8-ohos-0.0.3 --pub-get',
         'fluoh deps check --json',
-        'fluoh deps fix --dry-run',
+        'fluoh deps fix --dry-run --json',
         'fluoh deps fix',
         'fluoh deps get',
         'fluoh doctor --platform ohos --project --json --strict',
-        'fluoh build ohos --auto-sign --json --trace-dir $appTraceDir',
+        'fluoh build ohos --auto-sign --json --trace',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
-        'fluoh run ohos --auto-emulator --json --trace-dir $appTraceDir',
-        'fluoh drive ohos --dry-run --json --trace-dir $appTraceDir',
-        'fluoh drive ohos --json --trace-dir $appTraceDir',
+        'fluoh run ohos --auto-emulator --json --trace',
+        'fluoh drive ohos --dry-run --json --trace',
+        'fluoh drive ohos --json --trace',
         ...appRegressionCommands,
-        'fluoh report create --scope example_app --trace-dir $appTraceDir --json',
+        'fluoh report create --scope example_app --json',
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
       ]);
       final commandQueue = (report['commandQueue'] as List<Object?>)
@@ -92,6 +92,22 @@ sdk:
       expect(
         commandQueue.map((item) => item['command']).toList(),
         stringList(report['suggestedCommands']),
+      );
+      expect(
+        commandQueue,
+        contains(
+          allOf(
+            containsPair('phase', 'task'),
+            containsPair(
+              'command',
+              'fluoh task start --type appSupport --scope example_app --json',
+            ),
+            containsPair('mutating', isTrue),
+            containsPair('requiresApproval', isTrue),
+            containsPair('expectedEvidence', 'current local task workspace'),
+            containsPair('mustCompleteForDelivery', isFalse),
+          ),
+        ),
       );
       expect(
         commandQueue,
@@ -112,7 +128,7 @@ sdk:
             containsPair('phase', 'regression'),
             containsPair(
               'command',
-              'fluoh run android --auto-emulator --json --trace-dir $appTraceDir',
+              'fluoh run android --auto-emulator --json --trace',
             ),
             containsPair('expectedEvidence', contains('functional regression')),
           ),
@@ -163,12 +179,12 @@ sdk:
       expect(stringList(report['finalCheckCommands']), [
         'git diff --check',
         'fluoh doctor --platform ohos --project --json --strict',
-        'fluoh build ohos --auto-sign --json --trace-dir $appTraceDir',
+        'fluoh build ohos --auto-sign --json --trace',
         'fluoh devices --platform ohos --json',
         'fluoh emulators --platform ohos --json',
-        'fluoh run ohos --auto-emulator --json --trace-dir $appTraceDir',
-        'fluoh drive ohos --dry-run --json --trace-dir $appTraceDir',
-        'fluoh drive ohos --json --trace-dir $appTraceDir',
+        'fluoh run ohos --auto-emulator --json --trace',
+        'fluoh drive ohos --dry-run --json --trace',
+        'fluoh drive ohos --json --trace',
         ...appRegressionCommands,
         'python3 <skill-dir>/scripts/check_report.py <report-path>',
       ]);
@@ -205,14 +221,14 @@ sdk:
         containsAll([
           contains('existing tests and integration tests were reviewed'),
           contains('functional evidence validates'),
-          contains('every existing non-OHOS platform directory'),
+          contains('every existing platform directory'),
           contains('reportCheckCommand passes'),
         ]),
       );
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/reports/example_app/report-<timestamp>.md'),
+          contains('current task report'),
           contains('add or repair missing functional tests'),
           contains('Record deps, doctor, build, and run command results'),
           contains('State ready, blocked, or needs maintainer decision'),
@@ -254,6 +270,29 @@ sdk:
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
 
+  test('preflight accepts an explicit json flag', () async {
+    final root = await createTempRoot();
+    addTearDown(() => root.delete(recursive: true));
+    final fluoh = await writeFakeFluoh(root);
+
+    await File('${root.path}/pubspec.yaml').writeAsString('''
+name: example_app
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+
+    final report = await runPreflight(
+      root,
+      fluohCommand: fluoh.path,
+      extraArgs: const ['--json'],
+    );
+
+    expect(report['schema'], 1);
+    expect((report['fluohSetup'] as Map<String, Object?>)['status'], 'ready');
+    expect((report['project'] as Map<String, Object?>)['kind'], 'app-project');
+  });
+
   test(
     'preflight accepts a multi-word fluoh command',
     () async {
@@ -274,8 +313,19 @@ dependencies:
       );
       final fluohResult = report['fluoh'] as Map<String, Object?>;
 
+      expect(report['fluohCommand'], '${dartRunner.path} run bin/fluoh.dart');
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 8.8.8');
+      expect(
+        stringList(report['executableSuggestedCommands']),
+        contains('${dartRunner.path} run bin/fluoh.dart source update'),
+      );
+      final commandQueue = (report['executableCommandQueue'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        commandQueue.map((item) => item['command']),
+        contains('${dartRunner.path} run bin/fluoh.dart source update'),
+      );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -371,7 +421,7 @@ dependencies:
       expect(project['name'], 'Example App');
       expect(
         stringList(report['deliveryChecks']),
-        contains(contains('.fluoh/reports/Example-App/report-<timestamp>.md')),
+        contains(contains('current task report')),
       );
       expect(
         report['reportCommand'],
@@ -424,7 +474,7 @@ dependencies:
         stringList(automationRunbook['executionRules']),
         contains(contains('fluohSetup.status is needs-cli-setup')),
       );
-      expect(report['adaptPlanCommand'], 'fluoh plan app --json');
+      expect(report['supportPlanCommand'], 'fluoh plan app --json');
       expect(
         stringList(report['suggestedCommands']),
         containsAll([
@@ -478,7 +528,7 @@ exit 1
           'Use a native/Homebrew fluoh executable, set FLUOH_BIN to a working fluoh, or pass --fluoh-command with a local checkout command.',
         ),
       );
-      expect(report['adaptPlanCommand'], 'fluoh plan app --json');
+      expect(report['supportPlanCommand'], 'fluoh plan app --json');
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -501,7 +551,7 @@ dependencies:
 
       expect(project['kind'], 'dart-package');
       expect(project['isFlutter'], isFalse);
-      expect(report['adaptPlanCommand'], isNull);
+      expect(report['supportPlanCommand'], isNull);
       expect(
         stringList(report['suggestedCommands']).single,
         contains('not a Flutter app or FlutterOH package repository'),
@@ -532,6 +582,7 @@ dependencies:
       final report =
           jsonDecode(result.stdout.toString()) as Map<String, Object?>;
       final fluohResult = report['fluoh'] as Map<String, Object?>;
+      expect(report['fluohCommand'], fluoh.path);
       expect(fluohResult['ok'], isTrue);
       expect(fluohResult['stdout'], 'fluoh 9.9.9');
     },
@@ -587,7 +638,7 @@ dependencies:
       expect(
         stringList(report['suggestedCommands'])[1],
         allOf([
-          contains('fluoh package create'),
+          contains('fluoh package port'),
           contains('--plan --json'),
           contains('--repository-name camera'),
           contains('--repository <flutteroh-repo-url-or-path>'),
@@ -601,7 +652,7 @@ dependencies:
       expect(
         stringList(report['suggestedCommands'])[2],
         allOf([
-          contains('fluoh package create'),
+          contains('fluoh package port'),
           isNot(contains('--plan')),
           contains('--repository-name camera'),
           contains('--repository <flutteroh-repo-url-or-path>'),
@@ -614,8 +665,27 @@ dependencies:
       );
       expect(
         stringList(report['suggestedCommands']),
+        containsAllInOrder([
+          'cd ../camera_ohos',
+          'fluoh task start --type packageSupport --scope camera --package camera --json',
+          'fluoh package next --package camera --json',
+        ]),
+      );
+      final commandQueue = (report['commandQueue'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(
+        commandQueue,
         contains(
-          'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          allOf(
+            containsPair('phase', 'task'),
+            containsPair(
+              'command',
+              'fluoh task start --type packageSupport --scope camera --package camera --json',
+            ),
+            containsPair('mutating', isTrue),
+            containsPair('requiresApproval', isTrue),
+            containsPair('expectedEvidence', 'current local task workspace'),
+          ),
         ),
       );
       expect(stringList(report['finalCheckCommands']), isEmpty);
@@ -658,6 +728,19 @@ kind: package
 sdk:
   version: 3.35.8-ohos-0.0.3
 
+repository:
+  git:
+    url: https://github.com/FlutterOH/camera.git
+    branch: ohos/3.35/camera
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
 package:
   name: camera
   path: packages/camera/camera
@@ -684,7 +767,6 @@ package:
       final examplePlatforms =
           package['examplePlatforms'] as Map<String, Object?>;
       final upgradeChecks = report['upgradeChecks'] as Map<String, Object?>;
-      final packageDocs = upgradeChecks['packageDocs'] as Map<String, Object?>;
 
       expect(project['kind'], 'package-repository');
       expect(project['hasPackageBranch'], isTrue);
@@ -699,35 +781,16 @@ package:
         (upgradeChecks['schema'] as Map<String, Object?>)['status'],
         'current',
       );
-      expect(upgradeChecks['needsMigration'], isFalse);
-      expect(packageDocs['needsRefresh'], isTrue);
+      expect(upgradeChecks['blocksEditing'], isFalse);
       expect(
-        report['adaptPlanCommand'],
+        report['supportPlanCommand'],
         'fluoh plan package --package camera --json',
-      );
-      expect(
-        packageDocs['dryRunCommand'],
-        'fluoh package docs refresh --dry-run',
       );
       expect(
         stringList(report['suggestedCommands']),
         containsAllInOrder([
-          'fluoh package docs refresh --dry-run',
-          'fluoh package docs refresh',
-          'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh devices --platform ohos --json',
-          'fluoh emulators --platform ohos --json',
-          'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh doctor --platform android --json --strict',
-          'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh doctor --platform web --json --strict',
-          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'python3 <skill-dir>/scripts/check_report.py <report-path>',
+          'fluoh package next --package camera --json',
+          'fluoh package status --package camera --json',
           'fluoh package handoff --package camera --json',
           'fluoh package check --package camera --report <report-path> --json',
         ]),
@@ -738,72 +801,39 @@ package:
         commandQueue,
         contains(
           allOf(
-            containsPair('command', 'fluoh package docs refresh --dry-run'),
-            containsPair('mutating', isFalse),
-            containsPair('requiresApproval', isFalse),
-          ),
-        ),
-      );
-      expect(
-        commandQueue,
-        contains(
-          allOf(
-            containsPair('command', 'fluoh package docs refresh'),
-            containsPair('mutating', isTrue),
-            containsPair('requiresApproval', isTrue),
-          ),
-        ),
-      );
-      expect(
-        commandQueue,
-        contains(
-          allOf(
-            containsPair('phase', 'regression'),
+            containsPair('phase', 'implementation-loop'),
             containsPair(
               'command',
-              'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
+              'fluoh package next --package camera --json',
             ),
-            containsPair('expectedEvidence', contains('functional regression')),
-          ),
-        ),
-      );
-      expect(
-        commandQueue,
-        contains(
-          allOf(
-            containsPair('phase', 'report-check'),
-            containsPair(
-              'command',
-              'python3 <skill-dir>/scripts/check_report.py <report-path>',
-            ),
-            containsPair('mutating', isFalse),
-            containsPair('requiresApproval', isFalse),
-            containsPair(
-              'expectedEvidence',
-              'canonical report validation JSON',
-            ),
+            containsPair('expectedEvidence', contains('nextAction')),
             containsPair('mustCompleteForDelivery', isTrue),
           ),
         ),
       );
       expect(
+        commandQueue,
+        isNot(contains(containsPair('phase', 'report-check'))),
+      );
+      expect(
         stringList(report['finalCheckCommands']),
         containsAllInOrder([
           'git diff --check',
-          'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh package next --package camera --json',
+          'fluoh verify --package camera --json --trace',
+          'fluoh build ohos --package camera --auto-sign --json --trace',
           'fluoh devices --platform ohos --json',
           'fluoh emulators --platform ohos --json',
-          'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive ohos --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run ohos --package camera --auto-emulator --json --trace',
+          'fluoh drive ohos --package camera --dry-run --json --trace',
+          'fluoh drive ohos --package camera --json --trace',
           'fluoh doctor --platform android --json --strict',
-          'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --dry-run --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh run android --package camera --auto-emulator --json --trace',
+          'fluoh drive android --package camera --dry-run --json --trace',
+          'fluoh drive android --package camera --json --trace',
           'fluoh doctor --platform web --json --strict',
-          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh package status --package camera',
+          'fluoh run web --package camera --json --trace',
+          'fluoh package status --package camera --json',
           'python3 <skill-dir>/scripts/check_report.py <report-path>',
           'fluoh package handoff --package camera --json',
           'fluoh package check --package camera --report <report-path> --json',
@@ -825,6 +855,7 @@ package:
       expect(
         stringList(automationRunbook['executionRules']),
         containsAll([
+          contains('run fluoh package next --json'),
           contains('add or repair missing functional tests'),
           contains('every existing platform'),
         ]),
@@ -832,16 +863,14 @@ package:
       expect(deliveryGate['status'], 'active');
       expect(
         stringList(deliveryGate['finalCheckCommands']),
-        contains(
-          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-        ),
+        contains('fluoh drive ohos --package camera --json --trace'),
       );
       expect(
         stringList(deliveryGate['readyRequires']),
         containsAll([
           contains('existing tests and integration tests were reviewed'),
           contains('functional evidence validates the library'),
-          contains('every existing non-OHOS platform directory'),
+          contains('every existing platform directory'),
           contains(
             'fluoh package check --package camera --report <report-path> --json',
           ),
@@ -850,9 +879,9 @@ package:
       expect(
         stringList(report['deliveryChecks']),
         containsAll([
-          contains('.fluoh/reports/camera/report-<timestamp>.md'),
+          contains('current task report'),
           contains('add or repair missing functional tests'),
-          contains('Record verify, status, and package check results'),
+          contains('Record package next, status, and package check results'),
           contains('Review public API compatibility'),
         ]),
       );

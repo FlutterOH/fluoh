@@ -1,3 +1,5 @@
+import '../platform/platform_environment.dart';
+
 /// Platform-specific workflow command and diagnostic routing policy.
 ///
 /// Keep build/run command shapes and repair routing here so project, package,
@@ -60,6 +62,12 @@ abstract class PlatformWorkflowPolicy {
   /// Whether automation scenarios can foreground the app before UI actions.
   bool get supportsScenarioAutoForeground => false;
 
+  /// Whether `fluoh drive` can execute automation for this platform.
+  bool get supportsDriveAutomation => false;
+
+  /// Whether support plans should suggest a `fluoh run` discovery command.
+  bool get suggestsIntegrationDiscoveryRun => false;
+
   /// Whether a stale precompiled header failure should trigger build clean/retry.
   bool get retriesStalePrecompiledHeaderBuildCache => false;
 
@@ -103,6 +111,7 @@ abstract class PlatformWorkflowPolicy {
     bool startEmulator = false,
     String? emulatorName,
     String? sessionFile,
+    bool trace = false,
     String? traceDir,
   }) {
     return [
@@ -114,6 +123,7 @@ abstract class PlatformWorkflowPolicy {
       if (emulatorName != null) '--emulator $emulatorName',
       if (sessionFile != null) '--session-file $sessionFile',
       '--json',
+      if (trace && traceDir == null) '--trace',
       if (traceDir != null) '--trace-dir $traceDir',
     ].join(' ');
   }
@@ -123,6 +133,7 @@ abstract class PlatformWorkflowPolicy {
     String? packageName,
     bool debug = true,
     bool autoSign = false,
+    bool trace = false,
     String? traceDir,
   }) {
     return [
@@ -131,13 +142,22 @@ abstract class PlatformWorkflowPolicy {
       if (!debug) '--no-debug',
       if (autoSign && supportsAutoSign) '--auto-sign',
       '--json',
+      if (trace && traceDir == null) '--trace',
       if (traceDir != null) '--trace-dir $traceDir',
     ].join(' ');
   }
 
   /// Suggested regression command for this platform.
-  String regressionCommand({String? packageName, required String traceDir}) {
-    return runCommand(packageName: packageName, traceDir: traceDir);
+  String regressionCommand({
+    String? packageName,
+    String? traceDir,
+    bool trace = false,
+  }) {
+    return runCommand(
+      packageName: packageName,
+      trace: trace,
+      traceDir: traceDir,
+    );
   }
 
   /// Diagnostic code for a project build or run step.
@@ -155,7 +175,11 @@ abstract class PlatformWorkflowPolicy {
   }
 
   /// Repair command for a package workflow diagnostic.
-  String? packageRepairCommand(String code, String packageName) {
+  String? packageRepairCommand(
+    String code,
+    String packageName, {
+    String? traceDir,
+  }) {
     final suffix = _diagnosticSuffix(code);
     if (suffix == null) {
       return null;
@@ -163,7 +187,7 @@ abstract class PlatformWorkflowPolicy {
     if (_runRepairDiagnostics.contains(suffix) ||
         _emulatorRetryDiagnostics.contains(suffix) ||
         suffix == 'device_missing') {
-      return runCommand(packageName: packageName);
+      return runCommand(packageName: packageName, traceDir: traceDir);
     }
     if (_doctorRepairDiagnostics.contains(suffix)) {
       return doctorCommand();
@@ -230,13 +254,24 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
   bool get supportsScenarioAutoForeground => true;
 
   @override
+  bool get supportsDriveAutomation => true;
+
+  @override
+  bool get suggestsIntegrationDiscoveryRun => true;
+
+  @override
   bool get stabilizesResourceLayoutBeforeBuild => true;
 
   @override
-  String regressionCommand({String? packageName, required String traceDir}) {
+  String regressionCommand({
+    String? packageName,
+    String? traceDir,
+    bool trace = false,
+  }) {
     return runCommand(
       packageName: packageName,
       startEmulator: true,
+      trace: trace,
       traceDir: traceDir,
     );
   }
@@ -263,7 +298,11 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
   };
 
   @override
-  String? packageRepairCommand(String code, String packageName) {
+  String? packageRepairCommand(
+    String code,
+    String packageName, {
+    String? traceDir,
+  }) {
     final suffix = _diagnosticSuffix(code);
     if (suffix == null) {
       return null;
@@ -282,7 +321,11 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
       'runtime_crash',
       'device_missing',
     }.contains(suffix)) {
-      return runCommand(packageName: packageName, startEmulator: true);
+      return runCommand(
+        packageName: packageName,
+        startEmulator: true,
+        traceDir: traceDir,
+      );
     }
     if (const {
       'toolchain_missing',
@@ -290,7 +333,10 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
       'devices_failed',
       'hdc_connection_failed',
       'hdc_targets_failed',
+      'hdc_timeout',
       'hdc_target_unavailable',
+      'emulators_failed',
+      'emulator_missing',
       'emulator_start_failed',
       'device_not_found',
       'device_ambiguous',
@@ -326,6 +372,7 @@ class _OhosWorkflowPolicy extends PlatformWorkflowPolicy {
       'devices_failed',
       'hdc_connection_failed',
       'hdc_targets_failed',
+      'hdc_timeout',
       'emulators_failed',
       'emulator_missing',
       'emulator_start_failed',
@@ -365,10 +412,21 @@ class _AndroidWorkflowPolicy extends PlatformWorkflowPolicy {
   bool get supportsScenarioAutoForeground => true;
 
   @override
-  String regressionCommand({String? packageName, required String traceDir}) {
+  bool get supportsDriveAutomation => true;
+
+  @override
+  bool get suggestsIntegrationDiscoveryRun => true;
+
+  @override
+  String regressionCommand({
+    String? packageName,
+    String? traceDir,
+    bool trace = false,
+  }) {
     return runCommand(
       packageName: packageName,
       startEmulator: true,
+      trace: trace,
       traceDir: traceDir,
     );
   }
@@ -386,7 +444,11 @@ class _AndroidWorkflowPolicy extends PlatformWorkflowPolicy {
   ];
 
   @override
-  String? packageRepairCommand(String code, String packageName) {
+  String? packageRepairCommand(
+    String code,
+    String packageName, {
+    String? traceDir,
+  }) {
     final suffix = _diagnosticSuffix(code);
     if (suffix == null) {
       return null;
@@ -394,7 +456,11 @@ class _AndroidWorkflowPolicy extends PlatformWorkflowPolicy {
     if (_runRepairDiagnostics.contains(suffix) ||
         _emulatorRetryDiagnostics.contains(suffix) ||
         suffix == 'device_missing') {
-      return runCommand(packageName: packageName, startEmulator: true);
+      return runCommand(
+        packageName: packageName,
+        startEmulator: true,
+        traceDir: traceDir,
+      );
     }
     if (_doctorRepairDiagnostics.contains(suffix)) {
       return doctorCommand();
@@ -447,6 +513,12 @@ class _IosWorkflowPolicy extends PlatformWorkflowPolicy {
   bool get retriesStalePrecompiledHeaderBuildCache => true;
 
   @override
+  bool get supportsDriveAutomation => true;
+
+  @override
+  bool get suggestsIntegrationDiscoveryRun => true;
+
+  @override
   List<String> get automationEvidenceItems => const [
     'flutterRunSession JSON',
     'Flutter VM Service URI when exposed',
@@ -454,16 +526,25 @@ class _IosWorkflowPolicy extends PlatformWorkflowPolicy {
   ];
 
   @override
-  String regressionCommand({String? packageName, required String traceDir}) {
+  String regressionCommand({
+    String? packageName,
+    String? traceDir,
+    bool trace = false,
+  }) {
     return runCommand(
       packageName: packageName,
       startEmulator: true,
+      trace: trace,
       traceDir: traceDir,
     );
   }
 
   @override
-  String? packageRepairCommand(String code, String packageName) {
+  String? packageRepairCommand(
+    String code,
+    String packageName, {
+    String? traceDir,
+  }) {
     final suffix = _diagnosticSuffix(code);
     if (suffix == null) {
       return null;
@@ -471,7 +552,11 @@ class _IosWorkflowPolicy extends PlatformWorkflowPolicy {
     if (_runRepairDiagnostics.contains(suffix) ||
         _emulatorRetryDiagnostics.contains(suffix) ||
         suffix == 'device_missing') {
-      return runCommand(packageName: packageName, startEmulator: true);
+      return runCommand(
+        packageName: packageName,
+        startEmulator: true,
+        traceDir: traceDir,
+      );
     }
     if (_doctorRepairDiagnostics.contains(suffix)) {
       return doctorCommand();
@@ -486,6 +571,9 @@ class _IosWorkflowPolicy extends PlatformWorkflowPolicy {
 class _MacosWorkflowPolicy extends _DesktopWorkflowPolicy {
   const _MacosWorkflowPolicy()
     : super(platformName: 'macos', platformLabel: 'macOS');
+
+  @override
+  bool get suggestsIntegrationDiscoveryRun => true;
 }
 
 class _LinuxWorkflowPolicy extends _DesktopWorkflowPolicy {
@@ -493,8 +581,16 @@ class _LinuxWorkflowPolicy extends _DesktopWorkflowPolicy {
     : super(platformName: 'linux', platformLabel: 'Linux');
 
   @override
-  String regressionCommand({String? packageName, required String traceDir}) {
-    return buildCommand(packageName: packageName, traceDir: traceDir);
+  String regressionCommand({
+    String? packageName,
+    String? traceDir,
+    bool trace = false,
+  }) {
+    return buildCommand(
+      packageName: packageName,
+      trace: trace,
+      traceDir: traceDir,
+    );
   }
 }
 
@@ -502,14 +598,21 @@ class _WebWorkflowPolicy extends _DesktopWorkflowPolicy {
   const _WebWorkflowPolicy() : super(platformName: 'web', platformLabel: 'Web');
 
   @override
-  String? packageRepairCommand(String code, String packageName) {
+  bool get suggestsIntegrationDiscoveryRun => true;
+
+  @override
+  String? packageRepairCommand(
+    String code,
+    String packageName, {
+    String? traceDir,
+  }) {
     final suffix = _diagnosticSuffix(code);
     if (suffix == null) {
       return null;
     }
     if (_runRepairDiagnostics.contains(suffix) ||
         _emulatorRetryDiagnostics.contains(suffix)) {
-      return runCommand(packageName: packageName);
+      return runCommand(packageName: packageName, traceDir: traceDir);
     }
     if (_doctorRepairDiagnostics.contains(suffix) ||
         suffix == 'device_missing') {
@@ -548,8 +651,16 @@ class _WindowsWorkflowPolicy extends _DesktopWorkflowPolicy {
     : super(platformName: 'windows', platformLabel: 'Windows');
 
   @override
-  String regressionCommand({String? packageName, required String traceDir}) {
-    return buildCommand(packageName: packageName, traceDir: traceDir);
+  String regressionCommand({
+    String? packageName,
+    String? traceDir,
+    bool trace = false,
+  }) {
+    return buildCommand(
+      packageName: packageName,
+      trace: trace,
+      traceDir: traceDir,
+    );
   }
 }
 
@@ -576,27 +687,26 @@ abstract class _DesktopWorkflowPolicy extends PlatformWorkflowPolicy {
 }
 
 /// Supported workflow platform names.
-const workflowPlatformNames = [
-  'ohos',
-  'android',
-  'ios',
-  'macos',
-  'linux',
-  'web',
-  'windows',
-];
+final List<String> workflowPlatformNames = fluohPlatformCliNames;
+
+/// Platforms that support `fluoh drive` automation.
+final workflowDrivePlatformNames = workflowPlatformNames
+    .where(
+      (platform) => platformWorkflowPolicy(platform).supportsDriveAutomation,
+    )
+    .toList(growable: false);
 
 /// Returns the workflow policy for [platform].
 PlatformWorkflowPolicy platformWorkflowPolicy(String platform) {
-  return switch (platform) {
-    'ohos' => const _OhosWorkflowPolicy(),
-    'android' => const _AndroidWorkflowPolicy(),
-    'ios' => const _IosWorkflowPolicy(),
-    'macos' => const _MacosWorkflowPolicy(),
-    'linux' => const _LinuxWorkflowPolicy(),
-    'web' => const _WebWorkflowPolicy(),
-    'windows' => const _WindowsWorkflowPolicy(),
-    _ => throw ArgumentError.value(
+  return switch (fluohPlatformFromCliName(platform)) {
+    FluohPlatform.ohos => const _OhosWorkflowPolicy(),
+    FluohPlatform.android => const _AndroidWorkflowPolicy(),
+    FluohPlatform.ios => const _IosWorkflowPolicy(),
+    FluohPlatform.macos => const _MacosWorkflowPolicy(),
+    FluohPlatform.linux => const _LinuxWorkflowPolicy(),
+    FluohPlatform.web => const _WebWorkflowPolicy(),
+    FluohPlatform.windows => const _WindowsWorkflowPolicy(),
+    null => throw ArgumentError.value(
       platform,
       'platform',
       'Unsupported platform.',
@@ -607,17 +717,12 @@ PlatformWorkflowPolicy platformWorkflowPolicy(String platform) {
 /// Suggested commands for discovering runnable integration-test targets.
 List<String> integrationDiscoveryRunCommands({String? packageName}) {
   return [
-    platformWorkflowPolicy(
-      'ohos',
-    ).runCommand(packageName: packageName, startEmulator: true),
-    platformWorkflowPolicy(
-      'android',
-    ).runCommand(packageName: packageName, startEmulator: true),
-    platformWorkflowPolicy(
-      'ios',
-    ).runCommand(packageName: packageName, startEmulator: true),
-    platformWorkflowPolicy('macos').runCommand(packageName: packageName),
-    platformWorkflowPolicy('web').runCommand(packageName: packageName),
+    for (final platform in workflowPlatformNames)
+      if (platformWorkflowPolicy(platform).suggestsIntegrationDiscoveryRun)
+        platformWorkflowPolicy(platform).runCommand(
+          packageName: packageName,
+          startEmulator: !platformWorkflowPolicy(platform).isDesktopRunPlatform,
+        ),
   ];
 }
 

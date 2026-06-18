@@ -257,10 +257,6 @@ bool _ohosAttributesAreVisible(Map<String, String> attributes) {
   if (visible == 'false') {
     return false;
   }
-  final opacity = double.tryParse(attributes['opacity']?.trim() ?? '');
-  if (opacity != null && opacity <= 0) {
-    return false;
-  }
   return true;
 }
 

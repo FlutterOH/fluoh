@@ -67,7 +67,7 @@ exit 0
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: commandEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -125,7 +125,7 @@ exit 0
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -189,7 +189,7 @@ exit 0
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -254,7 +254,7 @@ exit 0
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: commandEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -318,7 +318,7 @@ exit 0
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -366,7 +366,7 @@ exit 0
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -412,7 +412,7 @@ exit 0
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -499,7 +499,7 @@ exit 0
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: commandEnvironment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -572,7 +572,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -646,8 +646,9 @@ void main() {
     );
     expect(
       runDetails['outputLog'],
-      startsWith(
-        '${environment.workingDirectory.path}/.fluoh/cache/package-runs/',
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        contains('/evidence/logs/flutter-run-android-'),
       ),
     );
     final session =

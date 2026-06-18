@@ -10,6 +10,13 @@ class CleanCommand extends FluohCommand<int> {
   }) : _stdout = stdout,
        _output = output ?? TerminalOutput(stdout: stdout) {
     argParser
+      ..addOption('task', valueHelp: 'id', help: 'Task id. Defaults current.')
+      ..addFlag(
+        'tasks',
+        negatable: false,
+        help: 'Remove whole task workspaces instead of only scratch output.',
+      )
+      ..addFlag('all', negatable: false, help: 'Remove all task workspaces.')
       ..addFlag(
         'dry-run',
         negatable: false,
@@ -38,14 +45,59 @@ class CleanCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final dryRun = argResults!.flag('dry-run');
     final json = argResults!.flag('json');
-    final cache = environment.projectCacheDirectory;
+    final cleanAll = argResults!.flag('all');
+    final cleanTasks = cleanAll || argResults!.flag('tasks');
+    final workspace = TaskWorkspace(environment);
+    final selectedTask = await workspace.current(
+      taskId: _trimmedOption(argResults!, 'task'),
+    );
+    final targets = cleanAll
+        ? [for (final task in await workspace.list()) task.directory]
+        : cleanTasks
+        ? [if (selectedTask != null) selectedTask.directory]
+        : [if (selectedTask != null) selectedTask.scratchDirectory];
+    if (targets.isEmpty && cleanAll) {
+      if (!dryRun) {
+        await workspace.clearCurrent();
+      }
+      if (json) {
+        writeMachineOutput(
+          _stdout,
+          command: name,
+          ok: true,
+          exitCode: 0,
+          fields: {'dryRun': dryRun, 'deleted': false, 'targets': const []},
+        );
+      } else {
+        _output.info('No task workspaces found');
+      }
+      return 0;
+    }
+    if (targets.isEmpty) {
+      if (json) {
+        writeMachineOutput(
+          _stdout,
+          command: name,
+          ok: false,
+          exitCode: 1,
+          fields: {
+            'dryRun': dryRun,
+            'deleted': false,
+            'error': {'type': 'missingTask', 'message': 'No task selected.'},
+          },
+        );
+      } else {
+        _output.error('No task selected');
+      }
+      return 1;
+    }
 
-    late final _CleanStats stats;
+    late final List<_CleanStats> stats;
     try {
-      stats = await _cacheStats(cache);
+      stats = [for (final target in targets) await _cacheStats(target)];
     } on FileSystemException catch (error) {
       return _writeFailure(
-        cache: Directory(error.path ?? cache.path),
+        path: error.path,
         dryRun: dryRun,
         json: json,
         message: _fileSystemMessage(error),
@@ -55,14 +107,21 @@ class CleanCommand extends FluohCommand<int> {
     var deleted = false;
     try {
       if (!dryRun) {
-        if (stats.exists) {
-          await Directory(stats.path).delete(recursive: true);
-          deleted = true;
+        for (final stat in stats) {
+          if (stat.exists) {
+            await Directory(stat.path).delete(recursive: true);
+            deleted = true;
+          }
+        }
+        if (cleanAll) {
+          await workspace.clearCurrent();
+        } else if (cleanTasks && selectedTask != null) {
+          await workspace.clearCurrent(taskId: selectedTask.id);
         }
       }
     } on FileSystemException catch (error) {
       return _writeFailure(
-        cache: Directory(error.path ?? cache.path),
+        path: error.path,
         dryRun: dryRun,
         json: json,
         message: _fileSystemMessage(error),
@@ -76,7 +135,11 @@ class CleanCommand extends FluohCommand<int> {
         command: name,
         ok: true,
         exitCode: 0,
-        fields: {'dryRun': dryRun, 'deleted': deleted, 'cache': stats.toJson()},
+        fields: {
+          'dryRun': dryRun,
+          'deleted': deleted,
+          'targets': [for (final stat in stats) stat.toJson()],
+        },
       );
       return 0;
     }
@@ -86,21 +149,12 @@ class CleanCommand extends FluohCommand<int> {
   }
 
   int _writeFailure({
-    required Directory cache,
+    required String? path,
     required bool dryRun,
     required bool json,
     required String message,
-    _CleanStats? stats,
+    List<_CleanStats> stats = const [],
   }) {
-    final cleanStats =
-        stats ??
-        _CleanStats(
-          path: cache.path,
-          exists: false,
-          files: 0,
-          directories: 0,
-          bytes: 0,
-        );
     if (json) {
       writeMachineOutput(
         _stdout,
@@ -110,36 +164,42 @@ class CleanCommand extends FluohCommand<int> {
         fields: {
           'dryRun': dryRun,
           'deleted': false,
-          'cache': cleanStats.toJson(),
+          'targets': [for (final stat in stats) stat.toJson()],
           'error': {'type': 'filesystem', 'message': message},
         },
       );
     } else {
-      _output.error('Failed to clean fluoh cache: $message');
-      _output.writeError('Cache path: ${cache.path}');
+      _output.error('Failed to clean fluoh task output: $message');
+      if (path != null && path.isNotEmpty) {
+        _output.writeError('Path: $path');
+      }
     }
     return 1;
   }
 
   void _writeHumanReport({
-    required _CleanStats stats,
+    required List<_CleanStats> stats,
     required bool dryRun,
     required bool deleted,
   }) {
-    if (!stats.exists) {
-      _output.info('No cleanable cache found');
-      _output.write('Cache path: ${stats.path}');
+    if (!stats.any((stat) => stat.exists)) {
+      _output.info('No cleanable task output found');
+      for (final stat in stats) {
+        _output.write('Path: ${stat.path}');
+      }
       return;
     }
     if (dryRun) {
-      _output.info('Would remove fluoh cache');
+      _output.info('Would remove fluoh task output');
     } else if (deleted) {
-      _output.success('Removed fluoh cache');
+      _output.success('Removed fluoh task output');
     }
-    _output.write('Cache path: ${stats.path}');
-    _output.write('Files: ${stats.files}');
-    _output.write('Directories: ${stats.directories}');
-    _output.write('Bytes: ${stats.bytes}');
+    for (final stat in stats) {
+      _output.write('Path: ${stat.path}');
+      _output.write('Files: ${stat.files}');
+      _output.write('Directories: ${stat.directories}');
+      _output.write('Bytes: ${stat.bytes}');
+    }
   }
 }
 

@@ -63,7 +63,7 @@ void _registerDependencyPlanCommandCoreTests() {
       stdout,
       anyElement(
         contains(
-          'share_plus 10.0.0: OHOS implementation targets upstream 9.0.0',
+          'share_plus 10.0.0: FlutterOH implementation targets upstream 9.0.0',
         ),
       ),
     );
@@ -71,7 +71,7 @@ void _registerDependencyPlanCommandCoreTests() {
     expect(
       stdout,
       contains(
-        '  mystery_package 1.0.0: No known OHOS implementation is available.',
+        '  mystery_package 1.0.0: No known FlutterOH implementation is available.',
       ),
     );
     expect(stdout, contains('Transitive dependencies:'));
@@ -166,7 +166,7 @@ void _registerDependencyPlanCommandCoreTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -355,10 +355,10 @@ void _registerDependencyPlanCommandCoreTests() {
     await manifest.writeAsString(
       manifest.readAsStringSync().replaceFirst('  sdks:', '''
   advisory:
-    message: Prefer upstream share_plus when native OHOS support is enough.
+    message: Prefer upstream share_plus when native FlutterOH support is enough.
     alternatives:
       - name: share_plus_ohos
-        reason: Provides native OHOS support.
+        reason: Provides native FlutterOH support.
         url: https://pub.dev/packages/share_plus_ohos
   sdks:'''),
     );
@@ -367,7 +367,7 @@ void _registerDependencyPlanCommandCoreTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -392,12 +392,12 @@ void _registerDependencyPlanCommandCoreTests() {
     expect(
       stdout,
       contains(
-        '  share_plus: Prefer upstream share_plus when native OHOS support is enough.',
+        '  share_plus: Prefer upstream share_plus when native FlutterOH support is enough.',
       ),
     );
     _expectOutputContains(
       stdout,
-      'share_plus: consider share_plus_ohos - Provides native OHOS support. https://pub.dev/packages/share_plus_ohos',
+      'share_plus: consider share_plus_ohos - Provides native FlutterOH support. https://pub.dev/packages/share_plus_ohos',
     );
 
     expect(
@@ -420,7 +420,7 @@ void _registerDependencyPlanCommandCoreTests() {
             'advisory',
             containsPair(
               'message',
-              'Prefer upstream share_plus when native OHOS support is enough.',
+              'Prefer upstream share_plus when native FlutterOH support is enough.',
             ),
           ),
         ),
@@ -581,7 +581,7 @@ dependency_overrides:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -672,7 +672,7 @@ dependency_overrides:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -727,7 +727,7 @@ dependency_overrides:
         stdout.join('\n'),
         isNot(
           contains(
-            'Skipped share_plus: OHOS implementation targets upstream 10.1.0',
+            'Skipped share_plus: FlutterOH implementation targets upstream 10.1.0',
           ),
         ),
       );
@@ -774,7 +774,7 @@ sdks:'''),
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -822,7 +822,7 @@ sdks:'''),
       expect(
         stdout.join('\n'),
         contains(
-          'Skipped zero_implementation: OHOS implementation targets upstream 0.12.0',
+          'Skipped zero_implementation: FlutterOH implementation targets upstream 0.12.0',
         ),
       );
       expect(

@@ -1,13 +1,18 @@
 part of 'source_commands.dart';
 
-/// Adds a Source to the persisted configuration.
-class SourceAddCommand extends FluohCommand<int> {
-  /// Creates the Source add command.
-  SourceAddCommand({
+/// Enables a Source in the persisted local configuration.
+class SourceEnableCommand extends FluohCommand<int> {
+  /// Creates the Source enable command.
+  SourceEnableCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
   }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print the Source enablement result as JSON.',
+    );
     argParser.addOption(
       'priority',
       valueHelp: 'int',
@@ -24,16 +29,17 @@ class SourceAddCommand extends FluohCommand<int> {
   final TerminalOutput _output;
 
   @override
-  String get name => 'add';
+  String get name => 'enable';
 
   @override
-  String get description => 'Add a data source.';
+  String get description => 'Enable a Source for this machine.';
 
   @override
-  String get invocation => 'fluoh source add <name> <url-or-path>';
+  String get invocation => 'fluoh source enable <name> <url-or-path>';
 
   @override
   Future<int> run() async {
+    final json = argResults!.flag('json');
     final rest = expectArgumentCount(
       argResults!,
       2,
@@ -85,26 +91,48 @@ class SourceAddCommand extends FluohCommand<int> {
       await SourceRuntime(environment).saveConfigAndRebuildLock(
         updated,
         snapshots: {name: snapshot},
-        output: _output.style.capabilities.decorated ? _output : null,
+        output: !json && _output.style.capabilities.decorated ? _output : null,
       );
     } finally {
       if (snapshot != null) {
         await deleteIfExists(snapshot);
       }
     }
-    _output.success('Added source $name: ${_output.style.path(urlOrPath)}');
+    if (json) {
+      writeMachineOutput(
+        stdout,
+        command: 'source enable',
+        ok: true,
+        exitCode: 0,
+        fields: {
+          'name': name,
+          'source': urlOrPath,
+          'url': sourceUrl,
+          'path': cachePath,
+          'priority': priority,
+        },
+      );
+      return 0;
+    }
+    _output.success('Enabled source $name: ${_output.style.path(urlOrPath)}');
     return 0;
   }
 }
 
-/// Removes a non-official Source from the persisted configuration.
-class SourceRemoveCommand extends FluohCommand<int> {
-  /// Creates the Source remove command.
-  SourceRemoveCommand({
+/// Disables a non-official Source in the persisted local configuration.
+class SourceDisableCommand extends FluohCommand<int> {
+  /// Creates the Source disable command.
+  SourceDisableCommand({
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print the Source disablement result as JSON.',
+    );
+  }
 
   /// Runtime environment containing config and cache paths.
   final FluohEnvironment environment;
@@ -114,16 +142,18 @@ class SourceRemoveCommand extends FluohCommand<int> {
   final TerminalOutput _output;
 
   @override
-  String get name => 'remove';
+  String get name => 'disable';
 
   @override
-  String get description => 'Remove a non-official data source.';
+  String get description =>
+      'Disable a non-official Source in local configuration.';
 
   @override
-  String get invocation => 'fluoh source remove <name>';
+  String get invocation => 'fluoh source disable <name>';
 
   @override
   Future<int> run() async {
+    final json = argResults!.flag('json');
     final rest = expectArgumentCount(
       argResults!,
       1,
@@ -138,12 +168,22 @@ class SourceRemoveCommand extends FluohCommand<int> {
     try {
       await SourceRuntime(environment).saveConfigAndRebuildLock(
         config.removeSource(name),
-        output: _output.style.capabilities.decorated ? _output : null,
+        output: !json && _output.style.capabilities.decorated ? _output : null,
       );
     } on ArgumentError catch (error) {
       usageException(error.message);
     }
-    _output.success('Removed source $name');
+    if (json) {
+      writeMachineOutput(
+        stdout,
+        command: 'source disable',
+        ok: true,
+        exitCode: 0,
+        fields: {'name': name, 'disabled': true},
+      );
+      return 0;
+    }
+    _output.success('Disabled source $name');
     return 0;
   }
 }
@@ -155,7 +195,13 @@ class SourceUpdateCommand extends FluohCommand<int> {
     required this.environment,
     required this.stdout,
     TerminalOutput? output,
-  }) : _output = output ?? TerminalOutput(stdout: stdout);
+  }) : _output = output ?? TerminalOutput(stdout: stdout) {
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help: 'Print refreshed Source snapshots as JSON.',
+    );
+  }
 
   /// Runtime environment containing config and cache paths.
   final FluohEnvironment environment;
@@ -168,13 +214,14 @@ class SourceUpdateCommand extends FluohCommand<int> {
   String get name => 'update';
 
   @override
-  String get description => 'Validate and refresh configured data sources.';
+  String get description => 'Refresh local snapshots for configured Sources.';
 
   @override
   String get invocation => 'fluoh source update [name]';
 
   @override
   Future<int> run() async {
+    final json = argResults!.flag('json');
     final rest = expectArgumentCountAtMost(
       argResults!,
       1,
@@ -200,7 +247,7 @@ class SourceUpdateCommand extends FluohCommand<int> {
               ? await prepareGitSourceSnapshot(
                   entry.key,
                   sourceConfig,
-                  output: _output,
+                  output: json ? null : _output,
                 )
               : await prepareLocalSourceSnapshot(
                   entry.key,
@@ -217,7 +264,7 @@ class SourceUpdateCommand extends FluohCommand<int> {
       await SourceRuntime(environment).saveConfigAndRebuildLock(
         config,
         snapshots: snapshots,
-        output: _output.style.capabilities.decorated ? _output : null,
+        output: !json && _output.style.capabilities.decorated ? _output : null,
       );
     } finally {
       for (final snapshot in snapshots.values) {
@@ -225,6 +272,28 @@ class SourceUpdateCommand extends FluohCommand<int> {
       }
     }
 
+    if (json) {
+      writeMachineOutput(
+        stdout,
+        command: 'source update',
+        ok: true,
+        exitCode: 0,
+        fields: {
+          'count': sources.length,
+          'sources': [
+            for (final entry in sources)
+              {
+                'name': entry.key,
+                'source': entry.value.url ?? entry.value.path,
+                'url': entry.value.url,
+                'path': entry.value.path,
+                'priority': entry.value.priority,
+              },
+          ],
+        },
+      );
+      return 0;
+    }
     for (final entry in sources) {
       _output.success('Updated source ${entry.key}');
     }
@@ -296,10 +365,10 @@ String _localSourceReadme() {
   return '''
 # FlutterOH Source
 
-Maintain SDK versions and package adaptation metadata in this directory, then register it with:
+Maintain SDK versions and package support metadata in this directory, then enable it locally with:
 
 ```sh
-fluoh source add <name> .
+fluoh source enable <name> .
 ```
 
 Sync released package repositories with:
@@ -355,6 +424,9 @@ String _localSourceManifestTemplate() {
     '#   git:',
     '#     url: "https://github.com/FlutterOH/example.git"',
     '#',
+    '# origin:',
+    '#   kind: ported',
+    '#',
     '# upstream:',
     '#   git:',
     '#     url: "https://github.com/example/upstream.git"',
@@ -364,13 +436,14 @@ String _localSourceManifestTemplate() {
     '#   path: .',
     '#   # maintenance:',
     '#   #   frozen: true',
-    '#   #   note: Upstream now supports OHOS natively.',
+    '#   #   note: Upstream now includes native FlutterOH support.',
     '#   # advisory:',
     '#   #   message: Prefer upstream example for new projects.',
     '#   sdks:',
     '#     "3.35":',
     '#       releases:',
     '#         - version: "0.1.0"',
+    '#           tag: example-1.0.0-ohos-3.35-0.1.0',
     '#           upstream:',
     '#             version: "1.0.0"',
     '#             ref: example-v1.0.0',

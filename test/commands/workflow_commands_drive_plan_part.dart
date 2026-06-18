@@ -20,7 +20,7 @@ void _registerWorkflowCommandsDrivePlanTests() {
           '--package',
           'camera',
           '--trace-dir',
-          '.fluoh/traces/camera/mobile',
+          '.fluoh/tasks/manual/traces/camera/mobile',
           '--dry-run',
           '--json',
         ],
@@ -42,7 +42,10 @@ void _registerWorkflowCommandsDrivePlanTests() {
       automation,
       containsPair(
         'sessionDirectory',
-        '${environment.workingDirectory.path}/.fluoh/run-sessions/automation',
+        allOf(
+          startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+          endsWith('/evidence/sessions'),
+        ),
       ),
     );
     expect(
@@ -76,7 +79,7 @@ void _registerWorkflowCommandsDrivePlanTests() {
       rerunCommand,
       allOf(
         contains('fluoh drive all --package camera'),
-        contains('--trace-dir .fluoh/traces/camera/mobile'),
+        contains('--trace-dir .fluoh/tasks/manual/traces/camera/mobile'),
         contains('--dry-run --json'),
       ),
     );
@@ -195,7 +198,10 @@ void _registerWorkflowCommandsDrivePlanTests() {
           ),
           containsPair(
             'sessionFile',
-            '${environment.workingDirectory.path}/.fluoh/run-sessions/automation/camera-android-session.json',
+            allOf(
+              startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+              endsWith('/evidence/sessions/camera-android-session.json'),
+            ),
           ),
         ),
       ),
@@ -217,12 +223,94 @@ void _registerWorkflowCommandsDrivePlanTests() {
           ),
           containsPair(
             'sessionFile',
-            '${environment.workingDirectory.path}/.fluoh/run-sessions/automation/camera-ios-session.json',
+            allOf(
+              startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+              endsWith('/evidence/sessions/camera-ios-session.json'),
+            ),
           ),
         ),
       ),
     );
-    expect(report['targets'], isEmpty);
+    final targets = (report['targets'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(
+      targets.single,
+      allOf(
+        containsPair('target', {'kind': 'package', 'name': 'camera'}),
+        containsPair('phase', 'automation-dry-run'),
+        containsPair('passed', true),
+      ),
+    );
+    final trace = report['trace'] as Map<String, Object?>;
+    final traceManifest = File(trace['manifest'] as String);
+    expect(await traceManifest.exists(), isTrue);
+    final traceContent =
+        jsonDecode(await traceManifest.readAsString()) as Map<String, Object?>;
+    expect(traceContent, containsPair('command', 'drive'));
+    expect(traceContent['commandLine'], contains('--dry-run'));
+    expect(stderr, isEmpty);
+  });
+
+  test('drive dry-run plans exploratory smoke profile separately', () async {
+    final environment = await createTestEnvironment();
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final example = Directory('${environment.workingDirectory.path}/example');
+    await _writeFlutterExample(example);
+    await _writeWorkflowPlatformDirectories(example);
+    await _writeWorkflowOhosProject(example);
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        [
+          'drive',
+          'ohos',
+          '--package',
+          'camera',
+          '--profile',
+          'exploratory-smoke',
+          '--dry-run',
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    final automation = report['automation'] as Map<String, Object?>;
+    expect(automation, isNot(contains('scenarios')));
+    expect(
+      automation['rerunCommand'],
+      allOf(
+        contains('fluoh drive ohos --package camera'),
+        contains('--profile exploratory-smoke'),
+        contains('--dry-run --json'),
+      ),
+    );
+    final profile = automation['profile'] as Map<String, Object?>;
+    expect(profile, containsPair('name', 'exploratory-smoke'));
+    expect(profile, containsPair('classification', 'exploratory-smoke'));
+    expect(profile, containsPair('releaseGate', false));
+    final generatedScenarios = (profile['generatedScenarios'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(generatedScenarios, hasLength(1));
+    expect(generatedScenarios.single, containsPair('platform', 'ohos'));
+    final steps = (generatedScenarios.single['steps'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    expect(steps, contains(containsPair('action', 'screenshot')));
+    expect(
+      steps,
+      contains(
+        allOf(containsPair('action', 'swipe'), containsPair('optional', true)),
+      ),
+    );
+    final coveragePolicy = automation['coveragePolicy'] as Map<String, Object?>;
+    expect(coveragePolicy['coverageSummary'], containsPair('scenarioCount', 0));
     expect(stderr, isEmpty);
   });
 
@@ -231,7 +319,7 @@ void _registerWorkflowCommandsDrivePlanTests() {
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-public-api.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -290,6 +378,19 @@ kind: package
 sdk:
   version: 3.35.8-ohos-0.0.3
 
+repository:
+  git:
+    url: git@github.com:FlutterOH/camera.git
+    branch: ohos/3.35/camera
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
 package:
   name: camera
   path: packages/camera/camera
@@ -306,7 +407,7 @@ package:
         ),
       );
       final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+        '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-public-api.md',
       );
       await scenario.parent.create(recursive: true);
       await scenario.writeAsString('''
@@ -354,7 +455,7 @@ steps:
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
     final scenarioDirectory = Directory(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios',
     );
     await scenarioDirectory.create(recursive: true);
     final ohosScenario = File('${scenarioDirectory.path}/ohos-public-api.md');
@@ -421,7 +522,7 @@ steps:
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-public-api.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -526,7 +627,16 @@ steps:
       qualityGates,
       everyElement(containsPair('status', 'readyForReview')),
     );
-    expect(report['targets'], isEmpty);
+    expect(
+      report['targets'],
+      contains(
+        allOf(
+          containsPair('target', {'kind': 'package', 'name': 'camera'}),
+          containsPair('phase', 'automation-dry-run'),
+          containsPair('passed', true),
+        ),
+      ),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -535,7 +645,7 @@ steps:
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-public-api.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-public-api.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -567,9 +677,9 @@ steps:
           '--emulator',
           'Pixel 35',
           '--session-dir',
-          '.fluoh/run sessions/automation state',
+          '.fluoh/tasks/manual/evidence/sessions/automation state',
           '--trace-dir',
-          '.fluoh/traces/camera mobile',
+          '.fluoh/tasks/manual/traces/camera mobile',
           '--scenario',
           scenario.path,
           '--dry-run',
@@ -591,10 +701,13 @@ steps:
     expect(
       command,
       contains(
-        "--session-file '${environment.workingDirectory.path}/.fluoh/run sessions/automation state/camera-android-session.json'",
+        "--session-file '${environment.workingDirectory.path}/.fluoh/tasks/manual/evidence/sessions/automation state/camera-android-session.json'",
       ),
     );
-    expect(command, contains("--trace-dir '.fluoh/traces/camera mobile'"));
+    expect(
+      command,
+      contains("--trace-dir '.fluoh/tasks/manual/traces/camera mobile'"),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -603,7 +716,7 @@ steps:
     await _writePackageManifest(environment.workingDirectory);
     await _writeFlutterPackage(environment.workingDirectory);
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-blocked-api.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-blocked-api.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''

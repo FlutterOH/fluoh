@@ -57,6 +57,53 @@ void main() {
   );
 
   test(
+    'restores original content synchronously for interrupted commands',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'fluoh_build_profile_sync_',
+      );
+      addTearDown(() => temp.delete(recursive: true));
+      final ohos = Directory('${temp.path}/ohos');
+      await ohos.create(recursive: true);
+      final buildProfile = File('${ohos.path}/build-profile.json5');
+      const original = '''
+{
+  "app": {
+    "signingConfigs": [],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.1.0(18)",
+      }
+    ]
+  }
+}
+''';
+      await buildProfile.writeAsString(original);
+
+      final session = await applyTemporaryOhosSigning(
+        ohosDirectory: ohos,
+        config: const OhosDebugSigningConfig(
+          storeFile: '/tmp/app-keypair.p12',
+          storePassword: 'fluoh-debug-signing-password-00001',
+          keyAlias: 'fluoh_debug',
+          keyPassword: 'fluoh-debug-signing-password-00001',
+          signAlg: 'SHA256withECDSA',
+          profile: '/tmp/debug-profile.p7b',
+          certpath: '/tmp/app-cert-chain.cer',
+        ),
+      );
+
+      expect(await buildProfile.readAsString(), isNot(original));
+      session.restoreSync();
+      expect(await buildProfile.readAsString(), original);
+      await session.restore();
+      expect(await buildProfile.readAsString(), original);
+    },
+  );
+
+  test(
     'adds default product signingConfig when generated project omits it',
     () {
       const original = '''

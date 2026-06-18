@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -8,6 +9,7 @@ import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
 import '../../schema/yaml_utils.dart' show parseYamlMap;
+import '../../task/task_workspace.dart';
 import '../../workflow/platform_workflow_policy.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
@@ -15,6 +17,7 @@ import '../manifest/pubspec_package.dart';
 import '../package_discovery.dart';
 import '../package_examples.dart';
 import '../release_validator.dart';
+import '../visual_page_readiness.dart';
 
 /// Reports release readiness for package repository entries.
 class PackageStatusCommand extends FluohCommand<int> {
@@ -62,7 +65,7 @@ class PackageStatusCommand extends FluohCommand<int> {
       repository,
       environment.homeDirectory.path,
     );
-    final discovery = await discoverPackageAdaptationCandidates(
+    final discovery = await discoverPackageSupportCandidates(
       repository: repository,
       missingPlatform: 'ohos',
       includeExistingPlatform: true,
@@ -88,7 +91,19 @@ class PackageStatusCommand extends FluohCommand<int> {
       for (final status in packageStatuses) ...status.blockers,
     ];
 
+    final ready =
+        branch == manifest.branch &&
+        dirtyFiles.isEmpty &&
+        localPathFiles.isEmpty &&
+        readinessBlockers.isEmpty &&
+        packageStatuses.every((status) => status.ready);
+    final nextAction = _packageNextAction(
+      ready: ready,
+      blockers: readinessBlockers,
+      packageStatuses: packageStatuses,
+    );
     final result = {
+      'state': ready ? 'ready' : 'blocked',
       'branch': branch,
       'expectedBranch': manifest.branch,
       'branchMatches': branch == manifest.branch,
@@ -99,12 +114,8 @@ class PackageStatusCommand extends FluohCommand<int> {
           .map((blocker) => blocker.toJson())
           .toList(),
       'packages': packageStatuses.map((status) => status.toJson()).toList(),
-      'ready':
-          branch == manifest.branch &&
-          dirtyFiles.isEmpty &&
-          localPathFiles.isEmpty &&
-          readinessBlockers.isEmpty &&
-          packageStatuses.every((status) => status.ready),
+      'ready': ready,
+      'nextAction': nextAction.toJson(),
     };
 
     if (argResults!.flag('json')) {
@@ -132,6 +143,10 @@ class PackageStatusCommand extends FluohCommand<int> {
     final blockers = <_PackageReadinessBlocker>[];
     final tag = package.releaseTag(manifest.sdkVersion);
     final ohosPolicy = platformWorkflowPolicy('ohos');
+    final evidence = await _packageSupportEvidence(
+      repository: repository,
+      packageName: package.name,
+    );
     if (package.status == null || package.status == 'compatible') {
       checks.add(
         const _PackageStatusCheck.ok(
@@ -144,7 +159,7 @@ class PackageStatusCommand extends FluohCommand<int> {
         _PackageStatusCheck.warning(
           'release-status',
           'Package status is ${package.status}; keep it until platform '
-              'implementation, verification, OHOS run evidence, and interaction '
+              'implementation, verification, target-platform run evidence, and interaction '
               'evidence are complete.',
         ),
       );
@@ -159,16 +174,25 @@ class PackageStatusCommand extends FluohCommand<int> {
               'fluoh package version --package ${package.name} '
               '--status compatible',
         ),
+      ]);
+    }
+
+    if (!evidence.hasOhosRun) {
+      blockers.add(
         _PackageReadinessBlocker(
           scope: 'package',
           packageName: package.name,
           code: 'evidence.ohos_run_missing',
-          message: 'Missing passed OHOS run evidence.',
+          message: 'Missing passed target-platform/OHOS run evidence.',
           nextCommand: ohosPolicy.runCommand(
             packageName: package.name,
             startEmulator: true,
           ),
         ),
+      );
+    }
+    if (!evidence.hasInteraction) {
+      blockers.add(
         _PackageReadinessBlocker(
           scope: 'package',
           packageName: package.name,
@@ -180,7 +204,20 @@ class PackageStatusCommand extends FluohCommand<int> {
               'python3 <skill-dir>/scripts/new_scenario.py . --platform ohos '
               '--package ${package.name}',
         ),
-      ]);
+      );
+    }
+    if (evidence.hasOhosRun && !evidence.hasVisualPageReadiness) {
+      blockers.add(
+        _PackageReadinessBlocker(
+          scope: 'package',
+          packageName: package.name,
+          code: 'evidence.visual_page_readiness_missing',
+          message:
+              'Missing reviewed visual page-readiness evidence for the passed OHOS run.',
+          nextCommand: 'fluoh package next --package ${package.name} --json',
+          details: evidence.visualPageReadiness?.toJson(),
+        ),
+      );
     }
 
     final metadataChecks = <_PackageStatusCheck>[];
@@ -446,6 +483,130 @@ class PackageStatusCommand extends FluohCommand<int> {
   }
 }
 
+Future<_PackageSupportEvidence> _packageSupportEvidence({
+  required Directory repository,
+  required String packageName,
+}) async {
+  final task = await TaskWorkspace.project(repository).current();
+  final trace = task == null
+      ? File('')
+      : File('${task.tracesDirectory.path}/support/trace.json');
+  if (!await trace.exists()) {
+    return const _PackageSupportEvidence.none();
+  }
+  try {
+    final decoded = jsonDecode(await trace.readAsString());
+    if (decoded is! Map<String, Object?>) {
+      return const _PackageSupportEvidence.none();
+    }
+    final traceEvidence = _PackageSupportEvidence.fromTrace(
+      decoded,
+      packageName: packageName,
+    );
+    final visualPageReadiness = await inspectVisualPageReadiness(
+      repository: repository,
+      packageName: packageName,
+      isRequired: traceEvidence.hasOhosRun,
+    );
+    return traceEvidence.withVisualPageReadiness(visualPageReadiness);
+  } on FormatException {
+    return const _PackageSupportEvidence.none();
+  } on IOException {
+    return const _PackageSupportEvidence.none();
+  }
+}
+
+class _PackageSupportEvidence {
+  const _PackageSupportEvidence({
+    required this.hasOhosRun,
+    required this.hasInteraction,
+    this.visualPageReadiness,
+  });
+
+  const _PackageSupportEvidence.none()
+    : hasOhosRun = false,
+      hasInteraction = false,
+      visualPageReadiness = null;
+
+  factory _PackageSupportEvidence.fromTrace(
+    Map<String, Object?> trace, {
+    required String packageName,
+  }) {
+    var hasOhosRun = false;
+    var hasInteraction = false;
+    for (final invocation in _traceInvocations(trace)) {
+      if (invocation['ok'] != true) {
+        continue;
+      }
+      final command =
+          _stringValue(invocation['commandLine']) ??
+          _stringValue(invocation['command']);
+      if (command == null) {
+        continue;
+      }
+      final isRun = _matchesFluohCommand(
+        command,
+        'fluoh run ohos --package $packageName',
+      );
+      final isDrive = _matchesFluohCommand(
+        command,
+        'fluoh drive ohos --package $packageName',
+      );
+      if (isRun || isDrive) {
+        hasOhosRun = true;
+      }
+      if (isDrive &&
+          !command.contains('--dry-run') &&
+          !command.contains('--profile exploratory-smoke') &&
+          !command.contains('--profile=exploratory-smoke')) {
+        hasInteraction = true;
+      }
+    }
+    return _PackageSupportEvidence(
+      hasOhosRun: hasOhosRun,
+      hasInteraction: hasInteraction,
+    );
+  }
+
+  final bool hasOhosRun;
+  final bool hasInteraction;
+  final VisualPageReadinessStatus? visualPageReadiness;
+
+  bool get hasVisualPageReadiness => visualPageReadiness?.ready ?? false;
+
+  _PackageSupportEvidence withVisualPageReadiness(
+    VisualPageReadinessStatus visualPageReadiness,
+  ) {
+    return _PackageSupportEvidence(
+      hasOhosRun: hasOhosRun,
+      hasInteraction: hasInteraction,
+      visualPageReadiness: visualPageReadiness,
+    );
+  }
+}
+
+List<Map<String, Object?>> _traceInvocations(Map<String, Object?> trace) {
+  final rawInvocations = trace['invocations'];
+  if (rawInvocations is! List<Object?>) {
+    return [trace];
+  }
+  return [
+    for (final invocation in rawInvocations)
+      if (invocation is Map<String, Object?>) invocation,
+  ];
+}
+
+bool _matchesFluohCommand(String command, String expectedPrefix) {
+  return command == expectedPrefix || command.startsWith('$expectedPrefix ');
+}
+
+String? _stringValue(Object? value) {
+  if (value is! String || value.trim().isEmpty) {
+    return null;
+  }
+  return value.trim();
+}
+
 PackageImplementationRecommendation?
 _federatedOhosImplementationRecommendation({
   required PackageDiscovery discovery,
@@ -479,6 +640,7 @@ Future<_PackageReadinessBlocker?> _federatedOhosDefaultPackageBlocker({
   );
   final dependencyPresent = dependency != null;
   final dependencyPath = dependency?.path;
+  final dependencyPathSource = dependency?.pathSource;
   final dependencyPackagePath = dependencyPath == null
       ? null
       : _dependencyPackagePath(
@@ -516,7 +678,7 @@ Future<_PackageReadinessBlocker?> _federatedOhosDefaultPackageBlocker({
     if (!dependencyPresent)
       'dependency $defaultPackage is missing from ${package.name}',
     if (dependencyPresent && dependencyPath == null)
-      'dependency $defaultPackage does not declare a path from ${package.name}',
+      'dependency $defaultPackage does not declare a local path in dependencies or dependency_overrides from ${package.name}',
     if (dependencyPath != null && !dependencyPathInsideRepository)
       'dependency path $dependencyPath leaves the repository',
     if (dependencyPackagePath != null &&
@@ -541,6 +703,9 @@ Future<_PackageReadinessBlocker?> _federatedOhosDefaultPackageBlocker({
       'defaultPackage': defaultPackage,
       'dependencyPresent': dependencyPresent,
       'dependencyPath': ?dependencyPath,
+      'dependencyPathSource': ?dependencyPathSource,
+      'dependencyDirectPath': ?dependency?.directPath,
+      'dependencyOverridePath': ?dependency?.overridePath,
       'dependencyResolvedPath': ?dependencyPackagePath,
       'dependencyPathInsideRepository': dependencyPathInsideRepository,
       'implementationPackagePresent': implementationPackagePresent,
@@ -575,7 +740,9 @@ Future<_PackageReadinessBlocker?> _federatedOhosDefaultPackageBlocker({
                 !implementationPackageAtDependencyPathPresent))
           {
             'target': 'appFacingPubspec',
-            'action': 'update_dependency_path',
+            'action': dependencyPathSource == 'dependencies'
+                ? 'update_dependency_path'
+                : 'update_dependency_override_path',
             'package': defaultPackage,
           },
       ],
@@ -602,14 +769,13 @@ Future<_PackageDependency?> _directDependencyForPackage({
       return null;
     }
     final dependency = dependencies[dependencyName];
-    String? path;
-    if (dependency is Map<String, Object?>) {
-      final value = dependency['path'];
-      if (value is String && value.trim().isNotEmpty) {
-        path = value.trim();
-      }
-    }
-    return _PackageDependency(path: path);
+    final dependencyOverrides = yaml['dependency_overrides'];
+    return _PackageDependency(
+      directPath: _dependencyPath(dependency),
+      overridePath: dependencyOverrides is Map<String, Object?>
+          ? _dependencyPath(dependencyOverrides[dependencyName])
+          : null,
+    );
   } on FormatException {
     return null;
   } on IOException {
@@ -690,10 +856,34 @@ PackageDiscoveryCandidate? _discoveryCandidateByNameAndPath({
   return null;
 }
 
-class _PackageDependency {
-  const _PackageDependency({this.path});
+String? _dependencyPath(Object? dependency) {
+  if (dependency is! Map<String, Object?>) {
+    return null;
+  }
+  final value = dependency['path'];
+  if (value is String && value.trim().isNotEmpty) {
+    return value.trim();
+  }
+  return null;
+}
 
-  final String? path;
+class _PackageDependency {
+  const _PackageDependency({this.directPath, this.overridePath});
+
+  final String? directPath;
+  final String? overridePath;
+
+  String? get path => directPath ?? overridePath;
+
+  String? get pathSource {
+    if (directPath != null) {
+      return 'dependencies';
+    }
+    if (overridePath != null) {
+      return 'dependency_overrides';
+    }
+    return null;
+  }
 }
 
 void _addGenericWarningBlockers({
@@ -754,6 +944,88 @@ List<_PackageReadinessBlocker> _repositoryReadinessBlockers({
         nextCommand: 'git status --short --ignored=matching',
       ),
   ];
+}
+
+_PackageNextAction _packageNextAction({
+  required bool ready,
+  required List<_PackageReadinessBlocker> blockers,
+  required List<_PackageStatus> packageStatuses,
+}) {
+  if (ready) {
+    return const _PackageNextAction(
+      type: 'ready',
+      state: 'ready',
+      reason: 'Package repository appears ready for release.',
+    );
+  }
+  if (blockers.isEmpty) {
+    return const _PackageNextAction(
+      type: 'blocked',
+      state: 'blocked',
+      reason:
+          'Package repository is not ready, but no structured blocker was reported.',
+      rerunCommand: 'fluoh package status --json',
+    );
+  }
+  final blocker = [...blockers]
+    ..sort(
+      (left, right) =>
+          _nextActionPriority(left).compareTo(_nextActionPriority(right)),
+    );
+  return _PackageNextAction.fromBlocker(
+    blocker.first,
+    rerunCommand: _statusRerunCommand(blocker.first, packageStatuses),
+  );
+}
+
+int _nextActionPriority(_PackageReadinessBlocker blocker) {
+  if (blocker.code == 'repository.branch_mismatch') {
+    return 0;
+  }
+  if (blocker.code == 'repository.dirty') {
+    return 5;
+  }
+  if (blocker.code.startsWith('platform.')) {
+    return 10;
+  }
+  if (blocker.code == 'release.metadata_invalid') {
+    return 20;
+  }
+  if (blocker.code == 'evidence.ohos_run_missing') {
+    return 30;
+  }
+  if (blocker.code == 'evidence.interaction_missing') {
+    return 40;
+  }
+  if (blocker.code == 'package-tests' ||
+      blocker.code == 'example-tests' ||
+      blocker.code == 'example-ohos') {
+    return 50;
+  }
+  if (blocker.code == 'release.metadata_warning') {
+    return 60;
+  }
+  if (blocker.code == 'repository.local_paths') {
+    return 85;
+  }
+  if (blocker.code.startsWith('package.status.')) {
+    return 90;
+  }
+  return 80;
+}
+
+String _statusRerunCommand(
+  _PackageReadinessBlocker blocker,
+  List<_PackageStatus> packageStatuses,
+) {
+  final packageName = blocker.packageName;
+  if (packageName != null && packageName.isNotEmpty) {
+    return 'fluoh package status --package $packageName --json';
+  }
+  if (packageStatuses.length == 1) {
+    return 'fluoh package status --package ${packageStatuses.single.packageName} --json';
+  }
+  return 'fluoh package status --json';
 }
 
 Future<List<String>> _dirtyFiles(Directory repository) async {
@@ -861,6 +1133,87 @@ class _PackageReadinessBlocker {
       if (details != null) 'details': details,
     };
   }
+}
+
+class _PackageNextAction {
+  const _PackageNextAction({
+    required this.type,
+    required this.state,
+    required this.reason,
+    this.scope,
+    this.packageName,
+    this.blockerCode,
+    this.command,
+    this.rerunCommand,
+    this.requiredEdits = const [],
+    this.details,
+  });
+
+  factory _PackageNextAction.fromBlocker(
+    _PackageReadinessBlocker blocker, {
+    required String rerunCommand,
+  }) {
+    final requiredEdits = _requiredEditsFromBlocker(blocker);
+    return _PackageNextAction(
+      type: _nextActionType(blocker, requiredEdits),
+      state: 'blocked',
+      reason: blocker.message,
+      scope: blocker.scope,
+      packageName: blocker.packageName,
+      blockerCode: blocker.code,
+      command: blocker.nextCommand,
+      rerunCommand: rerunCommand,
+      requiredEdits: requiredEdits,
+      details: blocker.details,
+    );
+  }
+
+  final String type;
+  final String state;
+  final String reason;
+  final String? scope;
+  final String? packageName;
+  final String? blockerCode;
+  final String? command;
+  final String? rerunCommand;
+  final List<Object?> requiredEdits;
+  final Map<String, Object?>? details;
+
+  Map<String, Object?> toJson() {
+    return {
+      'type': type,
+      'state': state,
+      'reason': reason,
+      if (scope != null) 'scope': scope,
+      if (packageName != null) 'package': packageName,
+      if (blockerCode != null) 'blockerCode': blockerCode,
+      if (command != null) 'command': command,
+      if (rerunCommand != null) 'rerunCommand': rerunCommand,
+      if (requiredEdits.isNotEmpty) 'requiredEdits': requiredEdits,
+      if (details != null) 'details': details,
+    };
+  }
+}
+
+String _nextActionType(
+  _PackageReadinessBlocker blocker,
+  List<Object?> requiredEdits,
+) {
+  if (requiredEdits.isNotEmpty || blocker.code.startsWith('platform.')) {
+    return 'editRequired';
+  }
+  if (blocker.nextCommand != null) {
+    return 'commandRequired';
+  }
+  return 'blocked';
+}
+
+List<Object?> _requiredEditsFromBlocker(_PackageReadinessBlocker blocker) {
+  final requiredEdits = blocker.details?['requiredEdits'];
+  if (requiredEdits is List<Object?>) {
+    return requiredEdits;
+  }
+  return const [];
 }
 
 class _PackageStatusCheck {

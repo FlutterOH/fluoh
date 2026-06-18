@@ -5,10 +5,11 @@ import '../../cli/fluoh_command_runner.dart';
 import '../../cli/machine_output.dart';
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../../task/task_workspace.dart';
 import '../git/package_git.dart';
 import '../manifest/package_manifest.dart';
 
-/// Summarizes the current package adaptation branch for AI handoff.
+/// Summarizes the current package support branch for AI handoff.
 class PackageHandoffCommand extends FluohCommand<int> {
   /// Creates the package handoff command.
   PackageHandoffCommand({
@@ -44,25 +45,21 @@ class PackageHandoffCommand extends FluohCommand<int> {
     expectNoArguments(argResults!, usageException);
     final manifest = await readPackageManifest(environment.workingDirectory);
     final package = manifest.packageForName(argResults!.option('package'));
+    final task = await TaskWorkspace(environment).resolveOrCreate(
+      type: 'packageSupport',
+      scopeName: package.name,
+      packageName: package.name,
+    );
     final branch = await currentBranch(environment.workingDirectory);
     final status = await runGit(
       ['status', '--short'],
       workingDirectory: environment.workingDirectory,
       allowFailure: true,
     );
-    final latestTrace = await _latestTrace(
-      environment.workingDirectory,
-      package.name,
-    );
-    final traceDir = _traceCommandDirectory(
-      environment.workingDirectory,
-      package.name,
-      latestTrace,
-    );
-    final reports = await _reportFiles(
-      environment.workingDirectory,
-      package.name,
-    );
+    final latestTrace = await _latestTrace(task);
+    final traceDir =
+        '${task.relativePath(environment.workingDirectory)}/traces/support';
+    final reports = await _reportFiles(task);
     final handoff = {
       'handoffSchema': 1,
       'kind': 'fluoh.packageHandoff',
@@ -87,6 +84,7 @@ class PackageHandoffCommand extends FluohCommand<int> {
       },
       'repositoryGit': {'url': manifest.repositoryUrl},
       'evidence': {
+        'task': task.toJson(environment.workingDirectory),
         if (latestTrace != null) 'latestTrace': latestTrace.path,
         'traceDir': traceDir,
         'reports': [for (final file in reports) file.path],
@@ -139,6 +137,7 @@ List<String> _nextCommands(
     return ['git status --short', 'git diff --check'];
   }
   return [
+    'fluoh package next --package $packageName --json',
     'fluoh verify --package $packageName --json --trace-dir $traceDir',
     ..._ohosCommands(packageName, traceDir),
     ..._driveCommands('ohos', packageName, traceDir),
@@ -163,6 +162,7 @@ List<String> _ohosCommands(String packageName, String traceDir) {
     'fluoh devices --platform ohos --json',
     'fluoh emulators --platform ohos --json',
     'fluoh run ohos --package $packageName --auto-emulator --json --trace-dir $traceDir',
+    'fluoh package next --package $packageName --json',
   ];
 }
 
@@ -264,8 +264,12 @@ String _shellQuote(String value) {
   return "'${value.replaceAll("'", "'\"'\"'")}'";
 }
 
-Future<File?> _latestTrace(Directory root, String packageName) async {
-  final traces = Directory('${root.path}/.fluoh/traces/$packageName');
+Future<File?> _latestTrace(FluohTask task) async {
+  final preferred = File('${task.tracesDirectory.path}/support/trace.json');
+  if (await preferred.exists()) {
+    return preferred;
+  }
+  final traces = task.tracesDirectory;
   if (!await traces.exists()) {
     return null;
   }
@@ -282,31 +286,8 @@ Future<File?> _latestTrace(Directory root, String packageName) async {
   return latest;
 }
 
-String _traceCommandDirectory(
-  Directory root,
-  String packageName,
-  File? latestTrace,
-) {
-  if (latestTrace == null) {
-    return '.fluoh/traces/$packageName/adaptation';
-  }
-  return _relativePath(root, latestTrace.parent);
-}
-
-String _relativePath(Directory root, Directory directory) {
-  final rootPath = root.absolute.path;
-  final path = directory.absolute.path;
-  if (path == rootPath) {
-    return '.';
-  }
-  if (path.startsWith('$rootPath/')) {
-    return path.substring(rootPath.length + 1);
-  }
-  return path;
-}
-
-Future<List<File>> _reportFiles(Directory root, String packageName) async {
-  final reports = Directory('${root.path}/.fluoh/reports/$packageName');
+Future<List<File>> _reportFiles(FluohTask task) async {
+  final reports = task.reportsDirectory;
   if (!await reports.exists()) {
     return const [];
   }
@@ -334,7 +315,7 @@ bool _isReportFile(File file) {
   final name = file.uri.pathSegments.isEmpty
       ? file.path
       : file.uri.pathSegments.last;
-  return RegExp(r'^report-\d+\.md$').hasMatch(name);
+  return name == 'report.md' || RegExp(r'^report-\d+\.md$').hasMatch(name);
 }
 
 int _reportTimestamp(File file) {

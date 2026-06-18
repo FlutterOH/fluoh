@@ -254,7 +254,7 @@ Set<String> _declaredReleaseTags(
   }
   for (final sdk in package.sdks.values) {
     for (final release in sdk.releases) {
-      tags.add(_sourceReleaseTag(package.name, sdk.sdkLine, release));
+      tags.add(release.tag);
     }
   }
   return tags;
@@ -343,19 +343,6 @@ String _sourceSyncSkippedTagMessage(_SourceSyncSkippedTag tag) {
   };
 }
 
-String _sourceReleaseTag(
-  String packageName,
-  String sdkLine,
-  SourceManifestRelease release,
-) {
-  return packageReleaseTagForPackage(
-    packageName: packageName,
-    upstreamVersion: release.upstreamVersion,
-    sdkVersion: '$sdkLine.0-ohos-0.0.0',
-    releaseVersion: release.version,
-  );
-}
-
 String _resolveSyncRepositoryUrl(Directory source, String url) {
   final local = localSourceDirectoryFromUrl(url);
   if (local != null) {
@@ -418,10 +405,11 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
   required String packageName,
   required String packageUrl,
   required String packagePath,
-  required String upstreamGitUrl,
-  required String upstreamVersion,
+  required String originKind,
+  required String? upstreamGitUrl,
+  required String? upstreamVersion,
   required String? upstreamRef,
-  required String upstreamCommit,
+  required String? upstreamCommit,
   required String sdkVersion,
   required String releaseVersion,
   required String releaseTag,
@@ -459,6 +447,13 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
   }
   final manifestPath = 'manifests/$manifestName';
   final manifestFile = File('${source.path}/$manifestPath/fluoh.yaml');
+  final isPorted = originKind == packageOriginPorted;
+  if (isPorted &&
+      (upstreamGitUrl == null ||
+          upstreamVersion == null ||
+          upstreamCommit == null)) {
+    usageException('Ported package releases require upstream metadata.');
+  }
   final packageTemplate = SourceManifestPackageTemplate(
     name: packageName,
     path: packagePath,
@@ -466,15 +461,22 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
     upstreamRef: upstreamRef,
     upstreamCommit: upstreamCommit,
     version: releaseVersion,
+    tag: releaseTag,
     sdkLine: sdkLine,
     status: releaseStatus,
   );
-  final canonicalTag = packageReleaseTagForPackage(
-    packageName: packageName,
-    upstreamVersion: upstreamVersion,
-    sdkVersion: sdkVersion,
-    releaseVersion: releaseVersion,
-  );
+  final canonicalTag = isPorted
+      ? portedPackageReleaseTagForPackage(
+          packageName: packageName,
+          upstreamVersion: upstreamVersion!,
+          sdkVersion: sdkVersion,
+          releaseVersion: releaseVersion,
+        )
+      : createdPackageReleaseTagForPackage(
+          packageName: packageName,
+          sdkVersion: sdkVersion,
+          releaseVersion: releaseVersion,
+        );
   if (releaseTag != canonicalTag) {
     usageException(
       'Release tag $releaseTag does not match package metadata; expected '
@@ -488,6 +490,7 @@ Future<_SourcePackageMetadataResult> _writeSourcePackageMetadata({
       manifestFile: manifestFile,
       manifestName: manifestName,
       repositoryUrl: packageUrl,
+      originKind: originKind,
       upstreamGitUrl: upstreamGitUrl,
       package: packageTemplate,
       usageException: usageException,
@@ -608,7 +611,8 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
   required File manifestFile,
   required String manifestName,
   required String repositoryUrl,
-  required String upstreamGitUrl,
+  required String originKind,
+  required String? upstreamGitUrl,
   required SourceManifestPackageTemplate package,
   required Never Function(String message) usageException,
 }) async {
@@ -617,8 +621,9 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
       manifest: parseSourceManifest(
         content: sourceManifestContent(
           SourceManifestTemplate(
+            originKind: originKind,
             repositoryGitUrl: repositoryUrl,
-            upstreamGitUrl: upstreamGitUrl,
+            upstreamGitUrl: upstreamGitUrl ?? repositoryUrl,
             package: package,
           ),
         ),
@@ -637,7 +642,12 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
       '${existing.repositoryGitUrl}.',
     );
   }
-  if (existing.upstreamGitUrl != upstreamGitUrl) {
+  if (existing.originKind != originKind) {
+    usageException(
+      'Manifest ${existing.name} already uses origin ${existing.originKind}.',
+    );
+  }
+  if (existing.isPorted && existing.upstreamGitUrl != upstreamGitUrl) {
     usageException(
       'Manifest ${existing.name} already uses upstream '
       '${existing.upstreamGitUrl}.',
@@ -661,6 +671,7 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
   }
   final release = SourceManifestRelease(
     version: package.version,
+    tag: package.tag,
     upstreamVersion: package.upstreamVersion,
     upstreamRef: package.upstreamRef,
     upstreamCommit: package.upstreamCommit,
@@ -686,6 +697,7 @@ Future<_SourceManifestUpdate> _updatedSourceManifest({
   return _SourceManifestUpdate(
     manifest: SourceManifest(
       schemaVersion: existing.schemaVersion,
+      originKind: existing.originKind,
       repositoryGitUrl: existing.repositoryGitUrl,
       upstreamGitUrl: existing.upstreamGitUrl,
       package: SourceManifestPackage(
@@ -716,11 +728,7 @@ List<SourceManifestRelease> _upsertManifestRelease(
   SourceManifestRelease release,
 ) {
   final next = releases.toList(growable: true);
-  final index = next.indexWhere(
-    (existing) =>
-        existing.version == release.version &&
-        existing.upstreamVersion == release.upstreamVersion,
-  );
+  final index = next.indexWhere((existing) => existing.tag == release.tag);
   if (index == -1) {
     next.add(release);
   } else {

@@ -68,6 +68,9 @@ repository:
   git:
     url: ${parent.path}/camera
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -79,11 +82,13 @@ package:
     "3.35":
       releases:
         - version: "0.0.0"
+          tag: camera-0.11.0-ohos-3.35-0.0.0
           upstream:
             version: "0.11.0"
             ref: camera-v0.11.0
             commit: "1111111111111111111111111111111111111111"
         - version: "1.0.0"
+          tag: camera-0.11.0-ohos-3.35-1.0.0
           upstream:
             version: "0.11.0"
             ref: camera-v0.11.0
@@ -98,6 +103,9 @@ repository:
   git:
     url: ${parent.path}/share_plus
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/fluttercommunity/plus_plugins
@@ -109,6 +117,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: share_plus-9.0.0-ohos-3.35-1.0.0
           upstream:
             version: "9.0.0"
             ref: share_plus-v9.0.0

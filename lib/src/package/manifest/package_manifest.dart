@@ -8,6 +8,8 @@ export '../../schema/schema.dart'
     show
         PackageManifest,
         PackageManifestPackage,
+        createdPackageReleaseTagForPackage,
+        createSpecPackageManifest,
         defaultUpstreamBranch,
         dependencyUrlForImplementationRepository,
         flutterOhosBranchForSdk,
@@ -15,7 +17,9 @@ export '../../schema/schema.dart'
         initialPackageReleaseVersion,
         packageManifestKind,
         packageManifestSchema,
-        packageReleaseTagForPackage,
+        packageOriginCreated,
+        packageOriginPorted,
+        portedPackageReleaseTagForPackage,
         sdkLineFromSdkVersion,
         sdkVersionSeriesFromSdkVersion,
         updatePackageManifestRelease;

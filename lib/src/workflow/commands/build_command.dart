@@ -72,6 +72,7 @@ class BuildCommand extends FluohCommand<int> {
     final output = _outputFor(json, _output);
     final stdout = json ? (_) {} : _stdout;
     final stderr = json ? (_) {} : _stderr;
+    final traceOptions = _traceOptionsFrom(argResults!);
     final results = <WorkflowTargetResult>[];
     for (final currentPlatform in platforms) {
       final policy = platformWorkflowPolicy(currentPlatform);
@@ -81,6 +82,7 @@ class BuildCommand extends FluohCommand<int> {
         buildExampleTarget: policy.buildTarget,
         debug: argResults!.flag('debug'),
         autoSign: autoSign,
+        traceDir: traceOptions.directory?.path,
       );
       results.addAll(
         await _runPackageOrProject(
@@ -95,6 +97,7 @@ class BuildCommand extends FluohCommand<int> {
             platform: currentPlatform,
             debug: argResults!.flag('debug'),
             autoSign: autoSign,
+            traceDir: traceOptions.directory?.path,
           ),
         ),
       );
@@ -106,7 +109,7 @@ class BuildCommand extends FluohCommand<int> {
       command: 'build',
       arguments: argResults!.arguments,
       results: results,
-      traceOptions: _traceOptionsFrom(argResults!),
+      traceOptions: traceOptions,
       extraFields: {
         'workflowEvidence': _buildOnlyEvidence(
           platforms: platforms,

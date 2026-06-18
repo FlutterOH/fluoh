@@ -4,7 +4,7 @@
 </h1>
 
 <p align="center">
-  Adapt Flutter apps and packages to OHOS with AI.
+  FlutterOH-first AI workflows for Flutter apps and packages.
 </p>
 
 <p align="center">
@@ -24,16 +24,16 @@
 </p>
 
 <p align="center">
-  <img src="doc/assets/svg/readme-hero.svg" alt="fluoh AI adaptation prompt preview">
+  <img src="doc/assets/svg/readme-hero.svg" alt="fluoh AI support prompt preview">
 </p>
 
 ## Quick Start
 
 ### AI First
 
-For most app or package adaptations, use the bundled fluoh AI skill. After
-confirming the scope, it updates the project or package, runs verification, and
-writes a local report.
+For most FlutterOH support work, use the bundled fluoh AI skill. After
+confirming the scope, it updates the project or package, runs verification
+across the target and preserved platforms, and writes a local report.
 
 Install the bundled skill in your AI agent:
 
@@ -44,9 +44,9 @@ Run `fluoh skill --path`, install the printed path as the fluoh skill, and overw
 Then ask the agent for the workflow you need:
 
 ```text
-Use $fluoh to install fluoh if needed and adapt this Flutter project for OHOS.
-Use $fluoh to adapt <upstream-git-url> for FlutterOH.
-Use $fluoh to continue adapting <package-name> for OHOS.
+Use $fluoh to install fluoh if needed and add FlutterOH support to this Flutter project.
+Use $fluoh to port <upstream-git-url> for FlutterOH.
+Use $fluoh to continue implementing FlutterOH support for <package-name>.
 Use $fluoh to precheck this FlutterOH Source change.
 ```
 
@@ -96,21 +96,21 @@ Then run the existing-app commands starting at `fluoh deps check`.
 
 ### Package Maintainers
 
-Start by discovering the upstream package and creating a FlutterOH adaptation
-repository:
+Create a spec-first FlutterOH package repository, or discover and port an
+upstream package repository:
 
 ```sh
+fluoh package new <name> --repository-name <flutteroh-repo-name>
 fluoh package discover <upstream-git-url>
-fluoh package create <upstream-git-url> --repository-name <flutteroh-repo-name>
+fluoh package port <upstream-git-url> --repository-name <flutteroh-repo-name>
 cd <flutteroh-repo-name>
-fluoh verify --package <name>
-fluoh run ohos --package <name> --auto-emulator
-fluoh attach ohos --session-file <session-file>
+fluoh package next --package <name>
 fluoh package status --package <name>
 ```
 
-`fluoh attach` reuses the Flutter run session, preferring the VM Service URI and
-falling back to the target device id when the session does not expose one.
+`fluoh package next` reports one focused implementation action at a time. Follow
+the printed action, rerun it until ready or blocked, then use `package status`,
+`package handoff`, and `package check` for release readiness.
 
 Add another package branch from the generated repository when needed:
 
@@ -118,6 +118,12 @@ Add another package branch from the generated repository when needed:
 fluoh package queue <package-path>...
 fluoh package add <package-path>
 fluoh verify --package <name>
+```
+
+After the first release, register the package branch in Source:
+
+```sh
+fluoh source register . --source <source-repo>
 ```
 
 Run Flutter through the selected FlutterOH SDK:

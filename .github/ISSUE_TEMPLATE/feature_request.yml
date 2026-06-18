@@ -53,7 +53,7 @@ body:
     attributes:
       label: Affected commands or files
       description: List the fluoh commands, domains, or release artifacts involved.
-      placeholder: create, deps fix, plan app, build ohos, report create, doc/commands.md
+      placeholder: package new, package port, package upstream sync, source register, deps fix, plan app, build ohos, report create, doc/commands.md
     validations:
       required: false
   - type: textarea

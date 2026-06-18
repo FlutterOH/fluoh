@@ -18,7 +18,7 @@ void _registerSourceCommandCacheTests() {
 
     expect(
       await runFluoh(
-        ['source', 'add', 'remote', sourceUrl],
+        ['source', 'enable', 'remote', sourceUrl],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -35,7 +35,7 @@ void _registerSourceCommandCacheTests() {
       0,
     );
 
-    expect(stdout, contains('Added source remote: $sourceUrl'));
+    expect(stdout, contains('Enabled source remote: $sourceUrl'));
     expect(stdout, contains('Updated source remote'));
     expect(
       File(
@@ -87,7 +87,7 @@ void _registerSourceCommandCacheTests() {
 
       expect(
         await runFluoh(
-          ['source', 'add', 'remote', sourceUrl],
+          ['source', 'enable', 'remote', sourceUrl],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -187,7 +187,7 @@ manifests:
         await runFluoh(
           [
             'source',
-            'add',
+            'enable',
             'first',
             'file://${firstSource.path}',
             '--priority',
@@ -203,7 +203,7 @@ manifests:
         await runFluoh(
           [
             'source',
-            'add',
+            'enable',
             'remote',
             'file://${remoteSource.path}',
             '--priority',
@@ -282,6 +282,9 @@ repository:
   git:
     url: ${environment.homeDirectory.path}/team
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/example/team
@@ -292,6 +295,7 @@ package:
     "3.35":
       releases:
         - version: 0.1.0
+          tag: team-1.0.0-ohos-3.35-0.1.0
           upstream:
             version: 1.0.0
             ref: team-v1.0.0
@@ -302,7 +306,7 @@ package:
 
       expect(
         await runFluoh(
-          ['source', 'add', 'team', supplemental.path, '--priority', '200'],
+          ['source', 'enable', 'team', supplemental.path, '--priority', '200'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -352,7 +356,7 @@ sdk:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'future', source.path],
+        ['source', 'enable', 'future', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -394,7 +398,7 @@ sdk:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'schema', source.path],
+        ['source', 'enable', 'schema', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -430,7 +434,7 @@ repository: file:${source.path}
 
     expect(
       await runFluoh(
-        ['source', 'add', 'schema', source.path],
+        ['source', 'enable', 'schema', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -446,7 +450,7 @@ repository: file:${source.path}
   });
 
   test(
-    'reports missing repository manifests when adding local sources',
+    'reports missing repository manifests when enabling local sources',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -458,7 +462,7 @@ repository: file:${source.path}
 
       expect(
         await runFluoh(
-          ['source', 'add', 'broken', source.path],
+          ['source', 'enable', 'broken', source.path],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -494,7 +498,7 @@ sdk:
 
     expect(
       await runFluoh(
-        ['source', 'add', 'broken', source.path],
+        ['source', 'enable', 'broken', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

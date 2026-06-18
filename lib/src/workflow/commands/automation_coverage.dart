@@ -60,7 +60,7 @@ class _AutomationCoveragePolicy {
       'status': status,
       'readyForAutomation': status == 'readyForExecution',
       'readyRule':
-          'A package adaptation is ready only after every applicable package capability is covered by automation, integration_test, or an explicit notApplicable row. Blocked rows require repair before release readiness.',
+          'A package support is ready only after every applicable package capability is covered by automation, integration_test, or an explicit notApplicable row. Blocked rows require repair before release readiness.',
       'minimumGates': const [
         {
           'id': 'platform-matrix',
@@ -186,7 +186,7 @@ class _AutomationCoveragePolicy {
         {
           'platform': targetPlatform,
           'path':
-              '${inventory.rootPath}/.fluoh/scenarios/$scope/$targetPlatform-$itemSlug.md',
+              '${inventory.rootPath}/doc/fluoh/$scope/scenarios/$targetPlatform-$itemSlug.md',
         },
     ];
   }

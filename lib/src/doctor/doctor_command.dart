@@ -107,16 +107,8 @@ class DoctorCommand extends FluohCommand<int> {
       )
       ..addOption(
         'platform',
-        allowed: const [
-          'all',
-          'ohos',
-          'android',
-          'ios',
-          'macos',
-          'linux',
-          'web',
-          'windows',
-        ],
+        valueHelp: 'platform',
+        allowed: fluohPlatformOptionValues,
         help: 'Platforms to check. All platforms are checked by default.',
         allowedHelp: const {
           'all':
@@ -184,7 +176,7 @@ class DoctorCommand extends FluohCommand<int> {
         command: name,
         ok: report.ok,
         exitCode: exitCode,
-        fields: report.toJsonFields(),
+        fields: report.toJsonFields(includeNextAction: options.strict),
       );
       return exitCode;
     }

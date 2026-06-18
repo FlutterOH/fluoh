@@ -21,7 +21,7 @@ class DepsCheckCommand extends FluohCommand<int> {
     argParser.addFlag(
       'json',
       negatable: false,
-      help: 'Print the dependency OHOS support report as JSON.',
+      help: 'Print the dependency FlutterOH support report as JSON.',
     );
     addAllReleaseStatusesFlag(argParser);
   }
@@ -37,7 +37,7 @@ class DepsCheckCommand extends FluohCommand<int> {
   String get name => 'check';
 
   @override
-  String get description => 'Check whether dependencies support OHOS.';
+  String get description => 'Check whether dependencies support FlutterOH.';
 
   @override
   Future<int> run() async {
@@ -184,9 +184,7 @@ class DepsFixCommand extends FluohCommand<int> {
 }
 
 void _printCheckPlan(TerminalOutput output, DependencyPlan plan) {
-  output.heading(
-    'Dependency OHOS support for FlutterOH SDK ${plan.sdkVersion}',
-  );
+  output.heading('Dependency FlutterOH support for SDK ${plan.sdkVersion}');
   output.info(
     'Policy: pubspecSection=${plan.policy.pubspecSection.yamlValue}, '
     'versionChanges=${plan.policy.versionChanges.yamlValue}, '

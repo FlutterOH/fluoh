@@ -54,7 +54,16 @@ class SourceIndex {
       );
 
   /// Loads SDK release data from the root Source manifest.
-  Future<SdkIndex> loadSdkIndex() async => (await loadRootManifest()).sdkIndex;
+  Future<SdkIndex> loadSdkIndex() async {
+    final index = (await loadRootManifest()).sdkIndex;
+    return SdkIndex(
+      schemaVersion: index.schemaVersion,
+      releases: [
+        for (final release in index.releases)
+          _resolveSourceRelativeSdkRepository(release),
+      ],
+    );
+  }
 
   /// Loads package implementation data from registered Manifests.
   Future<PackageIndex> loadPackageIndex({
@@ -124,6 +133,30 @@ class SourceIndex {
       );
     }
     return SourcePackageRouteIndex(manifests: manifests);
+  }
+
+  SdkRelease _resolveSourceRelativeSdkRepository(SdkRelease release) {
+    final repository = release.repository;
+    if (_isNonRelativeRepository(repository)) {
+      return release;
+    }
+    return SdkRelease(
+      version: release.version,
+      versionSeries: release.versionSeries,
+      flutterVersion: release.flutterVersion,
+      channel: release.channel,
+      repository: root.absolute.uri.resolve(repository).toFilePath(),
+      tag: release.tag,
+      publishedAt: release.publishedAt,
+      sourceName: release.sourceName,
+      sourcePriority: release.sourcePriority,
+    );
+  }
+
+  bool _isNonRelativeRepository(String repository) {
+    return repository.startsWith('/') ||
+        repository.contains(':') ||
+        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(repository);
   }
 
   Future<List<SourcePackageManifest>> _readSourcePackageManifests({

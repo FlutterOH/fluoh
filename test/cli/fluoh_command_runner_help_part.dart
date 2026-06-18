@@ -79,7 +79,7 @@ void _registerFluohCommandRunnerHelpTests() {
       0,
     );
     help = stdout.join('\n');
-    _expectInOrder(help, ['Adaptation plans:', '  app', '  package']);
+    _expectInOrder(help, ['Support plans:', '  app', '  package']);
 
     stdout.clear();
     expect(
@@ -92,17 +92,20 @@ void _registerFluohCommandRunnerHelpTests() {
     );
     help = stdout.join('\n');
     _expectInOrder(help, [
-      'Source packages:',
+      'Source index:',
       '  list',
-      'Planning:',
+      'Discovery:',
       '  discover',
       '  queue',
       'Repository setup:',
-      '  create',
+      '  new',
+      '  port',
       '  add',
-      '  sync',
-      '  docs',
-      'Handoff:',
+      'Upstream maintenance:',
+      '  upstream',
+      'Implementation loop:',
+      '  next',
+      '  scope',
       '  handoff',
       'Release:',
       '  status',
@@ -167,25 +170,71 @@ void _registerFluohCommandRunnerHelpTests() {
     expect(stderr, isEmpty);
   });
 
-  test('prints package create upstream help', () async {
+  test('prints package port upstream help', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['package', 'create', '--help'],
+      ['package', 'port', '--help'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
 
     expect(exitCode, 0);
     final help = stdout.join('\n');
-    expect(help, contains('Usage: fluoh package create <upstream>'));
+    expect(help, contains('Usage: fluoh package port <upstream>'));
     expect(help, contains('Upstream: Git URL or local Git repo path.'));
     expect(help, contains('--package-path'));
     expect(help, contains('--repository'));
     expect(help, contains('--git-author-name'));
     expect(help, contains('--git-author-email'));
     expect(stderr, isEmpty);
+  });
+
+  test('prints package new option value placeholders', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['package', 'new', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    expect(help, contains('--template=<template>'));
+    expect(help, contains('--platforms=<platforms>'));
+    expect(stderr, isEmpty);
+  });
+
+  test('prints enum option value placeholders', () async {
+    final cases = <List<String>, List<String>>{
+      ['devices', '--help']: ['--platform=<platform>'],
+      ['emulators', '--help']: ['--platform=<platform>'],
+      ['doctor', '--help']: ['--platform=<platform>'],
+      ['run', 'ohos', '--help']: ['--ohos-permission-dialog-policy=<policy>'],
+      ['report', 'create', '--help']: ['--recommendation=<recommendation>'],
+      ['package', 'version', '--help']: ['--bump=<part>', '--status=<status>'],
+    };
+
+    for (final entry in cases.entries) {
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      final exitCode = await runFluoh(
+        entry.key,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+
+      expect(exitCode, 0, reason: entry.key.join(' '));
+      final help = stdout.join('\n');
+      for (final expected in entry.value) {
+        expect(help, contains(expected), reason: entry.key.join(' '));
+      }
+      expect(stderr, isEmpty);
+    }
   });
 
   test('wraps leaf command option help at terminal width', () async {
@@ -207,12 +256,12 @@ void _registerFluohCommandRunnerHelpTests() {
     expect(stderr, isEmpty);
   });
 
-  test('prints package create upstream argument guidance', () async {
+  test('prints package port upstream argument guidance', () async {
     final stdout = <String>[];
     final stderr = <String>[];
 
     final exitCode = await runFluoh(
-      ['package', 'create'],
+      ['package', 'port'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
@@ -224,7 +273,7 @@ void _registerFluohCommandRunnerHelpTests() {
       error,
       contains('Expected <upstream>: Git URL or local Git repo path.'),
     );
-    expect(error, contains('Usage: fluoh package create <upstream>'));
+    expect(error, contains('Usage: fluoh package port <upstream>'));
     expect(error, contains('Upstream: Git URL or local Git repo path.'));
   });
 
@@ -242,17 +291,20 @@ void _registerFluohCommandRunnerHelpTests() {
     final help = stdout.join('\n');
     expect(help, contains('Maintain FlutterOH package repositories.'));
     _expectInOrder(help, [
-      'Source packages:',
+      'Source index:',
       '  list',
-      'Planning:',
+      'Discovery:',
       '  discover',
       '  queue',
       'Repository setup:',
-      '  create',
+      '  new',
+      '  port',
       '  add',
-      '  sync',
-      '  docs',
-      'Handoff:',
+      'Upstream maintenance:',
+      '  upstream',
+      'Implementation loop:',
+      '  next',
+      '  scope',
       '  handoff',
       'Release:',
       '  status',
@@ -261,6 +313,22 @@ void _registerFluohCommandRunnerHelpTests() {
       '  release',
     ]);
     expect(help, isNot(contains('  tag')));
+    expect(stderr, isEmpty);
+  });
+
+  test('prints package upstream subcommands', () async {
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['package', 'upstream', '--help'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+
+    expect(exitCode, 0);
+    final help = stdout.join('\n');
+    _expectInOrder(help, ['Upstream:', '  check', '  sync']);
     expect(stderr, isEmpty);
   });
 }

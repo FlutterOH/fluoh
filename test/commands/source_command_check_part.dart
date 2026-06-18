@@ -39,6 +39,7 @@ void _registerSourceCommandCheckTests() {
         packageRepository,
         releaseYaml: '''
           - version: "1.0.0"
+            tag: camera-0.12.0-ohos-3.35-1.0.0
             upstream:
               version: "0.12.0"
               ref: camera-v0.12.0
@@ -630,6 +631,9 @@ kind: manifest
 repository:
   git:
     url: file:${source.path}/../path_provider_repo
+
+origin:
+  kind: ported
 
 upstream:
   git:

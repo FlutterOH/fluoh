@@ -1,6 +1,6 @@
 # Independent Review Flow
 
-Use this flow after the adaptation AI has produced a report and believes the
+Use this flow after the implementation AI has produced a report and believes the
 work is `ready`. This is a host-agent supervision loop, not a fluoh CLI gate.
 
 ## Contract
@@ -8,13 +8,13 @@ work is `ready`. This is a host-agent supervision loop, not a fluoh CLI gate.
 - Start a new independent reviewer agent when the host supports subagents.
 - Give the reviewer only the package/app path, report path, relevant trace
   paths, previous feedback packet when one exists, and the task scope. Do not
-  give it the adaptation AI's conclusion as ground truth.
+  give it the implementation AI's conclusion as ground truth.
 - The reviewer is read-only: it may inspect files, diffs, reports, command
   output, traces, screenshots, scenarios, tests, and official-doc basis, but it
   must not edit files, stage, commit, release, push, or repair code.
 - The reviewer must check whether the claimed ready state is justified by
   evidence, not whether the implementation looks plausible.
-- If findings exist, send the feedback packet back to the adaptation AI as
+- If findings exist, send the feedback packet back to the implementation AI as
   repair work, rerun the affected verification/report checks, then start
   another independent review pass. Continue until the reviewer reports pass, a
   maintainer decision is needed, or a concrete blocker remains.
@@ -28,8 +28,9 @@ work is `ready`. This is a host-agent supervision loop, not a fluoh CLI gate.
 
 Use a compact packet so feedback survives repair and re-review without relying
 on chat memory. Store it in the report's `## Independent Review` section, or in
-ignored local state such as `.fluoh/reviews/<scope>/review-<timestamp>.md`
-when the table is too large.
+ignored local state such as
+`.fluoh/tasks/<task-id>/evidence/reviews/review-<timestamp>.md` when the table
+is too large.
 
 | Field | Meaning |
 | --- | --- |
@@ -37,7 +38,7 @@ when the table is too large.
 | Severity | `blocker`, `high`, `medium`, or `low`. |
 | Area | API, platform, docs-basis, tests, example, automation, report, local-state, release. |
 | Evidence | File path, report section, command row, trace path, screenshot, or exact missing evidence. |
-| Required repair | What the adaptation AI must change or prove. |
+| Required repair | What the implementation AI must change or prove. |
 | Validation | Command, report row, trace, scenario, or reviewer check that closes it. |
 | Status | `open`, `fixed`, `accepted-risk`, `maintainer-decision`, or `blocked`. |
 
@@ -49,7 +50,7 @@ Severity routing:
 - `low`: may remain as residual risk if it does not invalidate the release
   recommendation.
 
-The adaptation AI owns status changes, but the next reviewer owns whether a
+The implementation AI owns status changes, but the next reviewer owns whether a
 `fixed` item has enough evidence to close.
 
 ## Reviewer Prompt
@@ -57,7 +58,7 @@ The adaptation AI owns status changes, but the next reviewer owns whether a
 Use a prompt like this, filling in the concrete paths:
 
 ```text
-You are an independent read-only reviewer for a FlutterOH/OHOS adaptation.
+You are an independent read-only reviewer for FlutterOH support work.
 Do not edit, stage, commit, release, push, or repair files.
 
 Scope:
@@ -69,10 +70,10 @@ Scope:
 
 Review the final diff, report, commands table, official platform basis,
 platform matrix, automation coverage, interaction evidence, test coverage,
-non-OHOS regression coverage, local state, and remaining risks.
+existing-platform regression coverage, local state, and remaining risks.
 
 Classify findings as blocker, high, medium, or low. A blocker/high finding
-means the adaptation AI must repair and rerun evidence before ready. Prefer
+means the implementation AI must repair and rerun evidence before ready. Prefer
 file paths, report section names, command rows, trace paths, and exact missing
 evidence over generic advice. If a previous feedback packet exists, verify
 each open/fixed item before adding new findings.
@@ -86,7 +87,7 @@ Return:
 
 ## Repair Loop
 
-When the reviewer returns `needs-fixes`, the adaptation AI should:
+When the reviewer returns `needs-fixes`, the implementation AI should:
 
 1. Copy the feedback packet into the report or ignored local review note.
 2. Treat blocker/high findings as repair work, not report wording.

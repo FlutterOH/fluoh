@@ -514,7 +514,10 @@ Future<File?> _writeRunLog(
   String stderr,
 ) async {
   try {
-    final runs = environment.packageRunsDirectory;
+    final task = await TaskWorkspace(
+      environment,
+    ).resolveOrCreate(type: 'run', scopeName: platform);
+    final runs = task.logDirectory;
     await runs.create(recursive: true);
     final timestamp = DateTime.now()
         .toIso8601String()

@@ -62,6 +62,7 @@ SourceManifest parseSourceManifest({
     'schema',
     'kind',
     'repository',
+    'origin',
     'upstream',
     'package',
   });
@@ -71,11 +72,28 @@ SourceManifest parseSourceManifest({
   ensureAllowedKeys(repository, '$label repository', {'git'});
   final repositoryGit = objectMap(repository['git'], '$label repository.git');
   ensureAllowedKeys(repositoryGit, '$label repository.git', {'url'});
+  final repositoryGitUrl = requiredString(repositoryGit, 'url');
 
-  final upstream = objectMap(yaml['upstream'], '$label upstream');
-  ensureAllowedKeys(upstream, '$label upstream', {'git'});
-  final upstreamGit = objectMap(upstream['git'], '$label upstream.git');
-  ensureAllowedKeys(upstreamGit, '$label upstream.git', {'url'});
+  final origin = objectMap(yaml['origin'], '$label origin');
+  ensureAllowedKeys(origin, '$label origin', {'kind'});
+  final originKind = _sourceOriginKind(requiredString(origin, 'kind'), label);
+
+  final upstream = optionalObjectMap(yaml['upstream'], '$label upstream');
+  Map<String, Object?>? upstreamGit;
+  if (originKind == packageOriginPorted) {
+    if (upstream == null) {
+      throw FluohSchemaException(
+        '$label upstream is required for ported packages.',
+      );
+    }
+    ensureAllowedKeys(upstream, '$label upstream', {'git'});
+    upstreamGit = objectMap(upstream['git'], '$label upstream.git');
+    ensureAllowedKeys(upstreamGit, '$label upstream.git', {'url'});
+  } else if (upstream != null) {
+    throw FluohSchemaException(
+      '$label upstream must be omitted for created packages.',
+    );
+  }
 
   final packageYaml = objectMap(yaml['package'], '$label package');
   final packageName = requiredString(packageYaml, 'name');
@@ -83,9 +101,17 @@ SourceManifest parseSourceManifest({
 
   return SourceManifest(
     schemaVersion: yaml['schema'] as int,
-    repositoryGitUrl: requiredString(repositoryGit, 'url'),
-    upstreamGitUrl: requiredString(upstreamGit, 'url'),
-    package: _readManifestPackage(packageName, packageYaml, '$label package'),
+    originKind: originKind,
+    repositoryGitUrl: repositoryGitUrl,
+    upstreamGitUrl: upstreamGit == null
+        ? repositoryGitUrl
+        : requiredString(upstreamGit, 'url'),
+    package: _readManifestPackage(
+      packageName,
+      packageYaml,
+      '$label package',
+      originKind: originKind,
+    ),
   );
 }
 
@@ -114,14 +140,9 @@ List<SourcePackageManifest> sourcePackageManifestsFromManifest(
       implementations.add(
         PackageImplementation(
           sdkLine: sdk.sdkLine,
-          upstreamVersion: release.upstreamVersion,
+          upstreamVersion: release.sourceVersion,
           repository: manifest.repositoryGitUrl,
-          tag: packageReleaseTagForPackage(
-            packageName: package.name,
-            upstreamVersion: release.upstreamVersion,
-            sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
-            releaseVersion: release.version,
-          ),
+          tag: release.tag,
           version: release.version,
           path: packagePath,
           status: release.status,
@@ -130,7 +151,7 @@ List<SourcePackageManifest> sourcePackageManifestsFromManifest(
       compatibility.add(
         SourceCompatibilityStatus(
           sdkLine: sdk.sdkLine,
-          upstreamVersion: release.upstreamVersion,
+          upstreamVersion: release.sourceVersion,
           status: release.status == 'compatible'
               ? 'implemented'
               : release.status,
@@ -150,4 +171,11 @@ List<SourcePackageManifest> sourcePackageManifestsFromManifest(
       advisory: package.advisory,
     ),
   ];
+}
+
+String _sourceOriginKind(String kind, String label) {
+  if (const {packageOriginCreated, packageOriginPorted}.contains(kind)) {
+    return kind;
+  }
+  throw FluohSchemaException('$label origin.kind must be created or ported.');
 }

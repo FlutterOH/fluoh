@@ -30,13 +30,13 @@ Future<List<String>> packageReleaseMetadataWarnings({
   required String tag,
 }) async {
   final warnings = <String>[];
-  final changelogWarning = await _fluohChangelogWarning(
+  final releaseHistoryWarning = await _fluohReleaseHistoryWarning(
     repository,
     package,
     tag,
   );
-  if (changelogWarning != null) {
-    warnings.add(changelogWarning);
+  if (releaseHistoryWarning != null) {
+    warnings.add(releaseHistoryWarning);
   }
   warnings.addAll(
     await packageLicenseWarnings(
@@ -86,32 +86,33 @@ Future<void> _ensureReleaseVersionAfterPreviousTags(
   }
 }
 
-Future<String?> _fluohChangelogWarning(
+Future<String?> _fluohReleaseHistoryWarning(
   Directory repository,
   PackageManifestPackage package,
   String tag,
 ) async {
-  final changelog = File('${repository.path}/FLUOH_CHANGELOG.md');
-  if (!await changelog.exists()) {
-    return 'Warning: Missing FLUOH_CHANGELOG.md for '
+  final fluoh = File('${repository.path}/FLUOH.md');
+  if (!await fluoh.exists()) {
+    return 'Warning: Missing FLUOH.md release history for '
         '${package.name} release ${package.releaseVersion}.';
   }
 
-  final content = await changelog.readAsString();
-  final entryLines = _changelogEntryLines(content, package, tag);
-  if (entryLines == null || !_hasNonEmptyChangelogLine(entryLines)) {
-    return 'Warning: FLUOH_CHANGELOG.md does not contain a non-empty '
-        'entry for ${package.name} release ${package.releaseVersion}.';
+  final content = await fluoh.readAsString();
+  final entryLines = _releaseHistoryEntryLines(content, package, tag);
+  if (entryLines == null || !_hasNonEmptyReleaseHistoryLine(entryLines)) {
+    return 'Warning: FLUOH.md FlutterOH Release History does not contain '
+        'a non-empty entry for ${package.name} release '
+        '${package.releaseVersion}.';
   }
-  if (_containsPlaceholderChangelogLine(entryLines)) {
-    return 'Warning: FLUOH_CHANGELOG.md entry for ${package.name} release '
-        '${package.releaseVersion} still contains TODO placeholder release '
-        'notes.';
+  if (_containsPlaceholderReleaseHistoryLine(entryLines)) {
+    return 'Warning: FLUOH.md FlutterOH Release History entry for '
+        '${package.name} release ${package.releaseVersion} still contains '
+        'TODO placeholder release notes.';
   }
   return null;
 }
 
-List<String>? _changelogEntryLines(
+List<String>? _releaseHistoryEntryLines(
   String content,
   PackageManifestPackage package,
   String tag,
@@ -146,11 +147,11 @@ List<String>? _changelogEntryLines(
   return null;
 }
 
-bool _hasNonEmptyChangelogLine(List<String> entryLines) {
+bool _hasNonEmptyReleaseHistoryLine(List<String> entryLines) {
   return entryLines.any((line) => line.trim().isNotEmpty);
 }
 
-bool _containsPlaceholderChangelogLine(List<String> entryLines) {
+bool _containsPlaceholderReleaseHistoryLine(List<String> entryLines) {
   return entryLines.any((line) {
     final trimmed = line.trimLeft();
     final withoutBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ')

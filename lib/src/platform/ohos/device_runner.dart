@@ -4,6 +4,7 @@ import 'dart:io' as io;
 
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../../task/task_workspace.dart';
 import 'ohos_toolchain.dart';
 import 'permission_profile.dart';
 
@@ -204,12 +205,23 @@ Future<List<OhosDeviceTarget>> listOhosDeviceTargets({
     environment: environment.processEnvironment,
     usage: usage,
   );
-  final result = await _runHdc(toolchain, const ['list', 'targets']);
+  final result = await _runHdc(toolchain, const [
+    'list',
+    'targets',
+  ], timeout: _ohosHdcCommandTimeout(environment.processEnvironment));
   if (_isHdcConnectionFailure(result)) {
     throw OhosDeviceException(
       'List OHOS device targets failed because hdc could not connect to its '
       'server.\n${_trimOutput(result.stdout)}${_trimOutput(result.stderr)}',
       code: 'ohos.hdc_connection_failed',
+      details: _hdcFailureDetails(command: 'hdc list targets', result: result),
+    );
+  }
+  if (_isHdcTimeout(result)) {
+    throw OhosDeviceException(
+      'List OHOS device targets timed out.\n'
+      '${_trimOutput(result.stdout)}${_trimOutput(result.stderr)}',
+      code: 'ohos.hdc_timeout',
       details: _hdcFailureDetails(command: 'hdc list targets', result: result),
     );
   }

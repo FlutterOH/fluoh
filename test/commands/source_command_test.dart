@@ -47,6 +47,9 @@ repository:
   git:
     url: ${packageRepository.path}
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -57,7 +60,7 @@ package:
 ${advisory == null ? '' : '  advisory:\n    message: "$advisory"\n'}  sdks:
     "3.35":
       releases:
-${releases.map((release) => '        - version: "${release.$1}"\n          upstream:\n            version: "${release.$2}"\n            ref: "1111111111111111111111111111111111111111"\n            commit: "1111111111111111111111111111111111111111"').join('\n')}
+${releases.map((release) => '        - version: "${release.$1}"\n          tag: camera-${release.$2}-ohos-3.35-${release.$1}\n          upstream:\n            version: "${release.$2}"\n            ref: "1111111111111111111111111111111111111111"\n            commit: "1111111111111111111111111111111111111111"').join('\n')}
 ''');
 }
 
@@ -84,6 +87,9 @@ kind: manifest
 repository:
   git:
     url: ${packageRepository.path}
+
+origin:
+  kind: ported
 
 upstream:
   git:
@@ -113,6 +119,9 @@ repository:
   git:
     url: file:${source.path}/../${manifestName}_repo
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -124,6 +133,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: $manifestName-1.0.0-ohos-3.35-1.0.0
           upstream:
             version: "1.0.0"
             ref: $manifestName-v1.0.0
@@ -161,6 +171,9 @@ repository:
   git:
     url: "$repositoryUrl"
     branch: ohos/$sdkLine/$packageName
+
+origin:
+  kind: ported
 
 upstream:
   git:
@@ -219,6 +232,9 @@ repository:
   git:
     url: "$repositoryUrl"
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -230,6 +246,7 @@ package:
     "3.35":
       releases:
         - version: 0.1.0
+          tag: camera-0.10.0-ohos-3.35-0.1.0
           upstream:
             version: 0.10.0
             ref: camera-v0.10.0

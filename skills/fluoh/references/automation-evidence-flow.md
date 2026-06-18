@@ -13,7 +13,7 @@ checking coverage readiness:
 ```sh
 fluoh drive <platform> --package <name> --dry-run --json
 fluoh drive <platform> --package <name> --scenario <path> --json
-fluoh drive all --package <name> --trace-dir .fluoh/traces/<name>/mobile-automation --json
+fluoh drive all --package <name> --trace --json
 ```
 
 When a preceding `fluoh build` or `fluoh run` JSON contains
@@ -48,12 +48,12 @@ Flutter VM Service:
 
 ```sh
 fluoh run android --package <name> \
-  --session-file .fluoh/run-sessions/<name>/android-session.json --json
+  --session-file .fluoh/tasks/<task-id>/evidence/sessions/<name>-android-session.json --json
 python3 <skill-dir>/scripts/inspect_session.py \
-  .fluoh/run-sessions/<name>/android-session.json --wait 30 \
+  .fluoh/tasks/<task-id>/evidence/sessions/<name>-android-session.json --wait 30 \
   --expect-platform android --require-vm-service
 fluoh attach android \
-  --session-file .fluoh/run-sessions/<name>/android-session.json \
+  --session-file .fluoh/tasks/<task-id>/evidence/sessions/<name>-android-session.json \
   --require-vm-service
 ```
 
@@ -80,6 +80,11 @@ assertions.
   UI-state evidence that the example/demo reached the expected functional
   screen. Prefer `details.postLaunchScreenshot` when it is passed; otherwise
   collect the evidence with `fluoh drive`.
+- After a passed mobile run, `fluoh package next` may require
+  `.fluoh/tasks/<task-id>/evidence/visual-readiness.yaml` with
+  `kind: fluoh.visualPageReadiness`. Record `status: passed` only after
+  opening the screenshot or UI-state artifact and confirming the expected
+  functional page is visible and usable.
 - `fluoh run all` is a launch-smoke matrix shortcut, not full-platform
   functional testing.
 - `workflowEvidence.classification: buildOnly` or `launchSmoke` is not a
@@ -104,11 +109,15 @@ assertions.
   and recordings are mandatory launch sanity artifacts for mobile runs, but
   functional pass/fail still needs assertions such as visible text, session
   state, logs, semantics, or integration-test output.
+- If UI tree, semantics, or visible-text evidence conflicts with the captured
+  screen, treat the visual page-readiness result as failed. Do not continue
+  automation on a blank, hidden, splash-only, or wrong demo page just because a
+  tree dump contains expected text.
 - Primary evidence should be Flutter debug output, VM Service/session output,
   widget or component tree state, semantics tree, integration-test output,
   accessibility text, visible status text, semantic labels, stable test keys,
   command JSON, hilog, or app log markers.
-- Package adaptations must verify every existing platform directory, not only
+- Package support work must verify every existing platform directory, not only
   OHOS. Treat Android, iOS, macOS, Linux, Web, and Windows as required when the
   package/example declares them and the current host/toolchain can run them.
   Record exact diagnostic evidence and skip reasons for unsupported hosts or
@@ -136,7 +145,7 @@ markers.
 
 ## Coverage Policy
 
-Before marking a Package adaptation ready, build a coverage matrix from the
+Before marking a Package support ready, build a coverage matrix from the
 upstream public API, example entry points, declared platform interfaces,
 manifest permissions, and platform feature classes. Every applicable row must
 have automation, `integration_test`, or manual-assisted tool-readable evidence.
@@ -183,8 +192,8 @@ manifest-permission-coverage gate is not ready, add or repair tests, scenarios,
 example controls, manifest declarations, or explicit notApplicable rows
 before reporting ready.
 For package repositories created from `package discover`, merge the candidate
-`adaptationProfile.suggestedCoverage` rows into the first scenario or package
-test plan before adding ad hoc coverage. Treat `adaptationProfile.requiredEvidence`
+`supportProfile.suggestedCoverage` rows into the first scenario or package
+test plan before adding ad hoc coverage. Treat `supportProfile.requiredEvidence`
 as required until a real command, scenario row, or explicit blocker satisfies
 it; do not leave external-service or provider SDK rows as prose-only risks.
 
@@ -214,6 +223,6 @@ After editing tests or scenarios, run the printed validation command or
 `automation.rerunCommand` instead of reconstructing it from memory.
 When a repair item includes `suggestedScenarioPatch`, prefer the structured
 `coverageUpdates` and `steps` fields over prose. They are designed for the
-adaptation AI to update the scenario without guessing step indexes; the `yaml`
+implementation AI to update the scenario without guessing step indexes; the `yaml`
 field is a readable patch sketch, not a substitute for reviewing real labels
 and app output.

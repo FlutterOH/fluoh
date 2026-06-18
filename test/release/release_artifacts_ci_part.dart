@@ -100,6 +100,25 @@ void _registerReleaseArtifactsCiTests() {
     expect(prWorkflow, contains('lib/src/deps/pubspec_dependency_editor.dart'));
     expect(prWorkflow, contains('lib/src/project/create_command.dart'));
     expect(prWorkflow, contains('Workflow command behavior changed'));
+    expect(prWorkflow, contains('package_(new|port|upstream|release)'));
+    expect(
+      prWorkflow,
+      contains(
+        'Package new, port, upstream, release, or manifest workflow changed',
+      ),
+    );
+    final removedPackageWorkflowPattern =
+        'package_(${['create', 'sync', 'release'].join('|')})';
+    expect(prWorkflow, isNot(contains(removedPackageWorkflowPattern)));
+    expect(
+      prWorkflow,
+      isNot(
+        contains(
+          'Package ${['create', 'sync', 'release'].join(', ')}, '
+          'or manifest workflow changed',
+        ),
+      ),
+    );
     expect(prWorkflow, contains('lib/src/cli/machine_output.dart'));
     expect(prWorkflow, contains('Formula/fluoh.rb'));
 
@@ -139,6 +158,9 @@ void _registerReleaseArtifactsCiTests() {
     expect(issueWorkflow, contains('fluoh\\s+(devices|emulators)'));
     expect(issueWorkflow, contains('fluoh\\s+package'));
     expect(issueWorkflow, contains('fluoh\\s+source'));
+    expect(issueWorkflow, contains('source register'));
+    expect(issueWorkflow, contains('package upstream check'));
+    expect(issueWorkflow, contains('package upstream sync'));
     expect(issueWorkflow, contains('Affected area'));
     expect(issueWorkflow, contains("sectionValue('Command or workflow')"));
     expect(
@@ -149,11 +171,19 @@ void _registerReleaseArtifactsCiTests() {
       issueWorkflow,
       contains("sectionValue('CLI, JSON, and file contract')"),
     );
+    expect(
+      issueWorkflow,
+      contains("sectionValue('Contract and release impact')"),
+    );
     expect(issueWorkflow, isNot(contains("sectionValue('Command')")));
     expect(issueWorkflow, isNot(contains("sectionValue('Affected commands')")));
     expect(
       issueWorkflow,
       isNot(contains("sectionValue('CLI and JSON output contract')")),
+    );
+    expect(
+      issueWorkflow,
+      isNot(contains("sectionValue('Compatibility and release impact')")),
     );
     expect(issueWorkflow, contains('Doctor output'));
     expect(issueWorkflow, contains('Reproduction steps'));
@@ -225,7 +255,7 @@ void _registerReleaseArtifactsCiTests() {
     expect(
       bugTemplate,
       contains(
-        'fluoh 0.1.0 - CLI for FlutterOH SDKs, projects, and package adaptation workflows',
+        'fluoh 0.1.0 - CLI for FlutterOH SDKs, projects, and package support workflows',
       ),
     );
     expect(bugTemplate, contains('fluoh doctor -p'));
@@ -239,6 +269,9 @@ void _registerReleaseArtifactsCiTests() {
     expect(bugTemplate, contains('Environment details'));
     expect(bugTemplate, contains('Local state and changed files'));
     expect(bugTemplate, contains('credentials'));
+    expect(bugTemplate, contains('fluoh package port'));
+    expect(bugTemplate, contains('--repository-name example'));
+    expect(bugTemplate, isNot(contains(['fluoh package', 'create'].join(' '))));
 
     expect(featureYaml['name'], 'Feature request');
     expect(featureYaml['labels'], contains('enhancement'));
@@ -263,6 +296,8 @@ void _registerReleaseArtifactsCiTests() {
     expect(featureTemplate, contains('CLI, JSON, and file contract'));
     expect(featureTemplate, contains('Safety and local state'));
     expect(featureTemplate, contains('Contract and release impact'));
+    expect(featureTemplate, contains('package upstream sync'));
+    expect(featureTemplate, contains('source register'));
     expect(configYaml['blank_issues_enabled'], isFalse);
     final contactLinks = configYaml['contact_links'] as YamlList;
     expect(contactLinks, hasLength(2));

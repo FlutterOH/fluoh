@@ -14,16 +14,16 @@
 | Kind | 所属 | 用途 |
 | --- | --- | --- |
 | `project` | Flutter 项目 | 当前 SDK 和依赖替换策略。 |
-| `package` | FlutterOH Package 适配仓库 | 当前适配分支元数据。 |
+| `package` | FlutterOH Package 支持仓库 | 当前支持分支元数据。 |
 | `source` | Source 根目录 | Source 元数据、SDK 索引和 Manifest 路由。 |
-| `manifest` | Source Package Manifest | 已发布的 Package 适配记录。 |
+| `manifest` | Source Package Manifest | 已发布的 Package 支持记录。 |
 
 状态所属：
 
 | Owner | 用途 |
 | --- | --- |
 | Project | 用户本地 Flutter 项目。 |
-| Package | FlutterOH Package 适配仓库和分支。 |
+| Package | FlutterOH Package 支持仓库和分支。 |
 | Source | 已发布或本地 Source，例如 `FlutterOH/source`。 |
 | Manifest | 从 Source 根路由到的逐 Package 文件。 |
 
@@ -48,6 +48,7 @@ schema: 1
 kind: project
 
 sdk:
+  kind: flutteroh
   version: 3.35.8-ohos-1.0.1
 
 dependencyPolicy:
@@ -57,7 +58,10 @@ dependencyPolicy:
 
 规则：
 
-- `sdk.version` 必填，并且必须存在于合并后的 Source SDK 索引中。
+- `sdk.kind` 在已有文件中可省略，默认值为 `flutteroh`。规范化输出会显式写出。
+  当前合法值为 `flutteroh` 和 `flutter`；FlutterOH 项目工作流要求 `flutteroh`。
+- `sdk.version` 必填；当 `sdk.kind: flutteroh` 时，它必须存在于合并后的 Source SDK
+  索引中。
 - `dependencyPolicy` 必填。
 - `dependencyPolicy.pubspecSection` 取值为 `dependency_overrides` 或 `dependencies`。
 - `dependencyPolicy.versionChanges` 取值为 `compatible` 或 `any`。
@@ -67,7 +71,7 @@ dependencyPolicy:
 
 ## Package `fluoh.yaml`
 
-Package `fluoh.yaml` 描述一个 Package 适配分支。release 历史由 Source Manifest
+Package `fluoh.yaml` 描述一个 Package 支持分支。release 历史由 Source Manifest
 持有，并从固定格式的 package release tag 导入。
 
 ```yaml
@@ -75,12 +79,27 @@ schema: 1
 kind: package
 
 sdk:
+  kind: flutteroh
   version: 3.35.8-ohos-1.0.1
+
+platforms:
+  target:
+    - ohos
+  preserved:
+    - android
+    - ios
+
+publishTargets:
+  - pub.dev
+  - flutteroh-source
 
 repository:
   git:
     url: https://github.com/FlutterOH/camera.git
     branch: ohos/3.35/camera
+
+origin:
+  kind: ported
 
 upstream:
   git:
@@ -102,28 +121,42 @@ package:
 规则：
 
 - `kind` 必须为 `package`。
+- 规范化输出必须包含 `sdk.kind`，当前 Package 支持分支只允许 `flutteroh`。`ohos`
+  平台目标要求使用 FlutterOH SDK。
 - `sdk.version` 必填；消费 SDK 数据的命令会要求它存在于合并后的 Source SDK 索引中。
+- `platforms.target` 列出该支持分支实现或明确负责的平台，默认值为 `ohos`。
+- `platforms.preserved` 列出添加 FlutterOH 支持时必须保持通过的 upstream 既有平台；
+  为空时省略。
+- `publishTargets` 列出该分支发布前必须检查的目标，默认包含 `pub.dev` 和
+  `flutteroh-source`。
 - `repository.git.url` 和 `repository.git.branch` 必填。
 - `repository.git.branch` 必须使用 `ohos/<sdkLine>/<package.name>`，例如
   `ohos/3.35/camera`。
-- `upstream.git.url` 和 `upstream.git.branch` 必填。
+- `origin.kind` 必填，只能是 `created` 或 `ported`。
+- `origin.kind: created` 表示 Package 基于本地 spec 新建，没有 upstream Package source；
+  必须省略 `upstream`。
+- `origin.kind: ported` 表示 Package 基于 upstream Package source；必须填写
+  `upstream.git.url`、`upstream.git.branch`、`package.release.upstream.version` 和
+  `package.release.upstream.commit`。
 - `package.name` 必填。
-- `package.path` 同时表示适配仓库和 upstream 仓库中的 Package 路径。
+- `package.path` 表示 FlutterOH 仓库中的 Package 路径；对 ported Package，它也表示
+  upstream 仓库中的 Package 路径。
 - `package.release.version` 必填，并遵循 pub semver。
-- `package.release.upstream.version` 和 `package.release.upstream.commit` 必填。
-  `package.release.upstream.ref` 可选。
+- `package.release.upstream.ref` 对 ported Package 可选。
 - `package.release.status` 可选。省略或写成 `compatible` 都表示该分支可正常消费；
   非默认状态才写 `experimental` 或 `broken`。
 
-Package release tag 使用固定格式：
+Package release tag 按 origin 使用不同固定格式：
 
 ```text
-<package>-<upstream.version>-ohos-<sdkLine>-<release.version>
+created: <package>-ohos-<sdkLine>-<release.version>
+ported:  <package>-<upstream.version>-ohos-<sdkLine>-<release.version>
 ```
 
 例如：
 
 ```text
+my_plugin-ohos-3.35-1.0.0
 camera-0.11.0-ohos-3.35-1.0.1
 ```
 
@@ -139,7 +172,7 @@ Source 根 `fluoh.yaml` 描述 Source 自身、可选 SDK 数据和逐 Package M
 schema: 1
 kind: source
 name: flutteroh
-description: FlutterOH SDK and package adaptation source.
+description: FlutterOH SDK and package support source.
 
 repository:
   git:
@@ -186,6 +219,9 @@ repository:
   git:
     url: https://github.com/FlutterOH/camera.git
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages.git
@@ -195,22 +231,24 @@ package:
   path: packages/camera/camera
   maintenance:
     frozen: true
-    note: Upstream now supports OHOS natively.
+    note: Upstream now includes native FlutterOH support.
   advisory:
-    message: Prefer upstream camera when OHOS native support is available.
+    message: Prefer upstream camera when native FlutterOH support is available.
     alternatives:
       - name: camera_ohos
-        reason: Provides native OHOS support.
+        reason: Provides native FlutterOH support.
         url: https://pub.dev/packages/camera_ohos
   sdks:
     "3.35":
       releases:
         - version: 0.1.0
+          tag: camera-0.11.0-ohos-3.35-0.1.0
           upstream:
             version: 0.11.0
             ref: camera-v0.11.0
             commit: "0123456789abcdef0123456789abcdef01234567"
         - version: 0.2.0
+          tag: camera-0.20.0-ohos-3.35-0.2.0
           upstream:
             version: 0.20.0
             ref: camera-v0.20.0
@@ -222,11 +260,17 @@ package:
 
 - route 名由 Source 根 `manifests[].name` 持有，并且必须匹配 `package.name`。
 - `kind` 必须为 `manifest`。
-- `repository.git.url` 和 `upstream.git.url` 必填。
-- Source Manifest 的 repository/upstream 块记录 Git URL；branch 和 path 由 Package
-  metadata 与 release tag 持有。
+- `repository.git.url` 必填。
+- `origin.kind` 必填，只能是 `created` 或 `ported`。
+- `origin.kind: created` 表示 Source route 指向 spec-first FlutterOH Package；必须省略
+  `upstream` 和 release `upstream` 块。
+- `origin.kind: ported` 表示 Source route 指向 upstream Package 的 FlutterOH port；
+  必须填写 `upstream.git.url` 和每个 release 的 `upstream` 块。
+- Source Manifest 的 repository/upstream 块记录 Git URL；branch 和 path 由 Package metadata
+  与 release tag 持有。
 - `package` 必填，并描述一个 Package。
-- `package.path` 同时表示两个仓库中的路径，默认 `.`。
+- `package.path` 表示 FlutterOH 仓库中的路径，默认 `.`；对 ported Package，它也表示
+  upstream 仓库中的路径。
 - 一个 Source Manifest 对所有 release record 只有一个 `package.path`。`source sync`
   会跳过 Package metadata 声明了不同路径的 release tag。
 - `package.maintenance.frozen` 可选，默认 `false`。
@@ -239,27 +283,34 @@ package:
 - `package.sdks.<sdkLine>.releases[]` 是对应 SDK line 的 release 历史，并至少包含一个
   release record。
 - 每个 Package SDK line 必须存在于消费命令使用的合并 Source SDK 索引中。
-- 同一个 SDK line 下的 Release 记录使用唯一的 `upstream.version` 和 `version` 组合。
-- Release tag 始终由固定 release tag 规则派生。
-- `releases[].version` 和 `releases[].upstream.version` 必填。
-- `releases[].upstream.ref` 可选。
-- `releases[].upstream.commit` 必填。
+- 同一个 SDK line 下的 Release 记录使用唯一的 `tag`。
+- `releases[].tag` 必填。created Package tag 使用
+  `<package>-ohos-<sdkLine>-<release.version>`；ported Package tag 使用
+  `<package>-<upstream.version>-ohos-<sdkLine>-<release.version>`。
+- `releases[].version` 必填。
+- `releases[].upstream.version` 和 `releases[].upstream.commit` 只对 ported Package 必填。
+- `releases[].upstream.ref` 对 ported Package 可选。
 - `releases[].status` 可选。省略表示 `compatible`。
-- 规范化输出按 SDK line 升序排列。每个 SDK line 内的 Release 按 upstream 版本和
-  release 版本从早到晚排序，所以新增 release 会追加到已有记录后面。
+- 规范化输出按 SDK line 升序排列。每个 SDK line 内的 Release 按 source 版本、
+  release 版本和 release tag 从早到晚排序，所以新增 release 会追加到已有记录后面。
 
-## 生成 Markdown 段
+## 生成的 FLUOH.md 上下文
 
-生成的 `FLUOH.md` 和 `AGENTS.md` Package 仓库指导文档独立于 YAML schema 版本管理。
-生成段使用 Markdown 注释包围：
+生成的 `FLUOH.md` Package 上下文由 fluoh 拥有，并由 `package new`、`package port`
+和 `package add` 写入。该文件会根据当前 Package metadata、所选 Package pubspec
+和内置上下文全量重新生成；底部 `FlutterOH Release History` 章节已存在时会保留。
+`FLUOH.md` 只链接 branch-local spec 和 support scope，不承载完整支持设计。
 
-```text
-<!-- fluoh:generated:start id=<section> template=<templateVersion> -->
-...
-<!-- fluoh:generated:end id=<section> -->
-```
+## 分支本地 Package Spec
 
-只有匹配的生成段属于工具。生成段前后的手写内容属于用户，必须保留。
+`doc/fluoh/<package>/spec.md` 由 `package new`、`package port` 和 `package add`
+在缺失时创建。它由维护者和 fluoh skill 维护，不由 fluoh 自动重新生成。该文件记录当前
+Package 分支的需求、public API 设计或 upstream API baseline、平台行为、OHOS API 映射、
+example 流程和测试/证据计划。
+
+对于 `origin.kind: ported`，spec 必须引用 `fluoh.yaml` 中当前 upstream version 和
+commit。`fluoh package upstream sync` 更新 upstream baseline 后，`fluoh package next`
+会先输出 `spec-review`，直到 spec 更新到新的 baseline。
 
 ## Source 缓存和 Lock 文件
 
@@ -296,10 +347,10 @@ package:
 规则：
 
 - 官方 Source alias 固定为 `flutteroh`，默认 priority 为 `0`。
-- 用户新增 Source 默认 priority 为 `10`。数值越大优先级越高。
+- 用户启用 Source 默认 priority 为 `10`。数值越大优先级越高。
 - Source alias 使用字母、数字、`_`、`.` 或 `-`；`.` 和 `..` 为保留值。
-- `url` 支持 HTTPS URL、SSH URL 和 `file:` URL。`fluoh source add` 会把用户传入的
-  本地路径规范化为绝对 `file:` URL。
+- `url` 支持 HTTPS URL、SSH URL 和 `file:` URL。`fluoh source enable` 会在当前机器启用
+  这个 Source，并把用户传入的本地路径规范化为绝对 `file:` URL。
 - HTTPS/SSH URL 走 Git clone/update；`file:` URL 复制校验后的 Source 快照。
 - `path` 是本机缓存路径。
 - Source 缓存只保留最新校验通过的快照，不保留 Git 历史和无关仓库文件。
@@ -378,7 +429,7 @@ Package metadata。
 - 每个已配置 Source 快照包含生成的 `.fluoh-source-state.json`，记录快照 hash。
   常规 lock 新鲜度检查读取这个 state 文件，而不是每次命令都递归 hash 整个快照。
   state 文件缺失时，运行时会重新计算快照 hash 并补写 state 文件。
-- Source 状态变更入口，包括 `fluoh source add`、`fluoh source remove`、
+- 本机 Source 配置变更入口，包括 `fluoh source enable`、`fluoh source disable`、
   `fluoh source update`、已配置快照 repair、目标是已配置快照的 `fluoh source sync`、
   以及首次默认 Source 初始化，都会请求 Source 运行时重建 lock。消费 source 的流程使用
   同一个 load-index API；发现 lock 缺失或过期时，或者已选择 SDK 缺失且需要 SDK 元数据来安装

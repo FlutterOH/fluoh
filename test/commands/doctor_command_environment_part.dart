@@ -9,7 +9,7 @@ void _registerDoctorCommandEnvironmentTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -217,6 +217,8 @@ void _registerDoctorCommandEnvironmentTests() {
       expect(result.exitCode, 0);
       final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
       expect(report['platforms'], _defaultHostPlatformNames());
+      expect(report, isNot(contains('state')));
+      expect(report, isNot(contains('nextAction')));
       expect(result.stderr, isEmpty);
     },
   );
@@ -368,6 +370,15 @@ exit 0
     final report = jsonDecode(result.stdout.single) as Map<String, Object?>;
     expect(report, containsPair('ok', false));
     expect(report, containsPair('exitCode', 1));
+    final nextAction = report['nextAction'] as Map<String, Object?>;
+    expect(nextAction, containsPair('type', 'blocked'));
+    expect(
+      nextAction,
+      containsPair(
+        'rerunCommand',
+        'fluoh doctor --platform web --json --strict',
+      ),
+    );
     final checks = (report['checks'] as List<Object?>)
         .cast<Map<String, Object?>>();
     final webToolchain = checks.firstWhere(

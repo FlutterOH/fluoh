@@ -46,7 +46,7 @@ class SourceSyncCommand extends FluohCommand<int> {
 
   @override
   String get description =>
-      'Sync released FlutterOH package repositories into a source repository.';
+      'Import later releases for packages already routed by a Source repository.';
 
   @override
   String get invocation => 'fluoh source sync [path]';
@@ -156,6 +156,7 @@ class SourceSyncCommand extends FluohCommand<int> {
           packageName: package.name,
           packageUrl: manifest.repositoryUrl,
           packagePath: package.path,
+          originKind: manifest.originKind,
           upstreamGitUrl: manifest.upstreamUrl,
           upstreamVersion: package.upstreamVersion,
           upstreamRef: package.upstreamRef,

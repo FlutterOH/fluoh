@@ -441,7 +441,7 @@ void main() {
         '${environment.workingDirectory.path}/lib/camera_controller.dart',
       ).writeAsString('class CameraControllerFixture {}\n');
       final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-api.md',
+        '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-api.md',
       );
       await scenario.parent.create(recursive: true);
       await scenario.writeAsString('''

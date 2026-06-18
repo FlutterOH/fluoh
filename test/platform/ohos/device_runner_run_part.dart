@@ -62,8 +62,9 @@ void _registerOhosDeviceRunnerRunTests() {
     expect(result.logFile, isNotNull);
     expect(
       result.logFile!.path,
-      startsWith(
-        '${project.path}/.fluoh/cache/package-runs/com.example.camera/',
+      allOf(
+        startsWith('${project.path}/.fluoh/tasks/'),
+        contains('/evidence/logs/com.example.camera/'),
       ),
     );
     expect(result.logFile!.readAsStringSync(), contains('app started'));
@@ -314,6 +315,52 @@ void _registerOhosDeviceRunnerRunTests() {
     expect(targetSelection, containsPair('policy', 'emulator-first'));
     expect(targetSelection['recommendation'], contains('DevEco emulator'));
     expect(targetSelection, containsPair('emulators', isEmpty));
+  });
+
+  test('times out hanging hdc target listing', () async {
+    final root = await Directory.systemTemp.createTemp('fluoh_ohos_run_');
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final home = Directory('${root.path}/home')..createSync(recursive: true);
+    final project = Directory('${root.path}/project')
+      ..createSync(recursive: true);
+    final ohos = await _writeOhosProject(project);
+    final hap = File('${project.path}/entry-default-signed.hap')
+      ..writeAsStringSync('hap');
+    final devEco = await _writeDevEcoFixture(
+      root,
+      hdcLog: File('${root.path}/hdc.log'),
+      listTargetsSleepSeconds: 30,
+    );
+
+    final result = await runOhosHapsOnDevice(
+      environment: FluohEnvironment(
+        homeDirectory: home,
+        workingDirectory: project,
+        processEnvironment: {
+          'FLUOH_DEVECO_STUDIO': devEco.path,
+          'FLUOH_OHOS_HDC_TIMEOUT_SECONDS': '1',
+        },
+      ),
+      ohosDirectory: ohos,
+      haps: [hap],
+      output: TerminalOutput(stdout: (_) {}),
+      logDuration: Duration.zero,
+    );
+
+    expect(result.passed, isFalse);
+    expect(result.targetId, isNull);
+    expect(result.diagnostics, hasLength(1));
+    final diagnostic = result.diagnostics.single;
+    expect(diagnostic.code, 'ohos.hdc_timeout');
+    expect(diagnostic.details, containsPair('exitCode', 124));
+    expect(
+      diagnostic.details,
+      containsPair('stderr', contains('Timed out after 1s running hdc')),
+    );
   });
 
   test(

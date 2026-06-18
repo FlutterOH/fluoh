@@ -5,6 +5,7 @@ import 'argument_validation.dart';
 import 'fluoh_command_runner.dart';
 import 'machine_output.dart';
 import 'terminal_output.dart';
+import '../context/fluoh_environment.dart';
 import '../version.dart';
 
 /// GitHub repository that contains the bundled fluoh skill.
@@ -25,8 +26,8 @@ const fluohSkillUpgradeCommand = 'fluoh upgrade';
 
 /// Default agent prompt for using the fluoh skill.
 const fluohSkillDefaultPrompt =
-    'Use \$fluoh to install fluoh if needed, adapt this Flutter project or '
-    'package for OHOS, or precheck this FlutterOH Source change.';
+    'Use \$fluoh to install fluoh if needed, add FlutterOH support to this '
+    'Flutter project or package, or precheck this FlutterOH Source change.';
 
 /// Prompt for installing the bundled fluoh skill.
 const fluohSkillInstallPrompt =
@@ -38,6 +39,10 @@ const fluohSkillInstallPrompt =
 const fluohSkillUpgradePrompt =
     'Upgrade fluoh with `fluoh upgrade`, then run `fluoh skill --path` and '
     'reinstall or reload the printed path.';
+
+/// Environment override for the bundled skill directory.
+const fluohSkillPathEnvironmentKey = 'FLUOH_SKILL_PATH';
+
 const _fluohSkillScripts = {
   'preflight': _FluohSkillScript(
     relativePath: 'scripts/preflight.py',
@@ -60,7 +65,7 @@ const _fluohSkillScripts = {
   'newSummary': _FluohSkillScript(
     relativePath: 'scripts/new_summary.py',
     arguments: ['<workspace>', '--scope', '<scope>'],
-    description: 'Create a monorepo package adaptation summary report.',
+    description: 'Create a monorepo package support summary report.',
   ),
   'newScenario': _FluohSkillScript(
     relativePath: 'scripts/new_scenario.py',
@@ -102,11 +107,18 @@ const _fluohSkillScripts = {
 const _fluohSkillReferences = {
   'appProjectFlow': _FluohSkillReference(
     relativePath: 'references/app-project-flow.md',
-    description: 'AI workflow for adapting an existing Flutter app project.',
+    description:
+        'AI workflow for adding FlutterOH support to an existing Flutter app.',
   ),
-  'packageAdaptationFlow': _FluohSkillReference(
-    relativePath: 'references/package-adaptation-flow.md',
-    description: 'AI workflow for adapting third-party Flutter packages.',
+  'packageSupportFlow': _FluohSkillReference(
+    relativePath: 'references/package-support-flow.md',
+    description:
+        'AI workflow for creating or porting FlutterOH package support.',
+  ),
+  'packageSpecTemplate': _FluohSkillReference(
+    relativePath: 'references/package-spec-template.md',
+    description:
+        'Branch-local package requirements, API, platform, and test template.',
   ),
   'automationEvidenceFlow': _FluohSkillReference(
     relativePath: 'references/automation-evidence-flow.md',
@@ -135,10 +147,10 @@ const _fluohSkillReferences = {
 
 /// Example prompts shown to AI agents for using fluoh.
 const fluohSkillExamplePrompts = [
-  'Use \$fluoh to install fluoh if needed and adapt this Flutter project for '
-      'OHOS.',
-  'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
-  'Use \$fluoh to continue adapting <package-name> for OHOS.',
+  'Use \$fluoh to install fluoh if needed and add FlutterOH support to this '
+      'Flutter project.',
+  'Use \$fluoh to port <upstream-git-url> for FlutterOH.',
+  'Use \$fluoh to continue implementing FlutterOH support for <package-name>.',
   'Use \$fluoh to precheck this FlutterOH Source change.',
 ];
 
@@ -146,9 +158,11 @@ const fluohSkillExamplePrompts = [
 class SkillCommand extends FluohCommand<int> {
   /// Creates the skill metadata command.
   SkillCommand({
+    required FluohEnvironment environment,
     required void Function(String message) stdout,
     required TerminalOutput output,
-  }) : _stdout = stdout,
+  }) : _environment = environment,
+       _stdout = stdout,
        _output = output {
     argParser
       ..addFlag(
@@ -165,6 +179,7 @@ class SkillCommand extends FluohCommand<int> {
 
   final void Function(String message) _stdout;
   final TerminalOutput _output;
+  final FluohEnvironment _environment;
 
   @override
   String get name => 'skill';
@@ -177,7 +192,10 @@ class SkillCommand extends FluohCommand<int> {
     final results = argResults!;
     expectNoArguments(results, usageException);
 
-    final location = await resolveFluohSkillLocation();
+    final location = await resolveFluohSkillLocation(
+      environment: _environment.processEnvironment,
+      workingDirectory: _environment.workingDirectory,
+    );
     if (results.flag('json')) {
       writeMachineOutput(
         _stdout,
@@ -212,7 +230,8 @@ class SkillCommand extends FluohCommand<int> {
       );
       _output.write(
         '${style.label('References')} app-project-flow.md, '
-        'package-adaptation-flow.md, automation-evidence-flow.md, '
+        'package-support-flow.md, package-spec-template.md, '
+        'automation-evidence-flow.md, '
         'independent-review-flow.md, source-maintenance-flow.md, '
         'report-template.md, interaction-scenario-template.md',
       );
@@ -233,8 +252,8 @@ class SkillCommand extends FluohCommand<int> {
       '$fluohSkillUrl only before the CLI is available.',
     );
     _output.write(
-      'Then use ${style.code(r'$fluoh')} to adapt an app or package, or '
-      'precheck a FlutterOH Source change.',
+      'Then use ${style.code(r'$fluoh')} to add FlutterOH support to an app '
+      'or package, or precheck a FlutterOH Source change.',
     );
     _output.write(
       'Local or upgrade setup: run ${style.code('fluoh skill --path')}, install '
@@ -334,21 +353,89 @@ class _FluohSkillReference {
 /// Global activation, local path activation, and `dart run` can all place the
 /// package in different roots. Resolving through `package:fluoh/fluoh.dart`
 /// keeps the reported `localPath` tied to the code that is actually running.
-Future<FluohSkillLocation> resolveFluohSkillLocation() async {
+/// Compiled repository executables can lose package URI context, so callers may
+/// pass [workingDirectory] or [fluohSkillPathEnvironmentKey] to locate a
+/// checkout-local skill directory without using a pub global shim.
+Future<FluohSkillLocation> resolveFluohSkillLocation({
+  Map<String, String>? environment,
+  Directory? workingDirectory,
+}) async {
+  final env = environment ?? Platform.environment;
+  final configured = env[fluohSkillPathEnvironmentKey]?.trim();
+  if (configured != null && configured.isNotEmpty) {
+    final configuredDirectory = _resolveSkillDirectory(Directory(configured));
+    if (configuredDirectory != null) {
+      return FluohSkillLocation(localPath: configuredDirectory.path);
+    }
+  }
+
   final packageUri = await Isolate.resolvePackageUri(
     Uri.parse('package:fluoh/fluoh.dart'),
   );
-  if (packageUri == null || !packageUri.isScheme('file')) {
-    return const FluohSkillLocation(localPath: null);
+  if (packageUri != null && packageUri.isScheme('file')) {
+    final packageRoot = File.fromUri(packageUri).parent.parent;
+    final skillDirectory = _resolveSkillDirectory(
+      Directory(
+        '${packageRoot.path}${Platform.pathSeparator}skills'
+        '${Platform.pathSeparator}fluoh',
+      ),
+    );
+    if (skillDirectory != null) {
+      return FluohSkillLocation(localPath: skillDirectory.path);
+    }
   }
 
-  final packageRoot = File.fromUri(packageUri).parent.parent;
-  final skillDirectory = Directory(
-    '${packageRoot.path}${Platform.pathSeparator}skills'
-    '${Platform.pathSeparator}fluoh',
-  );
-  if (!skillDirectory.existsSync()) {
-    return const FluohSkillLocation(localPath: null);
+  for (final root in _fallbackSkillSearchRoots(workingDirectory)) {
+    final skillDirectory = _findSkillDirectoryFrom(root);
+    if (skillDirectory != null) {
+      return FluohSkillLocation(localPath: skillDirectory.path);
+    }
   }
-  return FluohSkillLocation(localPath: skillDirectory.path);
+
+  return const FluohSkillLocation(localPath: null);
+}
+
+Iterable<Directory> _fallbackSkillSearchRoots(
+  Directory? workingDirectory,
+) sync* {
+  if (workingDirectory != null) {
+    yield workingDirectory;
+  }
+  yield Directory.current;
+
+  final script = Platform.script;
+  if (script.isScheme('file')) {
+    yield File.fromUri(script).parent;
+  }
+
+  final executable = Platform.resolvedExecutable;
+  if (executable.isNotEmpty) {
+    yield File(executable).parent;
+  }
+}
+
+Directory? _findSkillDirectoryFrom(Directory start) {
+  var current = start.absolute;
+  while (true) {
+    final skillDirectory = _resolveSkillDirectory(
+      Directory(
+        '${current.path}${Platform.pathSeparator}skills'
+        '${Platform.pathSeparator}fluoh',
+      ),
+    );
+    if (skillDirectory != null) {
+      return skillDirectory;
+    }
+
+    final parent = current.parent;
+    if (parent.path == current.path) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+Directory? _resolveSkillDirectory(Directory directory) {
+  final skill = File('${directory.path}${Platform.pathSeparator}SKILL.md');
+  return skill.existsSync() ? directory.absolute : null;
 }

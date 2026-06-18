@@ -66,7 +66,7 @@ void _registerPackageReleaseCertificationTests() {
           '''
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| camera preview | AI-assisted | OHOS | emulator | passed | assertSession passed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
+| camera preview | AI-assisted | OHOS | emulator | passed | assertSession passed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |
 ''',
         ),
       );
@@ -104,6 +104,54 @@ void _registerPackageReleaseCertificationTests() {
   );
 
   test(
+    'check certification rejects exploratory smoke as automation evidence',
+    () async {
+      final environment = await createTestEnvironment();
+      final packageRepository = await createPackageRepositoryFixture(
+        environment,
+      );
+      final report = await _writeCertificationReport(packageRepository);
+      final content = await report.readAsString();
+      await report.writeAsString(
+        content.replaceAll(
+          '`fluoh drive ohos --package camera --json`',
+          '`fluoh drive ohos --package camera --profile exploratory-smoke --json`',
+        ),
+      );
+      final releaseEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
+
+      expect(
+        await runFluoh(
+          ['package', 'check', '--json', '--report', report.path],
+          environment: releaseEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+
+      final result = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(result, containsPair('ok', false));
+      expect(
+        result['error'],
+        allOf(
+          isA<Map<String, Object?>>(),
+          containsPair(
+            'message',
+            contains('must include passed fluoh drive --json'),
+          ),
+        ),
+      );
+      expect(stderr, isEmpty);
+    },
+  );
+
+  test(
     'check certification rejects missing post-launch mobile visual evidence',
     () async {
       final environment = await createTestEnvironment();
@@ -115,7 +163,7 @@ void _registerPackageReleaseCertificationTests() {
       await report.writeAsString(
         content
             .replaceAll(
-              '; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured',
+              '; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured',
               '',
             )
             .replaceAll(
@@ -125,7 +173,7 @@ void _registerPackageReleaseCertificationTests() {
             .replaceFirst(
               '| `fluoh verify --package camera --json` | 0 | passed | package and example baseline passed |\n',
               '| `fluoh verify --package camera --json` | 0 | passed | package and example baseline passed |\n'
-                  '| `fluoh drive ohos --package camera --json` | 1 | failed | post-launch screenshot .fluoh/evidence/screenshots/failed.png failed |\n',
+                  '| `fluoh drive ohos --package camera --json` | 1 | failed | post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/failed.png failed |\n',
             ),
       );
       final releaseEnvironment = FluohEnvironment(
@@ -173,8 +221,8 @@ void _registerPackageReleaseCertificationTests() {
       final content = await report.readAsString();
       await report.writeAsString(
         content.replaceFirst(
-          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |\n',
-          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |\n'
+          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |\n',
+          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |\n'
               '| `fluoh drive android --package camera --json` | 0 | passed | android automation scenarios executed |\n',
         ),
       );
@@ -226,7 +274,7 @@ void _registerPackageReleaseCertificationTests() {
       final content = await report.readAsString();
       await report.writeAsString(
         content.replaceFirst(
-          '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, collected hilog, and captured post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png |\n',
+          '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, collected hilog, and captured post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png |\n',
           '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, and collected hilog |\n',
         ),
       );
@@ -394,7 +442,7 @@ void _registerPackageReleaseCertificationTests() {
             '## Official Platform Basis\n',
           )
           .replaceFirst(
-            '- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.\n',
+            '- [x] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.\n',
             '',
           ),
     );
@@ -426,12 +474,10 @@ void _registerPackageReleaseCertificationTests() {
       message,
       contains('Ready certification reports must include delivery checklist'),
     );
-    expect(message, contains('Official OHOS/platform documentation'));
+    expect(message, contains('Official platform documentation'));
     expect(
       message,
-      contains(
-        'Ready certification reports must record official OHOS/platform',
-      ),
+      contains('Ready certification reports must record official platform'),
     );
     expect(stderr, isEmpty);
   });
@@ -469,7 +515,7 @@ void _registerPackageReleaseCertificationTests() {
           'message',
           allOf(
             contains(
-              'Certification report filename must match report-<timestamp>.md',
+              'Certification report filename must be report.md or report-<timestamp>.md',
             ),
             contains('integer'),
             contains('timestamp.'),
@@ -477,6 +523,44 @@ void _registerPackageReleaseCertificationTests() {
         ),
       ),
     );
+    expect(stderr, isEmpty);
+  });
+
+  test('check accepts CLI report.md certification filename', () async {
+    final environment = await createTestEnvironment();
+    final packageRepository = await createPackageRepositoryFixture(environment);
+    final timestampedReport = await _writeCertificationReport(
+      packageRepository,
+      includeOhosRun: true,
+    );
+    final report = File('${timestampedReport.parent.path}/report.md');
+    await report.writeAsString(await timestampedReport.readAsString());
+    final releaseEnvironment = FluohEnvironment(
+      homeDirectory: environment.homeDirectory,
+      workingDirectory: packageRepository,
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    expect(
+      await runFluoh(
+        ['package', 'check', '--json', '--report', report.path],
+        environment: releaseEnvironment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+      reason: [...stdout, ...stderr].join('\n'),
+    );
+
+    final result = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(result, containsPair('ok', true));
+    final packages = (result['packages'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final certification =
+        packages.single['certification'] as Map<String, Object?>;
+    expect(certification, containsPair('certified', true));
+    expect(certification, containsPair('report', report.path));
     expect(stderr, isEmpty);
   });
 

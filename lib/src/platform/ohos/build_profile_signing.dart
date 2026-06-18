@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
 
@@ -49,7 +50,9 @@ class OhosBuildProfileSigningSession {
   OhosBuildProfileSigningSession._({
     required this.buildProfile,
     required this.originalContent,
-  });
+  }) {
+    _registerActiveSession(this);
+  }
 
   /// Build profile file that was patched.
   final io.File buildProfile;
@@ -65,6 +68,65 @@ class OhosBuildProfileSigningSession {
     }
     await buildProfile.writeAsString(originalContent);
     _restored = true;
+    _unregisterActiveSession(this);
+  }
+
+  /// Restores the original build profile content synchronously once.
+  ///
+  /// This is used by process signal handlers so interrupted `--auto-sign`
+  /// commands do not leave generated signing material in tracked files.
+  void restoreSync() {
+    if (_restored) {
+      return;
+    }
+    buildProfile.writeAsStringSync(originalContent);
+    _restored = true;
+    _unregisterActiveSession(this);
+  }
+}
+
+final _activeSigningSessions = <OhosBuildProfileSigningSession>{};
+final _signalSubscriptions = <StreamSubscription<io.ProcessSignal>>[];
+
+void _registerActiveSession(OhosBuildProfileSigningSession session) {
+  _activeSigningSessions.add(session);
+  _ensureSignalRestoreHandlers();
+}
+
+void _unregisterActiveSession(OhosBuildProfileSigningSession session) {
+  _activeSigningSessions.remove(session);
+  if (_activeSigningSessions.isEmpty) {
+    for (final subscription in _signalSubscriptions) {
+      subscription.cancel();
+    }
+    _signalSubscriptions.clear();
+  }
+}
+
+void _ensureSignalRestoreHandlers() {
+  if (_signalSubscriptions.isNotEmpty) {
+    return;
+  }
+  for (final signal in [io.ProcessSignal.sigint, io.ProcessSignal.sigterm]) {
+    try {
+      final subscription = signal.watch().listen((received) {
+        _restoreActiveSigningSessionsSync();
+        io.exit(received == io.ProcessSignal.sigint ? 130 : 143);
+      });
+      _signalSubscriptions.add(subscription);
+    } on UnsupportedError {
+      // Some platforms do not support all POSIX signals.
+    }
+  }
+}
+
+void _restoreActiveSigningSessionsSync() {
+  for (final session in _activeSigningSessions.toList().reversed) {
+    try {
+      session.restoreSync();
+    } on Object {
+      // The process is already terminating; best-effort restoration is enough.
+    }
   }
 }
 

@@ -7,6 +7,34 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
+  test('owns supported platform option parsing', () {
+    expect(fluohPlatformCliNames, [
+      'ohos',
+      'android',
+      'ios',
+      'macos',
+      'linux',
+      'web',
+      'windows',
+    ]);
+    expect(fluohPlatformOptionValues, ['all', ...fluohPlatformCliNames]);
+    expect(fluohPlatformFromCliName('ohos'), FluohPlatform.ohos);
+    expect(fluohPlatformFromCliName('android'), FluohPlatform.android);
+    expect(fluohPlatformFromCliName('missing'), isNull);
+    expect(fluohPlatformsFromCliOption('web'), [FluohPlatform.web]);
+
+    final defaults = defaultHostFluohPlatforms();
+    expect(defaults.take(2).toList(), [
+      FluohPlatform.ohos,
+      FluohPlatform.android,
+    ]);
+    expect(defaults, contains(FluohPlatform.web));
+    expect(defaults.contains(FluohPlatform.ios), Platform.isMacOS);
+    expect(defaults.contains(FluohPlatform.macos), Platform.isMacOS);
+    expect(defaults.contains(FluohPlatform.linux), Platform.isLinux);
+    expect(defaults.contains(FluohPlatform.windows), Platform.isWindows);
+  });
+
   test('OpenHarmony environment report focuses on SDK tools', () async {
     final environment = await createTestEnvironment();
     final devEco = await _writeDevEcoFixture(environment.homeDirectory);

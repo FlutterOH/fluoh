@@ -54,6 +54,7 @@ WorkflowStepResult _commandStep({
   int? effectiveExitCode,
   Map<String, Object?> details = const {},
   String? nextCommand,
+  String? traceDir,
 }) {
   final exitCode = effectiveExitCode ?? result.exitCode;
   return WorkflowStepResult(
@@ -75,6 +76,7 @@ WorkflowStepResult _commandStep({
       effectiveExitCode: exitCode,
       packageName: packageName,
       nextCommand: nextCommand,
+      traceDir: traceDir,
     ),
   );
 }
@@ -87,6 +89,7 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
   required int effectiveExitCode,
   required String packageName,
   String? nextCommand,
+  String? traceDir,
 }) {
   if (effectiveExitCode == 0) {
     return const [];
@@ -175,18 +178,19 @@ List<WorkflowDiagnostic> _diagnosticsForCommandStep({
         'exitCode': effectiveExitCode,
         'sdkConstraint': ?sdkConstraint,
         if (code == 'dart.sdk_constraint_unsatisfied')
-          'adaptationPolicy': _lowSdkCompatibilityPolicy(packageName),
+          'supportPolicy': _lowSdkCompatibilityPolicy(packageName),
         ..._commandOutputDetails(result),
       },
       nextCommand:
-          nextCommand ?? _nextCommandForDiagnosticCode(code, packageName),
+          nextCommand ??
+          _nextCommandForDiagnosticCode(code, packageName, traceDir: traceDir),
     ),
   ];
 }
 
 Map<String, Object?> _lowSdkCompatibilityPolicy(String packageName) {
   return {
-    'defaultAction': 'adapt-selected-upstream-to-selected-sdk',
+    'defaultAction': 'implement-selected-upstream-for-selected-sdk',
     'keepSelectedUpstream': true,
     'adjustPackageForSelectedSdk': true,
     'upstreamDowngradeRequiresApproval': true,
@@ -239,15 +243,20 @@ Map<String, Object?>? _dartSdkConstraintFailure(SelectedToolResult result) {
   };
 }
 
-String? _nextCommandForDiagnosticCode(String code, String packageName) {
+String? _nextCommandForDiagnosticCode(
+  String code,
+  String packageName, {
+  String? traceDir,
+}) {
   final baseline = 'fluoh verify --package $packageName';
+  final verifyCommand = _appendTraceDir('$baseline --json', traceDir);
   return switch (code) {
-    'dart.sdk_constraint_unsatisfied' => '$baseline --json',
+    'dart.sdk_constraint_unsatisfied' => verifyCommand,
     'dart.pub_get_failed' => 'fluoh deps get',
     'dart.analysis_failed' ||
     'dart.test_failed' ||
-    'command.failed' => '$baseline --json',
-    _ => _platformPackageRepairCommand(code, packageName),
+    'command.failed' => verifyCommand,
+    _ => _platformPackageRepairCommand(code, packageName, traceDir: traceDir),
   };
 }
 
@@ -257,6 +266,7 @@ String? _buildNextCommandForDiagnosticCode({
   required PlatformWorkflowPolicy policy,
   required bool debug,
   required bool autoSign,
+  String? traceDir,
 }) {
   final suffixSeparator = code.indexOf('.');
   final suffix = suffixSeparator < 0
@@ -273,12 +283,17 @@ String? _buildNextCommandForDiagnosticCode({
       packageName: packageName,
       debug: debug,
       autoSign: autoSign,
+      traceDir: traceDir,
     );
   }
-  return _nextCommandForDiagnosticCode(code, packageName);
+  return _nextCommandForDiagnosticCode(code, packageName, traceDir: traceDir);
 }
 
-String? _platformPackageRepairCommand(String code, String packageName) {
+String? _platformPackageRepairCommand(
+  String code,
+  String packageName, {
+  String? traceDir,
+}) {
   final separator = code.indexOf('.');
   if (separator <= 0) {
     return null;
@@ -289,7 +304,7 @@ String? _platformPackageRepairCommand(String code, String packageName) {
   }
   return platformWorkflowPolicy(
     platform,
-  ).packageRepairCommand(code, packageName);
+  ).packageRepairCommand(code, packageName, traceDir: traceDir);
 }
 
 String _packageRunNextCommand({
@@ -298,13 +313,22 @@ String _packageRunNextCommand({
   required String? deviceId,
   required bool startEmulator,
   required String? emulatorName,
+  String? traceDir,
 }) {
   return platformWorkflowPolicy(platform).runCommand(
     packageName: packageName,
     deviceId: deviceId,
     startEmulator: startEmulator,
     emulatorName: emulatorName,
+    traceDir: traceDir,
   );
+}
+
+String _appendTraceDir(String command, String? traceDir) {
+  if (traceDir == null || traceDir.isEmpty) {
+    return command;
+  }
+  return '$command --trace-dir $traceDir';
 }
 
 bool _isStaleIosPrecompiledHeaderFailure(SelectedToolResult result) {

@@ -175,29 +175,29 @@ When an official `brew tap FlutterOH/tap` is available, sync the formula into th
 
 ## Package Repository Workflow Maintenance
 
-`fluoh package create` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a FlutterOH package branch such as `ohos/3.35/camera`, sets `origin` to the final package repository push target, and configures the selected FlutterOH SDK environment. The default repository URL is derived from the package name:
+`fluoh package port` keeps the upstream branch clean, keeps the clone source as `upstream`, creates a FlutterOH package branch such as `ohos/3.35/camera`, sets `origin` to the final package repository push target, and configures the selected FlutterOH SDK environment. The default repository URL is derived from the package name:
 
 ```sh
 https://github.com/FlutterOH/<package>.git
 ```
 
-If a package needs to be pushed to a dedicated FlutterOH package repository, pass `--repository` when creating it:
+If a package needs to be pushed to a dedicated FlutterOH package repository, pass `--repository` when porting it:
 
 ```sh
-fluoh package create https://github.com/upstream/package.git \
+fluoh package port https://github.com/upstream/package.git \
   --sdk 3.35.8-ohos-0.0.3 \
   --repository https://github.com/FlutterOH/package.git
 ```
 
 The command only configures local remotes. It does not create remote repositories and does not depend on GitHub CLI because upstream packages may be hosted outside GitHub. Maintainers must make sure the target remote repository exists before manually pushing branches or release tags.
 
-`fluoh package create` stages the generated `AGENTS.md`, `FLUOH.md`, `FLUOH_CHANGELOG.md`, and `fluoh.yaml`. When the selected package has an existing Flutter example, it also adds the OHOS platform to that example and pins the example to the selected SDK. It intentionally does not create the initial commit. Maintainers can keep building the FlutterOH adaptation and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
+`fluoh package port` stages the generated `FLUOH.md`, `fluoh.yaml`, and `doc/fluoh/<package>/spec.md`. When the selected package has an existing Flutter example, it also adds the OHOS platform to that example and pins the example to the selected SDK. It intentionally does not create the initial commit. Maintainers can keep building the FlutterOH support and commit everything together. Commit with the maintainer Git identity before running any command that requires a clean worktree:
 
 ```sh
 git commit -m "feat(package): initialize FlutterOH package"
 ```
 
-Use `fluoh package sync` to fetch upstream branches and tags, fast-forward the upstream branch recorded in Package `fluoh.yaml`, merge the selected package target into the current `ohos/<sdkLine>/<package>` branch, and refresh only the upstream metadata in `fluoh.yaml`. By default, the target is the latest valid upstream release tag for that package; pass `--upstream-version <version>` when adapting a specific same-or-newer package version. `sync` refuses upstream downgrades; mark the current adaptation `broken` with `fluoh package version --status broken` instead. Keep the package release version unchanged until the new FlutterOH adaptation is complete.
+Use `fluoh package upstream check` and `fluoh package upstream sync` only for `origin.kind: ported`. `upstream sync` fetches upstream branches and tags, fast-forwards the upstream branch recorded in Package `fluoh.yaml`, merges the selected package target into the current `ohos/<sdkLine>/<package>` branch, and refreshes upstream metadata in `fluoh.yaml`. By default, the target is the latest valid upstream release tag for that package; pass `--upstream-version <version>` when a specific same-or-newer package version is required. `upstream sync` refuses upstream downgrades; mark the current support `broken` with `fluoh package version --status broken` instead. After sync, review `doc/fluoh/<package>/spec.md` against the new upstream version and commit before implementation continues. Keep the package release version unchanged until the new FlutterOH support is complete.
 
 Use upstream package tests and existing example tests as the automated baseline. `fluoh verify` runs selected-SDK `pub get` and `analyze` for the package, using `flutter` for Flutter packages and `dart` for non-Flutter packages, then runs package tests when `test/**/*_test.dart` exists. It also checks the top-level Flutter example when `example/pubspec.yaml` is present.
 
@@ -208,10 +208,10 @@ Use upstream package tests and existing example tests as the automated baseline.
 - The worktree is clean.
 - The SDK version comes from configured sources.
 - The Package `version` is newer than previous release tags for the same package, upstream version, and SDK line.
-- Missing or incomplete `FLUOH_CHANGELOG.md` release notes are reported as warnings, not release blockers.
+- Missing or incomplete `FLUOH.md` FlutterOH Release History notes are reported as warnings, not release blockers.
 - Package analysis and existing package/example tests pass through `fluoh verify`.
 - The release tag matches the package, upstream version, SDK line, and `version` recorded in Package `fluoh.yaml`.
 - `fluoh package check` never creates or pushes tags.
 - `fluoh package release` creates tags only after the same validation and verification pass.
 
-FlutterOH package repository release commands must not write source metadata directly. Generate release records with `fluoh source sync` from released package repositories; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. For FlutterOH/source pull requests, run `fluoh source check <source-pr-url> --json` or check a local checkout with `fluoh source check . --json`; scheduled release-gate jobs can use `fluoh source check . --all --json`. Treat source check output as a technical check/comment signal. Maintainer approval and merge decisions stay manual.
+FlutterOH package repository release commands must not write source metadata directly. Register the first released package branch with `fluoh source register`, then generate later release records with `fluoh source sync`; edit Source and Manifest YAML directly for routing, advisory, and maintenance metadata. For FlutterOH/source pull requests, run `fluoh source check <source-pr-url> --json` or check a local checkout with `fluoh source check . --json`; scheduled release-gate jobs can use `fluoh source check . --all --json`. Treat source check output as a technical check/comment signal. Maintainer approval and merge decisions stay manual.

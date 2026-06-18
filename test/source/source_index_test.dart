@@ -24,6 +24,11 @@ void main() {
     expect(sdkIndex.releases, hasLength(1));
     expect(sdkIndex.releases.single.tag, '3.35.8-ohos-0.0.3');
     expect(sdkIndex.releases.single.versionSeries, '3.35');
+    expect(sdkIndex.releases.single.repository, isNot(startsWith('..')));
+    expect(
+      sdkIndex.releases.single.repository,
+      endsWith('test/fixtures/mock_repositories/flutter-ohos-sdk.git'),
+    );
 
     expect(packageIndex.packages, contains('camera'));
     expect(
@@ -210,7 +215,7 @@ void main() {
         isA<FormatException>().having(
           (error) => error.message,
           'message',
-          contains('duplicate upstream 1.0.0 and release 0.1.0'),
+          contains('duplicate tag camera-1.0.0-ohos-3.35-0.1.0'),
         ),
       ),
     );
@@ -229,7 +234,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -422,6 +427,7 @@ Future<void> _writeManifest(
             .map(
               (version) =>
                   '        - version: "$version"\n'
+                  '          tag: $packageName-1.0.0-ohos-$sdkLine-$version\n'
                   '          upstream:\n'
                   '            version: "1.0.0"\n'
                   '            ref: "$packageName-v1.0.0"\n'
@@ -437,6 +443,9 @@ kind: manifest
 repository:
   git:
     url: /tmp/$manifestName
+
+origin:
+  kind: ported
 
 upstream:
   git:

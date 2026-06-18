@@ -1,5 +1,3 @@
-import 'dart:io' as io;
-
 import '../cli/argument_validation.dart';
 import '../cli/fluoh_command_runner.dart';
 import '../cli/machine_output.dart';
@@ -19,16 +17,8 @@ class DevicesCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const [
-          'all',
-          'ohos',
-          'android',
-          'ios',
-          'macos',
-          'linux',
-          'web',
-          'windows',
-        ],
+        valueHelp: 'platform',
+        allowed: fluohPlatformOptionValues,
         defaultsTo: 'all',
         help: 'Platforms to list.',
       )
@@ -94,16 +84,8 @@ class EmulatorsCommand extends FluohCommand<int> {
     argParser
       ..addOption(
         'platform',
-        allowed: const [
-          'all',
-          'ohos',
-          'android',
-          'ios',
-          'macos',
-          'linux',
-          'web',
-          'windows',
-        ],
+        valueHelp: 'platform',
+        allowed: fluohPlatformOptionValues,
         defaultsTo: 'all',
         help: 'Platforms to list or launch.',
       )
@@ -198,28 +180,7 @@ class EmulatorsCommand extends FluohCommand<int> {
 
 /// Parses a `--platform` option into the platform list to inspect.
 List<FluohPlatform> platformsFromCliOption(String? value) {
-  return switch (value) {
-    'all' || null => _defaultListedPlatforms(),
-    'ohos' => const [FluohPlatform.ohos],
-    'android' => const [FluohPlatform.android],
-    'ios' => const [FluohPlatform.ios],
-    'macos' => const [FluohPlatform.macos],
-    'linux' => const [FluohPlatform.linux],
-    'web' => const [FluohPlatform.web],
-    'windows' => const [FluohPlatform.windows],
-    _ => throw ArgumentError.value(value, 'value', 'Unsupported platform.'),
-  };
-}
-
-List<FluohPlatform> _defaultListedPlatforms() {
-  return [
-    FluohPlatform.ohos,
-    FluohPlatform.android,
-    if (io.Platform.isMacOS) ...[FluohPlatform.ios, FluohPlatform.macos],
-    if (io.Platform.isLinux) FluohPlatform.linux,
-    FluohPlatform.web,
-    if (io.Platform.isWindows) FluohPlatform.windows,
-  ];
+  return fluohPlatformsFromCliOption(value);
 }
 
 enum _TargetReportKind { devices, emulators }

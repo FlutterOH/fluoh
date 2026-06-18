@@ -1,4 +1,4 @@
-part of 'package_create_command.dart';
+part of 'package_port_command.dart';
 
 Future<PackageImplementationRecommendation?>
 _implementationRecommendationForSelectedPackage({
@@ -6,7 +6,7 @@ _implementationRecommendationForSelectedPackage({
   required _SelectedPackage selected,
   required String missingPlatform,
 }) async {
-  final discovery = await discoverPackageAdaptationCandidates(
+  final discovery = await discoverPackageSupportCandidates(
     repository: repository,
     missingPlatform: missingPlatform,
   );
@@ -70,7 +70,7 @@ bool _isPackageVersionAheadOrDifferent(
   }
 }
 
-Directory _packageCreateDestination({
+Directory _packagePortDestination({
   required FluohEnvironment environment,
   required String? output,
   required String repositoryName,
@@ -90,16 +90,16 @@ Directory _packageCreateDestination({
   );
 }
 
-enum _PackageCreatePlanCloneMode { shallow, partial, full }
+enum _PackagePortPlanCloneMode { shallow, partial, full }
 
-Future<_PackageCreatePlanCloneMode> _cloneUpstreamForPackageCreatePlan({
+Future<_PackagePortPlanCloneMode> _cloneUpstreamForPackagePortPlan({
   required String upstream,
   required Directory scratchRepository,
   required List<String> packagePaths,
   required PackageUpstreamTarget upstreamTarget,
 }) async {
   if (upstreamTarget.ref == null) {
-    final sparsePaths = _packageCreatePlanSparsePaths(packagePaths);
+    final sparsePaths = _packagePortPlanSparsePaths(packagePaths);
     if (sparsePaths.isNotEmpty) {
       final sparse = await runGit([
         'clone',
@@ -113,11 +113,11 @@ Future<_PackageCreatePlanCloneMode> _cloneUpstreamForPackageCreatePlan({
         scratchRepository.path,
       ], allowFailure: true);
       if (sparse.exitCode == 0 &&
-          await _setPackageCreatePlanSparsePaths(
+          await _setPackagePortPlanSparsePaths(
             scratchRepository,
             sparsePaths,
           )) {
-        return _PackageCreatePlanCloneMode.shallow;
+        return _PackagePortPlanCloneMode.shallow;
       }
       if (await scratchRepository.exists()) {
         await scratchRepository.delete(recursive: true);
@@ -134,7 +134,7 @@ Future<_PackageCreatePlanCloneMode> _cloneUpstreamForPackageCreatePlan({
       scratchRepository.path,
     ], allowFailure: true);
     if (shallow.exitCode == 0) {
-      return _PackageCreatePlanCloneMode.shallow;
+      return _PackagePortPlanCloneMode.shallow;
     }
     if (await scratchRepository.exists()) {
       await scratchRepository.delete(recursive: true);
@@ -150,16 +150,16 @@ Future<_PackageCreatePlanCloneMode> _cloneUpstreamForPackageCreatePlan({
     scratchRepository.path,
   ], allowFailure: true);
   if (partial.exitCode == 0) {
-    return _PackageCreatePlanCloneMode.partial;
+    return _PackagePortPlanCloneMode.partial;
   }
   if (await scratchRepository.exists()) {
     await scratchRepository.delete(recursive: true);
   }
   await runGit(['clone', '--quiet', upstream, scratchRepository.path]);
-  return _PackageCreatePlanCloneMode.full;
+  return _PackagePortPlanCloneMode.full;
 }
 
-List<String> _packageCreatePlanSparsePaths(List<String> packagePaths) {
+List<String> _packagePortPlanSparsePaths(List<String> packagePaths) {
   final paths = packagePaths
       .map(_normalizePackagePath)
       .where((path) => path != '.')
@@ -167,7 +167,7 @@ List<String> _packageCreatePlanSparsePaths(List<String> packagePaths) {
   return paths;
 }
 
-Future<bool> _setPackageCreatePlanSparsePaths(
+Future<bool> _setPackagePortPlanSparsePaths(
   Directory repository,
   List<String> sparsePaths,
 ) async {
@@ -179,14 +179,14 @@ Future<bool> _setPackageCreatePlanSparsePaths(
   return result.exitCode == 0;
 }
 
-Future<void> _prepareUpstreamRefsForPackageCreatePlan({
+Future<void> _prepareUpstreamRefsForPackagePortPlan({
   required Directory repository,
-  required _PackageCreatePlanCloneMode cloneMode,
+  required _PackagePortPlanCloneMode cloneMode,
   required List<String> packagePaths,
   required String upstreamBranch,
   required PackageUpstreamTarget upstreamTarget,
 }) async {
-  if (cloneMode == _PackageCreatePlanCloneMode.shallow) {
+  if (cloneMode == _PackagePortPlanCloneMode.shallow) {
     final selectedTagsPrepared = await _prepareSelectedPackageReleaseTags(
       repository: repository,
       packagePaths: packagePaths,

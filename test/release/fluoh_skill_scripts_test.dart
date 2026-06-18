@@ -20,23 +20,13 @@ Future<Directory> createTempRoot() {
   return Directory.systemTemp.createTemp('fluoh_skill_script_');
 }
 
-Future<File> writeFakeFluoh(
-  Directory root, {
-  String docsDryRunOutput = 'Package docs are current',
-  int docsDryRunExitCode = 0,
-}) async {
+Future<File> writeFakeFluoh(Directory root) async {
   final tool = File('${root.path}/fluoh');
   await tool.writeAsString('''
 #!/bin/sh
 if [ "\$1" = "--version" ]; then
 echo "fluoh 9.9.9"
 exit 0
-fi
-if [ "\$1" = "package" ] && [ "\$2" = "docs" ] && [ "\$3" = "refresh" ] && [ "\$4" = "--dry-run" ]; then
-cat <<'EOF'
-$docsDryRunOutput
-EOF
-exit $docsDryRunExitCode
 fi
 echo "unexpected args: \$@" >&2
 exit 64
@@ -123,12 +113,14 @@ Future<Map<String, Object?>> runPreflight(
   required String fluohCommand,
   String? path,
   Map<String, String>? environment,
+  List<String> extraArgs = const <String>[],
 }) async {
   final result = await Process.run('python3', [
     preflightScript,
     path ?? root.path,
     '--fluoh-command',
     fluohCommand,
+    ...extraArgs,
   ], environment: environment);
   expect(result.exitCode, 0, reason: result.stderr.toString());
   return jsonDecode(result.stdout.toString()) as Map<String, Object?>;

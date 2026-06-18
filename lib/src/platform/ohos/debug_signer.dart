@@ -4,6 +4,7 @@ import 'dart:math';
 
 import '../../cli/terminal_output.dart';
 import '../../context/fluoh_environment.dart';
+import '../../task/task_workspace.dart';
 import 'build_profile_signing.dart';
 import 'ohos_toolchain.dart';
 import 'permission_profile.dart';
@@ -62,8 +63,11 @@ Future<OhosDebugSigningMaterial> prepareOhosDebugSigning({
     environment: environment,
     ohosDirectory: ohosDirectory,
   );
+  final task = await TaskWorkspace(
+    environment,
+  ).resolveOrCreate(type: 'build', scopeName: scope);
   final directory = io.Directory(
-    '${environment.ohosSigningDirectory.path}/'
+    '${task.scratchDirectory.path}/ohos-signing/'
     '$scope/'
     '${_safePathSegment(permissionProfile.bundleName)}',
   );

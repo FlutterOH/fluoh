@@ -8,14 +8,14 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_command_context.dart';
 import '../helpers/package_test_context.dart';
 
-part 'package_sync_core_part.dart';
-part 'package_sync_continuation_part.dart';
-part 'package_sync_diagnostics_part.dart';
+part 'package_upstream_core_part.dart';
+part 'package_upstream_continuation_part.dart';
+part 'package_upstream_diagnostics_part.dart';
 
 void main() {
-  _registerPackageSyncCoreTests();
-  _registerPackageSyncContinuationTests();
-  _registerPackageSyncDiagnosticTests();
+  _registerPackageUpstreamSyncCoreTests();
+  _registerPackageUpstreamSyncContinuationTests();
+  _registerPackageUpstreamSyncDiagnosticTests();
 }
 
 Future<void> _addWorkspacePackage(

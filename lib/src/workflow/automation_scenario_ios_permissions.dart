@@ -183,10 +183,11 @@ Future<AutomationScenarioActionResult> _tapIosPermissionWithXCTest(
       ],
     );
   }
+  final task = await TaskWorkspace(
+    context.environment,
+  ).resolveOrCreate(type: 'automation', scopeName: context.scenario.name);
   final project = await writeIosXCTestPermissionProject(
-    cacheRoot: Directory(
-      '${context.environment.projectCacheDirectory.path}/automation',
-    ),
+    cacheRoot: Directory('${task.scratchDirectory.path}/automation'),
     bundleId: action.bundleId!.trim(),
     labels: labels,
     match: action.match,

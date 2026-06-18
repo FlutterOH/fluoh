@@ -141,12 +141,7 @@ extension on SourceCheckCommand {
     required List<String> fluohCommand,
     required Duration timeout,
   }) async {
-    final tag = packageReleaseTagForPackage(
-      packageName: package.name,
-      upstreamVersion: release.upstreamVersion,
-      sdkVersion: '${sdk.sdkLine}.0-ohos-0.0.0',
-      releaseVersion: release.version,
-    );
+    final tag = release.tag;
     final tagCheck = await _runProcess([
       'git',
       'rev-parse',
@@ -206,7 +201,7 @@ extension on SourceCheckCommand {
       packageName: package.name,
       sdkLine: sdk.sdkLine,
       releaseVersion: release.version,
-      upstreamVersion: release.upstreamVersion,
+      upstreamVersion: release.sourceVersion,
       status: release.status,
       tag: tag,
       branch: branch,
@@ -259,12 +254,14 @@ extension on SourceCheckCommand {
           'sdk line is $actualSdkLine, expected $expectedSdkLine',
         if (taggedPackage.version != release.version)
           'release version is ${taggedPackage.version}, expected ${release.version}',
-        if (taggedPackage.upstreamVersion != release.upstreamVersion)
+        if (release.upstreamVersion != null &&
+            taggedPackage.upstreamVersion != release.upstreamVersion)
           'upstream version is ${taggedPackage.upstreamVersion}, expected ${release.upstreamVersion}',
         if (release.upstreamRef != null &&
             actualUpstreamRef != release.upstreamRef)
           'upstream ref is $actualUpstreamRef, expected ${release.upstreamRef}',
-        if (taggedPackage.upstreamCommit != release.upstreamCommit)
+        if (release.upstreamCommit != null &&
+            taggedPackage.upstreamCommit != release.upstreamCommit)
           'upstream commit is ${taggedPackage.upstreamCommit}, expected ${release.upstreamCommit}',
         if (taggedPackage.path != package.path)
           'package.path is ${taggedPackage.path}, expected ${package.path}',

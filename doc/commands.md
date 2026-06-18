@@ -12,13 +12,13 @@ top-level wiring in `lib/src/cli/fluoh_command_runner.dart`.
 
 ## End-to-End Workflows
 
-AI-driven adaptation is the primary end-to-end path. The bundled
+AI-driven support is the primary end-to-end path. The bundled
 `skills/fluoh` workflow classifies the workspace, confirms the resolved scope,
 then runs `fluoh` commands. This document defines those command contracts;
 detailed agent routing, report wording, and repair ordering live in
 `skills/fluoh/SKILL.md` and `skills/fluoh/references/`.
 
-### AI-Driven Adaptation
+### AI-Driven Support
 
 Start by installing or refreshing the skill in the agent:
 
@@ -32,9 +32,9 @@ not installed yet.
 Then give the agent the goal in one short request:
 
 ```text
-Use $fluoh to install fluoh if needed and adapt this Flutter project for OHOS.
-Use $fluoh to adapt <upstream-git-url> for FlutterOH, SDK 3.35.
-Use $fluoh to continue adapting <package-name> for OHOS.
+Use $fluoh to install fluoh if needed and add FlutterOH support to this Flutter project.
+Use $fluoh to port <upstream-git-url> for FlutterOH, SDK 3.35.
+Use $fluoh to continue implementing FlutterOH support for <package-name>.
 Use $fluoh to precheck this FlutterOH Source change.
 ```
 
@@ -51,30 +51,34 @@ Git operations, and external publishing remain separate maintainer decisions.
 The skill version follows the CLI package version; after `fluoh upgrade`,
 reinstall or reload the path printed by `fluoh skill --path`.
 
-### Add OHOS to an App Project Manually
+### Add FlutterOH Support to an App Project Manually
 
 Use this sequence from an existing Flutter project when the goal is to build or
-run the app on OHOS without an AI agent:
+run the app with the FlutterOH SDK on the `ohos` platform without an AI agent:
 
 ```sh
+fluoh task start --type appSupport --scope <scope> --json
 fluoh source update
 fluoh sdk use 3.35 --pub-get
-fluoh deps check
-fluoh deps fix --dry-run
+fluoh deps check --json
+fluoh deps fix --dry-run --json
 fluoh deps fix
 fluoh deps get
-fluoh doctor --platform ohos --project
-fluoh build ohos --auto-sign
-fluoh devices --platform ohos
-fluoh emulators --platform ohos
-fluoh run ohos --auto-emulator
-fluoh run ohos --device-id <id>
-fluoh drive all --json
+fluoh doctor --platform ohos --project --json --strict
+fluoh build ohos --auto-sign --json --trace
+fluoh devices --platform ohos --json
+fluoh emulators --platform ohos --json
+fluoh run ohos --auto-emulator --json --trace
+fluoh run ohos --device-id <id> --json --trace
+fluoh drive ohos --json --trace
+fluoh report create --scope <scope> --json
+python3 <skill-dir>/scripts/check_report.py <report-path>
 ```
 
-`fluoh sdk use` creates `ohos/` by default when the project does not already
-have one. Use `--no-init-ohos` only when another workflow owns platform
-creation. If no device or emulator is available, use
+`fluoh task start` creates the current task workspace for traces, screenshots,
+run sessions, and reports. `fluoh sdk use` creates `ohos/` by default when the
+project does not already have one. Use `--no-init-ohos` only when another
+workflow owns platform creation. If no device or emulator is available, use
 `fluoh build ohos --auto-sign --json` as build-only evidence and follow the
 JSON diagnostic `nextCommand` for the next local setup step.
 
@@ -83,7 +87,7 @@ JSON diagnostic `nextCommand` for the next local setup step.
 Root help keeps CLI utility commands under `Fluoh`
 (`skill`, `doctor`, `flutter`, and `upgrade`), then lists
 `SDK & Metadata` before project workflows because SDK and Source state often
-gate adaptation. `Project` contains top-level app project commands: `create`
+gate support. `Project` contains top-level app project commands: `create`
 and `deps`. `Package` contains the `package` repository command group.
 `Workflow` contains shared execution and evidence commands in the order `plan`,
 `verify`, `build`, `run`, `attach`, `drive`, `report`, and `clean`. `Devices`
@@ -95,18 +99,20 @@ discovery, and `emulators` owns emulator or simulator launch.
 | `fluoh --version` | `lib/src/cli/fluoh_command_runner.dart` | Print the `fluoh` version, Dart version, platform, and repository URL. |
 | `fluoh help [command]` | `package:args` command runner | Print global or command-specific usage. |
 | `fluoh skill` | `lib/src/cli/skill_command.dart` | Print local path, version, update, and prompt details for the bundled AI skill. |
-| `fluoh create [--sdk <version-or-series>] <args>` | `lib/src/project/create_command.dart` | Create a Flutter project with a FlutterOH SDK and pass remaining arguments to `flutter create`. |
-| `fluoh plan app` | `lib/src/workflow/commands/plan_command.dart` | Print a read-only app adaptation plan and command queue. |
-| `fluoh plan package` | `lib/src/workflow/commands/plan_command.dart` | Print a read-only package adaptation plan and command queue. |
+| `fluoh create [--sdk <version-or-series>] <args>` | `lib/src/project/create_command.dart` | Create or refresh an app/module Flutter project skeleton with a FlutterOH SDK and pass remaining arguments to `flutter create`. |
+| `fluoh plan app` | `lib/src/workflow/commands/plan_command.dart` | Inspect the current Flutter app and print a read-only FlutterOH support command queue. |
+| `fluoh plan package` | `lib/src/workflow/commands/plan_command.dart` | Inspect the current package branch and print a read-only support command queue. |
 | `fluoh flutter <args>` | `lib/src/sdk/flutter_command.dart` | Run `flutter` from the SDK selected by the nearest project `fluoh.yaml`. |
 | `fluohf <args>` | `bin/fluohf.dart` | Shortcut for `fluoh flutter <args>`. |
 | `fluoh source` | `lib/src/source/source_commands.dart` | Command group for package metadata source use and maintenance. |
-| `fluoh source list` | `lib/src/source/source_commands.dart` | List configured FlutterOH package metadata sources. |
-| `fluoh source add <name> <url-or-path>` | `lib/src/source/source_commands.dart` | Add a local or Git package metadata source to tool config. |
-| `fluoh source remove <name>` | `lib/src/source/source_commands.dart` | Remove a non-official package metadata source from tool config. |
-| `fluoh source update [name]` | `lib/src/source/source_commands.dart` | Refresh and validate configured source snapshots. |
+| `fluoh source list` | `lib/src/source/source_commands.dart` | List FlutterOH package metadata Sources enabled on this machine. |
+| `fluoh source stats [--sdk <version-or-line>]` | `lib/src/source/source_commands.dart` | Summarize package coverage by FlutterOH SDK version or line. |
+| `fluoh source enable <name> <url-or-path>` | `lib/src/source/source_commands.dart` | Enable a local or Git Source for this machine. |
+| `fluoh source disable <name>` | `lib/src/source/source_commands.dart` | Disable a non-official package metadata Source for this machine. |
+| `fluoh source update [name]` | `lib/src/source/source_commands.dart` | Refresh local snapshots for configured Sources. |
 | `fluoh source init <path>` | `lib/src/source/source_commands.dart` | Create a local source repository template. |
-| `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import released FlutterOH package repository metadata into a source repository. |
+| `fluoh source register <package-repo>` | `lib/src/source/source_commands.dart` | Add the first released FlutterOH package branch to a Source repository. |
+| `fluoh source sync [path]` | `lib/src/source/source_commands.dart` | Import later releases for packages already routed by a Source repository. |
 | `fluoh source check [source]` | `lib/src/source/source_check_command.dart` | Validate Source files and verify declared Package releases. Use `--schema-only` for local YAML/index validation. |
 | `fluoh sdk` | `lib/src/sdk/sdk_commands.dart` | Command group for local FlutterOH SDK caches. |
 | `fluoh sdk list` | `lib/src/sdk/sdk_commands.dart` | List remote SDK versions and installed SDK caches. |
@@ -116,20 +122,23 @@ discovery, and `emulators` owns emulator or simulator launch.
 | `fluoh sdk use <version-or-series>` | `lib/src/sdk/sdk_use_command.dart` | Select an SDK for the current Flutter project. |
 | `fluoh deps` | `lib/src/deps/commands/deps_command.dart` | Command group for project dependencies. |
 | `fluoh deps get` | `lib/src/deps/commands/deps_get_command.dart` | Run `flutter pub get` for projects and package examples. |
-| `fluoh deps check` | `lib/src/deps/commands/dependency_plan_commands.dart` | Report dependency FlutterOH adaptation status. |
+| `fluoh deps check` | `lib/src/deps/commands/dependency_plan_commands.dart` | Report dependency FlutterOH support status. |
 | `fluoh deps fix` | `lib/src/deps/commands/dependency_plan_commands.dart` | Apply recommended FlutterOH dependency changes. |
 | `fluoh deps upgrade` | `lib/src/deps/commands/deps_upgrade_command.dart` | Upgrade existing FlutterOH dependency replacements only. |
 | `fluoh package` | `lib/src/package/commands/package_command.dart` | Command group for FlutterOH package repositories. |
 | `fluoh package list` | `lib/src/package/commands/package_list_command.dart` | List FlutterOH packages from configured sources. |
-| `fluoh package create <upstream>` | `lib/src/package/commands/package_create_command.dart` | Initialize a FlutterOH package repository. |
-| `fluoh package discover <upstream>` | `lib/src/package/commands/package_discover_command.dart` | Discover Flutter plugin packages that may need OHOS adaptation. |
-| `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Create another package adaptation branch in a FlutterOH package repository. |
-| `fluoh package queue <package-path>...` | `lib/src/package/commands/package_queue_command.dart` | Resolve a read-only multi-package adaptation queue for a monorepo. |
-| `fluoh package sync` | `lib/src/package/commands/package_sync_command.dart` | Merge the selected upstream package release into the current OHOS package branch. |
+| `fluoh package new <name>` | `lib/src/package/commands/package_new_command.dart` | Create a spec-first FlutterOH package repository on an SDK-line branch. |
+| `fluoh package port <upstream>` | `lib/src/package/commands/package_port_command.dart` | Port an upstream Flutter package to a FlutterOH package repository on an SDK-line branch. |
+| `fluoh package discover <upstream>` | `lib/src/package/commands/package_discover_command.dart` | Discover Flutter plugin packages that may need FlutterOH support. |
+| `fluoh package add <package-path>` | `lib/src/package/commands/package_add_command.dart` | Create another package branch in an existing FlutterOH package repository. |
+| `fluoh package queue <package-path>...` | `lib/src/package/commands/package_queue_command.dart` | Resolve a read-only multi-package support queue for a monorepo. |
+| `fluoh package upstream check` | `lib/src/package/commands/package_upstream_command.dart` | Check the selected upstream package release for a ported package branch. |
+| `fluoh package upstream sync` | `lib/src/package/commands/package_upstream_command.dart` | Merge the selected upstream package release into the current FlutterOH package branch. |
+| `fluoh package scope` | `lib/src/package/commands/package_scope_command.dart` | Maintain the package support scope used for support planning and evidence gates. |
+| `fluoh package next` | `lib/src/package/commands/package_next_command.dart` | Report the next package implementation action. |
 | `fluoh package status` | `lib/src/package/commands/package_status_command.dart` | Summarize package release readiness. |
 | `fluoh package handoff` | `lib/src/package/commands/package_handoff_command.dart` | Summarize package branch state, evidence, and next commands for AI handoff. |
 | `fluoh package version` | `lib/src/package/commands/package_version_command.dart` | Update package release version metadata. |
-| `fluoh package docs refresh` | `lib/src/package/commands/package_docs_command.dart` | Refresh generated package repository documentation. |
 | `fluoh package check` | `lib/src/package/commands/package_release_command.dart` | Run release checks without creating tags. |
 | `fluoh package release` | `lib/src/package/commands/package_release_command.dart` | Complete a FlutterOH package release. |
 | `fluoh verify` | `lib/src/workflow/commands/verify_command.dart` | Run pub get, analysis, and tests for a project or package repository. |
@@ -137,8 +146,9 @@ discovery, and `emulators` owns emulator or simulator launch.
 | `fluoh run <platform>` | `lib/src/workflow/commands/run_command.dart` | Prepare the platform, launch with `flutter run`, and diagnose an app. |
 | `fluoh attach <platform>` | `lib/src/workflow/commands/attach_command.dart` | Attach Flutter debug tooling to a `flutterRunSession`, VM Service URI, or device id. |
 | `fluoh drive <platform>` | `lib/src/workflow/commands/drive_command.dart` | Run mobile app automation scenarios and evidence checks on OHOS, Android, and iOS targets. |
-| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | Create an ignored local AI adaptation report from trace manifests and automation JSON. |
-| `fluoh clean` | `lib/src/workflow/commands/clean_command.dart` | Remove cleanable runtime artifacts under the current project `.fluoh/cache`. |
+| `fluoh report create` | `lib/src/workflow/commands/report_command.dart` | Create an ignored local AI support report from trace manifests and automation JSON. |
+| `fluoh task` | `lib/src/task/task_command.dart` | Manage project-local task workspaces under `.fluoh/tasks/`. |
+| `fluoh clean` | `lib/src/workflow/commands/clean_command.dart` | Remove cleanable output from the current task workspace. |
 | `fluoh doctor` | `lib/src/doctor/doctor_command.dart` | Diagnose environment, native tools, and optional project state. |
 | `fluoh devices` | `lib/src/platform/platform_target_commands.dart` | List connected Flutter targets, including OHOS, Android, iOS, Web, and host-supported desktop targets. |
 | `fluoh emulators` | `lib/src/platform/platform_target_commands.dart` | List and launch local emulators and simulators for OHOS, Android, and iOS; desktop and Web platforms do not provide emulators. |
@@ -171,36 +181,37 @@ discovery, and `emulators` owns emulator or simulator launch.
   to stdout. The top-level contract is stable: `schema`, `command`, `ok`, and
   `exitCode` are always present, while command-specific fields such as `checks`,
   `targets`, `packages`, `dependencies`, and `error` remain at the top level.
+  Workflow commands such as `verify`, `build`, `run`, and `drive` also include
+  a top-level `nextAction` when they fail. It gives automation one recovery
+  command to run next, or marks the failure as blocked. Detailed target and step
+  diagnostics remain under `targets`.
   Automation should invoke the installed `fluoh` executable, not
   `dart run bin/fluoh.dart ... --json`, because the Dart launcher can print
   dependency-resolution text before the command process starts. For strict
   machine parsing, prefer the native/Homebrew executable. Dart pub global shims
   invoke `dart pub global run`; use them for JSON automation only after
   confirming stdout starts with the JSON object in that environment.
-- `verify`, `build`, and `run` can write local AI diagnostic trace manifests
-  with `--trace` or `--trace-dir <path>`. Trace data is local evidence, not
-  verbose stdout. With `--json`, the JSON object includes a `trace` reference
-  with the trace id, directory, and `trace.json` path. If trace writing fails,
-  the workflow result and exit code still reflect the underlying command, and
-  the JSON object includes `traceError`. Reusing the same `--trace-dir`
-  accumulates related command invocations in one session manifest.
-- Local AI reports are ignored evidence under `.fluoh/reports/`. The skill
-  helper `new_report.py` writes
-  `.fluoh/reports/<report-group>/report-<timestamp>.md`, where
-  `<report-group>` is the package slug when `--package` is supplied and is
-  otherwise the scope slug. The summary helper `new_summary.py` writes
-  `.fluoh/reports/<scope-slug>/summary-<timestamp>.md`. Timestamps are Unix
-  epoch milliseconds.
-- Local trace manifests are ignored evidence under `.fluoh/traces/`. With
-  `--trace`, project or multi-target commands write
-  `.fluoh/traces/<trace-id>/trace.json`; a single package target writes
-  `.fluoh/traces/<package-slug>/<trace-id>/trace.json`. The generated trace id
-  is `<command-slug>-YYYYMMDD-HHMMSS-micros`. With `--trace-dir <path>`, the
-  manifest is exactly `<path>/trace.json`, relative paths are resolved from the
-  working directory, and the trace id is derived from the final directory
-  segment. AI adaptation loops should use one stable session directory such as
-  `.fluoh/traces/<package-or-scope>/<session-id>` so `verify`,
-  `build`, and `run` append to one manifest.
+  When using a compiled current-repo executable from outside the checkout, set
+  `FLUOH_SKILL_PATH` to the checkout's `skills/fluoh` directory so `skill`
+  metadata and bundled report helper scripts resolve without falling back to a
+  pub global shim.
+- `fluoh task start` creates `.fluoh/tasks/<task-id>/` and updates
+  `.fluoh/current-task.json`. Task directories are local, ignored, and
+  cleanable. They group traces, reports, command output, screenshots, logs,
+  run sessions, and scratch files by support task instead of by artifact type.
+- `verify`, `build`, `run`, and `drive` can write local AI diagnostic trace
+  manifests with `--trace` or `--trace-dir <path>`. With `--trace`, the command
+  uses the current task or creates one, then writes under
+  `.fluoh/tasks/<task-id>/traces/`. With `--trace-dir <path>`, the manifest is
+  exactly `<path>/trace.json` for explicit debugging. Trace data is local
+  evidence, not verbose stdout. With `--json`, the JSON object includes a
+  `trace` reference with task metadata, trace id, directory, and `trace.json`
+  path. If trace writing fails, the workflow result and exit code still reflect
+  the underlying command, and the JSON object includes `traceError`.
+- Local AI reports are ignored evidence under the current task's
+  `reports/` directory. `fluoh report create` defaults to
+  `.fluoh/tasks/<task-id>/reports/report.md`; the helper `new_report.py` and
+  summary helper also write under the current task.
 - Command classes should own argument parsing and user-visible output. Reusable
   behavior belongs in domain helpers such as `lib/src/sdk/`, `lib/src/deps/`,
   `lib/src/package/`, and `lib/src/source/`.
@@ -240,34 +251,40 @@ and the `.fluoh/flutter_sdk` link path.
 `plan app` inspects the current Flutter app project without writing
 files. It reports whether the directory looks like a Flutter app, which platform
 directories already exist, the selected or requested FlutterOH SDK, and a
-structured command queue for dependency checks, OHOS build/run evidence,
-OHOS device/emulator discovery, existing-platform regression checks, automation
-evidence, and report creation. `build`, `run`, `drive`, and `report create` commands
-share one `.fluoh/traces/<scope>/adaptation` session when the underlying
-command supports trace output. `--json` writes a single machine-readable object
+structured command queue for dependency checks, target-platform build/run evidence,
+OHOS device/emulator discovery, existing-platform build/run regression checks,
+mobile existing-platform automation evidence, and report creation. The queue
+starts a local task, and later `build`, `run`, `drive`, and `report create`
+commands use that current task for trace and report output. `--json` writes a single machine-readable object
 with `changed: false` and `applied: false`, so AI agents can use it for scope
 confirmation before requesting mutating commands. The JSON also includes
 `automationRunbook` and `deliveryGate` for the repair loop, terminal states,
 final check commands, report check command, and conditions that must be met
 before an AI agent can claim `ready`. Ready requires reviewing existing tests
 and `integration_test/` coverage before final verification, adding or repairing
-missing functional tests, and collecting functional evidence for OHOS plus every
-existing platform directory supported by the current host/toolchain. Unsupported
-platforms require exact diagnostic evidence and a recorded skip reason.
+missing functional tests, collecting functional evidence for OHOS, collecting
+platform-policy build/run regression evidence for every existing platform
+directory supported by the current host/toolchain, and collecting Android/iOS
+drive dry-run plus drive-run evidence when those existing mobile examples are
+supported by the host. Unsupported platforms require exact diagnostic evidence
+and a recorded skip reason.
+The bundled skill preflight uses this plan output as the primary command queue
+when the installed `fluoh` executable is available, and falls back to its local
+classifier only when CLI setup is not ready.
 
 `plan package` does the same read-only planning for the current
 FlutterOH package branch. It reads package `fluoh.yaml`, reports branch and
 working-tree state, selected SDK, upstream/release metadata, example platform
-directories, and a command queue for generated docs, verification, OHOS
-build/run evidence, OHOS device/emulator discovery, unified platform
-automation, existing-platform example regressions, report creation, report
-check, handoff, and release checks. `verify`, `build`, `run`, `drive`, and `report create` commands
-share one `.fluoh/traces/<package>/adaptation` session when supported. The plan
-keeps Android, iOS, and OHOS implementation work behind platform-specific steps
-while the upper-level queue is called through one `plan package` contract. Its
-delivery gate requires `check_report.py` to pass and the final `package check`
-to run with `--report <report-path>` after the independent reviewer feedback
-loop has no open blocker, high, or medium findings, so report certification
+directories, and a command queue whose implementation-loop entry is
+`fluoh package next --package <name> --json`. Package implementation work is
+not expanded into a second linear verify/build/run/drive queue here; `package
+next` owns spec review, support scope planning, OHOS and existing-platform
+commands, visual page-readiness, report creation, and report-check sequencing
+through `nextAction`. The plan queue then keeps only release-readiness summary,
+handoff, and `package check --report <report-path>` steps after `package next`
+is ready. The delivery gate still lists concrete final check commands,
+including `package next`, selected-SDK verification, platform evidence,
+`check_report.py`, handoff, and `package check`, so report certification
 failures cannot be reduced to non-blocking warnings.
 
 ### `fluoh flutter <args>` and `fluohf <args>`
@@ -322,7 +339,10 @@ JSON includes `platformDirectories` data for the selected platform set so
 automation can decide whether to create or skip OHOS, Android, iOS, macOS,
 Linux, Web, or Windows platform projects. `--json` prints the same checks as
 machine-readable JSON and includes each check's `id`, `group`, and structured
-data when the check has it.
+data when the check has it. `--json --strict` also includes `state` and a
+single `nextAction`: `ready` when all strict checks pass, or `blocked` with
+warning check details and a rerun command when local environment or project
+repair is required.
 
 ### `fluoh devices` and `fluoh emulators`
 
@@ -365,15 +385,24 @@ and prints each configured source name and display value. Empty configuration is
 a warning, not an error. `--json` prints the same configured source list with
 source names, display values, cache paths, URLs, and priorities.
 
-`fluoh source add <name> <url-or-path>` validates the source name, refuses to
-replace the official source name, and stores a cache path under
+`fluoh source stats [--sdk <version-or-line>]` reads the merged Source SDK and
+package indexes and summarizes how many package records are compatible,
+experimental, or broken for each FlutterOH SDK version or line. It does not
+change config, snapshots, lock files, or Source repository content. `--json`
+prints the same package counts plus package names grouped by status.
+
+`fluoh source enable <name> <url-or-path>` makes a local or Git Source available on
+the current machine. It validates the source name, refuses to replace the
+official source name, and stores a cache path under
 `$FLUOH_HOME/sources/<name>`. Local paths are normalized to absolute `file:`
 URLs in `$FLUOH_HOME/config.json` so future `source update` runs can refresh the
 cache from the original directory. Local paths and `file:` URLs are copied as
 validated snapshots. HTTPS/SSH URLs are cloned immediately and validated before
 the config entry is saved. `--priority` defaults to `10`, and higher priorities
-win when source data overlaps. After the new snapshot is valid, the Source
-runtime commits the config entry and regenerated lock together.
+win when source data overlaps. `--json` prints the enabled source name, original
+input, normalized URL, cache path, and priority as one machine-readable object.
+After the new snapshot is valid, the Source runtime commits the config entry and
+regenerated lock together.
 
 Overlap merge rules are explicit:
 
@@ -391,10 +420,11 @@ Overlap merge rules are explicit:
 - Package-level upstream URL and advisory text come from the highest priority
   source that defines the package.
 
-`fluoh source remove <name>` removes a user Source from tool config. The official
-Source alias `flutteroh` is tool-owned with priority `0`. The command owns only
-the config entry being removed. Lock maintenance is delegated to the Source
-runtime.
+`fluoh source disable <name>` disables a user Source on the current machine.
+The official Source alias `flutteroh` is tool-owned with priority `0`. The
+command owns only the disabled config entry. Lock maintenance is delegated to
+the Source runtime. `--json` prints the disabled source name and disablement
+status as one machine-readable object.
 
 `fluoh source update [name]` refreshes all sources or one named source. Selected
 Git sources are cloned again, and selected `file:` sources are copied again from
@@ -402,7 +432,8 @@ their configured local directories. The Source runtime then validates every
 configured source snapshot because the lock is a merged index over all
 configured sources. Git transport failures are reported as sync failures with
 retry guidance, while cloned source content that fails schema validation keeps
-the source validation diagnostic.
+the source validation diagnostic. `--json` prints the refreshed source count and
+source entries as one machine-readable object.
 
 Source mutation commands pass the candidate config or snapshot state to the
 Source runtime. If validation or lock generation fails, the runtime preserves
@@ -438,7 +469,7 @@ already recorded. It reads the Package `fluoh.yaml` frozen under those new tags
 and writes historical release records into same-name package Manifest routes.
 When `path` is omitted, the current directory is used. Source metadata must come
 from released
-adaptation records, not in-progress repository state. When `<path>` is one of
+support records, not in-progress repository state. When `<path>` is one of
 the configured source snapshots under `$FLUOH_HOME/sources/<name>`, sync is
 treated as a configured Source snapshot mutation and the Source runtime rebuilds
 the merged lock. When `<path>` is a maintainer checkout outside the configured
@@ -543,7 +574,7 @@ lockfile. By default only `compatible` Source release records are considered.
 Pass `--all-release-statuses` to also consider experimental and broken
 releases. `--json` prints the same plan as machine-readable JSON.
 
-`fluoh deps fix` applies recommended FlutterOH adaptation changes from the
+`fluoh deps fix` applies recommended FlutterOH support changes from the
 dependency plan. It writes to either `dependency_overrides` or direct dependency
 declarations according to `dependencyPolicy.pubspecSection`. Version mismatches
 are skipped unless `dependencyPolicy.versionChanges` is `any`; non-compatible
@@ -574,9 +605,9 @@ skill in `skills/fluoh/SKILL.md` and the detailed workflows in
 `skills/fluoh/references/`, so user documentation stays short and every agent
 uses one maintained workflow entry point.
 
-### Adaptation Workflow
+### Support Workflow
 
-Adaptation is maintained by package branch and FlutterOH SDK line, not SDK
+Support is maintained by package branch and FlutterOH SDK line, not SDK
 patch version. For example, complete SDK `3.35.8-ohos-0.0.3` maps to SDK line
 `3.35`, and package `camera` is maintained on `ohos/3.35/camera`.
 
@@ -584,31 +615,71 @@ Recommended flow:
 
 1. Select a complete SDK version.
 2. Derive the SDK line from that SDK version.
-3. Create or switch to `ohos/<sdkLine>/<package>`.
-4. Record the currently adapted upstream package version and FlutterOH
-   adaptation package version in Package `fluoh.yaml`.
-5. Before adding OHOS code, run verifications with the selected SDK, including
+3. Create or switch to `ohos/<sdkLine>/<package>` for every FlutterOH package,
+   whether the package is spec-first or ported from upstream.
+4. Record the package origin in Package `fluoh.yaml`: `created` packages come
+   from a local spec, and `ported` packages come from an upstream repository.
+   Ported packages also record the currently targeted upstream version/ref and
+   commit.
+5. Before implementation changes, replace the generated
+   `doc/fluoh/<package>/spec.md` TODOs with the reviewed package contract:
+   requirements, public API, target platform matrix, platform behavior,
+   platform API mapping, examples, test expectations, and acceptance evidence.
+   `fluoh package next` treats
+   remaining generated spec TODOs and package spec template placeholders as a
+   `spec-review` blocker. Agents can use
+   `skills/fluoh/references/package-spec-template.md` as the fill-in
+   structure.
+6. Before implementation changes, initialize and complete the P0 support scope
+   with `fluoh package scope init` and `fluoh package scope check`. The support
+   scope lives under `doc/fluoh/<package>/scope.yaml` and records a
+   scope-entry-by-platform matrix: support decisions, platform sources or
+   reasons, implementation plans where required, test cases, and functional or
+   regression evidence.
+7. Before implementation changes, run verifications with the selected SDK, including
    `fluoh deps get`, `fluoh flutter analyze`, and existing package tests or
-   example builds. Fix non-OHOS platform regressions first.
-6. Use `status: experimental` while adaptation is in progress. Omit `status`
+   example builds. Fix existing-platform regressions first.
+8. Use `status: experimental` while support is in progress. Omit `status`
    when the release is complete and recommended; omitted means `compatible`.
-7. `fluoh package version` updates the adaptation package release version and
+9. `fluoh package version` updates the package support release version and
    status.
-8. `fluoh package check` runs the final local gate without creating tags.
-9. `fluoh package release` creates the release tag, freezing the code, tests, and
+10. `fluoh package check` runs the final local gate without creating tags.
+11. `fluoh package release` creates the release tag, freezing the code, tests, and
    Package `fluoh.yaml`.
-10. `fluoh source sync` imports per-package Source Manifests from release tags.
+12. Use `fluoh source register` for the first released package branch in a
+    Source repository. Later releases are imported with `fluoh source sync`.
 
-`fluoh package create <upstream>` clones the upstream repository, selects one
+`fluoh create` is Flutter-like and project-scoped. It creates or refreshes app
+and module skeletons with the selected FlutterOH SDK by forwarding arguments to
+`flutter create`, then writes project SDK metadata. It can be used in an
+existing app with `fluoh create . --platforms=ohos`, but it does not create
+FlutterOH package lifecycle metadata, package branches, release tags, or Source
+records.
+
+`fluoh package new <name>` creates a spec-first FlutterOH package repository.
+It initializes a `main` branch with a fixed repository-index `README.md`
+metadata commit, then creates a package branch such as
+`ohos/3.35/my_plugin`, configures the FlutterOH SDK, runs the requested Flutter
+package/plugin template, writes `fluoh.yaml` with `origin.kind: created`,
+creates `doc/fluoh/<package>/spec.md`, writes generated `FLUOH.md` package
+context, and stages generated package-branch files. `--platforms` accepts a
+comma-separated list of fluoh workflow platforms: `ohos`, `android`, `ios`,
+`macos`, `linux`, `web`, and `windows`. New packages still use the same SDK-line
+branch and release rules as ported packages so the Source can resolve different
+implementations for different FlutterOH SDK lines. The command does not publish
+to pub.dev, push, or create release tags.
+
+`fluoh package port <upstream>` clones the upstream repository, selects one
 package, creates a FlutterOH branch such as `ohos/3.35/camera`, configures the
-SDK and remotes, writes `fluoh.yaml`, generated docs, changelog scaffolding,
-and agent instructions, then stages generated files. If the selected package
-has an existing Flutter example, the command adds OHOS platform files and
-example SDK config. It never commits.
+SDK and remotes, writes `fluoh.yaml` with `origin.kind: ported`, records
+upstream version/ref/commit metadata, writes generated `FLUOH.md` package
+context, creates `doc/fluoh/<package>/spec.md`, and stages generated files. If
+the selected package has an existing Flutter example, the command adds OHOS
+platform files and example SDK config. It never commits.
 With no `--package-path`, only the repository root package is selected. For
-monorepos, keep one adaptation repository per upstream repository and add more
-package branches with `fluoh package add <package-path>`. `package create` and
-`package add` select the latest valid upstream release tag by default; use
+monorepos, keep one support repository per upstream repository and add more
+ported package branches with `fluoh package add <package-path>`. `package port`
+and `package add` select the latest valid upstream release tag by default; use
 `--upstream-version` for a specific package release and `--upstream-ref` only
 when release tags cannot identify the target snapshot.
 The command requires `--repository-name <repository-name>`, which supplies the
@@ -625,7 +696,7 @@ prints a single machine-readable plan object, and does not create repositories,
 write files, stage files, or commit. The plan includes `warnings[]` for cases
 such as Dart SDK incompatibility, default-branch unreleased versions, and
 federated implementation recommendations, plus the selected package
-`adaptationProfile` so AI agents can seed official documentation review,
+`supportProfile` so AI agents can seed official documentation review,
 tests, scenarios, evidence, and external-service blocker checks during scope
 confirmation.
 
@@ -637,9 +708,9 @@ configure remotes, checkout branches, or write project files. JSON output
 includes the filter, inspected pubspec count, valid Flutter plugin count,
 candidate and recommended counts, candidate package names, paths, versions,
 declared platforms, federated `default_package` declarations, missing
-platforms, per-candidate `adaptationProfile` capability categories,
+platforms, per-candidate `supportProfile` capability categories,
 complexity, risk reasons, required evidence, suggested coverage seeds,
-`officialDocsRequired`, `officialDocTopics`, and `createCommand`, federated
+`officialDocsRequired`, `officialDocTopics`, and `portCommand`, federated
 `implementationRecommendation` details when an app-facing plugin should grow a
 new platform implementation package such as `<package>_ohos`, a multi-package
 `queueCommand`, and non-fatal `issues[]`. The default `queueCommand` contains
@@ -653,7 +724,7 @@ platform-specific helper plugins remain visible as context with roles such as
 `test_fixture` or `platform_specific_helper`, but are also excluded from the
 default queue. Use it when an AI or maintainer receives a monorepo upstream URL
 without an explicit package path and needs a short package selection list before
-running `package create`. Pass
+running `package port`. Pass
 `--include-existing-platform` to include Flutter plugins that already declare
 the requested `--missing-platform`, which defaults to `ohos`.
 
@@ -662,7 +733,7 @@ multi-package queue in an existing FlutterOH package repository. It fetches
 upstream refs, keeps the current branch checked out, reports each package name,
 path, selected upstream target, target `ohos/<sdkLine>/<package>` branch,
 whether that branch already exists, SDK/Dart compatibility warnings, and the
-next `fluoh package add` or `package status` command. Use it before adapting
+next `fluoh package add` or `package status` command. Use it before porting
 multiple packages in one upstream monorepo, then finish one package branch
 checkpoint before moving to the next. When running verify/build/run/check
 commands across multiple existing package branches, prefer a fresh clone or
@@ -671,50 +742,75 @@ from one branch cannot become untracked files on the next branch. Do not run
 destructive cleanup commands such as `git clean` without explicit maintainer
 approval.
 
+`fluoh package scope init --package <name>` creates
+`doc/fluoh/<package>/scope.yaml`. The file is a support-scope record, not an
+automated verdict: agents and maintainers fill it after reading the public Dart
+API, target platform behavior, existing platform implementations, examples,
+tests, and platform API sources. By default, init imports concrete rows from
+the branch-local spec's `Support Scope Seeds` table; pass `--no-from-spec` when
+that table is stale or intentionally empty.
+`fluoh package scope check --json` validates that P0 platform rows have support
+decisions, platform sources or reasons, implementation plan status where
+implementation is required, test cases, and functional or regression evidence.
+It exits non-zero while the support scope is incomplete. `fluoh package scope
+status --json` prints the same status without failing so handoff scripts can
+summarize remaining planning or evidence gaps. All package scope JSON outputs
+use `supportScope` for the parsed status object.
+
 `fluoh package add <package-path>` creates another package branch in an existing
 FlutterOH package repository. It requires a clean working tree, resolves the
 target package on the synchronized upstream branch, checks out the selected
 release target commit, creates `ohos/<sdkLine>/<package>`, writes a
-single-package `fluoh.yaml` and docs, prepares an existing Flutter example when
-present, and stages generated files. It supports `--upstream-version` and
-`--upstream-ref` with the same selection rules as package create, plus `--org`
-to override the inferred example organization passed to `flutter create`.
+single-package `fluoh.yaml` and `FLUOH.md` context, prepares an existing
+Flutter example when present, creates `doc/fluoh/<package>/spec.md`, and stages
+generated files. It supports
+`--upstream-version` and `--upstream-ref` with the same selection rules as
+package port, plus `--org` to override the inferred example organization
+passed to `flutter create`.
 `--plan --json` resolves the add plan without checking out, writing project
 files, or requiring a clean working tree; the plan includes `warnings[]` with
-the same keep-latest SDK compatibility policy as package create. If the target
+the same keep-latest SDK compatibility policy as package port. If the target
 package branch already exists, it points maintainers to the existing branch,
-`fluoh package status`, and `fluoh package sync` instead of creating duplicate
-adaptation state. File snapshots protect local state when the command fails.
+`fluoh package status`, and `fluoh package upstream sync` instead of creating duplicate
+ support state. File snapshots protect local state when the command fails.
 
-`fluoh package docs refresh` regenerates the fluoh-owned sections of
-`FLUOH.md` and `AGENTS.md` from the current Package `fluoh.yaml` plus the
-current checkout's package pubspec. When the selected package is a federated
-app-facing plugin with `default_package` declarations and no OHOS platform,
-refresh re-derives the same `<package>_ohos` implementation route used by
-`package create`, so older generated repositories gain the current AI guidance
-after a tool upgrade. Generated sections are identified by `fluoh:generated`
-markers that include a stable section id and template version, so future
-template upgrades can replace only the owned section while preserving
-hand-written content. Existing non-empty `FLUOH_CHANGELOG.md` content is not
-rewritten; when the changelog is missing or empty, the command creates initial
-release headings from current package metadata with TODO placeholder entries
-that must be replaced before release. `--dry-run` reports files that would
-change without requiring a clean working tree. Writing requires the recorded
-package branch and a clean working tree, does not stage files, and does not
-change `fluoh.yaml`. `--allow-dirty` explicitly permits writing generated docs
-before a clean checkpoint is available, such as immediately after `package
-create`; it still writes only the planned generated documentation files and does
-not stage them. `--json` reports `changed`, `applied`, `files`, `dryRun`, and
-`allowDirty`.
+`package new`, `package port`, and `package add` create
+`doc/fluoh/<package>/spec.md` only when it is missing. The spec is branch-local
+and human/AI-maintained; it owns package requirements, API design, platform
+behavior, OHOS API mapping, examples, and test planning. Generated spec TODOs
+and package spec template placeholders are not accepted planning evidence;
+`fluoh package next` reports them as a `spec-review` action until they are
+replaced with the reviewed package contract. Agents can use
+`skills/fluoh/references/package-spec-template.md` as the fill-in structure.
+The commands also
+rewrite the fluoh-owned `FLUOH.md` package context from the current Package
+`fluoh.yaml` plus the selected package pubspec. `FLUOH.md` gives the fluoh
+skill a compact package snapshot, links the spec and support scope, lists
+workflow entry points, includes optional federated routing, and preserves the
+FlutterOH Release History section for the current package branch. Existing
+release history is kept when the context file is rewritten; the rest of the
+file is regenerated. When the selected package is a federated app-facing plugin
+with `default_package` declarations and no OHOS platform, `FLUOH.md` includes
+the same `<package>_ohos` implementation route used by package discovery.
+Release history TODO entries must be replaced before release.
+
+`fluoh source register <package-repo> --package <name> --source <path> --json`
+registers the first released FlutterOH package branch in a Source repository.
+It reads the package repository release tags, loads the tagged Package
+`fluoh.yaml`, verifies the release with `fluoh package check`, creates or
+updates `manifests/<package>/fluoh.yaml`, and adds the route to the Source root
+`manifests[]`. It accepts both `origin.kind: created` and
+`origin.kind: ported` package manifests. Created packages use release tags such
+as `<package>-ohos-<sdkLine>-<release.version>`; ported packages use
+`<package>-<upstream.version>-ohos-<sdkLine>-<release.version>`. `source
+register` is for the first Source registration of a package; `source sync` owns
+later release imports for packages already routed by the Source.
 
 `fluoh package handoff --json` reads the current package branch, Git status,
-latest `.fluoh/traces/**/trace.json`, and `.fluoh/reports/<package>/*.md`
-files, then prints a single JSON object with package metadata, current branch,
-manifest branch, branch match state, dirty-state summary, evidence paths, the
-trace directory that follow-up commands should reuse, and next commands. When a
-current-package trace exists, handoff reuses the latest trace directory under
-`.fluoh/traces/<package>/`; otherwise it defaults to
-`.fluoh/traces/<package>/adaptation`. The next commands include report
+current task traces, and current task reports, then prints a single JSON object
+with package metadata, current branch, manifest branch, branch match state,
+dirty-state summary, evidence paths, the task trace directory that follow-up
+commands should reuse, and next commands. The next commands include report
 validation before `package check`; when a report exists, `check_report.py` and
 `package check` both use the latest report path, and the AI workflow must run
 the independent reviewer feedback loop before claiming ready. It does not
@@ -722,31 +818,42 @@ modify the repository. Use it when an AI task needs to resume, transfer, or
 confirm whether the branch is ready for final verify, drive evidence, report
 creation, report validation, independent review, or `package check`.
 
-`fluoh package sync` fetches upstream branches and tags, fast-forwards the
-upstream branch recorded in Package `upstream.git.branch`, resolves the package
-target from `--upstream-version`, `--upstream-ref`, or the latest valid release
-tag, returns to the `repository.git.branch` branch recorded in `fluoh.yaml`,
-merges the selected target commit without committing first, updates upstream
-metadata in `fluoh.yaml`, stages it, and commits `Sync upstream package` when
-changes are present. When no valid release tag exists and no explicit target is
-passed, it falls back to the synchronized upstream branch HEAD. If the resolved
-target already matches the current branch metadata and commit, `sync` reports
-that the package branch already adapts that upstream version and exits without a
-commit. `sync` refuses explicit package versions older than the current branch
-upstream version; mark the current adaptation `broken` with
-`fluoh package version --status broken` instead of downgrading the branch. Merge
-conflicts are left for the user to resolve, then `fluoh package sync --continue`
-validates staged resolution and finishes. If the interrupted merge used a custom
-non-tag ref, pass the same `--upstream-ref` with `--continue`; release tags can
-usually be inferred from `MERGE_HEAD`, but non-tag refs cannot. Continue also
-verifies that the resolved working-tree package version matches the selected
-upstream target before updating `fluoh.yaml`. `--abort` runs `git merge --abort` for an in-progress
+`fluoh package upstream check` and `fluoh package upstream sync` are available
+only when `origin.kind: ported`. Created packages have no upstream; use
+`fluoh package next` for implementation work and `fluoh source sync` for Source
+metadata. `upstream check` fetches upstream and reports whether the current
+package branch already targets the selected upstream target.
+
+`fluoh package upstream sync` fetches upstream branches and tags,
+fast-forwards the upstream branch recorded in Package `upstream.git.branch`,
+resolves the package target from `--upstream-version`, `--upstream-ref`, or the
+latest valid release tag, returns to the `repository.git.branch` branch
+recorded in `fluoh.yaml`, merges the selected target commit without committing
+first, updates upstream metadata in `fluoh.yaml`, ensures
+`doc/fluoh/<package>/spec.md` exists, stages the metadata/spec files, and
+commits `Sync upstream package` when changes are present. When no valid release
+tag exists and no explicit target is passed, it falls back to the synchronized
+upstream branch HEAD. If the resolved target already matches the current branch
+metadata and commit, `upstream sync` reports that the package branch already
+targets that upstream version and exits without a commit. `upstream sync`
+refuses explicit package versions older than the current branch upstream
+version; mark the current support `broken` with
+`fluoh package version --status broken` instead of downgrading the branch.
+After sync, `fluoh package next` requires the branch-local spec to reference the
+current upstream version and commit before implementation work continues. Merge
+conflicts are left for the user to resolve, then
+`fluoh package upstream sync --continue` validates staged resolution and
+finishes. If the interrupted merge used a custom non-tag ref, pass the same
+`--upstream-ref` with `--continue`; release tags can usually be inferred from
+`MERGE_HEAD`, but non-tag refs cannot. Continue also verifies that the resolved
+working-tree package version matches the selected upstream target before
+updating `fluoh.yaml`. `--abort` runs `git merge --abort` for an in-progress
 sync. `--json` prints the completed sync action list and commit status. Fetch
-failures emit `sync.fetch_failed`; merge conflicts emit
-`sync.merge_conflict` with conflicted files and the `--continue` next command;
-merge failures that do not leave resolvable conflicts emit `sync.merge_failed`.
-JSON diagnostics include trimmed stdout and stderr tails when Git produced
-useful output.
+failures emit `package.upstream.fetch_failed`; merge conflicts emit
+`package.upstream.merge_conflict` with conflicted files and the `--continue`
+next command; merge failures that do not leave resolvable conflicts emit
+`package.upstream.merge_failed`. JSON diagnostics include trimmed stdout and
+stderr tails when Git produced useful output.
 
 `fluoh verify` runs automated verification for either the current
 project or the package recorded in Package `fluoh.yaml`. It runs selected-SDK
@@ -759,17 +866,17 @@ commands; this is a prompt to collect device evidence, not passed interaction
 evidence. Use `--package <name>` to validate the
 requested package name against the current branch. `--json` reports each
 project or package under `targets`, with target identity, phase, steps,
-diagnostics, and `nextCommand`. Use `--trace` to write a local AI diagnostic
-trace under `.fluoh/traces/`, grouped by package as
-`.fluoh/traces/<package>/<trace-id>/trace.json` when one package target is
-selected, or `--trace-dir <path>` to choose the trace session directory whose
-manifest is `<path>/trace.json`. In JSON mode, the command still writes exactly
+diagnostics, and `nextCommand`. When a target fails, the top-level `nextAction`
+summarizes the recovery command and rerun command for the next repair loop.
+Use `--trace` to write a local AI diagnostic trace under the current task's
+`traces/` directory, or `--trace-dir <path>` to choose the trace session
+directory whose manifest is `<path>/trace.json`. In JSON mode, the command still writes exactly
 one object to stdout and includes only a `trace` reference to the local
 manifest, or `traceError` when the trace could not be written.
 It also reports `dirtyAfterVerify` and `workingTreeChanges` when the target is
 inside a Git worktree, so agents can detect generated files or lockfile changes
 left by `pub get` before committing. Reuse one `--trace-dir` across an
-adaptation loop to accumulate command invocations in one session.
+implementation loop to accumulate command invocations in one session.
 
 `fluoh build all|ohos|android|ios|macos|linux|web|windows` builds the current
 Flutter project or the selected package example. `all` expands to the workflow
@@ -808,6 +915,10 @@ temporary debug signing preparation and restoration are applied for OHOS runs.
 Android and iOS signing, device, emulator, and simulator prerequisites use the
 same run-preparation and target-selection layers. Web runs use browser targets
 such as Chrome.
+OHOS hdc calls have a bounded timeout, so device discovery failures return JSON
+diagnostics instead of hanging indefinitely. The default hdc command timeout is
+10 seconds; set `FLUOH_OHOS_HDC_TIMEOUT_SECONDS` when local debugging or tests
+need a shorter timeout.
 When `integration_test/` exists and a concrete target is available, `fluoh run`
 also runs `flutter test integration_test -d <device>` on that target. Release
 reports should record that passed test command row separately because a plain
@@ -853,13 +964,13 @@ functional evidence from a passed `integration_test`, `fluoh drive`, or
 it still requires logs, session status, stable text, semantic labels, test keys,
 command JSON, hilog, or app log markers. If no interaction is required, the
 report must state `No interaction required: <reason>`.
-Package adaptations must not validate only OHOS. Existing Android, iOS, macOS,
+Package support work must not validate only OHOS. Existing Android, iOS, macOS,
 Linux, Web, and Windows package/example platform directories are also required
 functional test targets when the current host and toolchain support them;
 unsupported targets must be recorded with the diagnostic command and blocker.
 
 Interaction scenarios live under
-`.fluoh/scenarios/<package>/<platform>-<name>.md` and use
+`doc/fluoh/<package>/scenarios/<platform>-<name>.md` and use
 `skills/fluoh/references/interaction-scenario-template.md` as the action
 contract. Scenario Markdown may include fenced YAML with
 `kind: fluoh.automationScenario`, `platform`, `steps`, and optional `coverage`
@@ -879,6 +990,12 @@ stable coverage fields are `scenarioCoverage`, `coverageSummary`, `inventory`,
 belongs in the skill and report template.
 Real drive runs the same launch and available `integration_test/` steps first;
 scenarios execute only for targets whose run and integration-test steps passed.
+`--profile exploratory-smoke` adds a built-in bounded exploration profile that
+records session checks, screenshots, a short wait, and an optional generic
+scroll gesture. The profile is useful for finding crashes, blank pages, and
+obvious launch-smoke regressions, but it is tagged as non-release-gate
+exploratory evidence. It does not replace explicit scenario assertions,
+`integration_test`, or a documented no-interaction-required reason.
 
 Executable scenarios support `captureScreenshot` and `screenshot` as supporting
 observation actions. Android saves `adb exec-out screencap -p`, iOS saves
@@ -903,27 +1020,37 @@ integration-test diagnostics where available. `--trace` and
 `--trace-dir <path>` follow the same local AI diagnostic trace contract as
 `fluoh verify`.
 
-`fluoh report create` writes a git-ignored canonical Markdown report under
-`.fluoh/reports/<scope>/report-<timestamp>.md` unless `--output` is
-provided. With `--output`, the exact path is used for the canonical report. It
+`fluoh report create` writes a git-ignored canonical Markdown report under the
+current task's `reports/` directory unless `--output` is provided. With
+`--output`, the exact path is used for the canonical report. It
 accepts one or more `--trace-dir` values and saved
 `--automation-json` files, extracts command rows, coverage gates, interaction
 evidence, diagnostics, and fluoh feedback candidates, then writes the standard
-AI report sections needed by package check and handoff workflows. `--json`
-reports the path as `report`. The command owns only local report composition
-and release recommendation; the maintainer still owns final release approval
-and any publish, push, tag, store, or registry action.
+AI report sections needed by package check and handoff workflows. When
+`--package <name>` is supplied, it also reads
+`doc/fluoh/<package>/scope.yaml` and writes a Support Scope
+section plus a `supportScope` JSON summary. Reports also include an
+`Official Platform Basis` section and matching delivery checklist item; ready
+reports must fill that section with reviewed official platform sources or
+an explicit not-applicable reason. `check_report.py` validates that ready
+reports with a Support Scope have complete P0 planning and functional
+evidence gates. `--json` reports the path as `report`. The command owns only
+local report composition and release recommendation; the maintainer still owns
+final release approval and any publish, push, tag, store, or registry action.
+`check_report.py` and `package check --report` accept both the CLI default
+`report.md` and helper-created `report-<timestamp>.md`; other report filenames
+are rejected so handoff and release gates can identify generated fluoh reports.
 
-`fluoh clean` removes the current project's `.fluoh/cache`, which contains
-project-bound cleanable runtime artifacts such as OHOS debug signing material
-and package run logs. It does not remove SDK installations, Source snapshots,
-config, lock files, or project `.fluoh/` reports. Use `--dry-run` to inspect
-the project cache without deleting it and `--json` for machine-readable cleanup
-reports.
+`fluoh clean` removes cleanable output from the current task by default. Use
+`--tasks` to remove the whole selected task workspace and `--all` to remove all
+task workspaces. It does not remove SDK installations, Source snapshots,
+config, lock files, `.fluoh/flutter_sdk`, `fluoh.yaml`, `FLUOH.md`,
+`doc/fluoh/`, or Source metadata. Use `--dry-run` to inspect targets without
+deleting them and `--json` for machine-readable cleanup reports.
 
 `fluoh package version` updates the release metadata for the current package
 in `fluoh.yaml`. Use `--bump patch|minor|major` to increment the FlutterOH
-adaptation package version, `--set <version>` to set an exact version, and
+package support version, `--set <version>` to set an exact version, and
 `--status experimental|compatible|broken` to set release status. `compatible`
 removes the status field because compatible is the default. `--bump` and
 `--set` are mutually exclusive. Use `--dry-run` to print the planned change
@@ -936,10 +1063,10 @@ creates or pushes tags. Use `--package <name>` to validate the requested package
 name against the current branch. `--json` prints tags, warnings, certification
 state, and verification results. Checks do not require device or AI report
 evidence by default; they print a non-blocking warning when no certification
-report is provided. Use `--report <path>` to require a completed
-`.fluoh/reports/<scope>/report-<timestamp>.md` before passing the check.
+report is provided. Use `--report <path>` to require a completed current-task
+report before passing the check.
 Certification reports must be `ready`, complete every delivery checklist item,
-include passed `fluoh verify` evidence, include passed OHOS build or run
+include passed `fluoh verify` evidence, include target-platform build or run
 evidence, and include interaction readiness evidence. That interaction evidence
 must come from a passed `fluoh drive --json`, a
 `flutter test integration_test -d <device>` command row with supporting
@@ -956,34 +1083,86 @@ completes the fluoh package release by creating release tags at HEAD and
 optionally pushing them with `--push`. Existing tags are accepted only when they
 already point at HEAD. It does not publish to pub.dev.
 
+`fluoh package next` reads the current Package repository and reports exactly
+one implementation-stage action. It intentionally ignores release-only blockers
+such as release capabilities, compatible status, and tracked local paths until the
+implementation loop has produced evidence and a report. It first checks the
+branch-local spec: missing specs, generated TODO placeholders, package spec
+template placeholders, or ported specs that do not reference the current
+upstream version/commit produce a `spec-review` edit action. It then checks the
+package support scope under
+`doc/fluoh/<package>/scope.yaml`: a missing scope produces a
+`scope` action, incomplete P0 research/plan/test entries produce an edit
+action, and missing P0 functional evidence blocks report creation after the
+execution phases pass. A report alone is not enough for `ready`; the command
+also requires passed trace evidence for
+verify, target-platform build/run, automation dry-run, automation run, and each
+existing example platform discovered under the selected package
+example, using that platform policy's build/run regression command. Android and
+host-supported iOS examples also require existing-platform drive dry-run and
+drive-run evidence. With
+`--json`, `ok` means the next action was computed successfully; use top-level
+`state` and `nextAction.type` to decide whether to run a command, make a
+focused edit, stop as blocked, or hand off to release readiness checks. The
+latest report is validated by the bundled `check_report.py` before
+`nextAction.type` can become `ready`; report failures are returned as a
+`report-check` edit action with the checker errors in `nextAction.details`.
+When `nextAction.type` is `ready`, `nextAction.nextCommands` lists the
+release-readiness commands to run next, including status, handoff, and package
+check with the validated report path.
+The default automation-run action uses plain `fluoh drive ohos --json` so scenario
+or integration-test evidence can satisfy the interaction gate. The optional
+`--profile exploratory-smoke` command remains available as bounded diagnostic
+evidence, but it does not satisfy functional automation. The JSON object also
+includes `evidenceSummary`, `remainingRisks`, and
+`failureStreak`. It also includes `scope`, a support-scope status
+summary, and `qualityProfile`, a read-only scan of
+available functional verification surfaces such as `integration_test` files,
+`doc/fluoh/<package>/scenarios/` scenario documents, and existing example
+platform directories such as Android, iOS, macOS, Linux, Web, or Windows.
+Missing functional surfaces are reported as a non-blocking
+`quality.functional_surface_missing` risk so the implementation loop can
+distinguish launch-smoke evidence from stronger functional evidence. If the
+same traced command fails three times in a row,
+`nextAction.type` becomes `blocked` so automation stops instead of repeatedly
+editing around the same unresolved failure.
+If no current task exists, `package next` creates one so trace,
+visual-readiness, and report evidence share a single local task context. It
+does not mutate package source files merely to compute `nextAction`.
+
 `fluoh package status` reads Package `fluoh.yaml` and reports release readiness
 without mutating the repository. It checks the current branch, clean working
-tree, package status, release notes, license warnings, package tests, Flutter
-example presence, example OHOS platform, example tests, and tracked files that
-contain the local fluoh home path. For federated app-facing plugins with
+tree, package status, target-platform run evidence, functional interaction evidence,
+visual page-readiness after mobile runs, release capabilities, license warnings,
+package tests, Flutter example presence, example OHOS platform, example tests,
+and tracked files that contain the local fluoh home path. These evidence checks
+apply even when the package is already marked `compatible`. For federated
+app-facing plugins with
 existing `default_package` declarations but no OHOS platform, it also reports a
 readiness blocker for the missing `<package>_ohos` implementation package,
 `ohos.default_package`, and dependency route. If `ohos.default_package` is
 already declared, status also verifies that the app-facing package depends on
 that default package and that the implementation package exists and declares
 OHOS. Use `--package <name>` to validate the requested package name against the
-current branch, and `--json` for machine-readable output.
+current branch. With `--json`, the output includes `state` and one
+machine-actionable `nextAction` so agents can run a short loop: apply or run
+that single action, then rerun `nextAction.rerunCommand`.
 
 ## State Ownership
 
 | State | Owner / Maintenance Entry |
 | --- | --- |
-| `$FLUOH_HOME/config.json` | `source add`, `source remove`, `source update`, first default Source initialization |
-| `$FLUOH_HOME/sources/<name>` | `source add`, `source update` |
+| `$FLUOH_HOME/config.json` | Local Source enablement through `source enable`, `source disable`, `source update`, first default Source initialization |
+| `$FLUOH_HOME/sources/<name>` | Snapshots created by `source enable`, refreshed by `source update` |
 | `$FLUOH_HOME/sources.lock.json` | Source runtime in `lib/src/source/`; rebuilt after Source mutations, first default Source initialization, and load-index checks when stale or when selected-SDK installation needs SDK metadata |
 | `$FLUOH_HOME/sdks/<version>` | `sdk install`, `sdk remove`, on-demand Flutter wrappers |
-| Project `.fluoh/cache/` | Project-bound cleanable runtime artifacts such as OHOS debug signing material and package run logs |
-| Project `.fluoh/run-sessions/` | `drive` and `run --session-file` Flutter run session evidence |
-| Project or package `.fluoh/reports/` | `report create` and AI handoff report artifacts |
+| Project `.fluoh/tasks/<task-id>/` | Task-local traces, reports, evidence, logs, sessions, commands, and scratch artifacts; owned by `task` and `clean` |
+| Project `.fluoh/current-task.json` | Current task pointer for workflow trace/report/evidence commands |
 | Project `fluoh.yaml` | `create`, `sdk use`, `deps check`, `deps fix`, `deps upgrade` |
 | Project `pubspec.yaml` | `deps fix`, `deps upgrade` |
-| FlutterOH adaptation repository `fluoh.yaml` | `package create`, `package add`, `package sync`, `package status`, `package handoff`, `package version`, `package check`, `package release` validation |
-| Package generated docs | `package create`, `package add`, `package docs refresh` |
-| Source root and Manifest files | `source init`, `source sync` |
-| `.fluoh/flutter_sdk` | `create`, `sdk use`, `package create` SDK setup |
-| Package examples | `package create`, `package add`, `deps get`, `verify`, `package check`, `package release` |
+| FlutterOH package repository `fluoh.yaml` | `package new`, `package port`, `package add`, `package upstream sync`, `package status`, `package handoff`, `package version`, `package check`, `package release` validation |
+| Package branch-local `doc/fluoh/<package>/spec.md` | Created by `package new`, `package port`, and `package add` when missing; maintained by maintainer/AI and reviewed after `package upstream sync` |
+| Package generated `FLUOH.md` context | `package new`, `package port`, `package add` |
+| Source root and Manifest files | `source init`, `source register`, `source sync` |
+| `.fluoh/flutter_sdk` | `create`, `sdk use`, `package new`, `package port` SDK setup |
+| Package examples | `package new`, `package port`, `package add`, `deps get`, `verify`, `package check`, `package release` |

@@ -4,7 +4,32 @@ import 'yaml_utils.dart';
 
 final _completeFlutterOhosSdkVersion = RegExp(r'^(\d+)\.(\d+)\.(\d+)-ohos-.+$');
 
-/// Returns the conventional FlutterOH adaptation branch for an SDK version.
+/// SDK kind for a stock Flutter SDK.
+const sdkKindFlutter = 'flutter';
+
+/// SDK kind for a FlutterOH SDK.
+const sdkKindFlutterOh = 'flutteroh';
+
+/// SDK kind used when fluoh.yaml omits `sdk.kind`.
+const defaultSdkKind = sdkKindFlutterOh;
+
+/// Returns a normalized SDK kind.
+String normalizeSdkKind(String? kind, {String label = 'sdk.kind'}) {
+  final value = kind == null || kind.trim().isEmpty
+      ? defaultSdkKind
+      : kind.trim();
+  if (const {sdkKindFlutter, sdkKindFlutterOh}.contains(value)) {
+    return value;
+  }
+  throw FormatException('$label must be $sdkKindFlutterOh or $sdkKindFlutter.');
+}
+
+/// Whether [sdkKind] selects a FlutterOH SDK.
+bool isFlutterOhSdkKind(String sdkKind) {
+  return normalizeSdkKind(sdkKind) == sdkKindFlutterOh;
+}
+
+/// Returns the conventional FlutterOH support branch for an SDK version.
 String flutterOhosBranchForSdk(String sdkVersion) =>
     'ohos/${sdkLineFromSdkVersion(sdkVersion)}';
 
@@ -17,8 +42,8 @@ String flutterOhosPackageBranchForSdk({
   return '${flutterOhosBranchForSdk(sdkVersion)}/$packageName';
 }
 
-/// Builds the package release tag used by FlutterOH package repositories.
-String packageReleaseTagForPackage({
+/// Builds the release tag used by ported FlutterOH package repositories.
+String portedPackageReleaseTagForPackage({
   required String packageName,
   required String upstreamVersion,
   required String sdkVersion,
@@ -31,10 +56,25 @@ String packageReleaseTagForPackage({
   return '$packageName-$upstreamVersion-ohos-$sdkLine-$releaseVersion';
 }
 
+/// Builds the release tag used by spec-created FlutterOH package repositories.
+String createdPackageReleaseTagForPackage({
+  required String packageName,
+  required String sdkVersion,
+  required String releaseVersion,
+}) {
+  validateDartPackageName(packageName, label: 'package name');
+  validateReleaseVersion(releaseVersion, label: 'release version');
+  final sdkLine = sdkLineFromSdkVersion(sdkVersion);
+  return '$packageName-ohos-$sdkLine-$releaseVersion';
+}
+
 /// Parses a canonical FlutterOH package release tag.
 ///
-/// Canonical tags have this shape:
+/// Ported package tags have this shape:
 /// `<package>-<upstreamVersion>-ohos-<sdkLine>-<releaseVersion>`.
+///
+/// Spec-created package tags have this shape:
+/// `<package>-ohos-<sdkLine>-<releaseVersion>`.
 PackageReleaseTag parsePackageReleaseTag(String tag) {
   final separator = tag.indexOf('-ohos-');
   if (separator == -1) {
@@ -43,19 +83,22 @@ PackageReleaseTag parsePackageReleaseTag(String tag) {
   final left = tag.substring(0, separator);
   final right = tag.substring(separator + '-ohos-'.length);
   final packageSeparator = left.indexOf('-');
-  if (packageSeparator == -1) {
-    throw FluohSchemaException('release tag must include an upstream version.');
-  }
   final sdkSeparator = right.indexOf('-');
   if (sdkSeparator == -1) {
     throw FluohSchemaException('release tag must include a release version.');
   }
-  final packageName = left.substring(0, packageSeparator);
-  final upstreamVersion = left.substring(packageSeparator + 1);
+  final packageName = packageSeparator == -1
+      ? left
+      : left.substring(0, packageSeparator);
+  final upstreamVersion = packageSeparator == -1
+      ? null
+      : left.substring(packageSeparator + 1);
   final sdkLine = right.substring(0, sdkSeparator);
   final releaseVersion = right.substring(sdkSeparator + 1);
   validateDartPackageName(packageName, label: 'release tag package name');
-  validatePubVersion(upstreamVersion, label: 'release tag upstream version');
+  if (upstreamVersion != null) {
+    validatePubVersion(upstreamVersion, label: 'release tag upstream version');
+  }
   if (!RegExp(r'^\d+\.\d+$').hasMatch(sdkLine)) {
     throw FluohSchemaException(
       'release tag SDK line must use <major>.<minor>.',
@@ -213,7 +256,7 @@ class PackageReleaseTag {
   /// Creates a parsed package release tag.
   const PackageReleaseTag({
     required this.packageName,
-    required this.upstreamVersion,
+    this.upstreamVersion,
     required this.sdkLine,
     required this.releaseVersion,
   });
@@ -221,12 +264,12 @@ class PackageReleaseTag {
   /// Dart package name.
   final String packageName;
 
-  /// Upstream package version.
-  final String upstreamVersion;
+  /// Upstream package version for ported packages, or null for created packages.
+  final String? upstreamVersion;
 
   /// FlutterOH SDK line.
   final String sdkLine;
 
-  /// FlutterOH adaptation release version.
+  /// FlutterOH support release version.
   final String releaseVersion;
 }

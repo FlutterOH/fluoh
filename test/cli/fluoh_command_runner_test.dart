@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:fluoh/fluoh.dart';
+import 'package:fluoh/src/cli/skill_command.dart';
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
 

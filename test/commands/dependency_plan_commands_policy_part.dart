@@ -42,15 +42,23 @@ dependencyPolicy: true
       await manifest.writeAsString(
         manifest
             .readAsStringSync()
-            .replaceAll('version: "0"', 'version: "9"')
-            .replaceAll('version: "1.0.0"', 'version: "10.0.0"'),
+            .replaceAll('version: "0.0.0"', 'version: "9.0.0"')
+            .replaceAll(
+              'tag: camera-0.11.0-ohos-3.35-0.0.0',
+              'tag: camera-0.11.0-ohos-3.35-9.0.0',
+            )
+            .replaceAll('version: "1.0.0"', 'version: "10.0.0"')
+            .replaceAll(
+              'tag: camera-0.11.0-ohos-3.35-1.0.0',
+              'tag: camera-0.11.0-ohos-3.35-10.0.0',
+            ),
       );
       await writeFlutterProjectFixture(environment.workingDirectory);
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -80,7 +88,7 @@ dependencyPolicy: true
   );
 
   test(
-    'stops when equal-priority sources disagree on an OHOS implementation',
+    'stops when equal-priority sources disagree on a FlutterOH implementation',
     () async {
       final environment = await createTestEnvironment();
       final firstSource = await createPackageSourceFixture(
@@ -102,14 +110,14 @@ dependencyPolicy: true
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'first', firstSource.path, '--priority', '100'],
+        ['source', 'enable', 'first', firstSource.path, '--priority', '100'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       );
       expect(
         await runFluoh(
-          ['source', 'add', 'second', secondSource.path, '--priority', '100'],
+          ['source', 'enable', 'second', secondSource.path, '--priority', '100'],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -137,7 +145,10 @@ dependencyPolicy: true
         ),
         64,
       );
-      expect(stderr.join('\n'), contains('Conflicting OHOS implementation'));
+      expect(
+        stderr.join('\n'),
+        contains('Conflicting FlutterOH implementation'),
+      );
     },
   );
 
@@ -154,7 +165,7 @@ dependencyPolicy: true
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -177,7 +188,9 @@ dependencyPolicy: true
     );
     expect(
       stdout,
-      contains('  camera 0.11.0: No known OHOS implementation is available.'),
+      contains(
+        '  camera 0.11.0: No known FlutterOH implementation is available.',
+      ),
     );
     expect(stdout.join('\n'), isNot(contains('camera-v0.11.0-ohos')));
 
@@ -231,13 +244,13 @@ dependencyPolicy: true
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'official', official.path, '--priority', '10'],
+        ['source', 'enable', 'official', official.path, '--priority', '10'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       );
       await runFluoh(
-        ['source', 'add', 'team', supplemental.path, '--priority', '200'],
+        ['source', 'enable', 'team', supplemental.path, '--priority', '200'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -410,13 +423,13 @@ manifests:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'official', official.path, '--priority', '200'],
+        ['source', 'enable', 'official', official.path, '--priority', '200'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
       );
       await runFluoh(
-        ['source', 'add', 'team', team.path, '--priority', '10'],
+        ['source', 'enable', 'team', team.path, '--priority', '10'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

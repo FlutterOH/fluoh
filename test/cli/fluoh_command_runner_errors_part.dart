@@ -176,14 +176,14 @@ void _registerFluohCommandRunnerErrorTests() {
 
     stdout.clear();
     final sourceAddExitCode = await runFluoh(
-      ['source', 'add', 'fixture', 'path', '--help'],
+      ['source', 'enable', 'fixture', 'path', '--help'],
       stdout: stdout.add,
       stderr: stderr.add,
     );
-    final sourceAddOutput = stdout.join('\n');
+    final sourceEnableOutput = stdout.join('\n');
 
     expect(sourceAddExitCode, 0);
-    expect(sourceAddOutput, contains('Usage: fluoh source add <name>'));
+    expect(sourceEnableOutput, contains('Usage: fluoh source enable <name>'));
     expect(stderr, isEmpty);
   });
 

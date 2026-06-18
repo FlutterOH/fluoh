@@ -93,8 +93,9 @@ void _ensureSdkVersionsAscending(List<String> versions) {
 SourceManifestPackage _readManifestPackage(
   String packageName,
   Map<String, Object?> yaml,
-  String label,
-) {
+  String label, {
+  required String originKind,
+}) {
   ensureAllowedKeys(yaml, label, {
     'name',
     'path',
@@ -124,6 +125,7 @@ SourceManifestPackage _readManifestPackage(
           parsedSdkLine,
           objectMap(entry.value, '$label sdks.$parsedSdkLine'),
           '$label sdks.$parsedSdkLine',
+          originKind: originKind,
         ),
       ),
     );
@@ -143,8 +145,9 @@ SourceManifestPackage _readManifestPackage(
 SourceManifestSdk _readManifestSdk(
   String sdkLine,
   Map<String, Object?> yaml,
-  String label,
-) {
+  String label, {
+  required String originKind,
+}) {
   ensureAllowedKeys(yaml, label, {'releases'});
   final releases = _objectList(yaml['releases'], '$label releases');
   if (releases.isEmpty) {
@@ -156,12 +159,12 @@ SourceManifestSdk _readManifestSdk(
     final release = _readManifestRelease(
       releases[index],
       '$label releases[$index]',
+      originKind: originKind,
     );
-    final key = '${release.upstreamVersion}|${release.version}';
+    final key = release.tag;
     if (!seenReleaseKeys.add(key)) {
       throw FluohSchemaException(
-        '$label releases contains duplicate upstream ${release.upstreamVersion} '
-        'and release ${release.version}.',
+        '$label releases contains duplicate tag ${release.tag}.',
       );
     }
     parsedReleases.add(release);
@@ -179,8 +182,7 @@ void _ensureManifestReleasesAscending(
     final current = releases[index];
     if (_compareManifestReleasesAscending(previous, current) > 0) {
       throw FluohSchemaException(
-        '$label releases must be sorted by upstream version and release version '
-        'in ascending order.',
+        '$label releases must be sorted by tag in ascending order.',
       );
     }
   }
@@ -188,9 +190,10 @@ void _ensureManifestReleasesAscending(
 
 SourceManifestRelease _readManifestRelease(
   Map<String, Object?> yaml,
-  String label,
-) {
-  ensureAllowedKeys(yaml, label, {'version', 'upstream', 'status'});
+  String label, {
+  required String originKind,
+}) {
+  ensureAllowedKeys(yaml, label, {'version', 'tag', 'upstream', 'status'});
   final status = optionalString(yaml, 'status') ?? 'compatible';
   if (!const {'compatible', 'experimental', 'broken'}.contains(status)) {
     throw FluohSchemaException(
@@ -199,26 +202,47 @@ SourceManifestRelease _readManifestRelease(
   }
   final version = _requiredScalarString(yaml, 'version');
   validateReleaseVersion(version, label: '$label version');
-  final upstreamYaml = objectMap(yaml['upstream'], '$label upstream');
-  ensureAllowedKeys(upstreamYaml, '$label upstream', {
-    'version',
-    'ref',
-    'commit',
-  });
+  final tag = _requiredScalarString(yaml, 'tag');
+  parsePackageReleaseTag(tag);
+  final upstreamYaml = optionalObjectMap(yaml['upstream'], '$label upstream');
+  if (originKind == packageOriginPorted && upstreamYaml == null) {
+    throw FluohSchemaException(
+      '$label upstream is required for ported packages.',
+    );
+  }
+  if (originKind == packageOriginCreated && upstreamYaml != null) {
+    throw FluohSchemaException(
+      '$label upstream must be omitted for created packages.',
+    );
+  }
+  if (upstreamYaml != null) {
+    ensureAllowedKeys(upstreamYaml, '$label upstream', {
+      'version',
+      'ref',
+      'commit',
+    });
+  }
   return SourceManifestRelease(
     version: version,
-    upstreamVersion: _manifestPubVersion(
-      _requiredScalarString(upstreamYaml, 'version'),
-      label: '$label upstream.version',
-    ),
-    upstreamRef: switch (optionalString(upstreamYaml, 'ref')) {
+    tag: tag,
+    upstreamVersion: upstreamYaml == null
+        ? null
+        : _manifestPubVersion(
+            _requiredScalarString(upstreamYaml, 'version'),
+            label: '$label upstream.version',
+          ),
+    upstreamRef: switch (upstreamYaml == null
+        ? null
+        : optionalString(upstreamYaml, 'ref')) {
       final ref? => normalizeGitRef(ref, label: '$label upstream.ref'),
       null => null,
     },
-    upstreamCommit: normalizeGitCommitHash(
-      _requiredScalarString(upstreamYaml, 'commit'),
-      label: '$label upstream.commit',
-    ),
+    upstreamCommit: upstreamYaml == null
+        ? null
+        : normalizeGitCommitHash(
+            _requiredScalarString(upstreamYaml, 'commit'),
+            label: '$label upstream.commit',
+          ),
     status: status,
   );
 }

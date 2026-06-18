@@ -27,12 +27,12 @@ Future<File> _writeCertificationReport(
   String recommendation = 'ready',
 }) async {
   final reportDirectory = Directory(
-    '${packageRepository.path}/.fluoh/reports/camera',
+    '${packageRepository.path}/.fluoh/tasks/camera-support/reports',
   );
   await reportDirectory.create(recursive: true);
   final report = File('${reportDirectory.path}/report-1780401600123.md');
   final ohosRunRow = includeOhosRun
-      ? '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, collected hilog, and captured post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png |\n'
+      ? '| `fluoh run ohos --package camera --json` | 0 | passed | installed, launched, collected hilog, and captured post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png |\n'
       : '';
   await report.writeAsString('''
 # fluoh AI Report
@@ -51,13 +51,13 @@ Future<File> _writeCertificationReport(
 
 ## Changes
 
-- Added OHOS package adaptation evidence.
+- Added OHOS package support evidence.
 
 ## Public API / Compatibility
 
 - Public Dart API changes: none
 - Dependency constraint changes: none
-- Non-OHOS regression risk: no existing non-OHOS example platform in fixture
+- Existing-platform regression risk: no existing Android, iOS, macOS, Linux, Web, or Windows example platform in fixture
 
 ## Official Platform Basis
 
@@ -71,7 +71,7 @@ Future<File> _writeCertificationReport(
 | --- | --- | --- | --- |
 | `fluoh verify --package camera --json` | 0 | passed | package and example baseline passed |
 | `fluoh build ohos --package camera --auto-sign --json` | $ohosBuildExit | $ohosBuildResult | signed HAP was produced |
-| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
+| `fluoh drive ohos --package camera --json` | 0 | passed | automation scenarios executed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |
 $ohosRunRow
 ## Delivery Checklist
 
@@ -79,14 +79,16 @@ $ohosRunRow
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
-- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
-- [x] OHOS build evidence recorded.
-- [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
+- [x] Target-platform build evidence recorded, including OHOS when in scope.
+- [x] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Pub.dev publishability checked with `dart pub publish --dry-run`, or a concrete not-applicable reason is recorded.
+- [x] FlutterOH support checked with fluoh verify/build/run/drive/report gates.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 - [x] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
-- [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
+- [x] Public API, dependency constraints, and existing-platform regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.
 
 ## Platform Matrix
@@ -142,7 +144,7 @@ No fluoh feedback: diagnostics were actionable and no tool or Source gap was fou
 ## Local State
 
 - Git status summary: clean
-- Files intentionally left uncommitted: .fluoh/reports/camera/report-1780401600123.md
+- Files intentionally left uncommitted: .fluoh/tasks/camera-support/reports/report-1780401600123.md
 - Files that must not be committed: local AI reports and device logs
 
 ## Release Decision

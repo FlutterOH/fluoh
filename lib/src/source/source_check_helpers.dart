@@ -64,20 +64,16 @@ String _releaseTag(
   String sdkLine,
   SourceManifestRelease release,
 ) {
-  return packageReleaseTagForPackage(
-    packageName: packageName,
-    upstreamVersion: release.upstreamVersion,
-    sdkVersion: '$sdkLine.0-ohos-0.0.0',
-    releaseVersion: release.version,
-  );
+  return release.tag;
 }
 
 String _releaseFingerprint(SourceManifestRelease release) {
   return [
     release.version,
-    release.upstreamVersion,
+    release.tag,
+    release.upstreamVersion ?? '',
     release.upstreamRef ?? '',
-    release.upstreamCommit,
+    release.upstreamCommit ?? '',
     release.status,
   ].join('\u{1f}');
 }

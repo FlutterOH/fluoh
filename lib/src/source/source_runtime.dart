@@ -161,7 +161,10 @@ class SourceRuntime {
     for (final source in sources) {
       final index = await _loadSourceIndex(
         source,
-        (pubSource) => pubSource.loadSdkIndex(),
+        (pubSource) async => _resolveSdkRepositories(
+          source,
+          (await pubSource.loadRootManifest()).sdkIndex,
+        ),
       );
       for (final release in index.releases) {
         final existing = releases[release.tag];
@@ -192,6 +195,42 @@ class SourceRuntime {
       schemaVersion: 1,
       releases: releases.values.map((entry) => entry.release).toList(),
     );
+  }
+
+  SdkIndex _resolveSdkRepositories(_NamedSource source, SdkIndex index) {
+    return SdkIndex(
+      schemaVersion: index.schemaVersion,
+      releases: [
+        for (final release in index.releases)
+          _resolveSdkRepository(source, release),
+      ],
+    );
+  }
+
+  SdkRelease _resolveSdkRepository(_NamedSource source, SdkRelease release) {
+    final repository = release.repository;
+    if (_isNonRelativeSdkRepository(repository)) {
+      return release;
+    }
+    final sourceRoot = localSourceDirectoryFromUrl(source.config.url);
+    final base = (sourceRoot ?? source.config.directory).absolute.uri;
+    return SdkRelease(
+      version: release.version,
+      versionSeries: release.versionSeries,
+      flutterVersion: release.flutterVersion,
+      channel: release.channel,
+      repository: base.resolve(repository).toFilePath(),
+      tag: release.tag,
+      publishedAt: release.publishedAt,
+      sourceName: release.sourceName,
+      sourcePriority: release.sourcePriority,
+    );
+  }
+
+  bool _isNonRelativeSdkRepository(String repository) {
+    return repository.startsWith('/') ||
+        repository.contains(':') ||
+        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(repository);
   }
 
   Future<_PackageRouteLock> _buildPackageRoutes(FluohConfig config) async {
@@ -298,7 +337,7 @@ class SourceRuntime {
               existingReplacement.priority == source.config.priority &&
               existingReplacement != replacement) {
             throw UsageException(
-              'Conflicting OHOS implementation $packageName ${sourced.tag} in '
+              'Conflicting FlutterOH implementation $packageName ${sourced.tag} in '
                   'sources ${existingReplacement.sourceName} and ${source.name}. '
                   'Adjust source priority or select a single source.',
               '',
@@ -445,8 +484,8 @@ class SourceRuntime {
     }
     if (sources.isEmpty) {
       throw UsageException(
-        'No readable data source index found. Run "fluoh source update" or '
-            '"fluoh source add <name> <path>".',
+        'No readable data source index found. Run "fluoh source update" for '
+            'configured Sources, or enable a Source with "fluoh source enable <name> <path>".',
         '',
       );
     }

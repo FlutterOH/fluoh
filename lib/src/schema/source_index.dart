@@ -1,4 +1,5 @@
 import 'dependency_policy.dart';
+import 'package_manifest.dart';
 import 'version_rules.dart';
 import 'yaml_utils.dart';
 
@@ -170,6 +171,7 @@ class SourceManifest {
   /// Creates parsed Source package Manifest data.
   const SourceManifest({
     required this.schemaVersion,
+    required this.originKind,
     required this.repositoryGitUrl,
     required this.upstreamGitUrl,
     required this.package,
@@ -177,6 +179,15 @@ class SourceManifest {
 
   /// Schema version from the Manifest file.
   final int schemaVersion;
+
+  /// Package origin kind: `created` or `ported`.
+  final String originKind;
+
+  /// Whether this manifest describes a spec-created package.
+  bool get isCreated => originKind == packageOriginCreated;
+
+  /// Whether this manifest describes an upstream-ported package.
+  bool get isPorted => originKind == packageOriginPorted;
 
   /// Manifest name, derived from the package name.
   String get name => package.name;
@@ -235,8 +246,9 @@ class SourceManifestRelease {
   /// Creates one package implementation release record.
   const SourceManifestRelease({
     required this.version,
-    required this.upstreamVersion,
-    required this.upstreamCommit,
+    required this.tag,
+    this.upstreamVersion,
+    this.upstreamCommit,
     this.upstreamRef,
     this.status = 'compatible',
   });
@@ -244,14 +256,20 @@ class SourceManifestRelease {
   /// FlutterOH package version.
   final String version;
 
-  /// Upstream package version this implementation targets.
-  final String upstreamVersion;
+  /// Implementation repository tag for this release.
+  final String tag;
 
-  /// Upstream release tag or ref used for the adaptation.
+  /// Upstream package version this implementation targets, for ported packages.
+  final String? upstreamVersion;
+
+  /// Version used by dependency matching and Source status grouping.
+  String get sourceVersion => upstreamVersion ?? version;
+
+  /// Upstream release tag or ref used for the support work.
   final String? upstreamRef;
 
-  /// Resolved upstream commit used for the adaptation.
-  final String upstreamCommit;
+  /// Resolved upstream commit used for the support work, for ported packages.
+  final String? upstreamCommit;
 
   /// Compatibility status; consumers use `compatible` releases by default and
   /// may explicitly opt into every status through project policy.
@@ -324,10 +342,14 @@ class SourcePackageAlternative {
 class SourceManifestTemplate {
   /// Creates data for a Source package Manifest template.
   const SourceManifestTemplate({
+    this.originKind = packageOriginPorted,
     required this.repositoryGitUrl,
     required this.upstreamGitUrl,
     required this.package,
   });
+
+  /// Package origin kind written to the generated Manifest.
+  final String originKind;
 
   /// Manifest name, derived from the package name.
   String get name => package.name;
@@ -347,12 +369,13 @@ class SourceManifestPackageTemplate {
   /// Creates a package entry for a Source Manifest template.
   const SourceManifestPackageTemplate({
     required this.name,
-    required this.upstreamVersion,
     required this.sdkLine,
     required this.version,
-    required this.upstreamCommit,
+    required this.tag,
     this.path = '.',
+    this.upstreamVersion,
     this.upstreamRef,
+    this.upstreamCommit,
     this.status = 'compatible',
   });
 
@@ -363,19 +386,22 @@ class SourceManifestPackageTemplate {
   final String path;
 
   /// Upstream version targeted by the generated implementation release.
-  final String upstreamVersion;
+  final String? upstreamVersion;
 
   /// Upstream release tag or ref used for the generated release.
   final String? upstreamRef;
 
   /// Resolved upstream commit used for the generated release.
-  final String upstreamCommit;
+  final String? upstreamCommit;
 
   /// SDK line for the generated implementation release.
   final String sdkLine;
 
   /// FlutterOH package version for the generated implementation release.
   final String version;
+
+  /// Implementation repository tag for the generated release.
+  final String tag;
 
   /// Compatibility status written to the Manifest.
   final String status;

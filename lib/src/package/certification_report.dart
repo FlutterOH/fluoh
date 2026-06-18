@@ -22,11 +22,16 @@ const _interactionEvidenceMethods = {
 const _requiredReadyChecklistPhrases = [
   'Existing package/app tests, example tests',
   'Missing or weak functional tests',
+  'Target-platform build evidence',
+  'Target-platform run evidence',
+  'Pub.dev publishability',
+  'FlutterOH support',
   'Every existing Android, iOS, macOS, Linux, Web, and Windows platform',
-  'Official OHOS/platform documentation',
+  'Official platform documentation',
+  'existing-platform regression risk',
 ];
 
-final _canonicalReportFileNamePattern = RegExp(r'^report-\d+\.md$');
+final _canonicalReportFileNamePattern = RegExp(r'^(?:report|report-\d+)\.md$');
 
 /// Validation result for a fluoh AI package certification report.
 ///
@@ -139,9 +144,10 @@ class PackageCertificationReportResult {
 /// Validates a package certification report against the release evidence rules.
 ///
 /// Passing reports must contain the generated report sections, completed
-/// checklist items, passed `fluoh verify` evidence, passed OHOS build or run
-/// evidence, the complete automation coverage gate set, and either interaction
-/// evidence or an explicit reason that no interaction is required.
+/// checklist items, passed `fluoh verify` evidence, target-platform build or
+/// run evidence including OHOS for FlutterOH support, the complete automation
+/// coverage gate set, and either interaction evidence or an explicit reason
+/// that no interaction is required.
 Future<PackageCertificationReportResult> validatePackageCertificationReport({
   required File report,
   required String packageName,
@@ -224,7 +230,7 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
       }
       if (!_officialPlatformBasisSatisfied(content)) {
         errors.add(
-          'Ready certification reports must record official OHOS/platform '
+          'Ready certification reports must record official platform '
           'documentation basis, or an explicit '
           '"No official platform basis required: <reason>" statement.',
         );
@@ -261,7 +267,7 @@ Future<PackageCertificationReportResult> validatePackageCertificationReport({
   final hasOhosRun = passedCommandRows.any(_isOhosRunEvidence);
   if (!hasOhosBuild && !hasOhosRun) {
     errors.add(
-      'Certification report must include passed OHOS build or run evidence.',
+      'Certification report must include passed OHOS build or run evidence as target-platform evidence.',
     );
   }
   if (requireOhosRun && !hasOhosRun) {
@@ -482,7 +488,7 @@ String? _canonicalReportFileNameError(File report) {
   if (_canonicalReportFileNamePattern.hasMatch(name)) {
     return null;
   }
-  return 'Certification report filename must match '
+  return 'Certification report filename must be report.md or '
       'report-<timestamp>.md using an integer timestamp.';
 }
 
@@ -753,7 +759,8 @@ bool _isAutomationEvidence(_CommandRow row) {
   return _containsCommand(command, 'fluoh drive') &&
       command.contains('--json') &&
       !_containsShellToken(command, '--dry-run') &&
-      !_containsShellToken(command, '-n');
+      !_containsShellToken(command, '-n') &&
+      !_containsExploratorySmokeProfile(command);
 }
 
 bool _isMobileAutomationEvidence(_CommandRow row) {
@@ -835,23 +842,23 @@ bool _hasToolReadableEvidence(_InteractionRow row) {
 }
 
 bool _isLaunchOnlyEvidence(String normalized) {
-  return const [
-    'assertsession',
-    'launchapp',
-    'capture screenshot',
-    'capturescreenshot',
-    'post-launch screenshot',
-    'post launch screenshot',
-    '.fluoh/evidence/screenshots',
-    'screenshot only',
-    'launched=true',
-    'launchdetected true',
-    'launchdetected=true',
-    'launched the example',
-    'launch evidence only',
-    'app launched',
-    'flutter run launched',
-  ].any(normalized.contains);
+  return _mentionsTaskScreenshot(normalized) ||
+      const [
+        'assertsession',
+        'launchapp',
+        'capture screenshot',
+        'capturescreenshot',
+        'post-launch screenshot',
+        'post launch screenshot',
+        'screenshot only',
+        'launched=true',
+        'launchdetected true',
+        'launchdetected=true',
+        'launched the example',
+        'launch evidence only',
+        'app launched',
+        'flutter run launched',
+      ].any(normalized.contains);
 }
 
 bool _hasFunctionalToolEvidence(String normalized) {
@@ -1007,20 +1014,21 @@ List<String> _passedPlatformMatrixRows(String content) {
 
 bool _hasPositivePostLaunchVisualEvidence(String row) {
   final evidence = row.toLowerCase();
-  final hasMarker = const [
-    '.fluoh/evidence/screenshots',
-    'post-launch screenshot',
-    'post launch screenshot',
-    'postlaunchscreenshot',
-    'visualpagereadiness',
-    'ui-state',
-    'ui state',
-    'capture screenshot',
-    'capturescreenshot',
-    'screenshot path',
-    'screenshot:',
-    'screen recording',
-  ].any(evidence.contains);
+  final hasMarker =
+      _mentionsTaskScreenshot(evidence) ||
+      const [
+        'post-launch screenshot',
+        'post launch screenshot',
+        'postlaunchscreenshot',
+        'visualpagereadiness',
+        'ui-state',
+        'ui state',
+        'capture screenshot',
+        'capturescreenshot',
+        'screenshot path',
+        'screenshot:',
+        'screen recording',
+      ].any(evidence.contains);
   if (!hasMarker) {
     return false;
   }
@@ -1039,6 +1047,11 @@ bool _hasPositivePostLaunchVisualEvidence(String row) {
   return true;
 }
 
+bool _mentionsTaskScreenshot(String normalized) {
+  return normalized.contains('.fluoh/tasks/') &&
+      normalized.contains('/evidence/screenshots');
+}
+
 bool _visualEvidenceMatchesPlatform(String row, String platform) {
   if (platform == 'all') {
     return true;
@@ -1052,6 +1065,11 @@ bool _containsCommand(String command, String expected) {
 
 bool _containsShellToken(String command, String token) {
   return RegExp('(^|\\s)${RegExp.escape(token)}(\\s|\$)').hasMatch(command);
+}
+
+bool _containsExploratorySmokeProfile(String command) {
+  return command.contains('--profile exploratory-smoke') ||
+      command.contains('--profile=exploratory-smoke');
 }
 
 class _ChecklistItem {

@@ -16,6 +16,9 @@ repository:
     url: git@github.com:FlutterOH/sample_tool.git
     branch: ohos/3.35/sample_tool
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/example/sample_tool.git
@@ -96,7 +99,7 @@ class SampleChannel {
       '${environment.workingDirectory.path}/example/lib/main.dart',
     ).writeAsString('void main() {}\n');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/sample_tool/android-public-api.md',
+      '${environment.workingDirectory.path}/doc/fluoh/sample_tool/scenarios/android-public-api.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -341,7 +344,7 @@ steps:
                     containsPair(
                       'path',
                       endsWith(
-                        '/.fluoh/scenarios/sample_tool/android-openPicker.md',
+                        '/doc/fluoh/sample_tool/scenarios/android-openPicker.md',
                       ),
                     ),
                   ),
@@ -388,7 +391,7 @@ steps:
 </manifest>
 ''');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-camera.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-camera.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -589,7 +592,7 @@ steps:
               containsPair('platform', 'android'),
               containsPair(
                 'path',
-                endsWith('/.fluoh/scenarios/camera/android-microphone.md'),
+                endsWith('/doc/fluoh/camera/scenarios/android-microphone.md'),
               ),
               containsPair(
                 'scenarioCandidates',
@@ -599,7 +602,7 @@ steps:
                     containsPair(
                       'path',
                       endsWith(
-                        '/.fluoh/scenarios/camera/android-microphone.md',
+                        '/doc/fluoh/camera/scenarios/android-microphone.md',
                       ),
                     ),
                   ),
@@ -631,7 +634,7 @@ steps:
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-blocked.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-blocked.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''

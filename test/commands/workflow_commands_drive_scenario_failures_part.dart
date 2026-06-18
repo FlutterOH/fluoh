@@ -49,7 +49,7 @@ void _registerWorkflowCommandsDriveScenarioFailureTests() {
 </plist>
 ''');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/ios-wrong-bundle.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/ios-wrong-bundle.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -67,7 +67,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -130,51 +130,53 @@ steps:
     expect(stderr, isEmpty);
   });
 
-  test('drive Android scenario finds HOME Android SDK adb and verifies evidence', () async {
-    final baseEnvironment = await createTestEnvironment();
-    final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
-    await _writeAndroidAdbFixture(
-      Directory(
-        '${baseEnvironment.homeDirectory.path}/Library/Android/sdk/platform-tools',
-      ),
-      adbLog.path,
-      uiXml:
-          '<hierarchy>'
-          '<node text="" content-desc="" resource-id="com.example.camera:id/request_camera" bounds="[10,20][110,80]" />'
-          '<node text="Allow" bounds="[10,20][110,80]" />'
-          '</hierarchy>',
-      logcat: 'permission granted',
-    );
-    final environment = FluohEnvironment(
-      homeDirectory: baseEnvironment.homeDirectory,
-      workingDirectory: baseEnvironment.workingDirectory,
-      processEnvironment: {
-        ...baseEnvironment.processEnvironment,
-        'HOME': baseEnvironment.homeDirectory.path,
-      },
-    );
-    final source = await _createWorkflowSdkSource(
-      environment.homeDirectory,
-      environment.workingDirectory,
-      flutterStdout: const {
-        'devices --machine':
-            '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true,"emulator":true}]',
-        'run -d emulator-5554 --debug --no-pub':
-            'Flutter run key commands.\n'
-            'Debug service listening on http://127.0.0.1:12345/abc=/\n'
-            'Application running.',
-      },
-    );
-    await _writePackageManifest(environment.workingDirectory);
-    await _writeFlutterPackage(environment.workingDirectory);
-    await _writeFlutterExample(
-      Directory('${environment.workingDirectory.path}/example'),
-    );
-    final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-permission.md',
-    );
-    await scenario.parent.create(recursive: true);
-    await scenario.writeAsString('''
+  test(
+    'drive Android scenario finds HOME Android SDK adb and verifies evidence',
+    () async {
+      final baseEnvironment = await createTestEnvironment();
+      final adbLog = File('${baseEnvironment.workingDirectory.path}/adb.log');
+      await _writeAndroidAdbFixture(
+        Directory(
+          '${baseEnvironment.homeDirectory.path}/Library/Android/sdk/platform-tools',
+        ),
+        adbLog.path,
+        uiXml:
+            '<hierarchy>'
+            '<node text="" content-desc="" resource-id="com.example.camera:id/request_camera" bounds="[10,20][110,80]" />'
+            '<node text="Allow" bounds="[10,20][110,80]" />'
+            '</hierarchy>',
+        logcat: 'permission granted',
+      );
+      final environment = FluohEnvironment(
+        homeDirectory: baseEnvironment.homeDirectory,
+        workingDirectory: baseEnvironment.workingDirectory,
+        processEnvironment: {
+          ...baseEnvironment.processEnvironment,
+          'HOME': baseEnvironment.homeDirectory.path,
+        },
+      );
+      final source = await _createWorkflowSdkSource(
+        environment.homeDirectory,
+        environment.workingDirectory,
+        flutterStdout: const {
+          'devices --machine':
+              '[{"id":"emulator-5554","name":"Pixel","targetPlatform":"android-arm64","isSupported":true,"emulator":true}]',
+          'run -d emulator-5554 --debug --no-pub':
+              'Flutter run key commands.\n'
+              'Debug service listening on http://127.0.0.1:12345/abc=/\n'
+              'Application running.',
+        },
+      );
+      await _writePackageManifest(environment.workingDirectory);
+      await _writeFlutterPackage(environment.workingDirectory);
+      await _writeFlutterExample(
+        Directory('${environment.workingDirectory.path}/example'),
+      );
+      final scenario = File(
+        '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-permission.md',
+      );
+      await scenario.parent.create(recursive: true);
+      await scenario.writeAsString('''
 # Android permission
 
 ```yaml
@@ -213,134 +215,147 @@ steps:
   - action: allowPermission
     labels: [Allow]
   - action: screenshot
-    outputPath: .fluoh/evidence/screenshots/camera-android-granted.png
+    outputPath: camera-android-granted.png
   - action: assertLog
     contains: permission granted
   - action: assertSession
     status: passed
 ```
 ''');
-    final stdout = <String>[];
-    final stderr = <String>[];
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    stdout.clear();
-    stderr.clear();
-
-    expect(
       await runFluoh(
-        [
-          'drive',
-          'android',
-          '--package',
-          'camera',
-          '--scenario',
-          scenario.path,
-          '--log-duration',
-          '0',
-          '--json',
-        ],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      0,
-    );
+      );
+      stdout.clear();
+      stderr.clear();
 
-    final report = jsonDecode(stdout.single) as Map<String, Object?>;
-    expect(report, containsPair('command', 'drive'));
-    expect(report, containsPair('ok', true));
-    final automation = report['automation'] as Map<String, Object?>;
-    final delivery =
-        automation['deliveryRecommendation'] as Map<String, Object?>;
-    expect(delivery, containsPair('status', 'readyForReportReview'));
-    expect(delivery, containsPair('recommendation', 'ready'));
-    expect(delivery, containsPair('ready', true));
-    expect(automation['repairQueue'], isEmpty);
-    final scenarios = automation['scenarios'] as List<Object?>;
-    expect(scenarios.single, containsPair('platform', 'android'));
-    final target =
-        (report['targets'] as List<Object?>).single as Map<String, Object?>;
-    final steps = (target['steps'] as List<Object?>)
-        .cast<Map<String, Object?>>();
-    final runStep = steps.singleWhere(
-      (step) => step['name'] == 'example-run-android',
-    );
-    final runDetails = runStep['details'] as Map<String, Object?>;
-    final postLaunchScreenshot =
-        runDetails['postLaunchScreenshot'] as Map<String, Object?>;
-    final postLaunchScreenshotPath =
-        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-android-post-launch.png';
-    expect(postLaunchScreenshot, containsPair('status', 'passed'));
-    expect(
-      postLaunchScreenshot,
-      containsPair('path', postLaunchScreenshotPath),
-    );
-    expect(postLaunchScreenshot, containsPair('bytes', greaterThan(0)));
-    expect(File(postLaunchScreenshotPath).existsSync(), isTrue);
-    final scenarioStep = steps.singleWhere(
-      (step) => step['name'] == 'automation-scenario-android-camera-permission',
-    );
-    expect(scenarioStep, containsPair('status', 'passed'));
-    final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
-    final actions = (scenarioDetails['actions'] as List<Object?>)
-        .cast<Map<String, Object?>>();
-    expect(actions.map((action) => action['action']), [
-      'clearAppData',
-      'foregroundApp',
-      'swipe',
-      'tapText',
-      'allowPermission',
-      'screenshot',
-      'assertLog',
-      'assertSession',
-    ]);
-    final tapAction = actions.singleWhere(
-      (action) => action['action'] == 'tapText',
-    );
-    final tapDetails = tapAction['details'] as Map<String, Object?>;
-    expect(tapDetails, containsPair('matchedText', 'request_camera'));
-    expect(
-      tapDetails,
-      containsPair('resourceId', 'com.example.camera:id/request_camera'),
-    );
-    final screenshotAction = actions.singleWhere(
-      (action) => action['action'] == 'screenshot',
-    );
-    final screenshotDetails =
-        screenshotAction['details'] as Map<String, Object?>;
-    final screenshotPath = screenshotDetails['path'] as String;
-    expect(
-      screenshotPath,
-      '${environment.workingDirectory.path}/.fluoh/evidence/screenshots/camera-android-granted.png',
-    );
-    expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
-    expect(File(screenshotPath).existsSync(), isTrue);
-    final adbInvocations = adbLog.readAsStringSync();
-    expect(
-      adbInvocations,
-      contains('-s emulator-5554 shell pm clear com.example.camera'),
-    );
-    expect(
-      adbInvocations,
-      contains(
-        '-s emulator-5554 shell monkey -p com.example.camera -c android.intent.category.LAUNCHER 1',
-      ),
-    );
-    expect(
-      adbInvocations,
-      contains('-s emulator-5554 shell input swipe 10 20 30 40 250'),
-    );
-    expect(adbInvocations, contains('-s emulator-5554 shell input tap 60 50'));
-    expect(adbInvocations, contains('-s emulator-5554 exec-out screencap -p'));
-    expect(RegExp('screencap').allMatches(adbInvocations), hasLength(2));
-    expect(stderr, isEmpty);
-  });
+      expect(
+        await runFluoh(
+          [
+            'drive',
+            'android',
+            '--package',
+            'camera',
+            '--scenario',
+            scenario.path,
+            '--log-duration',
+            '0',
+            '--json',
+          ],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      final report = jsonDecode(stdout.single) as Map<String, Object?>;
+      expect(report, containsPair('command', 'drive'));
+      expect(report, containsPair('ok', true));
+      final automation = report['automation'] as Map<String, Object?>;
+      final delivery =
+          automation['deliveryRecommendation'] as Map<String, Object?>;
+      expect(delivery, containsPair('status', 'readyForReportReview'));
+      expect(delivery, containsPair('recommendation', 'ready'));
+      expect(delivery, containsPair('ready', true));
+      expect(automation['repairQueue'], isEmpty);
+      final scenarios = automation['scenarios'] as List<Object?>;
+      expect(scenarios.single, containsPair('platform', 'android'));
+      final target =
+          (report['targets'] as List<Object?>).single as Map<String, Object?>;
+      final steps = (target['steps'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final runStep = steps.singleWhere(
+        (step) => step['name'] == 'example-run-android',
+      );
+      final runDetails = runStep['details'] as Map<String, Object?>;
+      final postLaunchScreenshot =
+          runDetails['postLaunchScreenshot'] as Map<String, Object?>;
+      final postLaunchScreenshotPath = postLaunchScreenshot['path'] as String;
+      expect(postLaunchScreenshot, containsPair('status', 'passed'));
+      expect(
+        postLaunchScreenshotPath,
+        allOf(
+          startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+          endsWith('/evidence/screenshots/camera-android-post-launch.png'),
+        ),
+      );
+      expect(postLaunchScreenshot, containsPair('bytes', greaterThan(0)));
+      expect(File(postLaunchScreenshotPath).existsSync(), isTrue);
+      final scenarioStep = steps.singleWhere(
+        (step) =>
+            step['name'] == 'automation-scenario-android-camera-permission',
+      );
+      expect(scenarioStep, containsPair('status', 'passed'));
+      final scenarioDetails = scenarioStep['details'] as Map<String, Object?>;
+      final actions = (scenarioDetails['actions'] as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(actions.map((action) => action['action']), [
+        'clearAppData',
+        'foregroundApp',
+        'swipe',
+        'tapText',
+        'allowPermission',
+        'screenshot',
+        'assertLog',
+        'assertSession',
+      ]);
+      final tapAction = actions.singleWhere(
+        (action) => action['action'] == 'tapText',
+      );
+      final tapDetails = tapAction['details'] as Map<String, Object?>;
+      expect(tapDetails, containsPair('matchedText', 'request_camera'));
+      expect(
+        tapDetails,
+        containsPair('resourceId', 'com.example.camera:id/request_camera'),
+      );
+      final screenshotAction = actions.singleWhere(
+        (action) => action['action'] == 'screenshot',
+      );
+      final screenshotDetails =
+          screenshotAction['details'] as Map<String, Object?>;
+      final screenshotPath = screenshotDetails['path'] as String;
+      expect(
+        screenshotPath,
+        allOf(
+          startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+          endsWith('/evidence/screenshots/camera-android-granted.png'),
+        ),
+      );
+      expect(screenshotDetails, containsPair('bytes', greaterThan(0)));
+      expect(File(screenshotPath).existsSync(), isTrue);
+      final adbInvocations = adbLog.readAsStringSync();
+      expect(
+        adbInvocations,
+        contains('-s emulator-5554 shell pm clear com.example.camera'),
+      );
+      expect(
+        adbInvocations,
+        contains(
+          '-s emulator-5554 shell monkey -p com.example.camera -c android.intent.category.LAUNCHER 1',
+        ),
+      );
+      expect(
+        adbInvocations,
+        contains('-s emulator-5554 shell input swipe 10 20 30 40 250'),
+      );
+      expect(
+        adbInvocations,
+        contains('-s emulator-5554 shell input tap 60 50'),
+      );
+      expect(
+        adbInvocations,
+        contains('-s emulator-5554 exec-out screencap -p'),
+      );
+      expect(RegExp('screencap').allMatches(adbInvocations), hasLength(2));
+      expect(stderr, isEmpty);
+    },
+  );
 
   test('drive screenshot rejects output paths outside evidence directory', () async {
     final baseEnvironment = await createTestEnvironment();
@@ -383,7 +398,7 @@ steps:
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-screenshot-path.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-screenshot-path.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -399,7 +414,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -493,7 +508,7 @@ steps:
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-screenshot-directory.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-screenshot-directory.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -509,7 +524,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -541,13 +556,28 @@ steps:
     expect(report, containsPair('ok', false));
     final target =
         (report['targets'] as List<Object?>).single as Map<String, Object?>;
-    final scenarioStep = (target['steps'] as List<Object?>)
-        .cast<Map<String, Object?>>()
-        .singleWhere(
-          (step) =>
-              step['name'] ==
-              'automation-scenario-android-android-screenshot-directory',
-        );
+    final steps = (target['steps'] as List<Object?>)
+        .cast<Map<String, Object?>>();
+    final runStep = steps.singleWhere(
+      (step) => step['name'] == 'example-run-android',
+    );
+    final runDetails = runStep['details'] as Map<String, Object?>;
+    final postLaunchScreenshot =
+        runDetails['postLaunchScreenshot'] as Map<String, Object?>;
+    final postLaunchScreenshotPath = postLaunchScreenshot['path'] as String;
+    expect(
+      postLaunchScreenshotPath,
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        endsWith('/evidence/screenshots/camera-android-post-launch.png'),
+      ),
+    );
+    expect(File(postLaunchScreenshotPath).existsSync(), isTrue);
+    final scenarioStep = steps.singleWhere(
+      (step) =>
+          step['name'] ==
+          'automation-scenario-android-android-screenshot-directory',
+    );
     expect(scenarioStep, containsPair('status', 'failed'));
     final details = scenarioStep['details'] as Map<String, Object?>;
     final actions = (details['actions'] as List<Object?>)
@@ -563,17 +593,11 @@ steps:
       screenshotAction['details'],
       containsPair('outputPath', '.fluoh/evidence/screenshots'),
     );
-    final screenshotDirectoryPath =
-        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots';
     expect(
-      FileSystemEntity.typeSync(screenshotDirectoryPath),
-      FileSystemEntityType.directory,
-    );
-    expect(
-      File(
-        '$screenshotDirectoryPath/camera-android-post-launch.png',
-      ).existsSync(),
-      isTrue,
+      FileSystemEntity.typeSync(
+        '${environment.workingDirectory.path}/.fluoh/evidence/screenshots',
+      ),
+      FileSystemEntityType.notFound,
     );
     final adbInvocations = adbLog.existsSync() ? adbLog.readAsStringSync() : '';
     expect(RegExp('screencap').allMatches(adbInvocations), hasLength(1));
@@ -648,7 +672,7 @@ android {
 }
 ''');
       final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-autoforeground.md',
+        '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-autoforeground.md',
       );
       await scenario.parent.create(recursive: true);
       await scenario.writeAsString('''
@@ -666,7 +690,7 @@ steps:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -766,7 +790,7 @@ steps:
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-permission.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-permission.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -785,7 +809,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -923,7 +947,7 @@ steps:
       '${environment.workingDirectory.path}/integration_test/app_test.dart',
     ).writeAsString('void main() {}\n');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/current/android-permission.md',
+      '${environment.workingDirectory.path}/doc/fluoh/current/scenarios/android-permission.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -940,7 +964,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -1038,7 +1062,7 @@ steps:
       '${environment.workingDirectory.path}/integration_test/app_test.dart',
     ).writeAsString('void main() {}\n');
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/current/android-permission.md',
+      '${environment.workingDirectory.path}/doc/fluoh/current/scenarios/android-permission.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -1055,7 +1079,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -1157,7 +1181,7 @@ exit 1
       Directory('${environment.workingDirectory.path}/example'),
     );
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/camera/android-timeout.md',
+      '${environment.workingDirectory.path}/doc/fluoh/camera/scenarios/android-timeout.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -1174,7 +1198,7 @@ steps:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,

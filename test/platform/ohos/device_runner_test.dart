@@ -64,6 +64,7 @@ Future<Directory> _writeDevEcoFixture(
   bool shutdownCrashHilog = false,
   bool flutterMissingPluginHilog = false,
   bool hangClearHilog = false,
+  int listTargetsSleepSeconds = 0,
   int listTargetsExitCode = 0,
   bool createEmulatorTool = true,
 }) async {
@@ -94,6 +95,9 @@ Future<Directory> _writeDevEcoFixture(
 #!/bin/sh
 printf "%s\\n" "\$*" >> "${hdcLog.path}"
 if [ "\$1" = "list" ] && [ "\$2" = "targets" ]; then
+  if [ "$listTargetsSleepSeconds" != "0" ]; then
+    sleep $listTargetsSleepSeconds
+  fi
   if [ "$listTargetsExitCode" != "0" ]; then
     printf "hdc offline\\n" >&2
     exit $listTargetsExitCode

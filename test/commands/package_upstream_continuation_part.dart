@@ -1,20 +1,20 @@
-part of 'package_sync_command_test.dart';
+part of 'package_upstream_command_test.dart';
 
-void _registerPackageSyncContinuationTests() {
-  test('package sync preserves package release metadata', () async {
+void _registerPackageUpstreamSyncContinuationTests() {
+  test('package upstream sync preserves package release metadata', () async {
     final environment = await createTestEnvironment();
     final source = await createPackageSourceFixture(environment.homeDirectory);
     final upstream = await createUpstreamPackageRepository(
       Directory('${environment.homeDirectory.path}/upstream_sync_metadata'),
     );
     final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_metadata',
+      '${environment.homeDirectory.path}/package_upstream_metadata',
     );
     final stdout = <String>[];
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -22,7 +22,7 @@ void _registerPackageSyncContinuationTests() {
     await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -55,7 +55,7 @@ void _registerPackageSyncContinuationTests() {
     );
     expect(
       await runFluoh(
-        ['package', 'sync'],
+        ['package', 'upstream', 'sync'],
         environment: packageEnvironment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -71,106 +71,111 @@ void _registerPackageSyncContinuationTests() {
     expect(stderr, isEmpty);
   });
 
-  test('package sync continues after resolved merge conflicts', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    final upstream = await createUpstreamPackageRepository(
-      Directory('${environment.homeDirectory.path}/upstream_sync_conflict'),
-    );
-    final packageRepository = Directory(
-      '${environment.homeDirectory.path}/package_sync_conflict',
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'package upstream sync continues after resolved merge conflicts',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      final upstream = await createUpstreamPackageRepository(
+        Directory('${environment.homeDirectory.path}/upstream_sync_conflict'),
+      );
+      final packageRepository = Directory(
+        '${environment.homeDirectory.path}/package_upstream_conflict',
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      [
-        'package',
-        'create',
-        upstream.path,
-        '--repository-name',
-        'camera',
-        '--output',
-        packageRepository.path,
-        '--sdk',
-        '3.35.8-ohos-0.0.3',
-      ],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await commitGeneratedPackageRepository(packageRepository);
+      await runFluoh(
+        ['source', 'enable', 'fixture', source.path],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await runFluoh(
+        [
+          'package',
+          'port',
+          upstream.path,
+          '--repository-name',
+          'camera',
+          '--output',
+          packageRepository.path,
+          '--sdk',
+          '3.35.8-ohos-0.0.3',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      );
+      await commitGeneratedPackageRepository(packageRepository);
 
-    await File(
-      '${packageRepository.path}/README.md',
-    ).writeAsString('# camera\n\nLocal OHOS notes.\n');
-    await runGit(packageRepository, ['add', 'README.md']);
-    await runGit(packageRepository, ['commit', '-m', 'Implement README']);
-    await File(
-      '${upstream.path}/README.md',
-    ).writeAsString('# camera\n\nUpstream notes.\n');
-    await File('${upstream.path}/pubspec.yaml').writeAsString('''
+      await File(
+        '${packageRepository.path}/README.md',
+      ).writeAsString('# camera\n\nLocal OHOS notes.\n');
+      await runGit(packageRepository, ['add', 'README.md']);
+      await runGit(packageRepository, ['commit', '-m', 'Implement README']);
+      await File(
+        '${upstream.path}/README.md',
+      ).writeAsString('# camera\n\nUpstream notes.\n');
+      await File('${upstream.path}/pubspec.yaml').writeAsString('''
 name: camera
 version: 0.12.0
 
 environment:
   sdk: ^3.0.0
 ''');
-    await runGit(upstream, ['add', 'README.md', 'pubspec.yaml']);
-    await runGit(upstream, ['commit', '-m', 'Release 0.12.0']);
+      await runGit(upstream, ['add', 'README.md', 'pubspec.yaml']);
+      await runGit(upstream, ['commit', '-m', 'Release 0.12.0']);
 
-    final packageEnvironment = FluohEnvironment(
-      homeDirectory: environment.homeDirectory,
-      workingDirectory: packageRepository,
-    );
-    expect(
-      await runFluoh(
-        ['package', 'sync'],
-        environment: packageEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      64,
-    );
-    expect(
-      stderr.join('\n'),
-      contains('Resolve conflicts, stage the resolved files, and run'),
-    );
+      final packageEnvironment = FluohEnvironment(
+        homeDirectory: environment.homeDirectory,
+        workingDirectory: packageRepository,
+      );
+      expect(
+        await runFluoh(
+          ['package', 'upstream', 'sync'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        64,
+      );
+      expect(
+        stderr.join('\n'),
+        contains('Resolve conflicts, stage the resolved files, and run'),
+      );
 
-    await File(
-      '${packageRepository.path}/README.md',
-    ).writeAsString('# camera\n\nLocal OHOS notes.\nUpstream notes.\n');
-    await runGit(packageRepository, ['add', 'README.md']);
-    expect(
-      await runFluoh(
-        ['package', 'sync', '--continue'],
-        environment: packageEnvironment,
-        stdout: stdout.add,
-        stderr: stderr.add,
-      ),
-      0,
-    );
+      await File(
+        '${packageRepository.path}/README.md',
+      ).writeAsString('# camera\n\nLocal OHOS notes.\nUpstream notes.\n');
+      await runGit(packageRepository, ['add', 'README.md']);
+      expect(
+        await runFluoh(
+          ['package', 'upstream', 'sync', '--continue'],
+          environment: packageEnvironment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
 
-    final manifest = File(
-      '${packageRepository.path}/fluoh.yaml',
-    ).readAsStringSync();
-    final subject = await runGit(packageRepository, [
-      'log',
-      '-1',
-      '--format=%s',
-    ]);
-    expect(manifest, contains('    upstream:\n      version: 0.12.0'));
-    expect(subject.stdout.toString().trim(), 'Sync upstream package');
-  });
+      final manifest = File(
+        '${packageRepository.path}/fluoh.yaml',
+      ).readAsStringSync();
+      final subject = await runGit(packageRepository, [
+        'log',
+        '-1',
+        '--format=%s',
+      ]);
+      expect(manifest, contains('    upstream:\n      version: 0.12.0'));
+      expect(subject.stdout.toString().trim(), 'Sync upstream package');
+    },
+  );
 
   test(
-    'package sync continue requires the interrupted non-tag upstream ref',
+    'package upstream sync continue requires the interrupted non-tag upstream ref',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -180,13 +185,13 @@ environment:
         Directory('${environment.homeDirectory.path}/upstream_sync_custom_ref'),
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_custom_ref',
+        '${environment.homeDirectory.path}/package_upstream_custom_ref',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -194,7 +199,7 @@ environment:
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -234,7 +239,13 @@ environment:
       );
       expect(
         await runFluoh(
-          ['package', 'sync', '--upstream-ref', 'upstream/custom-target'],
+          [
+            'package',
+            'upstream',
+            'sync',
+            '--upstream-ref',
+            'upstream/custom-target',
+          ],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -250,7 +261,7 @@ environment:
       stderr.clear();
       expect(
         await runFluoh(
-          ['package', 'sync', '--continue'],
+          ['package', 'upstream', 'sync', '--continue'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -268,6 +279,7 @@ environment:
         await runFluoh(
           [
             'package',
+            'upstream',
             'sync',
             '--continue',
             '--upstream-ref',
@@ -294,7 +306,7 @@ environment:
   );
 
   test(
-    'package sync continue rejects mismatched resolved package version',
+    'package upstream sync continue rejects mismatched resolved package version',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -306,13 +318,13 @@ environment:
         ),
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_bad_continue',
+        '${environment.homeDirectory.path}/package_upstream_bad_continue',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -320,7 +332,7 @@ environment:
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -359,7 +371,7 @@ environment:
       );
       expect(
         await runFluoh(
-          ['package', 'sync'],
+          ['package', 'upstream', 'sync'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -383,7 +395,7 @@ environment:
 
       expect(
         await runFluoh(
-          ['package', 'sync', '--continue'],
+          ['package', 'upstream', 'sync', '--continue'],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -405,7 +417,7 @@ environment:
   );
 
   test(
-    'package sync continue rejects an explicit ref that is not MERGE_HEAD',
+    'package upstream sync continue rejects an explicit ref that is not MERGE_HEAD',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -417,13 +429,13 @@ environment:
         ),
       );
       final packageRepository = Directory(
-        '${environment.homeDirectory.path}/package_sync_wrong_continue_ref',
+        '${environment.homeDirectory.path}/package_upstream_wrong_continue_ref',
       );
       final stdout = <String>[];
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -431,7 +443,7 @@ environment:
       await runFluoh(
         [
           'package',
-          'create',
+          'port',
           upstream.path,
           '--repository-name',
           'camera',
@@ -487,7 +499,13 @@ environment:
       );
       expect(
         await runFluoh(
-          ['package', 'sync', '--upstream-ref', 'upstream/custom-a'],
+          [
+            'package',
+            'upstream',
+            'sync',
+            '--upstream-ref',
+            'upstream/custom-a',
+          ],
           environment: packageEnvironment,
           stdout: stdout.add,
           stderr: stderr.add,
@@ -506,6 +524,7 @@ environment:
         await runFluoh(
           [
             'package',
+            'upstream',
             'sync',
             '--continue',
             '--upstream-ref',
@@ -536,6 +555,7 @@ environment:
         await runFluoh(
           [
             'package',
+            'upstream',
             'sync',
             '--continue',
             '--upstream-ref',

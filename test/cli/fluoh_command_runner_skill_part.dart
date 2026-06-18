@@ -21,7 +21,7 @@ void _registerFluohCommandRunnerSkillTests() {
 
     expect(exitCode, 0);
     expect(stdout, [
-      'fluoh $packageVersion - CLI for FlutterOH SDKs, projects, and package adaptation workflows',
+      'fluoh $packageVersion - CLI for FlutterOH SDKs, projects, and package support workflows',
       'Dart $dartVersion',
       'Platform ${io.Platform.operatingSystem} $platformVersion',
       'Repository https://github.com/FlutterOH/fluoh',
@@ -67,7 +67,8 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(output, contains('inspect_session.py'));
     expect(output, contains('collect_feedback.py'));
     expect(output, contains('References app-project-flow.md'));
-    expect(output, contains('package-adaptation-flow.md'));
+    expect(output, contains('package-support-flow.md'));
+    expect(output, contains('package-spec-template.md'));
     expect(output, contains('automation-evidence-flow.md'));
     expect(output, contains('independent-review-flow.md'));
     expect(output, contains('source-maintenance-flow.md'));
@@ -109,6 +110,37 @@ void _registerFluohCommandRunnerSkillTests() {
     expect(io.Directory(stdout.single).existsSync(), isTrue);
   });
 
+  test('prints AI skill path from environment override', () async {
+    final root = await io.Directory.systemTemp.createTemp(
+      'fluoh_skill_path_override_',
+    );
+    addTearDown(() async {
+      if (await root.exists()) {
+        await root.delete(recursive: true);
+      }
+    });
+    final skill = io.Directory('${root.path}/custom/fluoh');
+    await skill.create(recursive: true);
+    await io.File('${skill.path}/SKILL.md').writeAsString('---\nname: fluoh\n');
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    final exitCode = await runFluoh(
+      ['skill', '--path'],
+      stdout: stdout.add,
+      stderr: stderr.add,
+      environment: FluohEnvironment(
+        homeDirectory: io.Directory('${root.path}/home'),
+        workingDirectory: io.Directory('${root.path}/work'),
+        processEnvironment: {fluohSkillPathEnvironmentKey: skill.path},
+      ),
+    );
+
+    expect(exitCode, 0);
+    expect(stderr, isEmpty);
+    expect(stdout, [skill.absolute.path]);
+  });
+
   test('prints bundled AI skill details as json', () async {
     final stdout = <String>[];
     final stderr = <String>[];
@@ -148,17 +180,17 @@ void _registerFluohCommandRunnerSkillTests() {
       report,
       containsPair(
         'defaultPrompt',
-        'Use \$fluoh to install fluoh if needed, adapt this Flutter project '
-            'or package for OHOS, or precheck this FlutterOH Source change.',
+        'Use \$fluoh to install fluoh if needed, add FlutterOH support to this '
+            'Flutter project or package, or precheck this FlutterOH Source change.',
       ),
     );
     expect(
       report['examplePrompts'],
       containsAll([
-        'Use \$fluoh to install fluoh if needed and adapt this Flutter project '
-            'for OHOS.',
-        'Use \$fluoh to adapt <upstream-git-url> for FlutterOH.',
-        'Use \$fluoh to continue adapting <package-name> for OHOS.',
+        'Use \$fluoh to install fluoh if needed and add FlutterOH support to this '
+            'Flutter project.',
+        'Use \$fluoh to port <upstream-git-url> for FlutterOH.',
+        'Use \$fluoh to continue implementing FlutterOH support for <package-name>.',
         'Use \$fluoh to precheck this FlutterOH Source change.',
       ]),
     );
@@ -266,7 +298,8 @@ void _registerFluohCommandRunnerSkillTests() {
       references.keys,
       containsAll([
         'appProjectFlow',
-        'packageAdaptationFlow',
+        'packageSupportFlow',
+        'packageSpecTemplate',
         'automationEvidenceFlow',
         'independentReviewFlow',
         'sourceMaintenanceFlow',
@@ -280,15 +313,25 @@ void _registerFluohCommandRunnerSkillTests() {
       appProjectFlow['path'],
       allOf(isA<String>(), contains('app-project-flow.md')),
     );
-    final packageAdaptationFlow =
-        references['packageAdaptationFlow'] as Map<String, Object?>;
+    final packageSupportFlow =
+        references['packageSupportFlow'] as Map<String, Object?>;
     expect(
-      packageAdaptationFlow['relativePath'],
-      'references/package-adaptation-flow.md',
+      packageSupportFlow['relativePath'],
+      'references/package-support-flow.md',
     );
     expect(
-      packageAdaptationFlow['path'],
-      allOf(isA<String>(), contains('package-adaptation-flow.md')),
+      packageSupportFlow['path'],
+      allOf(isA<String>(), contains('package-support-flow.md')),
+    );
+    final packageSpecTemplate =
+        references['packageSpecTemplate'] as Map<String, Object?>;
+    expect(
+      packageSpecTemplate['relativePath'],
+      'references/package-spec-template.md',
+    );
+    expect(
+      packageSpecTemplate['path'],
+      allOf(isA<String>(), contains('package-spec-template.md')),
     );
     final automationEvidenceFlow =
         references['automationEvidenceFlow'] as Map<String, Object?>;
@@ -423,10 +466,16 @@ dependencies:
     expect(scenarioContent, contains('functional correctness'));
     final scenarioTemplate =
         references['interactionScenarioTemplate'] as Map<String, Object?>;
+    final packageSpecTemplate =
+        references['packageSpecTemplate'] as Map<String, Object?>;
     final appFlow = references['appProjectFlow'] as Map<String, Object?>;
     expect(
       await io.File(appFlow['path']! as String).readAsString(),
       contains('# App Project Flow'),
+    );
+    expect(
+      await io.File(packageSpecTemplate['path']! as String).readAsString(),
+      contains('# <package> FlutterOH Spec'),
     );
     expect(
       await io.File(scenarioTemplate['path']! as String).readAsString(),

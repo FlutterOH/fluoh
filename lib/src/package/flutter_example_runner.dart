@@ -8,6 +8,7 @@ import '../cli/terminal_output.dart';
 import '../context/fluoh_environment.dart';
 import '../platform/platform_environment.dart';
 import '../sdk/flutter_runner.dart';
+import '../task/task_workspace.dart';
 import '../workflow/platform_workflow_policy.dart';
 
 part 'flutter_example_targets.dart';

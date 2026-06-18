@@ -84,17 +84,15 @@ Future<AutomationScenarioActionResult> _waitAction(
   );
 }
 
-const _scenarioScreenshotDirectory = '.fluoh/evidence/screenshots';
-
 Future<_ScenarioScreenshotFileSelection> _scenarioScreenshotFile(
   _ScenarioExecutionContext context,
   AutomationScenarioAction action, {
   required String defaultExtension,
 }) async {
+  final task = await TaskWorkspace(
+    context.environment,
+  ).resolveOrCreate(type: 'automation', scopeName: context.scenario.name);
   final configured = action.outputPath?.trim();
-  final path = configured == null || configured.isEmpty
-      ? '$_scenarioScreenshotDirectory/${_scenarioArtifactSlug(context.scenario.platform)}-${_scenarioArtifactSlug(context.scenario.name)}-step-${action.index}.$defaultExtension'
-      : _scenarioScreenshotOutputPath(configured);
   if (configured != null &&
       configured.isNotEmpty &&
       _isAbsoluteScenarioOutputPath(configured)) {
@@ -102,32 +100,50 @@ Future<_ScenarioScreenshotFileSelection> _scenarioScreenshotFile(
       _invalidScreenshotOutputPath(action, configured),
     );
   }
-  final normalizedPath = _normalizeRelativeScenarioPath(path);
-  if (normalizedPath == null || !_isScreenshotEvidencePath(normalizedPath)) {
+  final normalizedPath = configured == null || configured.isEmpty
+      ? '${_scenarioArtifactSlug(context.scenario.platform)}-${_scenarioArtifactSlug(context.scenario.name)}-step-${action.index}.$defaultExtension'
+      : _normalizeRelativeScenarioPath(configured);
+  if (normalizedPath == null || normalizedPath == '.fluoh') {
     return _ScenarioScreenshotFileSelection.failure(
-      _invalidScreenshotOutputPath(action, path),
+      _invalidScreenshotOutputPath(action, configured ?? ''),
     );
   }
-  final localPath = normalizedPath.replaceAll('/', Platform.pathSeparator);
-  final file = File(
-    '${context.environment.workingDirectory.path}${Platform.pathSeparator}$localPath',
+  if (normalizedPath.startsWith('.fluoh/') &&
+      !_isTaskScreenshotPath(normalizedPath)) {
+    return _ScenarioScreenshotFileSelection.failure(
+      _invalidScreenshotOutputPath(action, configured ?? ''),
+    );
+  }
+  final file = _scenarioScreenshotOutputFile(
+    context.environment.workingDirectory,
+    task,
+    normalizedPath,
   );
   await file.parent.create(recursive: true);
   return _ScenarioScreenshotFileSelection.file(file);
 }
 
-String _scenarioScreenshotOutputPath(String configured) {
-  final normalizedPath = _normalizeRelativeScenarioPath(configured);
-  if (normalizedPath == null) {
-    return configured;
+File _scenarioScreenshotOutputFile(
+  Directory workingDirectory,
+  FluohTask task,
+  String normalizedPath,
+) {
+  if (_isTaskScreenshotPath(normalizedPath)) {
+    return File(
+      '${workingDirectory.path}${Platform.pathSeparator}'
+      '${normalizedPath.replaceAll('/', Platform.pathSeparator)}',
+    );
   }
-  if (_isScreenshotEvidencePath(normalizedPath)) {
-    return normalizedPath;
-  }
-  if (normalizedPath == '.fluoh' || normalizedPath.startsWith('.fluoh/')) {
-    return normalizedPath;
-  }
-  return '$_scenarioScreenshotDirectory/$normalizedPath';
+  return File(
+    '${task.screenshotDirectory.path}${Platform.pathSeparator}'
+    '${normalizedPath.replaceAll('/', Platform.pathSeparator)}',
+  );
+}
+
+bool _isTaskScreenshotPath(String normalizedPath) {
+  return normalizedPath.startsWith('.fluoh/tasks/') &&
+      normalizedPath.contains('/evidence/screenshots/') &&
+      !normalizedPath.endsWith('/evidence/screenshots/');
 }
 
 class _ScenarioScreenshotFileSelection {
@@ -153,14 +169,14 @@ AutomationScenarioActionResult _invalidScreenshotOutputPath(
 ) {
   return _failedAction(
     action,
-    'Screenshot outputPath must be a relative path under $_scenarioScreenshotDirectory.',
+    'Screenshot outputPath must be a relative path under the task screenshot directory.',
     details: {
       'outputPath': outputPath,
-      'allowedDirectory': _scenarioScreenshotDirectory,
+      'allowedDirectory': '.fluoh/tasks/<task-id>/evidence/screenshots',
     },
     repairHints: [
       ...action.repairHints,
-      'Use a file name such as <name>.png or a relative path under $_scenarioScreenshotDirectory.',
+      'Use a file name such as <name>.png or a relative path under .fluoh/tasks/<task-id>/evidence/screenshots.',
     ],
   );
 }
@@ -186,10 +202,6 @@ String? _normalizeRelativeScenarioPath(String path) {
     parts.add(segment);
   }
   return parts.isEmpty ? null : parts.join('/');
-}
-
-bool _isScreenshotEvidencePath(String path) {
-  return path.startsWith('$_scenarioScreenshotDirectory/');
 }
 
 Future<Map<String, Object?>> _screenshotDetails(

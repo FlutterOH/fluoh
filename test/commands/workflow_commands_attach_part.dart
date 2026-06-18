@@ -54,7 +54,7 @@ void _registerWorkflowCommandsAttachTests() {
     final setupStdout = <String>[];
     final setupStderr = <String>[];
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: setupStdout.add,
       stderr: setupStderr.add,

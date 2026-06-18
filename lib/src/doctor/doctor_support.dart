@@ -11,7 +11,7 @@ class _DoctorOptions {
   factory _DoctorOptions.fromArgResults(ArgResults results) {
     return _DoctorOptions(
       includeProject: results.flag('project'),
-      platforms: _platformsFromOption(results.option('platform')),
+      platforms: fluohPlatformsFromCliOption(results.option('platform')),
       strict: results.flag('strict'),
       json: results.flag('json'),
     );
@@ -38,45 +38,80 @@ class _DoctorReport {
 
   bool get ok => issueCount == 0;
 
-  Map<String, Object?> toJsonFields() {
+  Map<String, Object?> toJsonFields({bool includeNextAction = false}) {
     return {
       'project': includeProject,
       'platforms': platforms.map((platform) => platform.cliName).toList(),
       'issueCount': issueCount,
       'checks': checks.map((check) => check.toJson()).toList(),
+      if (includeNextAction) 'state': ok ? 'ready' : 'blocked',
+      if (includeNextAction) 'nextAction': _nextAction(),
     };
   }
+
+  Map<String, Object?> _nextAction() {
+    if (ok) {
+      return {
+        'type': 'ready',
+        'phase': 'doctor',
+        'message': 'Doctor strict checks passed.',
+      };
+    }
+    return {
+      'type': 'blocked',
+      'phase': 'doctor',
+      'reason': 'doctor_warnings',
+      'message':
+          'Doctor strict checks reported warnings that require local environment or project repair.',
+      'rerunCommand': _rerunCommand(),
+      'failingChecks': [
+        for (final check in checks)
+          if (check.status == _DoctorCheckStatus.warning)
+            {
+              'group': check.group.cliName,
+              'id': check.id,
+              'title': check.title,
+              'details': check.jsonDetails,
+              if (check.data.isNotEmpty) 'data': check.data,
+            },
+      ],
+    };
+  }
+
+  String _rerunCommand() {
+    final parts = ['fluoh doctor'];
+    if (!_samePlatforms(platforms, defaultHostFluohPlatforms())) {
+      if (platforms.length == 1) {
+        parts.add('--platform ${platforms.single.cliName}');
+      } else {
+        parts.add('--platform all');
+      }
+    }
+    if (includeProject) {
+      parts.add('--project');
+    }
+    parts.add('--json');
+    parts.add('--strict');
+    return parts.join(' ');
+  }
+}
+
+bool _samePlatforms(List<FluohPlatform> left, List<FluohPlatform> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 int _issueCount(List<_DoctorCheck> checks) {
   return checks
       .where((check) => check.status == _DoctorCheckStatus.warning)
       .length;
-}
-
-List<FluohPlatform> _platformsFromOption(String? value) {
-  return switch (value) {
-    'all' => _defaultDoctorPlatforms(),
-    'ohos' => const [FluohPlatform.ohos],
-    'android' => const [FluohPlatform.android],
-    'ios' => const [FluohPlatform.ios],
-    'macos' => const [FluohPlatform.macos],
-    'linux' => const [FluohPlatform.linux],
-    'web' => const [FluohPlatform.web],
-    'windows' => const [FluohPlatform.windows],
-    _ => _defaultDoctorPlatforms(),
-  };
-}
-
-List<FluohPlatform> _defaultDoctorPlatforms() {
-  return [
-    FluohPlatform.ohos,
-    FluohPlatform.android,
-    if (Platform.isMacOS) ...[FluohPlatform.ios, FluohPlatform.macos],
-    if (Platform.isLinux) FluohPlatform.linux,
-    FluohPlatform.web,
-    if (Platform.isWindows) FluohPlatform.windows,
-  ];
 }
 
 List<String> _platformToolSummary(PlatformDoctorReport report) {

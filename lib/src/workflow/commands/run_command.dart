@@ -49,6 +49,7 @@ class RunCommand extends FluohCommand<int> {
       )
       ..addOption(
         'ohos-permission-dialog-policy',
+        valueHelp: 'policy',
         allowed: ohosSystemPermissionDialogPolicyValues,
         defaultsTo: 'disabled',
         help:
@@ -143,6 +144,7 @@ class RunCommand extends FluohCommand<int> {
     final output = _outputFor(json, _output);
     final stdout = json ? (_) {} : _stdout;
     final stderr = json ? (_) {} : _stderr;
+    final traceOptions = _traceOptionsFrom(argResults!);
     final startEmulator = autoEmulator || emulatorName != null;
     final results = <WorkflowTargetResult>[];
     for (final currentPlatform in platforms) {
@@ -163,6 +165,7 @@ class RunCommand extends FluohCommand<int> {
         emulatorName: emulatorName,
         sessionFile: sessionFile,
         ohosPermissionDialogPolicy: ohosPermissionDialogPolicy,
+        traceDir: traceOptions.directory?.path,
       );
       results.addAll(
         await _runPackageOrProject(
@@ -181,6 +184,7 @@ class RunCommand extends FluohCommand<int> {
             sessionFile: sessionFile,
             autoSign: policy.supportsAutoSign,
             ohosPermissionDialogPolicy: ohosPermissionDialogPolicy,
+            traceDir: traceOptions.directory?.path,
           ),
           deviceTimeout: deviceTimeout,
           logDuration: logDuration,
@@ -194,7 +198,7 @@ class RunCommand extends FluohCommand<int> {
       command: 'run',
       arguments: argResults!.arguments,
       results: results,
-      traceOptions: _traceOptionsFrom(argResults!),
+      traceOptions: traceOptions,
       extraFields: {
         'workflowEvidence': _runSmokeEvidence(
           platforms: platforms,

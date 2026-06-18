@@ -50,6 +50,22 @@ void main() {
       'fluoh run android --package camera --auto-emulator --json',
     );
     expect(
+      platformWorkflowPolicy('android').packageRepairCommand(
+        'android.device_missing',
+        'camera',
+        traceDir: 'traces',
+      ),
+      'fluoh run android --package camera --auto-emulator --json --trace-dir traces',
+    );
+    expect(
+      platformWorkflowPolicy('ios').packageRepairCommand(
+        'ios.device_missing',
+        'camera',
+        traceDir: 'traces',
+      ),
+      'fluoh run ios --package camera --auto-emulator --json --trace-dir traces',
+    );
+    expect(
       platformWorkflowPolicy(
         'web',
       ).packageRepairCommand('web.device_missing', 'camera'),
@@ -109,6 +125,11 @@ void main() {
         'ohos.integration_test_failed',
       );
       expect(platformWorkflowPolicy('ohos').supportsSessionFile, isTrue);
+      expect(workflowDrivePlatformNames, ['ohos', 'android', 'ios']);
+      expect(platformWorkflowPolicy('ohos').supportsDriveAutomation, isTrue);
+      expect(platformWorkflowPolicy('android').supportsDriveAutomation, isTrue);
+      expect(platformWorkflowPolicy('ios').supportsDriveAutomation, isTrue);
+      expect(platformWorkflowPolicy('web').supportsDriveAutomation, isFalse);
       expect(
         platformWorkflowPolicy('android').automationEvidenceItems,
         contains('flutterRunSession JSON'),
@@ -172,6 +193,13 @@ void main() {
   test('suggests integration discovery runs without web-server targets', () {
     final commands = integrationDiscoveryRunCommands(packageName: 'camera');
 
+    expect(commands, [
+      'fluoh run ohos --package camera --auto-emulator --json',
+      'fluoh run android --package camera --auto-emulator --json',
+      'fluoh run ios --package camera --auto-emulator --json',
+      'fluoh run macos --package camera --json',
+      'fluoh run web --package camera --json',
+    ]);
     expect(commands, contains('fluoh run web --package camera --json'));
     expect(commands.join('\n'), isNot(contains('web-server')));
     expect(commands.join('\n'), isNot(contains('--device-id chrome')));

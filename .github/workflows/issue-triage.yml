@@ -54,7 +54,7 @@ jobs:
               },
               'area:package': {
                 color: '0969DA',
-                description: 'FlutterOH package adaptation workflows.',
+                description: 'FlutterOH package support workflows.',
               },
               'area:workflow': {
                 color: '0969DA',
@@ -146,7 +146,7 @@ jobs:
               affectedCommands,
               sectionValue('Proposed behavior'),
               sectionValue('CLI, JSON, and file contract'),
-              sectionValue('Compatibility and release impact'),
+              sectionValue('Contract and release impact'),
             ].join('\n').toLowerCase();
             const addWhen = (label, pattern) => {
               if (pattern.test(classifierText)) {
@@ -155,11 +155,11 @@ jobs:
             };
 
             addWhen('area:sdk', /\bfluoh\s+sdk\b|\bsdk\s+(use|list|install|remove)\b|flutteroh sdk/);
-            addWhen('area:source', /\bfluoh\s+source\b|source index|source check|source sync|manifest route|manifests\//);
+            addWhen('area:source', /\bfluoh\s+source\b|source index|source check|source register|source sync|manifest route|manifests\//);
             addWhen('area:project', /\bfluoh\s+create\b|\bfluoh\s+deps\b|\bcreate\s+(?:a\s+)?flutter project|project creation|project deps|project dependenc/);
             addWhen('area:deps', /\bfluoh\s+deps\b|\bdeps\s+(check|fix|get|upgrade)\b|dependency|dependencies|pubspec|dependency_overrides/);
-            addWhen('area:package', /\bfluoh\s+package\b|package adaptation|package workflow|package create|package sync|package release/);
-            addWhen('area:workflow', /\bfluoh\s+(plan|verify|build|run|attach|drive|report|clean)\b|\b(plan|verify|build|run|attach|drive|report|clean)\s+(app|package|ohos|android|ios|web|linux|windows|macos|all)\b|adaptation plan|automation evidence|trace-dir|adaptation report|delivery report/);
+            addWhen('area:package', /\bfluoh\s+package\b|package support|package workflow|package new|package port|package add|package upstream check|package upstream sync|package release/);
+            addWhen('area:workflow', /\bfluoh\s+(plan|verify|build|run|attach|drive|report|clean)\b|\b(plan|verify|build|run|attach|drive|report|clean)\s+(app|package|ohos|android|ios|web|linux|windows|macos|all)\b|support plan|automation evidence|trace-dir|support report|delivery report/);
             addWhen('area:devices', /\bfluoh\s+(devices|emulators)\b|\bdevices?\b|\bemulators?\b|simulator|connected target|auto-emulator/);
             addWhen('area:schema', /\bfluoh\.yaml\b|\bschema\b|machine output|"schema"|"exitcode"|--json/);
             addWhen('area:platform', /\bfluohf\b|\bfluoh\s+flutter\b|ohos platform|openharmony platform|openharmony|hap|hdc|deveco|signing|permission profile|build profile/);

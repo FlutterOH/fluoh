@@ -51,7 +51,7 @@ sdk:
             '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
                 '| `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |\n'
                 '| `flutter test integration_test -d emulator-5554` | 0 | passed | camera preview integration_test passed |\n'
-                '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+                '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
           )
           .replaceAll(
             '| `...` | official docs URL, SDK API path, or `blocked: <reason>` | implementation and test impact |',
@@ -69,6 +69,21 @@ sdk:
             '- coveragePolicy.status: readyForExecution\n'
                 '- readyForAutomation: true\n'
                 '- qualityGateSummary: ready=10, notReady=0',
+          )
+          .replaceAll('- exists: true | false', '- exists: true')
+          .replaceAll('- planningReady: true | false', '- planningReady: true')
+          .replaceAll(
+            '- functionalEvidenceReady: true | false',
+            '- functionalEvidenceReady: true',
+          )
+          .replaceAll('- complete: true | false', '- complete: true')
+          .replaceAll(
+            '- p0: total=<count>, supportedOrDegraded=<count>, functionalEvidence=<count>',
+            '- p0: total=1, supportedOrDegraded=1, functionalEvidence=1',
+          )
+          .replaceAll(
+            '| `...` | research | actionRequired | scope_entry_id | ohos | platforms.ohos.decision.sources | concrete blocker |',
+            '',
           )
           .replaceAll(
             'OHOS | skipped | skipped | n/a | n/a | ...',
@@ -175,7 +190,7 @@ the local trace-evidence issue here.
       expect(
         stringList(missingOfficialBasisJson['errors']).join('\n'),
         contains(
-          'Ready reports must record official OHOS/platform documentation basis',
+          'Ready reports must record official platform documentation basis',
         ),
       );
 
@@ -183,13 +198,13 @@ the local trace-evidence issue here.
       await missingPostLaunchVisualReport.writeAsString(
         content
             .replaceAll(
-              '; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured',
+              '; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured',
               '',
             )
             .replaceFirst(
               '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n',
               '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
-                  '| `fluoh drive ohos --package camera --json` | 1 | failed | post-launch screenshot .fluoh/evidence/screenshots/failed.png failed |\n',
+                  '| `fluoh drive ohos --package camera --json` | 1 | failed | post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/failed.png failed |\n',
             ),
       );
       final missingPostLaunchVisual = await Process.run('python3', [
@@ -214,8 +229,8 @@ the local trace-evidence issue here.
       final partialPostLaunchVisualReport = reportFixture(1780401600118);
       await partialPostLaunchVisualReport.writeAsString(
         content.replaceFirst(
-          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
-          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |\n'
+          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
+          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |\n'
               '| `fluoh drive android --package camera --json` | 0 | passed | android automation coverage gates ready |',
         ),
       );
@@ -237,9 +252,9 @@ the local trace-evidence issue here.
       final samePlatformPostLaunchVisualReport = reportFixture(1780401600119);
       await samePlatformPostLaunchVisualReport.writeAsString(
         content.replaceFirst(
-          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
           '| `fluoh run ohos --package camera --json` | 0 | passed | launch evidence only |\n'
-              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
         ),
       );
       final samePlatformPostLaunchVisual = await Process.run('python3', [
@@ -257,7 +272,7 @@ the local trace-evidence issue here.
       await manualAssistedReadyReport.writeAsString(
         content
             .replaceFirst(
-              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
               '| `dart test` | 0 | passed | unit tests passed |',
             )
             .replaceFirst(
@@ -290,7 +305,7 @@ the local trace-evidence issue here.
               '| `fluoh run ohos --package camera --json` | 0 | passed | launch evidence only |',
             )
             .replaceFirst(
-              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
               '| `dart test` | 0 | passed | unit tests passed |',
             )
             .replaceFirst(
@@ -322,7 +337,7 @@ the local trace-evidence issue here.
               '| `fluoh run ohos --package camera --json` | 0 | passed | launch evidence only |',
             )
             .replaceFirst(
-              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
               '| `dart test` | 0 | passed | unit tests passed |',
             )
             .replaceFirst(
@@ -350,7 +365,7 @@ the local trace-evidence issue here.
       await launchOnlyAiAssistedReport.writeAsString(
         content.replaceFirst(
           '| camera preview | integration_test | OHOS | emulator-5554 | passed | flutter test integration_test -d emulator-5554 passed and hilog marker camera.captureSuccess confirmed the result |',
-          '| camera preview | AI-assisted | OHOS | emulator-5554 | passed | assertSession passed; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+          '| camera preview | AI-assisted | OHOS | emulator-5554 | passed | assertSession passed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
         ),
       );
       final launchOnlyAiAssisted = await Process.run('python3', [
@@ -377,7 +392,7 @@ the local trace-evidence issue here.
               '| `fluoh run ohos --package camera --json` | 0 | passed | launch evidence only |\n',
             )
             .replaceFirst(
-              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+              '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
               '| `dart test` | 0 | passed | unit tests passed |',
             ),
       );
@@ -401,7 +416,7 @@ the local trace-evidence issue here.
       final backedIntegrationReadyReport = reportFixture(1780401600105);
       await backedIntegrationReadyReport.writeAsString(
         content.replaceFirst(
-          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+          '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
           '| `dart test` | 0 | passed | unit tests passed |',
         ),
       );
@@ -588,7 +603,7 @@ the local trace-evidence issue here.
       expect(
         stringList(verifyOnlyJson['errors']),
         contains(
-          'Ready reports must include passed OHOS build or run evidence.',
+          'Ready reports must include passed OHOS build or run evidence as target-platform evidence.',
         ),
       );
 
@@ -599,7 +614,7 @@ the local trace-evidence issue here.
               '| `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |\n'
                   '| `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |\n'
                   '| `flutter test integration_test -d emulator-5554` | 0 | passed | camera preview integration_test passed |\n'
-                  '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |',
+                  '| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |',
               '| `dart test` | 0 | passed | unit tests passed |',
             )
             .replaceFirst(
@@ -620,7 +635,7 @@ the local trace-evidence issue here.
         stringList(ordinaryEvidenceJson['errors']),
         containsAll([
           'Ready reports must include passed fluoh verify evidence.',
-          'Ready reports must include passed OHOS build or run evidence.',
+          'Ready reports must include passed OHOS build or run evidence as target-platform evidence.',
           'Passed manual-assisted interaction evidence must include tool-readable confirmation such as logs, meaningful session state beyond launch, stable text, semantics, test keys, command JSON, hilog, or app log markers.',
           'Ready reports must include passed fluoh drive --json, integration_test, or manual-assisted tool-readable interaction evidence.',
         ]),
@@ -647,7 +662,34 @@ the local trace-evidence issue here.
       expect(
         stringList(json['errors']),
         contains(
-          'Report filename must match report-<timestamp>.md using an integer timestamp.',
+          'Report filename must be report.md or report-<timestamp>.md using an integer timestamp.',
+        ),
+      );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'check_report accepts CLI report filename before content validation',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final report = File('${root.path}/report.md');
+      await report.writeAsString('# custom report\n');
+
+      final check = await Process.run('python3', [
+        checkReportScript,
+        report.path,
+      ]);
+
+      expect(check.exitCode, 1);
+      final json = jsonDecode(check.stdout.toString()) as Map<String, Object?>;
+      expect(
+        stringList(json['errors']),
+        isNot(
+          contains(
+            'Report filename must be report.md or report-<timestamp>.md using an integer timestamp.',
+          ),
         ),
       );
     },
@@ -714,7 +756,7 @@ the local trace-evidence issue here.
 
 - Public Dart API changes: none
 - Dependency constraint changes: none
-- Non-OHOS regression risk: none
+- Existing-platform regression risk: none
 
 ## Official Platform Basis
 
@@ -726,15 +768,20 @@ No official platform basis required: fixture represents a pure Dart package with
 | --- | --- | --- | --- |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, tests passed |
 | `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed HAP produced |
-| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
+| `fluoh drive ohos --package camera --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |
 
 ## Delivery Checklist
 
 - [x] Diff reviewed.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
-- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
+- [x] Target-platform build evidence recorded, including OHOS when in scope.
+- [x] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Pub.dev publishability checked with `dart pub publish --dry-run`, or a concrete not-applicable reason is recorded.
+- [x] FlutterOH support checked with fluoh verify/build/run/drive/report gates.
+- [x] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
+- [x] Public API, dependency constraints, and existing-platform regression risk reviewed.
 
 ## Platform Matrix
 
@@ -776,7 +823,7 @@ $defaultFeedback
 
 - Mode: automatic debug signing
 - Generated HAPs (build-only when applicable): camera-ohos-debug.hap
-- Run session / output log: .fluoh/run-sessions/camera/ohos-session.json
+- Run session / output log: .fluoh/tasks/camera-support/evidence/sessions/ohos-session.json
 - Hilog (drive/debug scenarios only): none
 
 ## Remaining Risks
@@ -857,7 +904,7 @@ Ready.
 
 - Public Dart API changes: none
 - Dependency constraint changes: none
-- Non-OHOS regression risk: none
+- Existing-platform regression risk: none
 
 ## Official Platform Basis
 
@@ -869,15 +916,20 @@ No official platform basis required: fixture represents a pure Dart package with
 | --- | --- | --- | --- |
 | `fluoh verify --package pure_dart --json` | 0 | passed | no device APIs |
 | `fluoh build ohos --package pure_dart --auto-sign --json` | 0 | passed | signed example HAP produced |
-| `fluoh drive ohos --package pure_dart --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/evidence/screenshots/pure-dart-ohos-main.png captured |
+| `fluoh drive ohos --package pure_dart --json` | 0 | passed | automation coverage gates ready; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/pure-dart-ohos-main.png captured |
 
 ## Delivery Checklist
 
 - [x] Diff reviewed.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
-- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
+- [x] Target-platform build evidence recorded, including OHOS when in scope.
+- [x] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Pub.dev publishability checked with `dart pub publish --dry-run`, or a concrete not-applicable reason is recorded.
+- [x] FlutterOH support checked with fluoh verify/build/run/drive/report gates.
+- [x] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
+- [x] Public API, dependency constraints, and existing-platform regression risk reviewed.
 
 ## Platform Matrix
 

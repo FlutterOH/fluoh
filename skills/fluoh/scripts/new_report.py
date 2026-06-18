@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Create a local fluoh AI adaptation report from the bundled template."""
+"""Create a local fluoh AI support report from the bundled template."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 from datetime import datetime
@@ -27,7 +28,73 @@ def fenced_template(content: str) -> str:
 def slug(value: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip())
     normalized = normalized.strip("-._")
-    return normalized or "adaptation"
+    return normalized or "support"
+
+
+def ensure_task_root(root: Path, scope: str, task_type: str) -> Path:
+    current_file = root / ".fluoh" / "current-task.json"
+    if current_file.is_file():
+        try:
+            current = json.loads(current_file.read_text(encoding="utf-8"))
+            relative = str(current.get("path") or "")
+            task_root = root / relative
+            if relative and task_root.is_dir():
+                return task_root
+        except (OSError, ValueError, TypeError):
+            pass
+    now = datetime.now().astimezone()
+    task_id = f"{now.strftime('%Y%m%d-%H%M%S')}-{slug(task_type)}-{slug(scope)}"
+    task_root = root / ".fluoh" / "tasks" / task_id
+    task_root.mkdir(parents=True, exist_ok=True)
+    created_at = now.isoformat()
+    (task_root / "task.yaml").write_text(
+        "\n".join(
+            [
+                "schema: 1",
+                "kind: fluoh.task",
+                f"id: {task_id}",
+                f"type: {task_type}",
+                "scope:",
+                f"  name: {slug(scope)}",
+                f"createdAt: {created_at}",
+                f"updatedAt: {created_at}",
+                "status: running",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (task_root / "state.json").write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "kind": "fluoh.taskState",
+                "taskId": task_id,
+                "status": "running",
+                "createdAt": created_at,
+                "updatedAt": created_at,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    current_file.parent.mkdir(parents=True, exist_ok=True)
+    current_file.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "kind": "fluoh.currentTask",
+                "id": task_id,
+                "path": f".fluoh/tasks/{task_id}",
+                "updatedAt": created_at,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return task_root
 
 
 def clean_scalar(value: str) -> str:
@@ -132,13 +199,12 @@ def build_report(
 
 
 def default_output_root(root: Path, scope: str, package: str) -> Path:
-    group = slug(package or scope)
-    return root / ".fluoh" / "reports" / group
+    return ensure_task_root(root, package or scope, "report") / "reports"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Create a .fluoh AI adaptation report.",
+        description="Create a .fluoh AI support report.",
     )
     parser.add_argument("path", nargs="?", default=".", help="Project directory")
     parser.add_argument(
@@ -158,7 +224,7 @@ def main() -> int:
     parser.add_argument(
         "--output-root",
         default="",
-        help="Report directory. Defaults to <path>/.fluoh/reports/<scope>.",
+        help="Report directory. Defaults to the current task reports directory.",
     )
     parser.add_argument(
         "--template",

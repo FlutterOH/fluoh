@@ -66,8 +66,8 @@ Future<List<String>> _discoverAutomationScenarioPaths(
     inventory.targetName ?? _pathBasename(inventory.rootPath),
   );
   final roots = {
-    '${inventory.rootPath}/.fluoh/scenarios/$scope',
-    '${workingDirectory.path}/.fluoh/scenarios/$scope',
+    '${inventory.rootPath}/doc/fluoh/$scope/scenarios',
+    '${workingDirectory.path}/doc/fluoh/$scope/scenarios',
   };
   final paths = <String>{};
   for (final rootPath in roots) {
@@ -146,6 +146,7 @@ _PackageWorkflowInvocation _automationPackageInvocation({
       targetName: packageName,
       sessionDirectory: sessionDirectory,
     ),
+    traceDir: null,
   );
 }
 
@@ -173,6 +174,7 @@ _ProjectWorkflowInvocation _automationProjectInvocation({
     ),
     autoSign: platformWorkflowPolicy(platform).supportsAutoSign,
     ohosPermissionDialogPolicy: OhosSystemPermissionDialogPolicy.disabled,
+    traceDir: null,
   );
 }
 
@@ -213,18 +215,31 @@ Future<List<WorkflowTargetResult>> _runAutomationScenariosForPlatform(
       output.step(
         'Running ${_platformLabel(platform)} scenario ${scenario.name}',
       );
-      final nextCommand = _automationScenarioNextCommand(
-        scenario: scenario,
-        platform: platform,
-        targetKind: target.targetKind,
-        packageName: packageName,
-        targetName: target.targetName,
-        deviceId: deviceId,
-        emulatorName: emulatorName,
-        autoEmulator: autoEmulator,
-        sessionDirectory: sessionDirectory,
-        traceOptions: traceOptions,
-      );
+      final nextCommand = _isAutomationProfileScenario(scenario)
+          ? _automationProfileNextCommand(
+              platform: platform,
+              profile: 'exploratory-smoke',
+              targetKind: target.targetKind,
+              packageName: packageName,
+              targetName: target.targetName,
+              deviceId: deviceId,
+              emulatorName: emulatorName,
+              autoEmulator: autoEmulator,
+              sessionDirectory: sessionDirectory,
+              traceOptions: traceOptions,
+            )
+          : _automationScenarioNextCommand(
+              scenario: scenario,
+              platform: platform,
+              targetKind: target.targetKind,
+              packageName: packageName,
+              targetName: target.targetName,
+              deviceId: deviceId,
+              emulatorName: emulatorName,
+              autoEmulator: autoEmulator,
+              sessionDirectory: sessionDirectory,
+              traceOptions: traceOptions,
+            );
       final scenarioResult = await runAutomationScenario(
         scenario: scenario,
         target: current,
@@ -280,9 +295,11 @@ WorkflowStepResult _automationScenarioStep(
   required FluohEnvironment environment,
   required String command,
 }) {
+  final profile = _isAutomationProfileScenario(result.scenario);
+  final prefix = profile ? 'automation-profile' : 'automation-scenario';
   return WorkflowStepResult(
     name:
-        'automation-scenario-${result.scenario.platform}-${_automationPathSlug(result.scenario.name)}',
+        '$prefix-${result.scenario.platform}-${_automationPathSlug(result.scenario.name)}',
     path: _automationScenarioStepPath(
       environment.workingDirectory,
       result.scenario.path.parent,
@@ -294,6 +311,13 @@ WorkflowStepResult _automationScenarioStep(
     details: result.toJson(),
     diagnostics: [if (result.diagnostic != null) result.diagnostic!],
   );
+}
+
+bool _isAutomationProfileScenario(AutomationScenario scenario) {
+  final path = scenario.path.path;
+  final profileSegment =
+      '${Platform.pathSeparator}evidence${Platform.pathSeparator}profiles${Platform.pathSeparator}';
+  return path.contains(profileSegment) || path.contains('/evidence/profiles/');
 }
 
 String _automationScenarioStepPath(Directory root, Directory directory) {
@@ -340,6 +364,47 @@ String _automationScenarioNextCommand({
     sessionDirectory.path,
     '--scenario',
     scenario.path.path,
+    if (traceOptions.enabled && traceOptions.directory == null) '--trace',
+    if (traceOptions.directory != null) ...[
+      '--trace-dir',
+      traceOptions.directory!.path,
+    ],
+    '--json',
+  ];
+  return parts.map(_workflowShellQuote).join(' ');
+}
+
+String _automationProfileNextCommand({
+  required String platform,
+  required String profile,
+  required String targetKind,
+  required String? packageName,
+  required String targetName,
+  required String? deviceId,
+  required String? emulatorName,
+  required bool autoEmulator,
+  required Directory sessionDirectory,
+  required TraceOptions traceOptions,
+}) {
+  final parts = [
+    'fluoh',
+    'drive',
+    platform,
+    if (packageName != null) ...[
+      '--package',
+      packageName,
+    ] else if (targetKind == 'package') ...[
+      '--package',
+      targetName,
+    ],
+    if (deviceId != null) ...['--device-id', deviceId],
+    if (emulatorName != null) ...['--emulator', emulatorName],
+    if (deviceId == null && emulatorName == null)
+      autoEmulator ? '--auto-emulator' : '--no-auto-emulator',
+    '--session-dir',
+    sessionDirectory.path,
+    '--profile',
+    profile,
     if (traceOptions.enabled && traceOptions.directory == null) '--trace',
     if (traceOptions.directory != null) ...[
       '--trace-dir',

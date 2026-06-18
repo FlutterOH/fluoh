@@ -1,4 +1,4 @@
 interface:
   display_name: "FlutterOH fluoh"
-  short_description: "FlutterOH adaptation and Source checks"
-  default_prompt: "Use $fluoh to install fluoh if needed, adapt this Flutter project or package for OHOS, or precheck this FlutterOH Source change."
+  short_description: "FlutterOH support and Source checks"
+  default_prompt: "Use $fluoh to install fluoh if needed, add FlutterOH support to this Flutter project or package, or precheck this FlutterOH Source change."

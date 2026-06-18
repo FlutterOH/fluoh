@@ -12,6 +12,19 @@ schema: 1
 sdk:
   version: 3.35.8-ohos-0.0.3
 
+repository:
+  git:
+    url: https://github.com/FlutterOH/camera.git
+    branch: ohos/3.35/camera
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
+
 package:
   name: camera
   path: packages/camera/camera
@@ -41,7 +54,7 @@ package:
       expect(defaultScenario.existsSync(), isTrue);
       expect(
         defaultScenario.path,
-        endsWith('/.fluoh/scenarios/camera/ohos-capture-permission.md'),
+        endsWith('/doc/fluoh/camera/scenarios/ohos-capture-permission.md'),
       );
 
       final androidScenarioResult = await Process.run('python3', [
@@ -67,7 +80,7 @@ package:
       expect(androidScenario.existsSync(), isTrue);
       expect(
         androidScenario.path,
-        endsWith('/.fluoh/scenarios/camera/android-capture-permission.md'),
+        endsWith('/doc/fluoh/camera/scenarios/android-capture-permission.md'),
       );
       final androidContent = await androidScenario.readAsString();
       expect(
@@ -77,19 +90,19 @@ package:
       expect(
         androidContent,
         contains(
-          '- Session file command, when supported: fluoh run android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json',
+          '- Session file command, when supported: fluoh run android --package camera --auto-emulator --session-file .fluoh/tasks/<task-id>/evidence/sessions/camera-android-session.json --json',
         ),
       );
       expect(
         androidContent,
         contains(
-          '- Session inspect command, when supported: python3 <skill-dir>/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 30 --expect-platform android',
+          '- Session inspect command, when supported: python3 <skill-dir>/scripts/inspect_session.py .fluoh/tasks/<task-id>/evidence/sessions/camera-android-session.json --wait 30 --expect-platform android',
         ),
       );
       expect(
         androidContent,
         contains(
-          '- Session attach command, when supported: fluoh attach android --session-file .fluoh/run-sessions/camera/android-session.json',
+          '- Session attach command, when supported: fluoh attach android --session-file .fluoh/tasks/<task-id>/evidence/sessions/camera-android-session.json',
         ),
       );
       final webScenarioResult = await Process.run('python3', [
@@ -124,7 +137,7 @@ package:
       expect(
         webContent,
         contains(
-          '- Session file command, when supported: fluoh run web --package camera --session-file .fluoh/run-sessions/camera/web-session.json --json',
+          '- Session file command, when supported: fluoh run web --package camera --session-file .fluoh/tasks/<task-id>/evidence/sessions/camera-web-session.json --json',
         ),
       );
 
@@ -178,19 +191,19 @@ package:
       expect(
         content,
         contains(
-          '- Session file command, when supported: fluoh run ohos --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/ohos-session.json --json',
+          '- Session file command, when supported: fluoh run ohos --package camera --auto-emulator --session-file .fluoh/tasks/<task-id>/evidence/sessions/camera-ohos-session.json --json',
         ),
       );
       expect(
         content,
         contains(
-          '- Session inspect command, when supported: python3 <skill-dir>/scripts/inspect_session.py .fluoh/run-sessions/camera/ohos-session.json --wait 30 --expect-platform ohos',
+          '- Session inspect command, when supported: python3 <skill-dir>/scripts/inspect_session.py .fluoh/tasks/<task-id>/evidence/sessions/camera-ohos-session.json --wait 30 --expect-platform ohos',
         ),
       );
       expect(
         content,
         contains(
-          '- Session attach command, when supported: fluoh attach ohos --session-file .fluoh/run-sessions/camera/ohos-session.json',
+          '- Session attach command, when supported: fluoh attach ohos --session-file .fluoh/tasks/<task-id>/evidence/sessions/camera-ohos-session.json',
         ),
       );
       expect(content, contains('## Failure Routing'));
@@ -203,7 +216,9 @@ package:
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
-      final traceDir = Directory('${root.path}/.fluoh/traces/camera-session');
+      final traceDir = Directory(
+        '${root.path}/.fluoh/tasks/camera-support/traces/camera-session',
+      );
       await traceDir.create(recursive: true);
       final manifest = File('${traceDir.path}/trace.json');
       final candidate = {
@@ -223,13 +238,13 @@ package:
             {
               'command': 'verify',
               'commandLine':
-                  'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera-session',
+                  'fluoh verify --package camera --json --trace-dir .fluoh/tasks/camera-support/traces/camera-session',
               'feedbackCandidates': [candidate, candidate],
             },
             {
               'command': 'build',
               'commandLine':
-                  'fluoh build ohos --package camera --json --trace-dir .fluoh/traces/camera-session',
+                  'fluoh build ohos --package camera --json --trace-dir .fluoh/tasks/camera-support/traces/camera-session',
               'feedbackCandidates': [
                 {
                   'id': 'F002',
@@ -311,6 +326,42 @@ package:
         runOnlyJson['errors'],
         contains(contains('integration_test interaction evidence must cite')),
       );
+    },
+    skip: Platform.isWindows ? 'uses POSIX test executables' : false,
+  );
+
+  test(
+    'check_report rejects ready reports with incomplete support scope',
+    () async {
+      final root = await createTempRoot();
+      addTearDown(() => root.delete(recursive: true));
+      final report = await _writeMinimalIntegrationReport(
+        root,
+        fileName: 'report-1780401600403.md',
+        includeFlutterIntegrationCommand: true,
+      );
+      var content = await report.readAsString();
+      content = content
+          .replaceAll('- complete: true', '- complete: false')
+          .replaceAll(
+            'No support scope issues: P0 planning and functional evidence gates are complete.',
+            '| Code | Phase | Severity | Scope Entry | Platform | Field | Message |\n'
+                '| --- | --- | --- | --- | --- | --- | --- |\n'
+                '| scope.p0_functional_evidence_missing | functional-evidence | actionRequired | camera_preview | ohos | evidence.level | P0 scope entry camera_preview needs functional evidence. |',
+          );
+      await report.writeAsString(content);
+
+      final result = await Process.run('python3', [
+        checkReportScript,
+        report.path,
+      ]);
+      expect(result.exitCode, 1);
+      final payload =
+          jsonDecode(result.stdout.toString()) as Map<String, Object?>;
+      expect(payload, containsPair('ok', false));
+      expect(payload, containsPair('scopeComplete', false));
+      expect(payload, containsPair('scopeIssues', true));
+      expect(payload['errors'], contains(contains('complete Support Scope')));
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,
   );
@@ -476,7 +527,7 @@ package:
   );
 
   test(
-    'simulates a complete AI adaptation repair and delivery flow',
+    'simulates a complete AI support repair and delivery flow',
     () async {
       final root = await createTempRoot();
       addTearDown(() => root.delete(recursive: true));
@@ -487,6 +538,19 @@ kind: package
 
 sdk:
   version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: https://github.com/FlutterOH/camera.git
+    branch: ohos/3.35/camera
+
+origin:
+  kind: ported
+
+upstream:
+  git:
+    url: https://github.com/flutter/packages.git
+    branch: main
 
 package:
   name: camera
@@ -528,17 +592,8 @@ package:
       expect(
         commandQueue.map((item) => item['command']).toList(),
         containsAllInOrder([
-          'fluoh verify --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh build ohos --package camera --auto-sign --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh run ohos --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh doctor --platform android --json --strict',
-          'fluoh run android --package camera --auto-emulator --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh doctor --platform web --json --strict',
-          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh report create --scope camera --package camera --trace-dir .fluoh/traces/camera/adaptation --json',
-          'python3 <skill-dir>/scripts/check_report.py <report-path>',
+          'fluoh package next --package camera --json',
+          'fluoh package status --package camera --json',
           'fluoh package handoff --package camera --json',
           'fluoh package check --package camera --report <report-path> --json',
         ]),
@@ -557,9 +612,9 @@ package:
       expect(
         stringList(deliveryGate['finalCheckCommands']),
         containsAll([
-          'fluoh drive ohos --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
-          'fluoh run web --package camera --json --trace-dir .fluoh/traces/camera/adaptation',
+          'fluoh drive ohos --package camera --json --trace',
+          'fluoh drive android --package camera --json --trace',
+          'fluoh run web --package camera --json --trace',
           'fluoh package check --package camera --report <report-path> --json',
         ]),
       );
@@ -606,9 +661,9 @@ package:
 - Target requirement: emulator
 - Required local tools: Android emulator, Flutter VM Service
 - Observation mode: flutter-debug | semantics-tree | log-marker
-- Related command: fluoh run android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json
-- Session file command, when supported: fluoh run android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json
-- Session inspect command, when supported: python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 30 --expect-platform android --require-vm-service
+- Related command: fluoh run android --package camera --auto-emulator --session-file .fluoh/tasks/camera-support/evidence/sessions/android-session.json --json
+- Session file command, when supported: fluoh run android --package camera --auto-emulator --session-file .fluoh/tasks/camera-support/evidence/sessions/android-session.json --json
+- Session inspect command, when supported: python3 skills/fluoh/scripts/inspect_session.py .fluoh/tasks/camera-support/evidence/sessions/android-session.json --wait 30 --expect-platform android --require-vm-service
 
 ## Preconditions
 
@@ -654,7 +709,7 @@ package:
 ''');
 
       final sessionFile = File(
-        '${root.path}/.fluoh/run-sessions/camera/android-session.json',
+        '${root.path}/.fluoh/tasks/camera-support/evidence/sessions/android-session.json',
       );
       await sessionFile.parent.create(recursive: true);
       await sessionFile.writeAsString(
@@ -723,7 +778,7 @@ package:
 
 ## Summary
 
-- Adaptation flow simulated from preflight through functional evidence and report validation.
+- Support flow simulated from preflight through functional evidence and report validation.
 - The first ready report intentionally failed automation coverage validation; the simulated AI loop repaired the coverage gate, reran report validation, and continued to handoff/check evidence.
 
 ## Changes
@@ -749,14 +804,14 @@ package:
 | `python3 skills/fluoh/scripts/preflight.py ${root.path} --package camera` | 0 | passed | package repository detected, camera selected |
 | `fluoh verify --package camera --json` | 0 | passed | pub get, analyze, and tests passed in simulated evidence |
 | `fluoh build ohos --package camera --auto-sign --json` | 0 | passed | signed debug HAP built |
-| `fluoh run ohos --package camera --auto-emulator --json` | 0 | passed | debug signing prepared, flutter run launched, session evidence recorded; post-launch screenshot .fluoh/evidence/screenshots/camera-ohos-main.png captured |
-| `fluoh run android --package camera --auto-emulator --session-file .fluoh/run-sessions/camera/android-session.json --json` | 0 | passed | launch detected and session file written |
+| `fluoh run ohos --package camera --auto-emulator --json` | 0 | passed | debug signing prepared, flutter run launched, session evidence recorded; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-ohos-main.png captured |
+| `fluoh run android --package camera --auto-emulator --session-file .fluoh/tasks/camera-support/evidence/sessions/android-session.json --json` | 0 | passed | launch detected and session file written |
 | `fluoh run web --package camera --json` | 0 | passed | Web example smoke and regression check passed |
-| `fluoh drive android --package camera --json --trace-dir .fluoh/traces/camera/adaptation` | 0 | passed | mobile automation coverage gates ready; Android scenario ${scenario.path} passed; post-launch screenshot .fluoh/evidence/screenshots/camera-android-main.png captured |
-| `python3 skills/fluoh/scripts/inspect_session.py .fluoh/run-sessions/camera/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
-| `python3 skills/fluoh/scripts/check_report.py .fluoh/reports/camera/report-1780401600301.md` | 0 | passed | repaired report passed delivery validation |
+| `fluoh drive android --package camera --json --trace` | 0 | passed | mobile automation coverage gates ready; Android scenario ${scenario.path} passed; post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-android-main.png captured |
+| `python3 skills/fluoh/scripts/inspect_session.py .fluoh/tasks/camera-support/evidence/sessions/android-session.json --wait 1 --expect-platform android --require-vm-service` | 0 | passed | VM Service URI detected for non-visual inspection |
+| `python3 skills/fluoh/scripts/check_report.py .fluoh/tasks/camera-support/reports/report-1780401600301.md` | 0 | passed | repaired report passed delivery validation |
 | `fluoh package handoff --package camera --json` | 0 | passed | latest report and next commands surfaced |
-| `fluoh package check --package camera --report .fluoh/reports/camera/report-1780401600301.md --json` | 0 | passed | release metadata validated |
+| `fluoh package check --package camera --report .fluoh/tasks/camera-support/reports/report-1780401600301.md --json` | 0 | passed | release metadata validated |
 
 ## Delivery Checklist
 
@@ -764,14 +819,16 @@ package:
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
-- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
-- [x] OHOS build evidence recorded.
-- [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
+- [x] Target-platform build evidence recorded, including OHOS when in scope.
+- [x] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Pub.dev publishability checked with `dart pub publish --dry-run`, or a concrete not-applicable reason is recorded.
+- [x] FlutterOH support checked with fluoh verify/build/run/drive/report gates.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 - [x] Interaction automation evidence recorded through a passed `flutter test integration_test -d <device>` command or real `fluoh drive --json`, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
-- [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
+- [x] Public API, dependency constraints, and existing-platform regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.
 
 ## Platform Matrix
@@ -796,7 +853,7 @@ package:
 | --- | --- | --- |
 | coverage-inventory | readyForReview | public API and interaction inventory reviewed |
 | coverage-metadata | readyForReview | scenario coverage metadata reviewed |
-| coverage-items | readyForReview | every applicable capability has a coverage row |
+| coverage-items | readyForReview | every applicable scope entry has a coverage row |
 | capability-inventory-coverage | readyForReview | camera permission fallback scenario covers applicable capability rows |
 | blocked-coverage | readyForReview | no blocked rows remain |
 | scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
@@ -809,7 +866,7 @@ package:
 
 | Scenario | Method | Platform | Target | Result | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| `${scenario.path}` | AI-assisted | Android | emulator-5554 | passed | camera permission denied fallback verified through VM Service attach hint, semantic label cameraPermissionDenied, log marker camera.permissionDenied, session ${sessionFile.path}, post-launch screenshot .fluoh/evidence/screenshots/camera-android-main.png |
+| `${scenario.path}` | AI-assisted | Android | emulator-5554 | passed | camera permission denied fallback verified through VM Service attach hint, semantic label cameraPermissionDenied, log marker camera.permissionDenied, session ${sessionFile.path}, post-launch screenshot .fluoh/tasks/camera-support/evidence/screenshots/camera-android-main.png |
 
 ## Diagnostics
 
@@ -823,7 +880,7 @@ No fluoh feedback: diagnostics were actionable and no tool or Source gap was fou
 
 - Mode: automatic debug signing
 - Generated HAPs (build-only when applicable): camera-ohos-debug.hap
-- Run session / output log: .fluoh/run-sessions/camera/ohos-session.json
+- Run session / output log: .fluoh/tasks/camera-support/evidence/sessions/ohos-session.json
 - Hilog (drive/debug scenarios only): no crash marker detected
 
 ## Remaining Risks
@@ -952,6 +1009,17 @@ Future<File> _writeMinimalIntegrationReport(
 - Dependency constraint changes: none
 - Non-OHOS regression risk: none
 
+## Support Scope
+
+- path: doc/fluoh/camera/scope.yaml
+- exists: true
+- planningReady: true
+- functionalEvidenceReady: true
+- complete: true
+- p0: total=1, supportedOrDegraded=1, functionalEvidence=1
+
+No support scope issues: P0 planning and functional evidence gates are complete.
+
 ## Official Platform Basis
 
 | Topic | Source | Decision / impact |
@@ -970,15 +1038,18 @@ $integrationCommand
 - [x] Diff reviewed; unrelated files, local paths, generated caches, credentials, and private tokens excluded.
 - [x] Commands table includes exit codes and enough evidence to reproduce the decision.
 - [x] Existing package/app tests, example tests, and `integration_test/` were inspected against public API, platform interfaces, permissions, and behavior paths before final verification.
+- [x] P0 support scope includes per-platform support decisions, platform API basis or reasons, implementation plans where required, test cases, and functional or regression evidence.
 - [x] Missing or weak functional tests were added or repaired before final verification, or a concrete blocker is recorded.
-- [x] Official OHOS/platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
-- [x] OHOS build evidence recorded.
-- [x] OHOS run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Official platform documentation basis was reviewed before implementation, or a concrete unavailable/not-applicable reason is recorded.
+- [x] Target-platform build evidence recorded, including OHOS when in scope.
+- [x] Target-platform run evidence recorded, or the missing device/emulator blocker is explicit.
+- [x] Pub.dev publishability checked with `dart pub publish --dry-run`, or a concrete not-applicable reason is recorded.
+- [x] FlutterOH support checked with fluoh verify/build/run/drive/report gates.
 - [x] Android, iOS, macOS, Linux, Web, and Windows regression checks recorded when relevant.
 - [x] Every existing Android, iOS, macOS, Linux, Web, and Windows platform was functionally checked when supported by the current host/toolchain, or exact diagnostic evidence and skip reason are recorded.
 - [x] Interaction automation evidence recorded through integration_test or real fluoh drive JSON, with no unresolved ready-blocking gates.
 - [x] Functional interaction evidence recorded for permission, file, camera, location, media, deep link, external-app, or other device workflows.
-- [x] Public API, dependency constraints, and non-OHOS regression risk reviewed.
+- [x] Public API, dependency constraints, and existing-platform regression risk reviewed.
 - [x] Remaining risks and release decision are explicit.
 
 ## Platform Matrix
@@ -1001,7 +1072,7 @@ $integrationCommand
 | coverage-inventory | readyForReview | package API and example inventory reviewed |
 | coverage-metadata | readyForReview | scenario metadata reviewed |
 | coverage-items | readyForReview | all applicable capability rows reviewed |
-| capability-inventory-coverage | readyForReview | package capabilities covered |
+| capability-inventory-coverage | readyForReview | package scope covered |
 | blocked-coverage | readyForReview | no blocked rows remain |
 | scenario-evidence-assertions | readyForReview | covered scenarios use functional interaction evidence such as assertText/waitText/assertLog; assertSession and screenshots are launch evidence only |
 | page-readiness | readyForReview | post-launch functional page state asserted or no launch scenario required |

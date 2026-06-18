@@ -445,23 +445,23 @@ DependencyPlanEntry _entryFor(
     DependencyStatus.native => DependencyPlanEntry(
       dependency: dependency,
       status: DependencyPlanStatus.native,
-      reason: 'Native OHOS support is available.',
+      reason: 'Native FlutterOH support is available.',
     ),
     DependencyStatus.blocked => DependencyPlanEntry(
       dependency: dependency,
       status: DependencyPlanStatus.blocked,
-      reason: 'Configured sources mark this package as blocked for OHOS.',
+      reason: 'Configured sources mark this package as blocked for FlutterOH.',
     ),
     DependencyStatus.sdkMismatch => DependencyPlanEntry(
       dependency: dependency,
       status: DependencyPlanStatus.sdkMismatch,
       reason:
-          'OHOS implementations exist, but not for the selected FlutterOH SDK.',
+          'FlutterOH implementations exist, but not for the selected FlutterOH SDK.',
     ),
     DependencyStatus.unknown => DependencyPlanEntry(
       dependency: dependency,
       status: DependencyPlanStatus.unknown,
-      reason: 'No known OHOS implementation is available.',
+      reason: 'No known FlutterOH implementation is available.',
     ),
   };
 }
@@ -502,7 +502,7 @@ DependencyPlanEntry _updateExistingEntry(
       dependency: dependency,
       status: DependencyPlanStatus.unknown,
       reason:
-          'No compatible OHOS implementation is available for the selected SDK.',
+          'No compatible FlutterOH implementation is available for the selected SDK.',
     );
   }
 
@@ -556,7 +556,7 @@ DependencyPlanEntry _addImplementationEntry(
     return DependencyPlanEntry(
       dependency: dependency,
       status: DependencyPlanStatus.ready,
-      reason: 'A matching OHOS implementation is available.',
+      reason: 'A matching FlutterOH implementation is available.',
       recommendedAction: 'write-override',
       changes: [
         PubspecDependencyChange.writeOverride(
@@ -570,7 +570,7 @@ DependencyPlanEntry _addImplementationEntry(
   return DependencyPlanEntry(
     dependency: dependency,
     status: DependencyPlanStatus.ready,
-    reason: 'A matching OHOS implementation is available.',
+    reason: 'A matching FlutterOH implementation is available.',
     recommendedAction: 'rewrite-dependency',
     changes: [
       PubspecDependencyChange.rewriteDependency(
@@ -589,7 +589,7 @@ DependencyPlanEntry _incompatibleVersionEntry(
     dependency: dependency,
     status: DependencyPlanStatus.incompatibleVersion,
     reason:
-        'OHOS implementation targets upstream ${implementation.upstreamVersion}, but pubspec.lock '
+        'FlutterOH implementation targets upstream ${implementation.upstreamVersion}, but pubspec.lock '
         'uses ${dependency.version}.',
   );
 }
@@ -621,17 +621,18 @@ String implementationUpstreamVersionChange(
 
 String _reasonForDependencyStatus(DependencyStatus status) {
   return switch (status) {
-    DependencyStatus.native => 'Native OHOS support is available.',
+    DependencyStatus.native => 'Native FlutterOH support is available.',
     DependencyStatus.implemented =>
-      'A matching OHOS implementation is available.',
+      'A matching FlutterOH implementation is available.',
     DependencyStatus.versionUpgrade =>
-      'A compatible OHOS implementation upgrade is available.',
+      'A compatible FlutterOH implementation upgrade is available.',
     DependencyStatus.incompatibleVersion =>
-      'OHOS implementation upstream version differs.',
+      'FlutterOH implementation upstream version differs.',
     DependencyStatus.sdkMismatch =>
-      'OHOS implementations exist, but not for the selected FlutterOH SDK.',
-    DependencyStatus.unknown => 'No known OHOS implementation is available.',
+      'FlutterOH implementations exist, but not for the selected FlutterOH SDK.',
+    DependencyStatus.unknown =>
+      'No known FlutterOH implementation is available.',
     DependencyStatus.blocked =>
-      'Configured sources mark this package as blocked for OHOS.',
+      'Configured sources mark this package as blocked for FlutterOH.',
   };
 }

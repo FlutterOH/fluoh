@@ -39,6 +39,7 @@ class VerifyCommand extends FluohCommand<int> {
     final output = _outputFor(json, _output);
     final stdout = json ? (_) {} : _stdout;
     final stderr = json ? (_) {} : _stderr;
+    final traceOptions = _traceOptionsFrom(argResults!);
     final beforeStatus = await _gitStatusSnapshot(environment.workingDirectory);
     final results = await _runPackageOrProject(
       environment: environment,
@@ -47,8 +48,13 @@ class VerifyCommand extends FluohCommand<int> {
       stdout: stdout,
       stderr: stderr,
       usage: usage,
-      invocationForPackage: (package) =>
-          _PackageWorkflowInvocation(phase: 'baseline'),
+      invocationForPackage: (package) => _PackageWorkflowInvocation(
+        phase: 'baseline',
+        traceDir: traceOptions.directory?.path,
+      ),
+      projectInvocation: _ProjectWorkflowInvocation.baseline(
+        traceDir: traceOptions.directory?.path,
+      ),
     );
     final workingTreeChanges = await _workingTreeChangesAfterWorkflow(
       environment.workingDirectory,
@@ -61,7 +67,7 @@ class VerifyCommand extends FluohCommand<int> {
       command: 'verify',
       arguments: argResults!.arguments,
       results: results,
-      traceOptions: _traceOptionsFrom(argResults!),
+      traceOptions: traceOptions,
       extraFields: workingTreeChanges.toJson(),
     );
     final exitCode = _firstFailure(results);

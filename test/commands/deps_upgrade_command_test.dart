@@ -7,67 +7,72 @@ import 'package:test/test.dart';
 import '../helpers/fluoh_command_context.dart';
 
 void main() {
-  test('deps upgrade updates existing OHOS implementation overrides', () async {
-    final environment = await createTestEnvironment();
-    final source = await createPackageSourceFixture(environment.homeDirectory);
-    await writeFlutterProjectWithImplementationOverrideFixture(
-      environment.workingDirectory,
-    );
-    final stdout = <String>[];
-    final stderr = <String>[];
+  test(
+    'deps upgrade updates existing FlutterOH implementation overrides',
+    () async {
+      final environment = await createTestEnvironment();
+      final source = await createPackageSourceFixture(
+        environment.homeDirectory,
+      );
+      await writeFlutterProjectWithImplementationOverrideFixture(
+        environment.workingDirectory,
+      );
+      final stdout = <String>[];
+      final stderr = <String>[];
 
-    await runFluoh(
-      ['source', 'add', 'fixture', source.path],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-    await runFluoh(
-      ['sdk', 'use', '3.35.8-ohos-0.0.3'],
-      environment: environment,
-      stdout: stdout.add,
-      stderr: stderr.add,
-    );
-
-    expect(
       await runFluoh(
-        ['deps', 'upgrade', '--dry-run'],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      0,
-    );
-    var pubspec = File(
-      '${environment.workingDirectory.path}/pubspec.yaml',
-    ).readAsStringSync();
-    expect(pubspec, contains('camera-0.11.0-ohos-3.35-0'));
-
-    expect(
+      );
       await runFluoh(
-        ['deps', 'upgrade'],
+        ['sdk', 'use', '3.35.8-ohos-0.0.3'],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      ),
-      0,
-    );
+      );
 
-    pubspec = File(
-      '${environment.workingDirectory.path}/pubspec.yaml',
-    ).readAsStringSync();
-    expect(
-      stdout,
-      contains(
-        'Would update camera camera-0.11.0-ohos-3.35-0 -> camera-0.11.0-ohos-3.35-1.0.0',
-      ),
-    );
-    expect(stdout, contains('Updated 1 FlutterOH dependency replacement'));
-    expect(stdout, contains('Next: run `fluoh deps get`'));
-    expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
-    expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-0')));
-    expect(stderr, isEmpty);
-  });
+      expect(
+        await runFluoh(
+          ['deps', 'upgrade', '--dry-run'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+      var pubspec = File(
+        '${environment.workingDirectory.path}/pubspec.yaml',
+      ).readAsStringSync();
+      expect(pubspec, contains('camera-0.11.0-ohos-3.35-0'));
+
+      expect(
+        await runFluoh(
+          ['deps', 'upgrade'],
+          environment: environment,
+          stdout: stdout.add,
+          stderr: stderr.add,
+        ),
+        0,
+      );
+
+      pubspec = File(
+        '${environment.workingDirectory.path}/pubspec.yaml',
+      ).readAsStringSync();
+      expect(
+        stdout,
+        contains(
+          'Would update camera camera-0.11.0-ohos-3.35-0 -> camera-0.11.0-ohos-3.35-1.0.0',
+        ),
+      );
+      expect(stdout, contains('Updated 1 FlutterOH dependency replacement'));
+      expect(stdout, contains('Next: run `fluoh deps get`'));
+      expect(pubspec, contains('camera-0.11.0-ohos-3.35-1.0.0'));
+      expect(pubspec, isNot(contains('camera-0.11.0-ohos-3.35-0')));
+      expect(stderr, isEmpty);
+    },
+  );
 
   test('emits json for dry-run and applied upgrades', () async {
     final environment = await createTestEnvironment();
@@ -79,7 +84,7 @@ void main() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -182,7 +187,7 @@ dependency_overrides:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -248,7 +253,7 @@ dependency_overrides:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -304,7 +309,7 @@ dependencies:
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -334,7 +339,7 @@ dependencies:
   });
 
   test(
-    'upgrades existing refs to compatible OHOS implementation upgrades',
+    'upgrades existing refs to compatible FlutterOH implementation upgrades',
     () async {
       final environment = await createTestEnvironment();
       final source = await createPackageSourceFixture(
@@ -344,6 +349,7 @@ dependencies:
       await manifest.writeAsString(
         '${manifest.readAsStringSync()}'
         '        - version: 1.0.0\n'
+        '          tag: share_plus-10.1.0-ohos-3.35-1.0.0\n'
         '          upstream:\n'
         '            version: 10.1.0\n'
         '            ref: share_plus-v10.1.0\n'
@@ -370,7 +376,7 @@ dependency_overrides:
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,

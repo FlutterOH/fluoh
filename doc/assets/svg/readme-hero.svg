@@ -1,5 +1,5 @@
 <svg width="900" height="324" viewBox="0 0 900 324" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision" text-rendering="optimizeLegibility">
-  <title id="title">fluoh AI adaptation prompt</title>
+  <title id="title">fluoh AI support prompt</title>
   <desc id="desc">A short prompt asks an AI agent to use fluoh, then fluoh installs tools, detects the workspace, pins the SDK, fixes dependencies, verifies the build, and saves a report.</desc>
   <defs>
     <linearGradient id="searchFill" x1="121" y1="132" x2="779" y2="210" gradientUnits="userSpaceOnUse">
@@ -18,7 +18,7 @@
 
   <g>
     <rect x="121" y="132" width="658" height="78" rx="39" fill="url(#searchFill)" stroke="#CBD5E1" stroke-width="2"/>
-    <text x="162" y="177" class="mono" fill="#1E293B" font-size="16">Use $fluoh to add OHOS to this Flutter project.</text>
+    <text x="162" y="177" class="mono" fill="#1E293B" font-size="16">Use $fluoh to add FlutterOH support to this project.</text>
     <g>
       <circle cx="740" cy="171" r="24" fill="#2563EB"/>
       <path d="M740 180V162" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>

@@ -5,9 +5,8 @@ import 'dart:io';
 import '../context/fluoh_environment.dart';
 import '../platform/ohos/ohos_toolchain.dart';
 import '../sdk/sdk_project_environment.dart';
+import '../task/task_workspace.dart';
 import 'workflow_tool_discovery.dart';
-
-const _postLaunchScreenshotDirectory = '.fluoh/evidence/screenshots';
 
 /// Result from best-effort mobile post-launch evidence collection.
 class MobileRunEvidenceResult {
@@ -306,10 +305,10 @@ Future<File> _postLaunchScreenshotFile(
   required String extension,
 }) async {
   await ensureFluohLocalStateIgnored(environment.workingDirectory);
-  final directory = Directory(
-    '${environment.workingDirectory.path}${Platform.pathSeparator}'
-    '${_postLaunchScreenshotDirectory.replaceAll('/', Platform.pathSeparator)}',
-  );
+  final task = await TaskWorkspace(
+    environment,
+  ).resolveOrCreate(type: 'run', scopeName: scopeName);
+  final directory = task.screenshotDirectory;
   await directory.create(recursive: true);
   return File(
     '${directory.path}${Platform.pathSeparator}'

@@ -1,6 +1,6 @@
-part of 'package_create_command_test.dart';
+part of 'package_repository_command_test.dart';
 
-void _registerPackageCreateCoreSelectionTests() {
+void _registerPackageRepositorySelectionTests() {
   test(
     'rejects per-package release tags from different monorepo commits',
     () async {
@@ -34,7 +34,7 @@ void _registerPackageCreateCoreSelectionTests() {
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -44,7 +44,7 @@ void _registerPackageCreateCoreSelectionTests() {
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--repository-name',
             'camera',
@@ -65,7 +65,7 @@ void _registerPackageCreateCoreSelectionTests() {
       );
 
       final error = stderr.join('\n');
-      expect(error, contains('package create creates one package branch'));
+      expect(error, contains('package port creates one package branch'));
       expect(error, contains('fluoh package add <package-path>'));
       expect(packageRepository.existsSync(), isFalse);
     },
@@ -94,7 +94,7 @@ void _registerPackageCreateCoreSelectionTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -103,7 +103,7 @@ void _registerPackageCreateCoreSelectionTests() {
     final exitCode = await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.absolute.uri.toString(),
         '--repository-name',
         'camera',
@@ -120,7 +120,7 @@ void _registerPackageCreateCoreSelectionTests() {
     );
     if (exitCode != 0) {
       fail(
-        'package create exited $exitCode\nstdout:\n${stdout.join('\n')}\n'
+        'package port exited $exitCode\nstdout:\n${stdout.join('\n')}\n'
         'stderr:\n${stderr.join('\n')}',
       );
     }
@@ -140,8 +140,8 @@ void _registerPackageCreateCoreSelectionTests() {
     expect(
       output,
       contains(
-        'Keep adapting the selected upstream target camera-v0.12.0+1. '
-        'Adapt the package pubspec, example config, and Dart code to the '
+        'Keep using the selected upstream target camera-v0.12.0+1. '
+        'Update the package pubspec, example config, and Dart code to the '
         'selected FlutterOH SDK Dart 3.9.2',
       ),
     );
@@ -161,7 +161,7 @@ void _registerPackageCreateCoreSelectionTests() {
     final planExitCode = await runFluoh(
       [
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -180,7 +180,7 @@ void _registerPackageCreateCoreSelectionTests() {
     );
     if (planExitCode != 0) {
       fail(
-        'package create plan exited $planExitCode\n'
+        'package port plan exited $planExitCode\n'
         'stdout:\n${stdout.join('\n')}\nstderr:\n${stderr.join('\n')}',
       );
     }
@@ -203,7 +203,7 @@ void _registerPackageCreateCoreSelectionTests() {
     });
     expect(warnings.single['sdk'], {'dartVersion': '3.9.2'});
     expect(warnings.single['policy'], {
-      'defaultAction': 'adapt-selected-upstream-to-selected-sdk',
+      'defaultAction': 'implement-selected-upstream-for-selected-sdk',
       'keepSelectedUpstream': true,
       'adjustPackageForSelectedSdk': true,
       'suggestedEnvironmentSdkConstraint': '>=3.9.0 <4.0.0',
@@ -231,7 +231,7 @@ void _registerPackageCreateCoreSelectionTests() {
     final transient = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -263,7 +263,7 @@ void _registerPackageCreateCoreSelectionTests() {
     expect(
       await runner.run([
         'package',
-        'create',
+        'port',
         upstream.path,
         '--repository-name',
         'camera',
@@ -329,10 +329,7 @@ void _registerPackageCreateCoreSelectionTests() {
         Directory('${environment.homeDirectory.path}/upstream_ignored_outputs'),
       );
       await File('${upstream.path}/.gitignore').writeAsString('''
-AGENTS.md
-CLAUDE.md
 FLUOH.md
-FLUOH_CHANGELOG.md
 fluoh.yaml
 ''');
       await runGit(upstream, ['add', '.gitignore']);
@@ -344,7 +341,7 @@ fluoh.yaml
       final stderr = <String>[];
 
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['source', 'enable', 'fixture', source.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
@@ -354,7 +351,7 @@ fluoh.yaml
         await runFluoh(
           [
             'package',
-            'create',
+            'port',
             upstream.path,
             '--repository-name',
             'camera',
@@ -378,15 +375,15 @@ fluoh.yaml
       expect(
         staged.stdout.toString().split('\n'),
         containsAll([
-          'AGENTS.md',
-          'CLAUDE.md',
           'FLUOH.md',
-          'FLUOH_CHANGELOG.md',
-          'README.md',
           '.gitignore',
           'fluoh.yaml',
+          'doc/fluoh/camera/spec.md',
         ]),
       );
+      expect(staged.stdout.toString(), isNot(contains('AGENTS.md')));
+      expect(staged.stdout.toString(), isNot(contains('CLAUDE.md')));
+      expect(staged.stdout.toString(), isNot(contains('README.md')));
       expect(staged.stdout.toString(), isNot(contains('.fluoh')));
       expect(stderr, isEmpty);
     },

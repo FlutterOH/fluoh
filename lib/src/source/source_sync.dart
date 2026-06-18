@@ -25,8 +25,8 @@ Future<void> ensureSourceSnapshots(
     if (source.url == null) {
       if (state == _SnapshotState.missing) {
         throw UsageException(
-          'Source ${entry.key} cache is missing. Re-add the local source with '
-              '"fluoh source add ${entry.key} <path>".',
+          'Source ${entry.key} cache is missing. Re-enable the local source with '
+              '"fluoh source enable ${entry.key} <path>".',
           '',
         );
       }
@@ -43,8 +43,8 @@ Future<void> ensureSourceSnapshots(
 
   if (!await _hasReadableSource(config)) {
     throw UsageException(
-      'No readable data source index found. Run "fluoh source update" or '
-          '"fluoh source add <name> <path>".',
+      'No readable data source index found. Run "fluoh source update" for '
+          'configured Sources, or enable a Source with "fluoh source enable <name> <path>".',
       '',
     );
   }

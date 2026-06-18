@@ -157,14 +157,72 @@ List<String> _targeted(String targetId, List<String> arguments) {
 
 Future<OhosHdcResult> _runHdc(
   OhosToolchain toolchain,
-  List<String> arguments,
-) async {
-  final result = await io.Process.run(toolchain.hdc.path, arguments);
-  return OhosHdcResult(
-    exitCode: result.exitCode,
-    stdout: result.stdout.toString(),
-    stderr: result.stderr.toString(),
-  );
+  List<String> arguments, {
+  required Duration timeout,
+}) async {
+  io.Process? process;
+  final stdoutBuffer = StringBuffer();
+  final stderrBuffer = StringBuffer();
+  final drains = <Future<void>>[];
+  try {
+    process = await io.Process.start(toolchain.hdc.path, arguments);
+    drains
+      ..add(
+        process.stdout
+            .transform(const Utf8Decoder(allowMalformed: true))
+            .listen(stdoutBuffer.write)
+            .asFuture<void>(),
+      )
+      ..add(
+        process.stderr
+            .transform(const Utf8Decoder(allowMalformed: true))
+            .listen(stderrBuffer.write)
+            .asFuture<void>(),
+      );
+    final exitCode = await process.exitCode.timeout(timeout);
+    await _drainHdcStreams(drains);
+    return OhosHdcResult(
+      exitCode: exitCode,
+      stdout: stdoutBuffer.toString(),
+      stderr: stderrBuffer.toString(),
+    );
+  } on TimeoutException {
+    process?.kill();
+    try {
+      await process?.exitCode.timeout(const Duration(seconds: 1));
+    } on Object {
+      process?.kill(io.ProcessSignal.sigkill);
+    }
+    await _drainHdcStreams(drains);
+    final stderr = stderrBuffer.toString();
+    return OhosHdcResult(
+      exitCode: 124,
+      stdout: stdoutBuffer.toString(),
+      stderr:
+          '${stderr.trimRight()}${stderr.trim().isEmpty ? '' : '\n'}'
+          'Timed out after ${timeout.inSeconds}s running hdc ${arguments.join(' ')}',
+    );
+  }
+}
+
+Duration _ohosHdcCommandTimeout(Map<String, String> environment) {
+  final raw = environment['FLUOH_OHOS_HDC_TIMEOUT_SECONDS']?.trim();
+  if (raw == null || raw.isEmpty) {
+    return const Duration(seconds: 10);
+  }
+  final seconds = int.tryParse(raw);
+  if (seconds == null || seconds <= 0) {
+    return const Duration(seconds: 10);
+  }
+  return Duration(seconds: seconds);
+}
+
+Future<void> _drainHdcStreams(List<Future<void>> drains) async {
+  try {
+    await Future.wait(drains).timeout(const Duration(seconds: 1));
+  } on Object {
+    // hdc output is diagnostic only after exit or timeout.
+  }
 }
 
 Future<void> _runHdcBestEffort(
@@ -233,6 +291,11 @@ bool _containsHdcOutputFragment(OhosHdcResult result, List<String> fragments) {
   return fragments.any(output.contains);
 }
 
+bool _isHdcTimeout(OhosHdcResult result) {
+  return result.exitCode == 124 &&
+      _containsHdcOutputFragment(result, const ['timed out after']);
+}
+
 OhosDeviceDiagnostic _hdcFailureDiagnostic({
   required String defaultCode,
   required String defaultMessage,
@@ -243,11 +306,14 @@ OhosDeviceDiagnostic _hdcFailureDiagnostic({
 }) {
   final code = _isHdcConnectionFailure(result)
       ? 'ohos.hdc_connection_failed'
+      : _isHdcTimeout(result)
+      ? 'ohos.hdc_timeout'
       : _isHdcTargetUnavailable(result)
       ? 'ohos.hdc_target_unavailable'
       : defaultCode;
   final message = switch (code) {
     'ohos.hdc_connection_failed' => 'OHOS hdc connection failed',
+    'ohos.hdc_timeout' => 'OHOS hdc command timed out',
     'ohos.hdc_target_unavailable' => 'OHOS hdc target became unavailable',
     _ => defaultMessage,
   };
@@ -309,9 +375,11 @@ Future<io.File> _writeHilog({
   required OhosLaunchInfo launchInfo,
   required String content,
 }) async {
+  final task = await TaskWorkspace(
+    environment,
+  ).resolveOrCreate(type: 'run', scopeName: launchInfo.bundleName);
   final directory = io.Directory(
-    '${environment.packageRunsDirectory.path}/'
-    '${_safePathSegment(launchInfo.bundleName)}',
+    '${task.logDirectory.path}/${_safePathSegment(launchInfo.bundleName)}',
   );
   await directory.create(recursive: true);
   final timestamp = DateTime.now()

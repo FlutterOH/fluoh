@@ -1,6 +1,82 @@
 part of 'source_command_test.dart';
 
 void _registerSourceCommandSyncTests() {
+  test('source register adds a created package release', () async {
+    final environment = await createTestEnvironment();
+    final source = Directory('${environment.homeDirectory.path}/local_source');
+    final packageRepository = Directory(
+      '${environment.homeDirectory.path}/sensors_ohos',
+    );
+    final stdout = <String>[];
+    final stderr = <String>[];
+
+    await runFluoh(
+      ['source', 'init', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    await packageRepository.create(recursive: true);
+    await File('${packageRepository.path}/fluoh.yaml').writeAsString('''
+schema: 1
+kind: package
+
+sdk:
+  version: 3.35.8-ohos-0.0.3
+
+repository:
+  git:
+    url: "https://github.com/FlutterOH/sensors_ohos.git"
+    branch: ohos/3.35/sensors_ohos
+
+origin:
+  kind: created
+
+package:
+  name: sensors_ohos
+  path: .
+  release:
+    version: "0.1.0"
+    status: experimental
+''');
+    stdout.clear();
+
+    expect(
+      await runFluoh(
+        [
+          'source',
+          'register',
+          packageRepository.path,
+          '--source',
+          source.path,
+          '--json',
+        ],
+        environment: environment,
+        stdout: stdout.add,
+        stderr: stderr.add,
+      ),
+      0,
+    );
+
+    expect(stderr, isEmpty);
+    final payload = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(payload, containsPair('command', 'source register'));
+    expect(payload, containsPair('package', 'sensors_ohos'));
+    expect(payload, containsPair('tag', 'sensors_ohos-ohos-3.35-0.1.0'));
+    expect(payload, containsPair('status', 'registered'));
+    expect(
+      File('${source.path}/fluoh.yaml').readAsStringSync(),
+      contains('manifests:\n  - name: sensors_ohos'),
+    );
+    final manifest = File(
+      '${source.path}/manifests/sensors_ohos/fluoh.yaml',
+    ).readAsStringSync();
+    expect(manifest, contains('origin:\n  kind: created'));
+    expect(manifest, contains('tag: sensors_ohos-ohos-3.35-0.1.0'));
+    expect(manifest, contains('status: experimental'));
+    expect(manifest, isNot(contains('\nupstream:')));
+  });
+
   test('source sync imports released package repository manifests', () async {
     final environment = await createTestEnvironment();
     final source = Directory('${environment.homeDirectory.path}/local_source');
@@ -521,6 +597,9 @@ repository:
   git:
     url: ${packageRepository.path}
 
+origin:
+  kind: ported
+
 upstream:
   git:
     url: https://github.com/flutter/packages
@@ -532,6 +611,7 @@ package:
     "3.35":
       releases:
         - version: "1.0.0"
+          tag: camera-0.11.0-ohos-3.35-1.0.0
           upstream:
             version: "0.11.0"
             ref: "1111111111111111111111111111111111111111"
@@ -751,7 +831,7 @@ package:
   );
 
   test(
-    'source check rejects explicit release tag fields',
+    'source check rejects missing release tag fields',
     () async {
       final environment = await createTestEnvironment();
       final root = environment.homeDirectory;
@@ -793,10 +873,9 @@ manifests: []
               version: "0.11.0"
               ref: "1111111111111111111111111111111111111111"
               commit: "1111111111111111111111111111111111111111"
-            tag: camera-0.11.0-ohos-3.35-1.0.0
 ''',
       );
-      await commitAll(source, message: 'Add forbidden camera release tag');
+      await commitAll(source, message: 'Add camera release without tag');
 
       expect(
         await runFluoh(
@@ -822,9 +901,7 @@ manifests: []
       expect(report, containsPair('recommendation', 'blocked'));
       expect(
         report['errors'],
-        contains(
-          contains('package sdks.3.35 releases[0] must not contain "tag"'),
-        ),
+        contains(contains('Expected "tag" to be a non-empty value.')),
       );
     },
     skip: Platform.isWindows ? 'uses POSIX test executables' : false,

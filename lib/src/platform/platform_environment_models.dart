@@ -24,6 +24,32 @@ enum FluohPlatform {
   windows,
 }
 
+/// Supported workflow platforms in the user-facing default order.
+const supportedFluohPlatforms = <FluohPlatform>[
+  FluohPlatform.ohos,
+  FluohPlatform.android,
+  FluohPlatform.ios,
+  FluohPlatform.macos,
+  FluohPlatform.linux,
+  FluohPlatform.web,
+  FluohPlatform.windows,
+];
+
+/// Supported workflow platform CLI names.
+final List<String> fluohPlatformCliNames = List.unmodifiable(
+  supportedFluohPlatforms.map((platform) => platform.cliName),
+);
+
+/// Platform option values accepted by commands with `--platform`.
+final List<String> fluohPlatformOptionValues = List.unmodifiable([
+  'all',
+  ...fluohPlatformCliNames,
+]);
+
+final Map<String, FluohPlatform> _fluohPlatformByCliName = Map.unmodifiable({
+  for (final platform in supportedFluohPlatforms) platform.cliName: platform,
+});
+
 /// Convenience methods for [FluohPlatform].
 extension FluohPlatformName on FluohPlatform {
   /// Lowercase command-line name for this platform.
@@ -38,6 +64,35 @@ extension FluohPlatformName on FluohPlatform {
       FluohPlatform.windows => 'windows',
     };
   }
+}
+
+/// Parses a platform CLI name.
+FluohPlatform? fluohPlatformFromCliName(String value) {
+  return _fluohPlatformByCliName[value];
+}
+
+/// Parses a command `--platform` option.
+List<FluohPlatform> fluohPlatformsFromCliOption(String? value) {
+  if (value == null || value == 'all') {
+    return defaultHostFluohPlatforms();
+  }
+  final platform = fluohPlatformFromCliName(value);
+  if (platform == null) {
+    throw ArgumentError.value(value, 'value', 'Unsupported platform.');
+  }
+  return [platform];
+}
+
+/// Default platform set for this host.
+List<FluohPlatform> defaultHostFluohPlatforms() {
+  return [
+    FluohPlatform.ohos,
+    FluohPlatform.android,
+    if (io.Platform.isMacOS) ...[FluohPlatform.ios, FluohPlatform.macos],
+    if (io.Platform.isLinux) FluohPlatform.linux,
+    FluohPlatform.web,
+    if (io.Platform.isWindows) FluohPlatform.windows,
+  ];
 }
 
 /// Native toolchain diagnostics for one platform.

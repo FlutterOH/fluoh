@@ -4,7 +4,7 @@ void _registerWorkflowCommandsDriveCoverageScenarioTests() {
   test('drive dry-run reports scenario coverage matrix', () async {
     final environment = await createTestEnvironment();
     final scenarioDirectory = Directory(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions',
+      '${environment.workingDirectory.path}/doc/fluoh/sample_permissions',
     );
     await scenarioDirectory.create(recursive: true);
     final cameraScenario = File('${scenarioDirectory.path}/android-camera.md');
@@ -245,7 +245,19 @@ steps:
         ),
       ),
     );
-    expect(report['targets'], isEmpty);
+    expect(
+      report['targets'],
+      contains(
+        allOf(
+          containsPair('target', {
+            'kind': 'package',
+            'name': 'sample_permissions',
+          }),
+          containsPair('phase', 'automation-dry-run'),
+          containsPair('passed', true),
+        ),
+      ),
+    );
     expect(stderr, isEmpty);
   });
 
@@ -254,7 +266,7 @@ steps:
     () async {
       final environment = await createTestEnvironment();
       final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-launch-only.md',
+        '${environment.workingDirectory.path}/doc/fluoh/sample_permissions/scenarios/android-launch-only.md',
       );
       await scenario.parent.create(recursive: true);
       await scenario.writeAsString('''
@@ -363,7 +375,7 @@ steps:
     () async {
       final environment = await createTestEnvironment();
       final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-bound-evidence.md',
+        '${environment.workingDirectory.path}/doc/fluoh/sample_permissions/scenarios/android-bound-evidence.md',
       );
       await scenario.parent.create(recursive: true);
       await scenario.writeAsString('''
@@ -457,7 +469,7 @@ steps:
   test('drive dry-run rejects coverage bound to launch-only assertion', () async {
     final environment = await createTestEnvironment();
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-bad-binding.md',
+      '${environment.workingDirectory.path}/doc/fluoh/sample_permissions/scenarios/android-bad-binding.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -535,7 +547,7 @@ steps:
     () async {
       final environment = await createTestEnvironment();
       final scenario = File(
-        '${environment.workingDirectory.path}/.fluoh/scenarios/sample_permissions/android-runtime-permission.md',
+        '${environment.workingDirectory.path}/doc/fluoh/sample_permissions/scenarios/android-runtime-permission.md',
       );
       await scenario.parent.create(recursive: true);
       await scenario.writeAsString('''
@@ -597,7 +609,7 @@ steps:
   test('drive dry-run allows explanatory coverage without assertions', () async {
     final environment = await createTestEnvironment();
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/sample/explanatory-coverage.md',
+      '${environment.workingDirectory.path}/doc/fluoh/sample/explanatory-coverage.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -685,7 +697,7 @@ steps:
   test('drive rejects invalid scenario coverage status', () async {
     final environment = await createTestEnvironment();
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/sample/invalid-coverage.md',
+      '${environment.workingDirectory.path}/doc/fluoh/sample/invalid-coverage.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''
@@ -734,7 +746,7 @@ steps:
   test('drive rejects blocked coverage without a reason', () async {
     final environment = await createTestEnvironment();
     final scenario = File(
-      '${environment.workingDirectory.path}/.fluoh/scenarios/sample/blocked-coverage.md',
+      '${environment.workingDirectory.path}/doc/fluoh/sample/blocked-coverage.md',
     );
     await scenario.parent.create(recursive: true);
     await scenario.writeAsString('''

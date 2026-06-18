@@ -16,7 +16,7 @@ void _registerWorkflowCommandsVerifyTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -72,7 +72,7 @@ void _registerWorkflowCommandsVerifyTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -124,7 +124,7 @@ void _registerWorkflowCommandsVerifyTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -222,7 +222,7 @@ void _registerWorkflowCommandsVerifyTests() {
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -293,7 +293,7 @@ Failed to update packages.
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -341,8 +341,11 @@ Failed to update packages.
       containsPair('suggestedEnvironmentSdkConstraint', '>=3.9.0 <4.0.0'),
     );
     expect(sdkConstraint, containsPair('suggestedFlutterSdkVersion', '3.44.1'));
-    final policy = details['adaptationPolicy'] as Map<String, Object?>;
-    expect(policy['defaultAction'], 'adapt-selected-upstream-to-selected-sdk');
+    final policy = details['supportPolicy'] as Map<String, Object?>;
+    expect(
+      policy['defaultAction'],
+      'implement-selected-upstream-for-selected-sdk',
+    );
     expect(policy['keepSelectedUpstream'], isTrue);
     expect(policy['adjustPackageForSelectedSdk'], isTrue);
     expect(policy['upstreamDowngradeRequiresApproval'], isTrue);
@@ -361,7 +364,7 @@ Failed to update packages.
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -388,7 +391,10 @@ Failed to update packages.
     expect(manifest.existsSync(), isTrue);
     expect(
       manifest.path,
-      startsWith('${environment.workingDirectory.path}/.fluoh/traces/'),
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        contains('/traces/'),
+      ),
     );
 
     final traceReport =
@@ -408,7 +414,7 @@ Failed to update packages.
     expect(stderr, isEmpty);
   });
 
-  test('package trace defaults to a package-scoped directory', () async {
+  test('package trace defaults to the current task trace directory', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
@@ -420,7 +426,7 @@ Failed to update packages.
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -443,68 +449,71 @@ Failed to update packages.
     expect(trace['id'], startsWith('verify-'));
     expect(
       trace['path'],
-      startsWith('${environment.workingDirectory.path}/.fluoh/traces/camera/'),
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        contains('/traces/'),
+      ),
     );
     final manifest = File(trace['manifest']! as String);
     expect(manifest.existsSync(), isTrue);
     expect(
       manifest.path,
-      startsWith('${environment.workingDirectory.path}/.fluoh/traces/camera/'),
+      allOf(
+        startsWith('${environment.workingDirectory.path}/.fluoh/tasks/'),
+        contains('/traces/'),
+      ),
     );
     expect(stderr, isEmpty);
   });
 
-  test(
-    'trace-dir recovers when an existing trace manifest is invalid',
-    () async {
-      final environment = await createTestEnvironment();
-      final source = await _createWorkflowSdkSource(
-        environment.homeDirectory,
-        environment.workingDirectory,
-      );
-      await _writePackageManifest(environment.workingDirectory);
-      await _writeFlutterPackage(environment.workingDirectory);
-      final stdout = <String>[];
-      final stderr = <String>[];
+  test('trace-dir recovers when an existing trace manifest is invalid', () async {
+    final environment = await createTestEnvironment();
+    final source = await _createWorkflowSdkSource(
+      environment.homeDirectory,
+      environment.workingDirectory,
+    );
+    await _writePackageManifest(environment.workingDirectory);
+    await _writeFlutterPackage(environment.workingDirectory);
+    final stdout = <String>[];
+    final stderr = <String>[];
 
+    await runFluoh(
+      ['source', 'enable', 'fixture', source.path],
+      environment: environment,
+      stdout: stdout.add,
+      stderr: stderr.add,
+    );
+    stdout.clear();
+    stderr.clear();
+
+    final traceDir = Directory(
+      '${environment.workingDirectory.path}/.fluoh/tasks/manual/traces/recover-invalid',
+    );
+    await traceDir.create(recursive: true);
+    final manifest = File('${traceDir.path}/trace.json');
+    await manifest.writeAsString('{invalid');
+
+    expect(
       await runFluoh(
-        ['source', 'add', 'fixture', source.path],
+        ['verify', '--json', '--trace-dir', traceDir.path],
         environment: environment,
         stdout: stdout.add,
         stderr: stderr.add,
-      );
-      stdout.clear();
-      stderr.clear();
+      ),
+      0,
+    );
 
-      final traceDir = Directory(
-        '${environment.workingDirectory.path}/.fluoh/traces/recover-invalid',
-      );
-      await traceDir.create(recursive: true);
-      final manifest = File('${traceDir.path}/trace.json');
-      await manifest.writeAsString('{invalid');
-
-      expect(
-        await runFluoh(
-          ['verify', '--json', '--trace-dir', traceDir.path],
-          environment: environment,
-          stdout: stdout.add,
-          stderr: stderr.add,
-        ),
-        0,
-      );
-
-      final report = jsonDecode(stdout.single) as Map<String, Object?>;
-      expect(report, containsPair('ok', true));
-      final trace = report['trace'] as Map<String, Object?>;
-      expect(trace, containsPair('manifest', manifest.path));
-      final traceReport =
-          jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
-      expect(traceReport, containsPair('command', 'verify'));
-      expect(traceReport['previousManifestError'], contains('Could not parse'));
-      expect(traceReport['invocations'], hasLength(1));
-      expect(stderr, isEmpty);
-    },
-  );
+    final report = jsonDecode(stdout.single) as Map<String, Object?>;
+    expect(report, containsPair('ok', true));
+    final trace = report['trace'] as Map<String, Object?>;
+    expect(trace, containsPair('manifest', manifest.path));
+    final traceReport =
+        jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
+    expect(traceReport, containsPair('command', 'verify'));
+    expect(traceReport['previousManifestError'], contains('Could not parse'));
+    expect(traceReport['invocations'], hasLength(1));
+    expect(stderr, isEmpty);
+  });
 
   test('trace write failures do not fail json workflow commands', () async {
     final environment = await createTestEnvironment();
@@ -518,7 +527,7 @@ Failed to update packages.
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -552,7 +561,7 @@ Failed to update packages.
     expect(stderr, isEmpty);
   });
 
-  test('trace-dir accumulates an AI adaptation command session', () async {
+  test('trace-dir accumulates an AI support command session', () async {
     final environment = await createTestEnvironment();
     final source = await _createWorkflowSdkSource(
       environment.homeDirectory,
@@ -567,7 +576,7 @@ Failed to update packages.
     final stderr = <String>[];
 
     await runFluoh(
-      ['source', 'add', 'fixture', source.path],
+      ['source', 'enable', 'fixture', source.path],
       environment: environment,
       stdout: stdout.add,
       stderr: stderr.add,
@@ -575,7 +584,7 @@ Failed to update packages.
     stdout.clear();
     stderr.clear();
 
-    const traceDir = '.fluoh/traces/adaptation session';
+    const traceDir = '.fluoh/tasks/manual/traces/support session';
     expect(
       await runFluoh(
         ['verify', '--json', '--trace-dir', traceDir],
@@ -602,7 +611,7 @@ Failed to update packages.
     final verifyTrace = verifyReport['trace'] as Map<String, Object?>;
     final buildTrace = buildReport['trace'] as Map<String, Object?>;
     expect(verifyTrace['manifest'], buildTrace['manifest']);
-    expect(verifyTrace, containsPair('id', 'adaptation-session'));
+    expect(verifyTrace, containsPair('id', 'support-session'));
     final manifest = File(buildTrace['manifest']! as String);
     final traceReport =
         jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;

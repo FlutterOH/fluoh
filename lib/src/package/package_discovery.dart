@@ -57,7 +57,7 @@ class PackageDiscovery {
     };
   }
 
-  /// Candidates that should be used by the default adaptation queue.
+  /// Candidates that should be used by the default support queue.
   List<PackageDiscoveryCandidate> recommendedCandidates(
     String missingPlatform,
   ) {
@@ -76,7 +76,7 @@ class PackageDiscoveryCandidate {
     required this.path,
     required this.platforms,
     required this.role,
-    required this.adaptationProfile,
+    required this.supportProfile,
     this.platformDefaultPackages = const {},
     this.coveredByImplementationRecommendations = const [],
     this.defaultRecommendationExclusionReason,
@@ -101,8 +101,8 @@ class PackageDiscoveryCandidate {
   /// Discovery role for AI package selection.
   final String role;
 
-  /// Capability and risk profile that helps AI seed adaptation tests.
-  final PackageAdaptationProfile adaptationProfile;
+  /// Capability and risk profile that helps AI seed support tests.
+  final PackageSupportProfile supportProfile;
 
   /// Federated default_package declarations keyed by platform.
   final Map<String, String> platformDefaultPackages;
@@ -112,14 +112,14 @@ class PackageDiscoveryCandidate {
   final List<PackageImplementationCoverage>
   coveredByImplementationRecommendations;
 
-  /// Reason this package should not enter the default adaptation queue even
+  /// Reason this package should not enter the default support queue even
   /// though it is a valid Flutter plugin missing the target platform.
   final String? defaultRecommendationExclusionReason;
 
   /// Whether this package declares [platform].
   bool declaresPlatform(String platform) => platforms.contains(platform);
 
-  /// Whether this package is a default recommended adaptation target.
+  /// Whether this package is a default recommended support target.
   bool isRecommendedFor(String missingPlatform) {
     return !declaresPlatform(missingPlatform) &&
         coveredByImplementationRecommendations.isEmpty &&
@@ -184,7 +184,7 @@ class PackageDiscoveryCandidate {
       'path': path,
       'platforms': platforms,
       'role': role,
-      'adaptationProfile': adaptationProfile.toJson(),
+      'supportProfile': supportProfile.toJson(),
       if (platformDefaultPackages.isNotEmpty)
         'platformDefaultPackages': platformDefaultPackages,
       'missingPlatforms': missingPlatforms,
@@ -197,12 +197,12 @@ class PackageDiscoveryCandidate {
                 .toList(),
       if (recommendation != null)
         'implementationRecommendation': recommendation.toJson(
-          setupCommand: packageDiscoveryCreateCommand(
+          setupCommand: packageDiscoveryPortCommand(
             upstream: upstream,
             candidate: this,
           ),
         ),
-      'createCommand': packageDiscoveryCreateCommand(
+      'portCommand': packageDiscoveryPortCommand(
         upstream: upstream,
         candidate: this,
       ),
@@ -220,7 +220,7 @@ class PackageDiscoveryCandidate {
       sdkConstraint: sdkConstraint,
       platforms: platforms,
       role: role,
-      adaptationProfile: adaptationProfile,
+      supportProfile: supportProfile,
       platformDefaultPackages: platformDefaultPackages,
       coveredByImplementationRecommendations:
           coveredByImplementationRecommendations ??
@@ -231,10 +231,10 @@ class PackageDiscoveryCandidate {
   }
 }
 
-/// Capability and risk profile for a discovered package adaptation target.
-class PackageAdaptationProfile {
-  /// Creates a package adaptation profile.
-  const PackageAdaptationProfile({
+/// Capability and risk profile for a discovered package support target.
+class PackageSupportProfile {
+  /// Creates a package support profile.
+  const PackageSupportProfile({
     required this.complexity,
     required this.categories,
     required this.riskReasons,
@@ -245,13 +245,13 @@ class PackageAdaptationProfile {
     this.blockerPolicy,
   });
 
-  /// Expected adaptation complexity: `low`, `medium`, `high`, or `external`.
+  /// Expected support complexity: `low`, `medium`, `high`, or `external`.
   final String complexity;
 
   /// Capability categories inferred from package metadata.
   final List<String> categories;
 
-  /// Stable reasons why the adaptation needs special attention.
+  /// Stable reasons why the support work needs special attention.
   final List<String> riskReasons;
 
   /// Evidence types that should be collected before release readiness.
@@ -260,10 +260,10 @@ class PackageAdaptationProfile {
   /// Coverage rows that can seed interaction scenarios or package tests.
   final List<PackageSuggestedCoverage> suggestedCoverage;
 
-  /// Whether official OHOS/platform documentation should be reviewed.
+  /// Whether official platform documentation should be reviewed.
   final bool officialDocsRequired;
 
-  /// Official documentation topics the adaptation should cite or disposition.
+  /// Official documentation topics the support work should cite or disposition.
   final List<String> officialDocTopics;
 
   /// External blocker policy when a vendor SDK or service may be unavailable.
@@ -306,7 +306,7 @@ class PackageSuggestedCoverage {
   /// Success, error, denied, unavailable, or lifecycle paths to cover.
   final List<String> paths;
 
-  /// Tool-readable evidence expected from the adaptation.
+  /// Tool-readable evidence expected from the support work.
   final String evidence;
 
   /// Converts this suggestion to JSON.
@@ -320,14 +320,14 @@ class PackageSuggestedCoverage {
   }
 }
 
-/// Infers a package adaptation profile from package metadata.
-PackageAdaptationProfile inferPackageAdaptationProfile({
+/// Infers a package support profile from package metadata.
+PackageSupportProfile inferPackageSupportProfile({
   required String name,
   String path = '.',
   String? description,
   Set<String> dependencyNames = const {},
 }) {
-  return _adaptationProfile(
+  return _supportProfile(
     name: name,
     path: path,
     description: description,
@@ -489,8 +489,8 @@ class PackageDiscoveryIssue {
   }
 }
 
-/// Discovers Flutter plugin packages that are candidates for OHOS adaptation.
-Future<PackageDiscovery> discoverPackageAdaptationCandidates({
+/// Discovers Flutter plugin packages that are candidates for FlutterOH support.
+Future<PackageDiscovery> discoverPackageSupportCandidates({
   required Directory repository,
   String missingPlatform = 'ohos',
   bool includeExistingPlatform = false,
@@ -670,15 +670,15 @@ String _parentPackagePath(String path) {
   return normalized.substring(0, slash);
 }
 
-/// Builds the suggested package create command for a discovered candidate.
-String packageDiscoveryCreateCommand({
+/// Builds the suggested package port command for a discovered candidate.
+String packageDiscoveryPortCommand({
   required String upstream,
   required PackageDiscoveryCandidate candidate,
 }) {
   final parts = [
     'fluoh',
     'package',
-    'create',
+    'port',
     upstream,
     '--repository-name',
     candidate.name,
@@ -777,7 +777,7 @@ Future<PackageDiscoveryCandidate?> _readDiscoveryCandidate(
     sdkConstraint: _sdkConstraint(yaml, relativePubspec, issues),
     platforms: platforms.names,
     role: role,
-    adaptationProfile: _adaptationProfile(
+    supportProfile: _supportProfile(
       name: name,
       path: packagePath,
       description: optionalString(yaml, 'description'),
@@ -816,7 +816,7 @@ String? _defaultRecommendationExclusionReason(String role) {
   };
 }
 
-PackageAdaptationProfile _adaptationProfile({
+PackageSupportProfile _supportProfile({
   required String name,
   required String path,
   required String? description,
@@ -1268,7 +1268,7 @@ PackageAdaptationProfile _adaptationProfile({
     riskReasons: riskReasons,
   );
 
-  return PackageAdaptationProfile(
+  return PackageSupportProfile(
     complexity: complexity,
     categories: List.unmodifiable(sortedCategories),
     riskReasons: List.unmodifiable(sortedRiskReasons),

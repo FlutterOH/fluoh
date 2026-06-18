@@ -116,10 +116,11 @@ Future<AutomationScenarioActionResult> _runIosTextAction(
     );
   }
 
+  final task = await TaskWorkspace(
+    context.environment,
+  ).resolveOrCreate(type: 'automation', scopeName: context.scenario.name);
   final project = await writeIosXCTestTextActionProject(
-    cacheRoot: Directory(
-      '${context.environment.projectCacheDirectory.path}/automation',
-    ),
+    cacheRoot: Directory('${task.scratchDirectory.path}/automation'),
     bundleId: bundleId,
     labels: labels,
     match: action.match,
@@ -227,10 +228,11 @@ Future<AutomationScenarioActionResult> _runIosCoordinateAction(
     );
   }
 
+  final task = await TaskWorkspace(
+    context.environment,
+  ).resolveOrCreate(type: 'automation', scopeName: context.scenario.name);
   final project = await writeIosXCTestCoordinateActionProject(
-    cacheRoot: Directory(
-      '${context.environment.projectCacheDirectory.path}/automation',
-    ),
+    cacheRoot: Directory('${task.scratchDirectory.path}/automation'),
     bundleId: bundleId,
     x: coordinates.x,
     y: coordinates.y,
