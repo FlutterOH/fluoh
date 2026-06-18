@@ -549,7 +549,14 @@ dependencyPolicy:
       );
       expect(
         await runFluoh(
-          ['source', 'enable', 'second', secondSource.path, '--priority', '100'],
+          [
+            'source',
+            'enable',
+            'second',
+            secondSource.path,
+            '--priority',
+            '100',
+          ],
           environment: environment,
           stdout: stdout.add,
           stderr: stderr.add,
